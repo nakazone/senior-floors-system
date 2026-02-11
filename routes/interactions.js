@@ -52,31 +52,61 @@ export async function listInteractions(req, res) {
   }
 }
 
+const ALLOWED_TYPES = ['call', 'whatsapp', 'email', 'visit', 'meeting'];
+
 export async function createInteraction(req, res) {
   const leadId = parseInt(req.params.leadId);
-  const userId = req.session?.user?.id;
+  const userId = req.session?.user?.id ?? req.session?.userId;
 
   if (!leadId || isNaN(leadId)) {
     return res.status(400).json({ success: false, error: 'Invalid lead ID' });
   }
 
   const body = req.body || {};
-  const type = body.type;
-  const notes = body.notes ?? null;
+  let type = (body.type || '').trim().toLowerCase();
+  const notes = body.notes != null ? String(body.notes).trim() : null;
+  const subject = body.subject != null ? String(body.subject).trim() : null;
 
   if (!type) {
     return res.status(400).json({ success: false, error: 'Type is required' });
   }
+  if (!ALLOWED_TYPES.includes(type)) {
+    type = 'call';
+  }
 
   try {
     const pool = await getDBConnection();
-    // INSERT apenas colunas que existem na tabela (compatível com schema mínimo: lead_id, user_id, type, notes)
-    const [result] = await pool.execute(
-      `INSERT INTO interactions (lead_id, user_id, type, notes) VALUES (?, ?, ?, ?)`,
-      [leadId, userId ?? null, type, notes]
-    );
+    if (!pool) {
+      return res.status(503).json({ success: false, error: 'Database not available' });
+    }
 
-    // Buscar criado
+    let result;
+    try {
+      const [cols] = await pool.execute("SHOW COLUMNS FROM interactions WHERE Field = 'subject'");
+      const hasSubject = cols && cols.length > 0;
+      if (hasSubject) {
+        [result] = await pool.execute(
+          `INSERT INTO interactions (lead_id, user_id, type, subject, notes) VALUES (?, ?, ?, ?, ?)`,
+          [leadId, userId ?? null, type, subject || null, notes]
+        );
+      } else {
+        [result] = await pool.execute(
+          `INSERT INTO interactions (lead_id, user_id, type, notes) VALUES (?, ?, ?, ?)`,
+          [leadId, userId ?? null, type, notes]
+        );
+      }
+    } catch (insertErr) {
+      if (insertErr.code === 'ER_TRUNCATED_WRONG_VALUE_FOR_FIELD' || insertErr.message?.includes('enum')) {
+        type = type === 'meeting' ? 'visit' : 'call';
+        [result] = await pool.execute(
+          `INSERT INTO interactions (lead_id, user_id, type, notes) VALUES (?, ?, ?, ?)`,
+          [leadId, userId ?? null, type, notes]
+        );
+      } else {
+        throw insertErr;
+      }
+    }
+
     const [created] = await pool.execute(
       `SELECT i.*, u.name as user_name, u.email as user_email
        FROM interactions i

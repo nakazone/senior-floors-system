@@ -75,6 +75,16 @@ mysql -h HOST -P PORT -u USER -pPASSWORD DATABASE < database/schema-completo.sql
 2. Conecte com MySQL Workbench/DBeaver/TablePlus
 3. Execute o conteúdo de `schema-completo.sql`
 
+### Tabela `interactions` (interações por lead)
+
+Se as interações não estiverem sendo salvas (aba Interações no detalhe do lead), garanta que a tabela existe e aceita todos os tipos:
+
+```bash
+node database/run-ensure-interactions.js
+```
+
+Ou execute o SQL: `database/ensure-interactions-table.sql`. O script também converte a coluna `type` de ENUM para VARCHAR quando necessário (para aceitar "meeting").
+
 ---
 
 ## Estrutura das Tabelas

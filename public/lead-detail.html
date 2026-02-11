@@ -507,6 +507,43 @@
         </div>
     </div>
 
+    <!-- Lightbox: Agendar Visita -->
+    <div id="newVisitModal" class="modal modal-lightbox" aria-hidden="true">
+        <div class="modal-backdrop" onclick="closeVisitModal()"></div>
+        <div class="modal-content modal-content-lightbox">
+            <div class="modal-header modal-header-lightbox">
+                <h3>🏠 Agendar Visita</h3>
+                <button type="button" class="modal-close modal-close-lightbox" onclick="closeVisitModal()" aria-label="Fechar">&times;</button>
+            </div>
+            <form id="newVisitForm" onsubmit="return submitVisitForm(event)">
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label>Data e hora *</label>
+                        <input type="datetime-local" id="visitScheduledAt" name="scheduled_at" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Endereço *</label>
+                        <input type="text" id="visitAddress" name="address" required placeholder="Endereço completo da visita">
+                    </div>
+                    <div class="form-group">
+                        <label>Notas <span class="optional">(opcional)</span></label>
+                        <textarea id="visitNotes" name="notes" rows="3" placeholder="Instruções, portaria, etc."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Designar para</label>
+                        <select name="assigned_to" id="visitAssignedSelect">
+                            <option value="">Eu mesmo</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer-lightbox">
+                    <button type="button" class="btn btn-secondary" onclick="closeVisitModal()">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Agendar visita</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <script src="lead-detail.js"></script>
 </body>
 </html>

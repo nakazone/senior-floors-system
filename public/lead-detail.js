@@ -416,30 +416,41 @@ async function saveQualification() {
 }
 
 async function loadInteractions() {
+    const list = document.getElementById('interactionsList');
+    if (!list) return;
     try {
         const response = await fetch(`/api/leads/${currentLeadId}/interactions`, { credentials: 'include' });
         const data = await response.json();
-        
-        const list = document.getElementById('interactionsList');
-        if (data.success && data.data && data.data.length > 0) {
-            list.innerHTML = data.data.map(interaction => `
-                <li class="timeline-item">
+        if (!data.success) {
+            list.innerHTML = '<li class="empty-state">Erro ao carregar interações.</li>';
+            return;
+        }
+        const items = data.data || [];
+        if (items.length > 0) {
+            list.innerHTML = items.map(interaction => {
+                const dateStr = interaction.created_at ? new Date(interaction.created_at).toLocaleString() : '-';
+                const typeLabel = getInteractionTypeLabel(interaction.type);
+                const notes = interaction.notes ? String(interaction.notes) : '';
+                const subject = interaction.subject ? String(interaction.subject) : '';
+                const userName = interaction.user_name ? String(interaction.user_name) : '';
+                return `<li class="timeline-item">
                     <div class="timeline-item-header">
-                        <span class="timeline-item-title">${getInteractionTypeLabel(interaction.type)}</span>
-                        <span class="timeline-item-date">${new Date(interaction.created_at).toLocaleString()}</span>
+                        <span class="timeline-item-title">${typeLabel}</span>
+                        <span class="timeline-item-date">${dateStr}</span>
                     </div>
                     <div class="timeline-item-content">
-                        ${interaction.subject ? `<strong>${interaction.subject}</strong><br>` : ''}
-                        ${interaction.notes || ''}
-                        ${interaction.user_name ? `<br><small>Por: ${interaction.user_name}</small>` : ''}
+                        ${subject ? `<strong>${escapeHtml(subject)}</strong><br>` : ''}
+                        ${escapeHtml(notes)}
+                        ${userName ? `<br><small>Por: ${escapeHtml(userName)}</small>` : ''}
                     </div>
-                </li>
-            `).join('');
+                </li>`;
+            }).join('');
         } else {
             list.innerHTML = '<li class="empty-state">Nenhuma interação registrada ainda.</li>';
         }
     } catch (error) {
         console.error('Error loading interactions:', error);
+        list.innerHTML = '<li class="empty-state">Erro ao carregar interações.</li>';
     }
 }
 
@@ -550,25 +561,45 @@ function submitFollowupForm(e) {
     return false;
 }
 
+function getVisitStatusLabel(status) {
+    const labels = { scheduled: 'Agendada', confirmed: 'Confirmada', completed: 'Realizada', cancelled: 'Cancelada', no_show: 'Não compareceu' };
+    return labels[status] || status || 'Agendada';
+}
+
 async function loadVisits() {
+    const container = document.getElementById('visitsList');
+    if (!container) return;
     try {
         const response = await fetch(`/api/visits?lead_id=${currentLeadId}`, { credentials: 'include' });
         const data = await response.json();
-        
-        const container = document.getElementById('visitsList');
-        if (data.success && data.data && data.data.length > 0) {
-            container.innerHTML = data.data.map(visit => `
-                <div style="padding: 15px; border: 1px solid #ddd; border-radius: 4px; margin-bottom: 10px;">
-                    <h3>${new Date(visit.scheduled_at).toLocaleString()}</h3>
-                    <p><strong>Endereço:</strong> ${visit.address || '-'}</p>
-                    <p><strong>Status:</strong> ${visit.status || 'scheduled'}</p>
-                </div>
-            `).join('');
+        if (!data.success) {
+            container.innerHTML = '<div class="empty-state">Erro ao carregar visitas.</div>';
+            return;
+        }
+        const items = data.data || [];
+        if (items.length > 0) {
+            container.innerHTML = items.map(visit => {
+                const dateStr = visit.scheduled_at ? new Date(visit.scheduled_at).toLocaleString() : '-';
+                const address = visit.address ? escapeHtml(visit.address) : '-';
+                const status = getVisitStatusLabel(visit.status);
+                const assigned = visit.assigned_to_name ? escapeHtml(visit.assigned_to_name) : '';
+                const notes = visit.notes ? escapeHtml(String(visit.notes)) : '';
+                return `<div class="visit-card">
+                    <div class="visit-card-header">
+                        <span class="visit-card-date">📅 ${dateStr}</span>
+                        <span class="visit-card-status visit-status-${(visit.status || 'scheduled')}">${status}</span>
+                    </div>
+                    <p class="visit-card-address"><strong>Endereço:</strong> ${address}</p>
+                    ${assigned ? `<p class="visit-card-assigned"><strong>Responsável:</strong> ${assigned}</p>` : ''}
+                    ${notes ? `<p class="visit-card-notes">${notes}</p>` : ''}
+                </div>`;
+            }).join('');
         } else {
             container.innerHTML = '<div class="empty-state">Nenhuma visita agendada ainda.</div>';
         }
     } catch (error) {
         console.error('Error loading visits:', error);
+        container.innerHTML = '<div class="empty-state">Erro ao carregar visitas.</div>';
     }
 }
 
@@ -634,7 +665,99 @@ function submitInteractionForm(e) {
 }
 
 function showNewVisitModal() {
-    alert('Funcionalidade de agendar visita em desenvolvimento');
+    const modal = document.getElementById('newVisitModal');
+    if (!modal) return;
+    const scheduled = document.getElementById('visitScheduledAt');
+    if (scheduled) {
+        const d = new Date();
+        d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+        scheduled.value = d.toISOString().slice(0, 16);
+    }
+    var addrEl = document.getElementById('visitAddress');
+    if (addrEl) {
+        var addr = (currentLead && (currentLead.address || currentLead.address_line1)) ? (currentLead.address || currentLead.address_line1) : '';
+        if (!addr && currentLead && currentLead.zipcode) addr = 'Zip: ' + currentLead.zipcode;
+        addrEl.value = addr;
+    }
+    document.getElementById('visitNotes').value = '';
+    loadUsersForVisitSelect();
+    modal.classList.add('active');
+    modal.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+}
+
+function closeVisitModal() {
+    const modal = document.getElementById('newVisitModal');
+    if (modal) {
+        modal.classList.remove('active');
+        modal.setAttribute('aria-hidden', 'true');
+        document.body.style.overflow = '';
+    }
+}
+
+async function loadUsersForVisitSelect() {
+    const sel = document.getElementById('visitAssignedSelect');
+    if (!sel) return;
+    try {
+        const r = await fetch('/api/users?limit=100', { credentials: 'include' });
+        const d = await r.json();
+        sel.innerHTML = '<option value="">Eu mesmo</option>';
+        if (d.success && d.data && d.data.length) {
+            d.data.forEach(u => {
+                if (!u.id) return;
+                const opt = document.createElement('option');
+                opt.value = u.id;
+                opt.textContent = u.name || u.email || 'User ' + u.id;
+                sel.appendChild(opt);
+            });
+        }
+    } catch (e) { /* ignore */ }
+}
+
+function submitVisitForm(e) {
+    e.preventDefault();
+    const scheduledAt = document.getElementById('visitScheduledAt').value;
+    const address = document.getElementById('visitAddress').value.trim();
+    const notes = document.getElementById('visitNotes').value.trim() || null;
+    const sellerId = document.getElementById('visitAssignedSelect').value || null;
+    if (!scheduledAt || !address) {
+        alert('Preencha data/hora e endereço.');
+        return false;
+    }
+    var btn = document.querySelector('#newVisitForm button[type="submit"]');
+    if (btn) { btn.disabled = true; btn.textContent = 'Agendando...'; }
+    createVisit({
+        lead_id: parseInt(currentLeadId, 10),
+        scheduled_at: scheduledAt,
+        address: address,
+        notes: notes,
+        seller_id: sellerId ? parseInt(sellerId, 10) : null
+    }, btn);
+    return false;
+}
+
+async function createVisit(payload, submitBtn) {
+    try {
+        const response = await fetch('/api/visits', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify(payload)
+        });
+        const data = await response.json();
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Agendar visita'; }
+        if (data.success) {
+            closeVisitModal();
+            await loadLead();
+            switchTab('visits');
+        } else {
+            alert('Erro ao agendar visita: ' + (data.error || 'Desconhecido'));
+        }
+    } catch (error) {
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Agendar visita'; }
+        console.error('Error creating visit:', error);
+        alert('Erro ao agendar visita');
+    }
 }
 
 function showNewProposalModal() {
@@ -652,7 +775,8 @@ async function createInteraction(interaction) {
 
         const data = await response.json();
         if (data.success) {
-            loadInteractions();
+            await loadInteractions();
+            switchTab('interactions');
         } else {
             alert('Erro: ' + (data.error || 'Desconhecido'));
         }
