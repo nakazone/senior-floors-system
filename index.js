@@ -95,31 +95,27 @@ app.get('/api/dashboard/stats', requireAuth, getDashboardStats);
 // Pipeline Stages
 app.get('/api/pipeline-stages', requireAuth, listPipelineStages);
 
-// Leads
+// Leads (rotas com subpath primeiro, depois :id)
 app.get('/api/leads', requireAuth, listLeads);
+app.get('/api/leads/:leadId/qualification', requireAuth, getQualification);
+app.post('/api/leads/:leadId/qualification', requireAuth, createOrUpdateQualification);
+app.put('/api/leads/:leadId/qualification', requireAuth, createOrUpdateQualification);
+app.get('/api/leads/:leadId/interactions', requireAuth, listInteractions);
+app.post('/api/leads/:leadId/interactions', requireAuth, createInteraction);
+app.get('/api/leads/:leadId/followups', requireAuth, listFollowups);
+app.post('/api/leads/:leadId/followups', requireAuth, createFollowup);
+app.get('/api/leads/:leadId/proposals', requireAuth, listProposals);
+app.post('/api/leads/:leadId/proposals', requireAuth, createProposal);
 app.get('/api/leads/:id', requireAuth, getLead);
 app.post('/api/leads', requireAuth, createLead);
 app.put('/api/leads/:id', requireAuth, updateLead);
 
-// Lead Qualification
-app.get('/api/leads/:leadId/qualification', requireAuth, getQualification);
-app.post('/api/leads/:leadId/qualification', requireAuth, createOrUpdateQualification);
-app.put('/api/leads/:leadId/qualification', requireAuth, createOrUpdateQualification);
-
-// Lead Interactions
-app.get('/api/leads/:leadId/interactions', requireAuth, listInteractions);
-app.post('/api/leads/:leadId/interactions', requireAuth, createInteraction);
-
-// Follow-ups
-app.get('/api/leads/:leadId/followups', requireAuth, listFollowups);
-app.post('/api/leads/:leadId/followups', requireAuth, createFollowup);
+// Follow-ups (por ID de follow-up)
 app.put('/api/followups/:followupId', requireAuth, updateFollowup);
 app.delete('/api/followups/:followupId', requireAuth, deleteFollowup);
 
 // Proposals
-app.get('/api/leads/:leadId/proposals', requireAuth, listProposals);
 app.get('/api/proposals/:proposalId', requireAuth, getProposal);
-app.post('/api/leads/:leadId/proposals', requireAuth, createProposal);
 app.put('/api/proposals/:proposalId', requireAuth, updateProposal);
 
 // Customers

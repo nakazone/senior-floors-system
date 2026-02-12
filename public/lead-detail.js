@@ -420,9 +420,17 @@ async function loadInteractions() {
     if (!list) return;
     try {
         const response = await fetch(`/api/leads/${currentLeadId}/interactions`, { credentials: 'include' });
-        const data = await response.json();
+        let data;
+        try {
+            data = await response.json();
+        } catch (_) {
+            list.innerHTML = '<li class="empty-state">Resposta inválida do servidor (status ' + response.status + ').</li>';
+            return;
+        }
         if (!data.success) {
-            list.innerHTML = '<li class="empty-state">Erro ao carregar interações.</li>';
+            var msg = (data.error || 'Erro ao carregar interações.');
+            if (response.status === 401) msg = 'Sessão expirada. Faça login novamente.';
+            list.innerHTML = '<li class="empty-state">' + escapeHtml(msg) + '</li>';
             return;
         }
         const items = data.data || [];
@@ -450,7 +458,7 @@ async function loadInteractions() {
         }
     } catch (error) {
         console.error('Error loading interactions:', error);
-        list.innerHTML = '<li class="empty-state">Erro ao carregar interações.</li>';
+        list.innerHTML = '<li class="empty-state">Erro ao carregar interações. ' + escapeHtml(error.message || '') + '</li>';
     }
 }
 
