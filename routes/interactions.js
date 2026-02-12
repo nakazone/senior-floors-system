@@ -5,6 +5,21 @@
 
 import { getDBConnection } from '../config/db.js';
 
+const CREATE_INTERACTIONS_IF_NOT_EXISTS = `
+CREATE TABLE IF NOT EXISTS interactions (
+  id int(11) NOT NULL AUTO_INCREMENT,
+  lead_id int(11) NOT NULL,
+  user_id int(11) DEFAULT NULL,
+  type varchar(50) NOT NULL,
+  subject varchar(255) DEFAULT NULL,
+  notes text DEFAULT NULL,
+  created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_lead_id (lead_id),
+  KEY idx_created_at (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+`;
+
 export async function listInteractions(req, res) {
   const leadId = parseInt(req.params.leadId);
   const page = parseInt(req.query.page) || 1;
@@ -17,35 +32,68 @@ export async function listInteractions(req, res) {
 
   try {
     const pool = await getDBConnection();
-    
-    // Contar total
-    const [countResult] = await pool.execute(
-      'SELECT COUNT(*) as total FROM interactions WHERE lead_id = ?',
-      [leadId]
-    );
-    const total = countResult[0].total;
+    if (!pool) {
+      return res.status(503).json({ success: false, error: 'Database not available' });
+    }
 
-    // Buscar interações
-    const [rows] = await pool.execute(
-      `SELECT i.*, u.name as user_name, u.email as user_email
-       FROM interactions i
-       LEFT JOIN users u ON i.user_id = u.id
-       WHERE i.lead_id = ?
-       ORDER BY i.created_at DESC
-       LIMIT ? OFFSET ?`,
-      [leadId, limit, offset]
-    );
+    let rows;
+    try {
+      const [countResult] = await pool.execute(
+        'SELECT COUNT(*) as total FROM interactions WHERE lead_id = ?',
+        [leadId]
+      );
+      const total = countResult[0].total;
 
-    return res.json({
-      success: true,
-      data: rows,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit)
+      [rows] = await pool.execute(
+        `SELECT i.*, u.name as user_name, u.email as user_email
+         FROM interactions i
+         LEFT JOIN users u ON i.user_id = u.id
+         WHERE i.lead_id = ?
+         ORDER BY i.created_at DESC
+         LIMIT ? OFFSET ?`,
+        [leadId, limit, offset]
+      );
+
+      return res.json({
+        success: true,
+        data: rows,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit)
+        }
+      });
+    } catch (tableErr) {
+      const msg = tableErr.message || '';
+      if (msg.includes("doesn't exist") && msg.includes('interactions')) {
+        await pool.execute(CREATE_INTERACTIONS_IF_NOT_EXISTS);
+        const [countResult] = await pool.execute(
+          'SELECT COUNT(*) as total FROM interactions WHERE lead_id = ?',
+          [leadId]
+        );
+        [rows] = await pool.execute(
+          `SELECT i.*, u.name as user_name, u.email as user_email
+           FROM interactions i
+           LEFT JOIN users u ON i.user_id = u.id
+           WHERE i.lead_id = ?
+           ORDER BY i.created_at DESC
+           LIMIT ? OFFSET ?`,
+          [leadId, limit, offset]
+        );
+        return res.json({
+          success: true,
+          data: rows || [],
+          pagination: {
+            page,
+            limit,
+            total: countResult[0].total,
+            totalPages: Math.ceil((countResult[0].total || 0) / limit)
+          }
+        });
       }
-    });
+      throw tableErr;
+    }
   } catch (error) {
     console.error('Error listing interactions:', error);
     return res.status(500).json({ success: false, error: error.message });
@@ -117,6 +165,25 @@ export async function createInteraction(req, res) {
 
     return res.status(201).json({ success: true, data: created[0] });
   } catch (error) {
+    const msg = error.message || '';
+    if (msg.includes("doesn't exist") && msg.includes('interactions')) {
+      try {
+        await pool.execute(CREATE_INTERACTIONS_IF_NOT_EXISTS);
+        [result] = await pool.execute(
+          `INSERT INTO interactions (lead_id, user_id, type, notes) VALUES (?, ?, ?, ?)`,
+          [leadId, userId ?? null, type, notes]
+        );
+        const [created] = await pool.execute(
+          `SELECT i.*, u.name as user_name, u.email as user_email
+           FROM interactions i LEFT JOIN users u ON i.user_id = u.id WHERE i.id = ?`,
+          [result.insertId]
+        );
+        return res.status(201).json({ success: true, data: created[0] });
+      } catch (retryErr) {
+        console.error('Error after creating table:', retryErr);
+        return res.status(500).json({ success: false, error: retryErr.message });
+      }
+    }
     console.error('Error creating interaction:', error);
     return res.status(500).json({ success: false, error: error.message });
   }
