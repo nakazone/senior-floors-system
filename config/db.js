@@ -1,11 +1,31 @@
 /**
  * Database config - MySQL (Railway addon or external)
+ * Aceita: DATABASE_URL (mysql://user:pass@host:port/db) ou DB_HOST + DB_USER + DB_PASS + DB_NAME
  */
 import mysql from 'mysql2/promise';
 
 let pool = null;
 
+function parseDatabaseUrl(url) {
+  if (!url || typeof url !== 'string') return null;
+  try {
+    const u = url.startsWith('mysql') ? url : 'mysql://' + url.replace(/^\/\//, '');
+    const parsed = new URL(u);
+    return {
+      host: parsed.hostname,
+      port: parseInt(parsed.port) || 3306,
+      user: decodeURIComponent(parsed.username || ''),
+      password: decodeURIComponent(parsed.password || ''),
+      database: parsed.pathname.replace(/^\//, '').replace(/\?.*$/, '') || 'railway',
+    };
+  } catch (_) {
+    return null;
+  }
+}
+
 function isDatabaseConfigured() {
+  const url = process.env.DATABASE_URL || process.env.DATABASE_PUBLIC_URL || process.env.MYSQL_URL;
+  if (url) return true;
   const user = process.env.DB_USER || '';
   const pass = process.env.DB_PASS || '';
   const name = process.env.DB_NAME || '';
@@ -13,15 +33,30 @@ function isDatabaseConfigured() {
   return noPlaceholder(user) && noPlaceholder(pass) && noPlaceholder(name);
 }
 
-async function getDBConnection() {
-  if (!isDatabaseConfigured()) return null;
-  if (pool) return pool;
-  try {
-    pool = mysql.createPool({
+function getConfig() {
+  const url = process.env.DATABASE_URL || process.env.DATABASE_PUBLIC_URL || process.env.MYSQL_URL;
+  const fromUrl = parseDatabaseUrl(url);
+  if (fromUrl && fromUrl.user && fromUrl.database) return fromUrl;
+  if (process.env.DB_HOST && process.env.DB_USER && process.env.DB_PASS && process.env.DB_NAME) {
+    return {
       host: process.env.DB_HOST || 'localhost',
+      port: parseInt(process.env.DB_PORT) || 3306,
       user: process.env.DB_USER,
       password: process.env.DB_PASS,
       database: process.env.DB_NAME,
+    };
+  }
+  return null;
+}
+
+async function getDBConnection() {
+  if (!isDatabaseConfigured()) return null;
+  if (pool) return pool;
+  const config = getConfig();
+  if (!config) return null;
+  try {
+    pool = mysql.createPool({
+      ...config,
       charset: 'utf8mb4',
       waitForConnections: true,
       connectionLimit: 10,
