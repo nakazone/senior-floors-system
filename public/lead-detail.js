@@ -761,6 +761,30 @@ async function loadUsersForEditVisitSelect(selectedUserId) {
     } catch (e) { /* ignore */ }
 }
 
+function parseAddressForEdit(addressStr) {
+    if (!addressStr || typeof addressStr !== 'string') return { addressLine1: '', addressLine2: '', city: '', zipcode: '' };
+    var s = addressStr.trim();
+    var parts = s.split(',').map(function (p) { return p.trim(); }).filter(Boolean);
+    if (parts.length >= 3) {
+        return { addressLine1: parts[0], addressLine2: parts.slice(1, -2).join(', '), city: parts[parts.length - 2], zipcode: parts[parts.length - 1] || '' };
+    }
+    if (parts.length === 2) return { addressLine1: parts[0], addressLine2: '', city: parts[1], zipcode: '' };
+    if (parts.length === 1) return { addressLine1: parts[0], addressLine2: '', city: '', zipcode: '' };
+    return { addressLine1: s, addressLine2: '', city: '', zipcode: '' };
+}
+
+function setAddressFields(prefix, obj) {
+    var o = obj || {};
+    var line1 = document.getElementById(prefix + 'AddressLine1');
+    var line2 = document.getElementById(prefix + 'AddressLine2');
+    var city = document.getElementById(prefix + 'City');
+    var zip = document.getElementById(prefix + 'ZipCode');
+    if (line1) line1.value = o.addressLine1 || '';
+    if (line2) line2.value = o.addressLine2 || '';
+    if (city) city.value = o.city || '';
+    if (zip) zip.value = o.zipcode || '';
+}
+
 async function showEditVisitModal(visitId) {
     const modal = document.getElementById('editVisitModal');
     if (!modal) return;
@@ -799,22 +823,23 @@ function submitEditVisitForm(e) {
     var visitId = document.getElementById('editVisitId').value;
     if (!visitId) return false;
     var scheduledAt = document.getElementById('editVisitScheduledAt').value;
-    var address = document.getElementById('editVisitAddress').value.trim();
+    var addressLine1 = (document.getElementById('editVisitAddressLine1') && document.getElementById('editVisitAddressLine1').value) ? document.getElementById('editVisitAddressLine1').value.trim() : '';
+    var addressLine2 = (document.getElementById('editVisitAddressLine2') && document.getElementById('editVisitAddressLine2').value) ? document.getElementById('editVisitAddressLine2').value.trim() : '';
+    var city = (document.getElementById('editVisitCity') && document.getElementById('editVisitCity').value) ? document.getElementById('editVisitCity').value.trim() : '';
+    var zipcode = (document.getElementById('editVisitZipCode') && document.getElementById('editVisitZipCode').value) ? document.getElementById('editVisitZipCode').value.trim() : '';
+    var address = [addressLine1, addressLine2, city, zipcode].filter(Boolean).join(', ');
     var notes = document.getElementById('editVisitNotes').value.trim() || null;
     var sellerId = document.getElementById('editVisitAssignedSelect').value || null;
     var status = document.getElementById('editVisitStatus').value || 'scheduled';
-    if (!scheduledAt || !address) {
-        alert('Preencha data/hora e endereço completo.');
+    if (!scheduledAt || !addressLine1 || !city) {
+        alert('Preencha data/hora, endereço (linha 1) e cidade.');
         return false;
     }
     var btn = document.querySelector('#editVisitForm button[type="submit"]');
     if (btn) { btn.disabled = true; btn.textContent = 'Salvando...'; }
     updateVisit(visitId, {
         scheduled_at: scheduledAt,
-        address_line1: addressLine1,
-        address_line2: addressLine2 || null,
-        city: city,
-        zipcode: zipcode || null,
+        address: address,
         notes: notes,
         seller_id: sellerId ? parseInt(sellerId, 10) : null,
         status: status
