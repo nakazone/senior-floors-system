@@ -21,9 +21,9 @@ CREATE TABLE IF NOT EXISTS interactions (
 `;
 
 export async function listInteractions(req, res) {
-  const leadId = parseInt(req.params.leadId);
-  const page = parseInt(req.query.page) || 1;
-  const limit = parseInt(req.query.limit) || 20;
+  const leadId = parseInt(req.params.leadId, 10);
+  const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+  const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 20));
   const offset = (page - 1) * limit;
 
   if (!leadId || isNaN(leadId)) {
@@ -42,7 +42,7 @@ export async function listInteractions(req, res) {
         'SELECT COUNT(*) as total FROM interactions WHERE lead_id = ?',
         [leadId]
       );
-      const total = countResult[0].total;
+      const total = Number(countResult[0].total) || 0;
 
       [rows] = await pool.execute(
         `SELECT i.*, u.name as user_name, u.email as user_email
@@ -50,8 +50,8 @@ export async function listInteractions(req, res) {
          LEFT JOIN users u ON i.user_id = u.id
          WHERE i.lead_id = ?
          ORDER BY i.created_at DESC
-         LIMIT ? OFFSET ?`,
-        [leadId, limit, offset]
+         LIMIT ${limit} OFFSET ${offset}`,
+        [leadId]
       );
 
       return res.json({
@@ -78,8 +78,8 @@ export async function listInteractions(req, res) {
            LEFT JOIN users u ON i.user_id = u.id
            WHERE i.lead_id = ?
            ORDER BY i.created_at DESC
-           LIMIT ? OFFSET ?`,
-          [leadId, limit, offset]
+           LIMIT ${limit} OFFSET ${offset}`,
+          [leadId]
         );
         return res.json({
           success: true,
@@ -103,8 +103,9 @@ export async function listInteractions(req, res) {
 const ALLOWED_TYPES = ['call', 'whatsapp', 'email', 'visit', 'meeting'];
 
 export async function createInteraction(req, res) {
-  const leadId = parseInt(req.params.leadId);
+  const leadId = parseInt(req.params.leadId, 10);
   const userId = req.session?.user?.id ?? req.session?.userId;
+  const userIdNum = userId != null ? parseInt(userId, 10) || null : null;
 
   if (!leadId || isNaN(leadId)) {
     return res.status(400).json({ success: false, error: 'Invalid lead ID' });
@@ -135,12 +136,12 @@ export async function createInteraction(req, res) {
       if (hasSubject) {
         [result] = await pool.execute(
           `INSERT INTO interactions (lead_id, user_id, type, subject, notes) VALUES (?, ?, ?, ?, ?)`,
-          [leadId, userId ?? null, type, subject || null, notes]
+          [leadId, userIdNum, type, subject || null, notes]
         );
       } else {
         [result] = await pool.execute(
           `INSERT INTO interactions (lead_id, user_id, type, notes) VALUES (?, ?, ?, ?)`,
-          [leadId, userId ?? null, type, notes]
+          [leadId, userIdNum, type, notes]
         );
       }
     } catch (insertErr) {
@@ -148,19 +149,20 @@ export async function createInteraction(req, res) {
         type = type === 'meeting' ? 'visit' : 'call';
         [result] = await pool.execute(
           `INSERT INTO interactions (lead_id, user_id, type, notes) VALUES (?, ?, ?, ?)`,
-          [leadId, userId ?? null, type, notes]
+          [leadId, userIdNum, type, notes]
         );
       } else {
         throw insertErr;
       }
     }
 
+    const insertId = Number(result.insertId);
     const [created] = await pool.execute(
       `SELECT i.*, u.name as user_name, u.email as user_email
        FROM interactions i
        LEFT JOIN users u ON i.user_id = u.id
        WHERE i.id = ?`,
-      [result.insertId]
+      [insertId]
     );
 
     return res.status(201).json({ success: true, data: created[0] });
@@ -171,12 +173,13 @@ export async function createInteraction(req, res) {
         await pool.execute(CREATE_INTERACTIONS_IF_NOT_EXISTS);
         [result] = await pool.execute(
           `INSERT INTO interactions (lead_id, user_id, type, notes) VALUES (?, ?, ?, ?)`,
-          [leadId, userId ?? null, type, notes]
+          [leadId, userIdNum, type, notes]
         );
+        const insertId = Number(result.insertId);
         const [created] = await pool.execute(
           `SELECT i.*, u.name as user_name, u.email as user_email
            FROM interactions i LEFT JOIN users u ON i.user_id = u.id WHERE i.id = ?`,
-          [result.insertId]
+          [insertId]
         );
         return res.status(201).json({ success: true, data: created[0] });
       } catch (retryErr) {
