@@ -27,7 +27,7 @@ export async function listVisits(req, res) {
       params.push(status);
     }
     if (sellerId) {
-      whereClause += ' AND v.assigned_to = ?';
+      whereClause += ' AND v.seller_id = ?';
       params.push(sellerId);
     }
     if (leadId) {
@@ -49,7 +49,7 @@ export async function listVisits(req, res) {
               u.name as assigned_to_name
        FROM visits v
        LEFT JOIN leads l ON v.lead_id = l.id
-       LEFT JOIN users u ON u.id = COALESCE(v.assigned_to, v.seller_id)
+       LEFT JOIN users u ON u.id = v.seller_id
        WHERE ${whereClause}
        ORDER BY v.scheduled_at ASC 
        LIMIT ${limit} OFFSET ${offset}`,
