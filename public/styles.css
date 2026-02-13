@@ -1293,6 +1293,28 @@ input.score-auto {
 .visit-card-notes {
     font-style: italic;
 }
+.visit-card-client {
+    margin: 0 0 var(--spacing-xs);
+    font-size: 0.9rem;
+    color: var(--text-dark);
+}
+.visit-card-actions {
+    margin-top: var(--spacing-sm);
+    padding-top: var(--spacing-xs);
+    border-top: 1px solid var(--border-color);
+}
+.visit-card-actions .btn {
+    font-size: 0.85rem;
+    padding: 6px 12px;
+}
+
+/* Form readonly (modal cliente) */
+.form-group-readonly .form-readonly-value {
+    margin: 0;
+    padding: 8px 0;
+    font-weight: 500;
+    color: var(--text-dark);
+}
 
 /* Alerta urgência 30 min (novos leads) */
 .urgent-leads-banner {

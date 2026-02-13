@@ -683,6 +683,8 @@ function submitInteractionForm(e) {
 function showNewVisitModal() {
     const modal = document.getElementById('newVisitModal');
     if (!modal) return;
+    var clientEl = document.getElementById('newVisitClientName');
+    if (clientEl) clientEl.textContent = (currentLead && currentLead.name) ? currentLead.name : '—';
     const scheduled = document.getElementById('visitScheduledAt');
     if (scheduled) {
         const d = new Date();
@@ -711,6 +713,15 @@ function closeVisitModal() {
     }
 }
 
+function closeEditVisitModal() {
+    const modal = document.getElementById('editVisitModal');
+    if (modal) {
+        modal.classList.remove('active');
+        modal.setAttribute('aria-hidden', 'true');
+        document.body.style.overflow = '';
+    }
+}
+
 async function loadUsersForVisitSelect() {
     const sel = document.getElementById('visitAssignedSelect');
     if (!sel) return;
@@ -728,6 +739,107 @@ async function loadUsersForVisitSelect() {
             });
         }
     } catch (e) { /* ignore */ }
+}
+
+async function loadUsersForEditVisitSelect(selectedUserId) {
+    const sel = document.getElementById('editVisitAssignedSelect');
+    if (!sel) return;
+    try {
+        const r = await fetch('/api/users?limit=100', { credentials: 'include' });
+        const d = await r.json();
+        sel.innerHTML = '<option value="">Eu mesmo</option>';
+        if (d.success && d.data && d.data.length) {
+            d.data.forEach(u => {
+                if (!u.id) return;
+                const opt = document.createElement('option');
+                opt.value = u.id;
+                opt.textContent = u.name || u.email || 'User ' + u.id;
+                if (selectedUserId && String(u.id) === String(selectedUserId)) opt.selected = true;
+                sel.appendChild(opt);
+            });
+        }
+    } catch (e) { /* ignore */ }
+}
+
+async function showEditVisitModal(visitId) {
+    const modal = document.getElementById('editVisitModal');
+    if (!modal) return;
+    var clientEl = document.getElementById('editVisitClientName');
+    if (clientEl) clientEl.textContent = (currentLead && currentLead.name) ? currentLead.name : (currentLeadId ? 'Lead #' + currentLeadId : '—');
+    document.getElementById('editVisitId').value = visitId;
+    try {
+        const response = await fetch('/api/visits/' + visitId, { credentials: 'include' });
+        const data = await response.json();
+        if (!data.success || !data.data) {
+            alert('Não foi possível carregar a visita.');
+            return;
+        }
+        var v = data.data;
+        var scheduledEl = document.getElementById('editVisitScheduledAt');
+        if (scheduledEl && v.scheduled_at) {
+            var d = new Date(v.scheduled_at);
+            d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+            scheduledEl.value = d.toISOString().slice(0, 16);
+        }
+        document.getElementById('editVisitAddress').value = v.address || '';
+        document.getElementById('editVisitNotes').value = v.notes || '';
+        document.getElementById('editVisitStatus').value = v.status || 'scheduled';
+        await loadUsersForEditVisitSelect(v.seller_id || v.assigned_to);
+        modal.classList.add('active');
+        modal.setAttribute('aria-hidden', 'false');
+        document.body.style.overflow = 'hidden';
+    } catch (err) {
+        console.error('Error loading visit:', err);
+        alert('Erro ao carregar visita.');
+    }
+}
+
+function submitEditVisitForm(e) {
+    e.preventDefault();
+    var visitId = document.getElementById('editVisitId').value;
+    if (!visitId) return false;
+    var scheduledAt = document.getElementById('editVisitScheduledAt').value;
+    var address = document.getElementById('editVisitAddress').value.trim();
+    var notes = document.getElementById('editVisitNotes').value.trim() || null;
+    var sellerId = document.getElementById('editVisitAssignedSelect').value || null;
+    var status = document.getElementById('editVisitStatus').value || 'scheduled';
+    if (!scheduledAt || !address) {
+        alert('Preencha data/hora e endereço completo.');
+        return false;
+    }
+    var btn = document.querySelector('#editVisitForm button[type="submit"]');
+    if (btn) { btn.disabled = true; btn.textContent = 'Salvando...'; }
+    updateVisit(visitId, {
+        scheduled_at: scheduledAt,
+        address: address,
+        notes: notes,
+        seller_id: sellerId ? parseInt(sellerId, 10) : null,
+        status: status
+    }, btn);
+    return false;
+}
+
+async function updateVisit(visitId, payload, submitBtn) {
+    try {
+        const response = await fetch('/api/visits/' + visitId, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify(payload)
+        });
+        const data = await response.json();
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Salvar alterações'; }
+        if (data.success) {
+            closeEditVisitModal();
+            await loadVisits();
+        } else {
+            alert('Erro ao salvar: ' + (data.error || 'Desconhecido'));
+        }
+    } catch (error) {
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Salvar alterações'; }
+        console.error('Error updating visit:', error);
+        alert('Erro ao salvar visita.');
+    }
 }
 
 function submitVisitForm(e) {

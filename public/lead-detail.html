@@ -522,20 +522,24 @@
             </div>
             <form id="newVisitForm" onsubmit="return submitVisitForm(event)">
                 <div class="modal-body">
+                    <div class="form-group form-group-readonly">
+                        <label>Cliente</label>
+                        <p id="newVisitClientName" class="form-readonly-value">—</p>
+                    </div>
                     <div class="form-group">
                         <label>Data e hora *</label>
                         <input type="datetime-local" id="visitScheduledAt" name="scheduled_at" required>
                     </div>
                     <div class="form-group">
-                        <label>Endereço *</label>
-                        <input type="text" id="visitAddress" name="address" required placeholder="Endereço completo da visita">
+                        <label>Endereço completo *</label>
+                        <input type="text" id="visitAddress" name="address" required placeholder="Rua, número, complemento, bairro, cidade, CEP">
                     </div>
                     <div class="form-group">
                         <label>Notas <span class="optional">(opcional)</span></label>
-                        <textarea id="visitNotes" name="notes" rows="3" placeholder="Instruções, portaria, etc."></textarea>
+                        <textarea id="visitNotes" name="notes" rows="3" placeholder="Instruções, portaria, código de acesso, etc."></textarea>
                     </div>
                     <div class="form-group">
-                        <label>Designar para</label>
+                        <label>Destinar visita para</label>
                         <select name="assigned_to" id="visitAssignedSelect">
                             <option value="">Eu mesmo</option>
                         </select>
@@ -544,6 +548,58 @@
                 <div class="modal-footer-lightbox">
                     <button type="button" class="btn btn-secondary" onclick="closeVisitModal()">Cancelar</button>
                     <button type="submit" class="btn btn-primary">Agendar visita</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Lightbox: Editar Visita -->
+    <div id="editVisitModal" class="modal modal-lightbox" aria-hidden="true">
+        <div class="modal-backdrop" onclick="closeEditVisitModal()"></div>
+        <div class="modal-content modal-content-lightbox">
+            <div class="modal-header modal-header-lightbox">
+                <h3>✏️ Editar Visita</h3>
+                <button type="button" class="modal-close modal-close-lightbox" onclick="closeEditVisitModal()" aria-label="Fechar">&times;</button>
+            </div>
+            <form id="editVisitForm" onsubmit="return submitEditVisitForm(event)">
+                <input type="hidden" id="editVisitId" name="visit_id">
+                <div class="modal-body">
+                    <div class="form-group form-group-readonly">
+                        <label>Cliente</label>
+                        <p id="editVisitClientName" class="form-readonly-value">—</p>
+                    </div>
+                    <div class="form-group">
+                        <label>Data e hora *</label>
+                        <input type="datetime-local" id="editVisitScheduledAt" name="scheduled_at" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Endereço completo *</label>
+                        <input type="text" id="editVisitAddress" name="address" required placeholder="Rua, número, complemento, bairro, cidade, CEP">
+                    </div>
+                    <div class="form-group">
+                        <label>Notas <span class="optional">(opcional)</span></label>
+                        <textarea id="editVisitNotes" name="notes" rows="3" placeholder="Instruções, portaria, etc."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Destinar visita para</label>
+                        <select name="seller_id" id="editVisitAssignedSelect">
+                            <option value="">Eu mesmo</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Status</label>
+                        <select id="editVisitStatus" name="status">
+                            <option value="scheduled">Agendada</option>
+                            <option value="confirmed">Confirmada</option>
+                            <option value="completed">Realizada</option>
+                            <option value="cancelled">Cancelada</option>
+                            <option value="no_show">Não compareceu</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer-lightbox">
+                    <button type="button" class="btn btn-secondary" onclick="closeEditVisitModal()">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Salvar alterações</button>
                 </div>
             </form>
         </div>
