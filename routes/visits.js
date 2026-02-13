@@ -52,12 +52,12 @@ export async function listVisits(req, res) {
        LEFT JOIN users u ON u.id = COALESCE(v.assigned_to, v.seller_id)
        WHERE ${whereClause}
        ORDER BY v.scheduled_at ASC 
-       LIMIT ? OFFSET ?`,
-      [...params, limit, offset]
+       LIMIT ${limit} OFFSET ${offset}`,
+      params
     );
 
     const [[{ total }]] = await pool.query(
-      `SELECT COUNT(*) as total FROM visits WHERE ${whereClause}`,
+      `SELECT COUNT(*) as total FROM visits v WHERE ${whereClause}`,
       params
     );
 

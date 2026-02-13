@@ -579,9 +579,17 @@ async function loadVisits() {
     if (!container) return;
     try {
         const response = await fetch(`/api/visits?lead_id=${currentLeadId}`, { credentials: 'include' });
-        const data = await response.json();
+        let data;
+        try {
+            data = await response.json();
+        } catch (_) {
+            container.innerHTML = '<div class="empty-state">Resposta inválida do servidor (status ' + response.status + ').</div>';
+            return;
+        }
         if (!data.success) {
-            container.innerHTML = '<div class="empty-state">Erro ao carregar visitas.</div>';
+            var msg = (data.error || 'Erro ao carregar visitas.');
+            if (response.status === 401) msg = 'Sessão expirada. Faça login novamente.';
+            container.innerHTML = '<div class="empty-state">' + escapeHtml(msg) + '</div>';
             return;
         }
         const items = data.data || [];
@@ -607,7 +615,7 @@ async function loadVisits() {
         }
     } catch (error) {
         console.error('Error loading visits:', error);
-        container.innerHTML = '<div class="empty-state">Erro ao carregar visitas.</div>';
+        container.innerHTML = '<div class="empty-state">Erro ao carregar visitas. ' + escapeHtml(error.message || '') + '</div>';
     }
 }
 
