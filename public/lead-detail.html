@@ -127,6 +127,14 @@
             grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
             gap: 15px;
         }
+        .form-row-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+        @media (max-width: 480px) {
+            .form-row-2 { grid-template-columns: 1fr; }
+        }
         .btn-group {
             display: flex;
             gap: 10px;
@@ -531,8 +539,22 @@
                         <input type="datetime-local" id="visitScheduledAt" name="scheduled_at" required>
                     </div>
                     <div class="form-group">
-                        <label>Endereço completo *</label>
-                        <input type="text" id="visitAddress" name="address" required placeholder="Rua, número, complemento, bairro, cidade, CEP">
+                        <label>Address line 1 *</label>
+                        <input type="text" id="visitAddressLine1" name="address_line1" required placeholder="Rua, número">
+                    </div>
+                    <div class="form-group">
+                        <label>Address line 2 <span class="optional">(opcional)</span></label>
+                        <input type="text" id="visitAddressLine2" name="address_line2" placeholder="Complemento, bairro">
+                    </div>
+                    <div class="form-group form-row-2">
+                        <div class="form-group">
+                            <label>City *</label>
+                            <input type="text" id="visitCity" name="city" required placeholder="Cidade">
+                        </div>
+                        <div class="form-group">
+                            <label>Zip code</label>
+                            <input type="text" id="visitZipCode" name="zipcode" placeholder="CEP">
+                        </div>
                     </div>
                     <div class="form-group">
                         <label>Notas <span class="optional">(opcional)</span></label>
@@ -573,8 +595,22 @@
                         <input type="datetime-local" id="editVisitScheduledAt" name="scheduled_at" required>
                     </div>
                     <div class="form-group">
-                        <label>Endereço completo *</label>
-                        <input type="text" id="editVisitAddress" name="address" required placeholder="Rua, número, complemento, bairro, cidade, CEP">
+                        <label>Address line 1 *</label>
+                        <input type="text" id="editVisitAddressLine1" name="address_line1" required placeholder="Rua, número">
+                    </div>
+                    <div class="form-group">
+                        <label>Address line 2 <span class="optional">(opcional)</span></label>
+                        <input type="text" id="editVisitAddressLine2" name="address_line2" placeholder="Complemento, bairro">
+                    </div>
+                    <div class="form-group form-row-2">
+                        <div class="form-group">
+                            <label>City *</label>
+                            <input type="text" id="editVisitCity" name="city" required placeholder="Cidade">
+                        </div>
+                        <div class="form-group">
+                            <label>Zip code</label>
+                            <input type="text" id="editVisitZipCode" name="zipcode" placeholder="CEP">
+                        </div>
                     </div>
                     <div class="form-group">
                         <label>Notas <span class="optional">(opcional)</span></label>
@@ -590,7 +626,6 @@
                         <label>Status</label>
                         <select id="editVisitStatus" name="status">
                             <option value="scheduled">Agendada</option>
-                            <option value="confirmed">Confirmada</option>
                             <option value="completed">Realizada</option>
                             <option value="cancelled">Cancelada</option>
                             <option value="no_show">Não compareceu</option>

@@ -3,6 +3,19 @@
  */
 import { getDBConnection } from '../config/db.js';
 
+function buildAddressFromParts({ address, address_line1, address_line2, city, zipcode }) {
+  if (address && String(address).trim()) return String(address).trim();
+  const parts = [address_line1, address_line2, city, zipcode].filter(Boolean).map(String).map(s => s.trim());
+  return parts.join(', ') || '';
+}
+
+/** DB enum: scheduled, completed, cancelled, no_show */
+function normalizeVisitStatus(s) {
+  const v = (s && String(s).toLowerCase()) || '';
+  if (['scheduled', 'completed', 'cancelled', 'no_show'].includes(v)) return v;
+  return 'scheduled';
+}
+
 export async function listVisits(req, res) {
   try {
     const pool = await getDBConnection();
@@ -94,18 +107,22 @@ export async function createVisit(req, res) {
       return res.status(503).json({ success: false, error: 'Database not available' });
     }
 
-    const { lead_id, customer_id, project_id, scheduled_at, seller_id, assigned_to, technician_id, address, notes } = req.body;
+    const { lead_id, customer_id, project_id, scheduled_at, seller_id, assigned_to, technician_id, address, address_line1, address_line2, city, zipcode, notes } = req.body;
     const assignedUserId = assigned_to != null ? assigned_to : seller_id;
+    const addressValue = buildAddressFromParts({ address, address_line1, address_line2, city, zipcode });
 
     if (!scheduled_at) {
       return res.status(400).json({ success: false, error: 'Scheduled date/time is required' });
+    }
+    if (!addressValue || !addressValue.trim()) {
+      return res.status(400).json({ success: false, error: 'Address (at least line 1 and city) is required' });
     }
 
     const [result] = await pool.execute(
       `INSERT INTO visits (lead_id, customer_id, project_id, scheduled_at, seller_id, technician_id, address, notes, status)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'scheduled')`,
       [lead_id || null, customer_id || null, project_id || null, scheduled_at,
-       assignedUserId || null, technician_id || null, address || null, notes || null]
+       assignedUserId || null, technician_id || null, addressValue.trim(), notes || null]
     );
 
     const visitId = result.insertId;
@@ -145,10 +162,25 @@ export async function updateVisit(req, res) {
     const values = [];
     const allowedFields = ['scheduled_at', 'ended_at', 'seller_id', 'technician_id', 'address', 'notes', 'status'];
 
+    const addressValue = buildAddressFromParts({
+      address: req.body.address,
+      address_line1: req.body.address_line1,
+      address_line2: req.body.address_line2,
+      city: req.body.city,
+      zipcode: req.body.zipcode
+    });
+    const usedAddressFromParts = Boolean(addressValue);
+    if (usedAddressFromParts) {
+      updates.push('address = ?');
+      values.push(addressValue);
+    }
+
     for (const field of allowedFields) {
+      if (field === 'address' && usedAddressFromParts) continue;
       if (req.body[field] !== undefined) {
+        const val = field === 'status' ? normalizeVisitStatus(req.body[field]) : req.body[field];
         updates.push(`${field} = ?`);
-        values.push(req.body[field]);
+        values.push(val);
       }
     }
 

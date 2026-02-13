@@ -781,7 +781,7 @@ async function showEditVisitModal(visitId) {
             d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
             scheduledEl.value = d.toISOString().slice(0, 16);
         }
-        document.getElementById('editVisitAddress').value = v.address || '';
+        setAddressFields('editVisit', parseAddressForEdit(v.address));
         document.getElementById('editVisitNotes').value = v.notes || '';
         document.getElementById('editVisitStatus').value = v.status || 'scheduled';
         await loadUsersForEditVisitSelect(v.seller_id || v.assigned_to);
@@ -811,7 +811,10 @@ function submitEditVisitForm(e) {
     if (btn) { btn.disabled = true; btn.textContent = 'Salvando...'; }
     updateVisit(visitId, {
         scheduled_at: scheduledAt,
-        address: address,
+        address_line1: addressLine1,
+        address_line2: addressLine2 || null,
+        city: city,
+        zipcode: zipcode || null,
         notes: notes,
         seller_id: sellerId ? parseInt(sellerId, 10) : null,
         status: status
@@ -845,11 +848,14 @@ async function updateVisit(visitId, payload, submitBtn) {
 function submitVisitForm(e) {
     e.preventDefault();
     const scheduledAt = document.getElementById('visitScheduledAt').value;
-    const address = document.getElementById('visitAddress').value.trim();
+    const addressLine1 = document.getElementById('visitAddressLine1').value.trim();
+    const addressLine2 = document.getElementById('visitAddressLine2').value.trim();
+    const city = document.getElementById('visitCity').value.trim();
+    const zipcode = document.getElementById('visitZipCode').value.trim();
     const notes = document.getElementById('visitNotes').value.trim() || null;
     const sellerId = document.getElementById('visitAssignedSelect').value || null;
-    if (!scheduledAt || !address) {
-        alert('Preencha data/hora e endereço.');
+    if (!scheduledAt || !addressLine1 || !city) {
+        alert('Preencha data/hora, Address line 1 e City.');
         return false;
     }
     var btn = document.querySelector('#newVisitForm button[type="submit"]');
@@ -857,7 +863,10 @@ function submitVisitForm(e) {
     createVisit({
         lead_id: parseInt(currentLeadId, 10),
         scheduled_at: scheduledAt,
-        address: address,
+        address_line1: addressLine1,
+        address_line2: addressLine2 || null,
+        city: city,
+        zipcode: zipcode || null,
         notes: notes,
         seller_id: sellerId ? parseInt(sellerId, 10) : null
     }, btn);
