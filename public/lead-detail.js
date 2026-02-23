@@ -464,11 +464,11 @@ async function loadInteractions() {
 
 function getInteractionTypeLabel(type) {
     const labels = {
-        'call': '📞 Chamada',
-        'whatsapp': '💬 WhatsApp',
-        'email': '📧 Email',
-        'visit': '🏠 Visita',
-        'meeting': '🤝 Reunião'
+        'call': 'Chamada',
+        'whatsapp': 'WhatsApp',
+        'email': 'Email',
+        'visit': 'Visita',
+        'meeting': 'Reunião'
     };
     return labels[type] || type;
 }
@@ -600,14 +600,20 @@ async function loadVisits() {
                 const status = getVisitStatusLabel(visit.status);
                 const assigned = visit.assigned_to_name ? escapeHtml(visit.assigned_to_name) : '';
                 const notes = visit.notes ? escapeHtml(String(visit.notes)) : '';
+                const leadName = visit.lead_name ? escapeHtml(visit.lead_name) : (currentLead && currentLead.name ? escapeHtml(currentLead.name) : '');
+                const visitId = visit.id != null ? Number(visit.id) : null;
                 return `<div class="visit-card">
                     <div class="visit-card-header">
-                        <span class="visit-card-date">📅 ${dateStr}</span>
+                        <span class="visit-card-date"><span class="visit-card-date-icon">D</span> ${dateStr}</span>
                         <span class="visit-card-status visit-status-${(visit.status || 'scheduled')}">${status}</span>
                     </div>
+                    ${leadName ? `<p class="visit-card-client"><strong>Cliente:</strong> ${leadName}</p>` : ''}
                     <p class="visit-card-address"><strong>Endereço:</strong> ${address}</p>
                     ${assigned ? `<p class="visit-card-assigned"><strong>Responsável:</strong> ${assigned}</p>` : ''}
                     ${notes ? `<p class="visit-card-notes">${notes}</p>` : ''}
+                    <div class="visit-card-actions">
+                        ${visitId ? `<button type="button" class="btn btn-secondary btn-sm" onclick="showEditVisitModal(${visitId})">Editar visita</button>` : ''}
+                    </div>
                 </div>`;
             }).join('');
         } else {

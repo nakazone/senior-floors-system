@@ -171,19 +171,19 @@ function renderKanbanCard(lead) {
             <div class="kanban-card-header">
                 <div class="kanban-card-title">${lead.name || 'Sem nome'}</div>
                 <div class="kanban-card-actions">
-                    <button onclick="viewLead(${lead.id})" title="Ver">👁️</button>
-                    <button onclick="showAssignLeadModal(${lead.id})" title="Designar">👤</button>
-                    <button onclick="showFollowupModal(${lead.id})" title="Follow-up">📅</button>
+                    <button onclick="viewLead(${lead.id})" title="Ver"><span class="action-btn-icon">V</span></button>
+                    <button onclick="showAssignLeadModal(${lead.id})" title="Designar"><span class="action-btn-icon">U</span></button>
+                    <button onclick="showFollowupModal(${lead.id})" title="Follow-up"><span class="action-btn-icon">D</span></button>
                 </div>
             </div>
             <div class="kanban-card-body">
-                <div>📧 ${lead.email || '-'}</div>
-                <div>📞 ${lead.phone || '-'}</div>
-                ${lead.estimated_value ? `<div>💰 $${parseFloat(lead.estimated_value).toLocaleString()}</div>` : ''}
+                <div><strong>Email:</strong> ${lead.email || '-'}</div>
+                <div><strong>Phone:</strong> ${lead.phone || '-'}</div>
+                ${lead.estimated_value ? `<div><strong>Value:</strong> $${parseFloat(lead.estimated_value).toLocaleString()}</div>` : ''}
             </div>
             <div class="kanban-card-footer">
                 <span class="kanban-card-priority ${priorityClass}">${priorityClass}</span>
-                <span>👤 ${ownerName}</span>
+                <span><span class="action-btn-icon small">U</span> ${ownerName}</span>
             </div>
         </div>
     `;

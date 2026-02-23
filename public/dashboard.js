@@ -37,7 +37,7 @@ function showNewLeadToast(count, message) {
     toast.className = 'toast-lead';
     toast.setAttribute('role', 'alert');
     toast.innerHTML =
-        '<span class="toast-lead-icon">🔔</span>' +
+        '<span class="toast-lead-icon">!</span>' +
         '<div class="toast-lead-body">' +
         '<div class="toast-lead-title">Novo lead recebido!</div>' +
         '<div class="toast-lead-msg">' + (message || (count === 1 ? '1 novo lead. Contate em até 30 min!' : count + ' novos leads. Contate em até 30 min!')) + '</div>' +
@@ -310,7 +310,7 @@ function renderDashboardStats() {
             </div>
         `;
         }).join('')
-        : '<div class="empty-state"><div class="empty-state-icon">📋</div><p>No recent leads</p></div>';
+        : '<div class="empty-state"><div class="empty-state-icon">L</div><p>No recent leads</p></div>';
     document.getElementById('recentLeads').innerHTML = recentLeadsHtml;
     
     // Upcoming visits
@@ -326,7 +326,7 @@ function renderDashboardStats() {
                 </div>
             </div>
         `).join('')
-        : '<div class="empty-state"><div class="empty-state-icon">📅</div><p>No upcoming visits</p></div>';
+        : '<div class="empty-state"><div class="empty-state-icon">S</div><p>No upcoming visits</p></div>';
     document.getElementById('upcomingVisits').innerHTML = visitsHtml;
 }
 
@@ -544,9 +544,9 @@ async function loadLeads() {
                             <td>${lead.source || '-'}</td>
                             <td>${lead.created_at ? new Date(lead.created_at).toLocaleDateString() : '-'}</td>
                             <td>
-                                <button class="btn btn-sm" onclick="viewLead(${lead.id})" title="Ver">👁️</button>
-                                <button class="btn btn-sm" onclick="showAssignLeadModal(${lead.id})" title="Designar">👤</button>
-                                <button class="btn btn-sm" onclick="showFollowupModal(${lead.id})" title="Follow-up">📅</button>
+                                <button class="btn btn-sm" onclick="viewLead(${lead.id})" title="Ver"><span class="action-btn-icon">V</span></button>
+                                <button class="btn btn-sm" onclick="showAssignLeadModal(${lead.id})" title="Designar"><span class="action-btn-icon">U</span></button>
+                                <button class="btn btn-sm" onclick="showFollowupModal(${lead.id})" title="Follow-up"><span class="action-btn-icon">D</span></button>
                             </td>
                         </tr>`;
                     }).join('');

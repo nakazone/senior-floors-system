@@ -181,7 +181,7 @@
 </head>
 <body>
     <div class="dashboard-container">
-        <button class="mobile-menu-toggle" id="mobileMenuToggle">☰</button>
+        <button class="mobile-menu-toggle" id="mobileMenuToggle" aria-label="Menu">≡</button>
         <div class="mobile-overlay" id="mobileOverlay"></div>
         <aside class="dashboard-sidebar" id="dashboardSidebar">
             <div class="sidebar-header">
@@ -189,16 +189,16 @@
                 <h1><span class="mobile-hidden">Senior Floors CRM</span><span class="mobile-only">CRM</span></h1>
             </div>
             <nav class="sidebar-nav">
-                <a href="dashboard.html" class="nav-item"><span>📊</span> Dashboard</a>
-                <a href="dashboard.html?page=leads" class="nav-item"><span>📋</span> Leads</a>
-                <a href="dashboard.html?page=crm" class="nav-item"><span>🎯</span> CRM</a>
-                <a href="dashboard.html?page=customers" class="nav-item"><span>👥</span> Customers</a>
-                <a href="dashboard.html?page=quotes" class="nav-item"><span>💰</span> Quotes</a>
-                <a href="dashboard.html?page=projects" class="nav-item"><span>🏗️</span> Projects</a>
-                <a href="dashboard.html?page=schedule" class="nav-item"><span>📅</span> Schedule</a>
-                <a href="dashboard.html?page=financeiro" class="nav-item"><span>💵</span> Financeiro</a>
-                <a href="dashboard.html?page=activities" class="nav-item"><span>📝</span> Activities</a>
-                <a href="dashboard.html?page=users" class="nav-item"><span>👤</span> Users</a>
+                <a href="dashboard.html" class="nav-item"><span class="nav-icon">D</span> Dashboard</a>
+                <a href="dashboard.html?page=leads" class="nav-item"><span class="nav-icon">L</span> Leads</a>
+                <a href="dashboard.html?page=crm" class="nav-item"><span class="nav-icon">K</span> CRM</a>
+                <a href="dashboard.html?page=customers" class="nav-item"><span class="nav-icon">C</span> Customers</a>
+                <a href="dashboard.html?page=quotes" class="nav-item"><span class="nav-icon">Q</span> Quotes</a>
+                <a href="dashboard.html?page=projects" class="nav-item"><span class="nav-icon">P</span> Projects</a>
+                <a href="dashboard.html?page=schedule" class="nav-item"><span class="nav-icon">S</span> Schedule</a>
+                <a href="dashboard.html?page=financeiro" class="nav-item"><span class="nav-icon">F</span> Financeiro</a>
+                <a href="dashboard.html?page=activities" class="nav-item"><span class="nav-icon">A</span> Activities</a>
+                <a href="dashboard.html?page=users" class="nav-item"><span class="nav-icon">U</span> Users</a>
             </nav>
             <div class="sidebar-footer">
                 <button id="logoutBtn" class="btn">Logout</button>
@@ -209,7 +209,7 @@
             <div class="lead-detail-container">
                 <div class="lead-header">
                     <h1 class="lead-title">
-                        <span class="lead-title-icon" aria-hidden="true">👤</span>
+                        <span class="lead-title-icon" aria-hidden="true">L</span>
                         <span id="leadName">Loading...</span>
                     </h1>
                     <div class="lead-meta">
@@ -233,15 +233,15 @@
                 </div>
 
                 <div class="tabs">
-                    <button class="tab active" data-tab="summary">📋 Resumo</button>
-                    <button class="tab" data-tab="qualification">✅ Qualificação</button>
-                    <button class="tab" data-tab="followups">📌 Follow-ups</button>
-                    <button class="tab" data-tab="interactions">💬 Interações</button>
-                    <button class="tab" data-tab="visits">🏠 Visitas</button>
-                    <button class="tab" data-tab="measurements">📏 Medições</button>
-                    <button class="tab" data-tab="proposals">💰 Propostas</button>
-                    <button class="tab" data-tab="contract">📄 Contrato</button>
-                    <button class="tab" data-tab="production">🏗️ Produção</button>
+                    <button class="tab active" data-tab="summary"><span class="tab-icon">R</span> Resumo</button>
+                    <button class="tab" data-tab="qualification"><span class="tab-icon">✓</span> Qualificação</button>
+                    <button class="tab" data-tab="followups"><span class="tab-icon">F</span> Follow-ups</button>
+                    <button class="tab" data-tab="interactions"><span class="tab-icon">I</span> Interações</button>
+                    <button class="tab" data-tab="visits"><span class="tab-icon">V</span> Visitas</button>
+                    <button class="tab" data-tab="measurements"><span class="tab-icon">M</span> Medições</button>
+                    <button class="tab" data-tab="proposals"><span class="tab-icon">$</span> Propostas</button>
+                    <button class="tab" data-tab="contract"><span class="tab-icon">C</span> Contrato</button>
+                    <button class="tab" data-tab="production"><span class="tab-icon">O</span> Produção</button>
                 </div>
 
                 <!-- Tab: Summary -->
@@ -278,7 +278,7 @@
                         <div class="qualification-summary-card">
                             <div class="qualification-summary-header">
                                 <span>Informações da qualificação</span>
-                                <button type="button" class="btn btn-secondary btn-sm" onclick="showQualificationEditForm()">✏️ Editar informações</button>
+                                <button type="button" class="btn btn-secondary btn-sm" onclick="showQualificationEditForm()">Editar informações</button>
                             </div>
                             <div id="qualificationSummaryContent" class="qualification-summary-content"></div>
                         </div>
@@ -392,7 +392,7 @@
                     <h2>Medições</h2>
                     <div id="measurementsContent">
                         <div class="empty-state">
-                            <div class="empty-state-icon">📏</div>
+                            <div class="empty-state-icon">M</div>
                             <p>Nenhuma medição registrada ainda.</p>
                             <p>Complete uma visita primeiro para adicionar medições.</p>
                         </div>
@@ -413,7 +413,7 @@
                     <h2>Contrato</h2>
                     <div id="contractContent">
                         <div class="empty-state">
-                            <div class="empty-state-icon">📄</div>
+                            <div class="empty-state-icon">C</div>
                             <p>Nenhum contrato associado ainda.</p>
                             <p>Após aceitar uma proposta, o contrato será criado automaticamente.</p>
                         </div>
@@ -425,7 +425,7 @@
                     <h2>Produção / Obra</h2>
                     <div id="productionContent">
                         <div class="empty-state">
-                            <div class="empty-state-icon">🏗️</div>
+                            <div class="empty-state-icon">P</div>
                             <p>Nenhum projeto em produção ainda.</p>
                             <p>Após assinar o contrato, o projeto será criado automaticamente.</p>
                         </div>
@@ -440,7 +440,7 @@
         <div class="modal-backdrop" onclick="closeFollowupModal()"></div>
         <div class="modal-content modal-content-lightbox">
             <div class="modal-header modal-header-lightbox">
-                <h3>📌 Novo Follow-up</h3>
+                <h3>Novo Follow-up</h3>
                 <button type="button" class="modal-close modal-close-lightbox" onclick="closeFollowupModal()" aria-label="Fechar">&times;</button>
             </div>
             <form id="newFollowupForm" onsubmit="return submitFollowupForm(event)">
@@ -487,7 +487,7 @@
         <div class="modal-backdrop" onclick="closeInteractionModal()"></div>
         <div class="modal-content modal-content-lightbox">
             <div class="modal-header modal-header-lightbox">
-                <h3>💬 Nova Interação</h3>
+                <h3>Nova Interação</h3>
                 <button type="button" class="modal-close modal-close-lightbox" onclick="closeInteractionModal()" aria-label="Fechar">&times;</button>
             </div>
             <form id="newInteractionForm" onsubmit="return submitInteractionForm(event)">
@@ -496,11 +496,11 @@
                         <label>Tipo de interação</label>
                         <select name="type" id="interactionType" required>
                             <option value="">Selecione...</option>
-                            <option value="call">📞 Chamada</option>
-                            <option value="whatsapp">💬 WhatsApp</option>
-                            <option value="email">📧 Email</option>
-                            <option value="visit">🏠 Visita</option>
-                            <option value="meeting">🤝 Reunião</option>
+                            <option value="call">Chamada</option>
+                            <option value="whatsapp">WhatsApp</option>
+                            <option value="email">Email</option>
+                            <option value="visit">Visita</option>
+                            <option value="meeting">Reunião</option>
                         </select>
                     </div>
                     <div class="form-group">
@@ -525,7 +525,7 @@
         <div class="modal-backdrop" onclick="closeVisitModal()"></div>
         <div class="modal-content modal-content-lightbox">
             <div class="modal-header modal-header-lightbox">
-                <h3>🏠 Agendar Visita</h3>
+                <h3>Agendar Visita</h3>
                 <button type="button" class="modal-close modal-close-lightbox" onclick="closeVisitModal()" aria-label="Fechar">&times;</button>
             </div>
             <form id="newVisitForm" onsubmit="return submitVisitForm(event)">
@@ -580,7 +580,7 @@
         <div class="modal-backdrop" onclick="closeEditVisitModal()"></div>
         <div class="modal-content modal-content-lightbox">
             <div class="modal-header modal-header-lightbox">
-                <h3>✏️ Editar Visita</h3>
+                <h3>Editar Visita</h3>
                 <button type="button" class="modal-close modal-close-lightbox" onclick="closeEditVisitModal()" aria-label="Fechar">&times;</button>
             </div>
             <form id="editVisitForm" onsubmit="return submitEditVisitForm(event)">

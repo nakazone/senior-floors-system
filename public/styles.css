@@ -852,17 +852,108 @@ input.score-auto {
     to { transform: rotate(360deg); }
 }
 
+/* Icon pattern (same as LP/Site: circle + symbol, primary bg, white) */
+.differentiator-icon,
+.nav-icon,
+.tab-icon,
+.empty-state-icon,
+.action-btn-icon {
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    min-width: 28px;
+    min-height: 28px;
+    background: var(--primary-color);
+    color: var(--bg-white);
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 0.75rem;
+    line-height: 1;
+}
+
+.nav-item .nav-icon {
+    width: 26px;
+    height: 26px;
+    min-width: 26px;
+    min-height: 26px;
+    font-size: 0.7rem;
+}
+
+.tab-icon {
+    width: 22px;
+    height: 22px;
+    min-width: 22px;
+    min-height: 22px;
+    font-size: 0.65rem;
+    margin-right: 6px;
+}
+
+.empty-state-icon {
+    width: 56px;
+    height: 56px;
+    min-width: 56px;
+    min-height: 56px;
+    font-size: 1.25rem;
+    margin: 0 auto var(--spacing-sm);
+    font-weight: 600;
+}
+
+.action-btn-icon {
+    width: 24px;
+    height: 24px;
+    min-width: 24px;
+    min-height: 24px;
+    font-size: 0.7rem;
+}
+
+.action-btn-icon.small {
+    width: 18px;
+    height: 18px;
+    min-width: 18px;
+    min-height: 18px;
+    font-size: 0.6rem;
+}
+
+.visit-card-date-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    min-width: 22px;
+    min-height: 22px;
+    background: var(--primary-color);
+    color: var(--bg-white);
+    border-radius: 50%;
+    font-size: 0.65rem;
+    font-weight: 700;
+    margin-right: 6px;
+}
+
+.toast-lead-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    min-width: 24px;
+    min-height: 24px;
+    background: var(--primary-color);
+    color: var(--bg-white);
+    border-radius: 50%;
+    font-size: 0.75rem;
+    font-weight: 700;
+    margin-right: 8px;
+}
+
 /* Empty State */
 .empty-state {
     text-align: center;
     padding: var(--spacing-xl);
     color: var(--text-muted);
-}
-
-.empty-state-icon {
-    font-size: 48px;
-    margin-bottom: var(--spacing-sm);
-    opacity: 0.5;
 }
 
 /* Login Page */
@@ -1269,6 +1360,8 @@ input.score-auto {
     margin-bottom: var(--spacing-xs);
 }
 .visit-card-date {
+    display: inline-flex;
+    align-items: center;
     font-weight: 600;
     color: var(--text-dark);
 }

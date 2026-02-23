@@ -18,7 +18,7 @@
 </head>
 <body>
     <div class="dashboard-container">
-        <button class="mobile-menu-toggle" id="mobileMenuToggle">☰</button>
+        <button class="mobile-menu-toggle" id="mobileMenuToggle" aria-label="Menu">≡</button>
         <div class="mobile-overlay" id="mobileOverlay"></div>
         
         <!-- Fixed Sidebar -->
@@ -33,34 +33,34 @@
             
             <nav class="sidebar-nav">
                     <a href="#" class="nav-item active" data-page="dashboard">
-                        <span>📊</span> Dashboard
+                        <span class="nav-icon">D</span> Dashboard
                     </a>
                     <a href="#" class="nav-item" data-page="leads">
-                        <span>📋</span> Leads
+                        <span class="nav-icon">L</span> Leads
                     </a>
                     <a href="#" class="nav-item" data-page="crm">
-                        <span>🎯</span> CRM
+                        <span class="nav-icon">K</span> CRM
                     </a>
                     <a href="#" class="nav-item" data-page="customers">
-                        <span>👥</span> Customers
+                        <span class="nav-icon">C</span> Customers
                     </a>
                     <a href="#" class="nav-item" data-page="quotes">
-                        <span>💰</span> Quotes
+                        <span class="nav-icon">Q</span> Quotes
                     </a>
                     <a href="#" class="nav-item" data-page="projects">
-                        <span>🏗️</span> Projects
+                        <span class="nav-icon">P</span> Projects
                     </a>
                     <a href="#" class="nav-item" data-page="schedule">
-                        <span>📅</span> Schedule
+                        <span class="nav-icon">S</span> Schedule
                     </a>
                     <a href="#" class="nav-item" data-page="financeiro">
-                        <span>💵</span> Financeiro
+                        <span class="nav-icon">F</span> Financeiro
                     </a>
                     <a href="#" class="nav-item" data-page="activities">
-                        <span>📝</span> Activities
+                        <span class="nav-icon">A</span> Activities
                     </a>
                     <a href="#" class="nav-item" data-page="users">
-                        <span>👤</span> Users
+                        <span class="nav-icon">U</span> Users
                     </a>
                 </nav>
                 
@@ -83,7 +83,7 @@
                     </div>
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--spacing-md);">
                         <h2 class="page-title">Dashboard</h2>
-                        <button class="btn btn-primary" onclick="loadDashboard()">🔄 Refresh</button>
+                        <button class="btn btn-primary" onclick="loadDashboard()">Refresh</button>
                     </div>
                     
                     <div id="dashboardStats" class="stats-grid">
@@ -135,7 +135,7 @@
                         <h2 class="page-title">Leads</h2>
                         <div style="display: flex; gap: var(--spacing-sm);">
                             <button class="btn btn-secondary" onclick="showNewLeadModal()">+ Novo Lead</button>
-                            <button class="btn btn-secondary" onclick="refreshLeads()">🔄 Refresh</button>
+                            <button class="btn btn-secondary" onclick="refreshLeads()">Refresh</button>
                         </div>
                     </div>
                     
@@ -177,7 +177,7 @@
                         <h2 class="page-title">CRM - Kanban Board</h2>
                         <div style="display: flex; gap: var(--spacing-sm);">
                             <button class="btn btn-secondary" onclick="showNewLeadModal()">+ Novo Lead</button>
-                            <button class="btn btn-secondary" onclick="if(typeof loadKanbanBoard === 'function') loadKanbanBoard(); else if(typeof loadCRMKanban === 'function') loadCRMKanban();">🔄 Refresh</button>
+                            <button class="btn btn-secondary" onclick="if(typeof loadKanbanBoard === 'function') loadKanbanBoard(); else if(typeof loadCRMKanban === 'function') loadCRMKanban();">Refresh</button>
                         </div>
                     </div>
                     
@@ -441,11 +441,11 @@
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--spacing-md); flex-wrap: wrap; gap: var(--spacing-sm);">
                         <h2 class="page-title">Smart Scheduling</h2>
                         <div style="display: flex; gap: var(--spacing-sm);">
-                            <button class="btn btn-secondary" onclick="showScheduleView('month')">📅 Month</button>
-                            <button class="btn btn-secondary" onclick="showScheduleView('week')">📆 Week</button>
-                            <button class="btn btn-secondary" onclick="showScheduleView('crew')">👥 Crew Timeline</button>
+                            <button class="btn btn-secondary" onclick="showScheduleView('month')">Month</button>
+                            <button class="btn btn-secondary" onclick="showScheduleView('week')">Week</button>
+                            <button class="btn btn-secondary" onclick="showScheduleView('crew')">Crew Timeline</button>
                             <button class="btn btn-primary" onclick="showNewScheduleModal()">+ Schedule Project</button>
-                            <button class="btn btn-secondary" onclick="loadScheduleDashboard()">🔄 Refresh</button>
+                            <button class="btn btn-secondary" onclick="loadScheduleDashboard()">Refresh</button>
                         </div>
                     </div>
                     
@@ -479,12 +479,12 @@
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--spacing-md); flex-wrap: wrap; gap: var(--spacing-sm);">
                         <h2 class="page-title">Financial Management</h2>
                         <div style="display: flex; gap: var(--spacing-sm);">
-                            <button class="btn btn-secondary" onclick="showFinancialView('dashboard')">📊 Dashboard</button>
-                            <button class="btn btn-secondary" onclick="showFinancialView('expenses')">💰 Expenses</button>
-                            <button class="btn btn-secondary" onclick="showFinancialView('payroll')">👥 Payroll</button>
+                            <button class="btn btn-secondary" onclick="showFinancialView('dashboard')">Dashboard</button>
+                            <button class="btn btn-secondary" onclick="showFinancialView('expenses')">Expenses</button>
+                            <button class="btn btn-secondary" onclick="showFinancialView('payroll')">Payroll</button>
                             <button class="btn btn-primary" onclick="showNewExpenseModal()">+ New Expense</button>
                             <button class="btn btn-primary" onclick="showNewPayrollModal()">+ Payroll Entry</button>
-                            <button class="btn btn-secondary" onclick="loadFinancialDashboard()">🔄 Refresh</button>
+                            <button class="btn btn-secondary" onclick="loadFinancialDashboard()">Refresh</button>
                         </div>
                     </div>
                     

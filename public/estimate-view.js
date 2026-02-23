@@ -96,7 +96,7 @@ function renderEstimate(estimate) {
         statusMsg.style.textAlign = 'center';
         statusMsg.style.marginTop = 'var(--spacing-md)';
         statusMsg.innerHTML = `
-            <h3>Status: ${estimate.status === 'accepted' ? '✅ Accepted' : '❌ Declined'}</h3>
+            <h3>Status: ${estimate.status === 'accepted' ? 'Accepted' : 'Declined'}</h3>
             ${estimate.accepted_at ? `<p>Date: ${new Date(estimate.accepted_at).toLocaleString()}</p>` : ''}
         `;
         document.querySelector('.total-box').after(statusMsg);
