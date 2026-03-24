@@ -4,11 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Lead Details - Senior Floors CRM</title>
-    <!-- Favicon (mesmo padrão do site Senior Floors) -->
-    <link rel="icon" type="image/png" sizes="32x32" href="/assets/SeniorFloors.png">
-    <link rel="icon" type="image/png" sizes="16x16" href="/assets/SeniorFloors.png">
-    <link rel="apple-touch-icon" sizes="180x180" href="/assets/SeniorFloors.png">
-    <link rel="icon" type="image/png" href="/assets/SeniorFloors.png">
     <link rel="stylesheet" href="styles.css">
     <style>
         .lead-detail-container {
@@ -130,13 +125,6 @@
         .form-row .form-group.full-width {
             grid-column: 1 / -1;
         }
-        .qualification-section-title {
-            font-size: 1rem;
-            margin: 24px 0 12px;
-            color: #333;
-            border-bottom: 1px solid #eee;
-            padding-bottom: 8px;
-        }
         .form-row-2 {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -144,6 +132,13 @@
         }
         @media (max-width: 480px) {
             .form-row-2 { grid-template-columns: 1fr; }
+        }
+        .qualification-section-title {
+            font-size: 1rem;
+            margin: 24px 0 12px;
+            color: #333;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 8px;
         }
         .btn-group {
             display: flex;
@@ -191,25 +186,24 @@
 </head>
 <body>
     <div class="dashboard-container">
-        <button class="mobile-menu-toggle" id="mobileMenuToggle" aria-label="Menu">≡</button>
+        <button class="mobile-menu-toggle" id="mobileMenuToggle">☰</button>
         <div class="mobile-overlay" id="mobileOverlay"></div>
         <aside class="dashboard-sidebar" id="dashboardSidebar">
             <div class="sidebar-header">
-                <img src="/assets/SeniorFloors.png" alt="Senior Floors" class="logo-image" onerror="this.style.display='none'">
+                <img src="assets/SeniorFloors.png" alt="Senior Floors" class="logo-image" onerror="this.style.display='none'">
                 <h1><span class="mobile-hidden">Senior Floors CRM</span><span class="mobile-only">CRM</span></h1>
             </div>
             <nav class="sidebar-nav">
-                <a href="dashboard.html" class="nav-item"><span class="nav-icon" aria-hidden="true">📊</span> Dashboard</a>
-                <a href="dashboard.html?page=marketing" class="nav-item"><span class="nav-icon" aria-hidden="true">📈</span> Marketing</a>
-                <a href="dashboard.html?page=leads" class="nav-item"><span class="nav-icon" aria-hidden="true">📋</span> Leads</a>
-                <a href="dashboard.html?page=crm" class="nav-item"><span class="nav-icon" aria-hidden="true">🎯</span> CRM</a>
-                <a href="dashboard.html?page=customers" class="nav-item"><span class="nav-icon" aria-hidden="true">👥</span> Customers</a>
-                <a href="dashboard.html?page=quotes" class="nav-item"><span class="nav-icon" aria-hidden="true">💰</span> Quotes</a>
-                <a href="dashboard.html?page=projects" class="nav-item"><span class="nav-icon" aria-hidden="true">🏗️</span> Projects</a>
-                <a href="dashboard.html?page=schedule" class="nav-item"><span class="nav-icon" aria-hidden="true">📅</span> Schedule</a>
-                <a href="dashboard.html?page=financeiro" class="nav-item"><span class="nav-icon" aria-hidden="true">💵</span> Financeiro</a>
-                <a href="dashboard.html?page=activities" class="nav-item"><span class="nav-icon" aria-hidden="true">📝</span> Activities</a>
-                <a href="dashboard.html?page=users" class="nav-item"><span class="nav-icon" aria-hidden="true">👤</span> Users</a>
+                <a href="dashboard.html" class="nav-item"><span>📊</span> Dashboard</a>
+                <a href="dashboard.html?page=leads" class="nav-item"><span>📋</span> Leads</a>
+                <a href="dashboard.html?page=crm" class="nav-item"><span>🎯</span> CRM</a>
+                <a href="dashboard.html?page=customers" class="nav-item"><span>👥</span> Customers</a>
+                <a href="dashboard.html?page=quotes" class="nav-item"><span>💰</span> Quotes</a>
+                <a href="dashboard.html?page=projects" class="nav-item"><span>🏗️</span> Projects</a>
+                <a href="dashboard.html?page=schedule" class="nav-item"><span>📅</span> Schedule</a>
+                <a href="dashboard.html?page=financeiro" class="nav-item"><span>💵</span> Financeiro</a>
+                <a href="dashboard.html?page=activities" class="nav-item"><span>📝</span> Activities</a>
+                <a href="dashboard.html?page=users" class="nav-item"><span>👤</span> Users</a>
             </nav>
             <div class="sidebar-footer">
                 <button id="logoutBtn" class="btn">Logout</button>
@@ -241,22 +235,18 @@
                             <span id="leadNextSteps">-</span>
                         </div>
                     </div>
-                    <div class="lead-header-actions" style="margin-top: 16px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center;">
-                        <a href="dashboard.html?page=leads" class="btn btn-secondary">← Lista de leads</a>
-                        <button type="button" id="deleteLeadBtn" class="btn" style="background: #c0392b; color: #fff; border-color: #962d22;">Excluir lead</button>
-                    </div>
                 </div>
 
                 <div class="tabs">
-                    <button class="tab active" data-tab="summary"><span class="tab-icon">R</span> Resumo</button>
-                    <button class="tab" data-tab="qualification"><span class="tab-icon">✓</span> Qualificação</button>
-                    <button class="tab" data-tab="followups"><span class="tab-icon">F</span> Follow-ups</button>
-                    <button class="tab" data-tab="interactions"><span class="tab-icon">I</span> Interações</button>
-                    <button class="tab" data-tab="visits"><span class="tab-icon">V</span> Visitas</button>
-                    <button class="tab" data-tab="measurements"><span class="tab-icon">M</span> Medições</button>
-                    <button class="tab" data-tab="proposals"><span class="tab-icon">$</span> Propostas</button>
-                    <button class="tab" data-tab="contract"><span class="tab-icon">C</span> Contrato</button>
-                    <button class="tab" data-tab="production"><span class="tab-icon">O</span> Produção</button>
+                    <button class="tab active" data-tab="summary">📋 Resumo</button>
+                    <button class="tab" data-tab="qualification">✅ Qualificação</button>
+                    <button class="tab" data-tab="followups">📌 Follow-ups</button>
+                    <button class="tab" data-tab="interactions">💬 Interações</button>
+                    <button class="tab" data-tab="visits">🏠 Visitas</button>
+                    <button class="tab" data-tab="measurements">📏 Medições</button>
+                    <button class="tab" data-tab="proposals">💰 Propostas</button>
+                    <button class="tab" data-tab="contract">📄 Contrato</button>
+                    <button class="tab" data-tab="production">🏗️ Produção</button>
                 </div>
 
                 <!-- Tab: Summary -->
@@ -293,7 +283,7 @@
                         <div class="qualification-summary-card">
                             <div class="qualification-summary-header">
                                 <span>Informações da qualificação</span>
-                                <button type="button" class="btn btn-secondary btn-sm" onclick="showQualificationEditForm()">Editar informações</button>
+                                <button type="button" class="btn btn-secondary btn-sm" onclick="showQualificationEditForm()">✏️ Editar informações</button>
                             </div>
                             <div id="qualificationSummaryContent" class="qualification-summary-content"></div>
                         </div>
@@ -430,7 +420,7 @@
                     <h2>Medições</h2>
                     <div id="measurementsContent">
                         <div class="empty-state">
-                            <div class="empty-state-icon">M</div>
+                            <div class="empty-state-icon">📏</div>
                             <p>Nenhuma medição registrada ainda.</p>
                             <p>Complete uma visita primeiro para adicionar medições.</p>
                         </div>
@@ -451,7 +441,7 @@
                     <h2>Contrato</h2>
                     <div id="contractContent">
                         <div class="empty-state">
-                            <div class="empty-state-icon">C</div>
+                            <div class="empty-state-icon">📄</div>
                             <p>Nenhum contrato associado ainda.</p>
                             <p>Após aceitar uma proposta, o contrato será criado automaticamente.</p>
                         </div>
@@ -463,7 +453,7 @@
                     <h2>Produção / Obra</h2>
                     <div id="productionContent">
                         <div class="empty-state">
-                            <div class="empty-state-icon">P</div>
+                            <div class="empty-state-icon">🏗️</div>
                             <p>Nenhum projeto em produção ainda.</p>
                             <p>Após assinar o contrato, o projeto será criado automaticamente.</p>
                         </div>
@@ -478,7 +468,7 @@
         <div class="modal-backdrop" onclick="closeFollowupModal()"></div>
         <div class="modal-content modal-content-lightbox">
             <div class="modal-header modal-header-lightbox">
-                <h3>Novo Follow-up</h3>
+                <h3>📌 Novo Follow-up</h3>
                 <button type="button" class="modal-close modal-close-lightbox" onclick="closeFollowupModal()" aria-label="Fechar">&times;</button>
             </div>
             <form id="newFollowupForm" onsubmit="return submitFollowupForm(event)">
@@ -525,7 +515,7 @@
         <div class="modal-backdrop" onclick="closeInteractionModal()"></div>
         <div class="modal-content modal-content-lightbox">
             <div class="modal-header modal-header-lightbox">
-                <h3>Nova Interação</h3>
+                <h3>💬 Nova Interação</h3>
                 <button type="button" class="modal-close modal-close-lightbox" onclick="closeInteractionModal()" aria-label="Fechar">&times;</button>
             </div>
             <form id="newInteractionForm" onsubmit="return submitInteractionForm(event)">
@@ -534,11 +524,11 @@
                         <label>Tipo de interação</label>
                         <select name="type" id="interactionType" required>
                             <option value="">Selecione...</option>
-                            <option value="call">Chamada</option>
-                            <option value="whatsapp">WhatsApp</option>
-                            <option value="email">Email</option>
-                            <option value="visit">Visita</option>
-                            <option value="meeting">Reunião</option>
+                            <option value="call">📞 Chamada</option>
+                            <option value="whatsapp">💬 WhatsApp</option>
+                            <option value="email">📧 Email</option>
+                            <option value="visit">🏠 Visita</option>
+                            <option value="meeting">🤝 Reunião</option>
                         </select>
                     </div>
                     <div class="form-group">
@@ -573,8 +563,8 @@
                         <p id="newVisitClientName" class="form-readonly-value">—</p>
                     </div>
                     <div class="form-group">
-                        <label>Data e hora *</label>
-                        <input type="datetime-local" id="visitScheduledAt" name="scheduled_at" required>
+                        <label>Data e hora * <span class="optional">(apenas :00 ou :30)</span></label>
+                        <input type="datetime-local" id="visitScheduledAt" name="scheduled_at" required step="1800">
                     </div>
                     <div class="form-group">
                         <label>Address line 1 *</label>
@@ -629,8 +619,8 @@
                         <p id="editVisitClientName" class="form-readonly-value">—</p>
                     </div>
                     <div class="form-group">
-                        <label>Data e hora *</label>
-                        <input type="datetime-local" id="editVisitScheduledAt" name="scheduled_at" required>
+                        <label>Data e hora * <span class="optional">(apenas :00 ou :30)</span></label>
+                        <input type="datetime-local" id="editVisitScheduledAt" name="scheduled_at" required step="1800">
                     </div>
                     <div class="form-group">
                         <label>Address line 1 *</label>

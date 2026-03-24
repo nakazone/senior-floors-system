@@ -51,6 +51,8 @@ window.addEventListener('DOMContentLoaded', () => {
     // Score automático da qualificação
     attachQualificationScoreListeners();
 
+    wireVisitScheduleHalfHourInputs_();
+
     // Menu lateral fixo: toggle mobile
     const sidebar = document.getElementById('dashboardSidebar');
     const overlay = document.getElementById('mobileOverlay');
@@ -58,27 +60,6 @@ window.addEventListener('DOMContentLoaded', () => {
     if (menuBtn && sidebar && overlay) {
         menuBtn.addEventListener('click', () => { sidebar.classList.toggle('mobile-open'); overlay.classList.toggle('active'); });
         overlay.addEventListener('click', () => { sidebar.classList.remove('mobile-open'); overlay.classList.remove('active'); });
-    }
-
-    const delBtn = document.getElementById('deleteLeadBtn');
-    if (delBtn) {
-        delBtn.addEventListener('click', async () => {
-            if (!currentLeadId || !confirm('Excluir este lead permanentemente? Esta ação não pode ser desfeita.')) return;
-            delBtn.disabled = true;
-            try {
-                const r = await fetch(`/api/leads/${currentLeadId}`, { method: 'DELETE', credentials: 'include' });
-                const d = await r.json().catch(() => ({}));
-                if (!r.ok || !d.success) {
-                    alert(d.error || 'Não foi possível excluir o lead.');
-                    delBtn.disabled = false;
-                    return;
-                }
-                window.location.href = 'dashboard.html?page=leads';
-            } catch (e) {
-                alert('Erro de rede ao excluir.');
-                delBtn.disabled = false;
-            }
-        });
     }
 });
 
@@ -465,59 +446,40 @@ async function saveQualification() {
 }
 
 async function loadInteractions() {
-    const list = document.getElementById('interactionsList');
-    if (!list) return;
     try {
         const response = await fetch(`/api/leads/${currentLeadId}/interactions`, { credentials: 'include' });
-        let data;
-        try {
-            data = await response.json();
-        } catch (_) {
-            list.innerHTML = '<li class="empty-state">Resposta inválida do servidor (status ' + response.status + ').</li>';
-            return;
-        }
-        if (!data.success) {
-            var msg = (data.error || 'Erro ao carregar interações.');
-            if (response.status === 401) msg = 'Sessão expirada. Faça login novamente.';
-            list.innerHTML = '<li class="empty-state">' + escapeHtml(msg) + '</li>';
-            return;
-        }
-        const items = data.data || [];
-        if (items.length > 0) {
-            list.innerHTML = items.map(interaction => {
-                const dateStr = interaction.created_at ? new Date(interaction.created_at).toLocaleString() : '-';
-                const typeLabel = getInteractionTypeLabel(interaction.type);
-                const notes = interaction.notes ? String(interaction.notes) : '';
-                const subject = interaction.subject ? String(interaction.subject) : '';
-                const userName = interaction.user_name ? String(interaction.user_name) : '';
-                return `<li class="timeline-item">
+        const data = await response.json();
+        
+        const list = document.getElementById('interactionsList');
+        if (data.success && data.data && data.data.length > 0) {
+            list.innerHTML = data.data.map(interaction => `
+                <li class="timeline-item">
                     <div class="timeline-item-header">
-                        <span class="timeline-item-title">${typeLabel}</span>
-                        <span class="timeline-item-date">${dateStr}</span>
+                        <span class="timeline-item-title">${getInteractionTypeLabel(interaction.type)}</span>
+                        <span class="timeline-item-date">${new Date(interaction.created_at).toLocaleString()}</span>
                     </div>
                     <div class="timeline-item-content">
-                        ${subject ? `<strong>${escapeHtml(subject)}</strong><br>` : ''}
-                        ${escapeHtml(notes)}
-                        ${userName ? `<br><small>Por: ${escapeHtml(userName)}</small>` : ''}
+                        ${interaction.subject ? `<strong>${interaction.subject}</strong><br>` : ''}
+                        ${interaction.notes || ''}
+                        ${interaction.user_name ? `<br><small>Por: ${interaction.user_name}</small>` : ''}
                     </div>
-                </li>`;
-            }).join('');
+                </li>
+            `).join('');
         } else {
             list.innerHTML = '<li class="empty-state">Nenhuma interação registrada ainda.</li>';
         }
     } catch (error) {
         console.error('Error loading interactions:', error);
-        list.innerHTML = '<li class="empty-state">Erro ao carregar interações. ' + escapeHtml(error.message || '') + '</li>';
     }
 }
 
 function getInteractionTypeLabel(type) {
     const labels = {
-        'call': 'Chamada',
-        'whatsapp': 'WhatsApp',
-        'email': 'Email',
-        'visit': 'Visita',
-        'meeting': 'Reunião'
+        'call': '📞 Chamada',
+        'whatsapp': '💬 WhatsApp',
+        'email': '📧 Email',
+        'visit': '🏠 Visita',
+        'meeting': '🤝 Reunião'
     };
     return labels[type] || type;
 }
@@ -621,6 +583,47 @@ function submitFollowupForm(e) {
 function getVisitStatusLabel(status) {
     const labels = { scheduled: 'Agendada', confirmed: 'Confirmada', completed: 'Realizada', cancelled: 'Cancelada', no_show: 'Não compareceu' };
     return labels[status] || status || 'Agendada';
+}
+
+/** Agendamento de visita só em :00 e :30 (datetime-local YYYY-MM-DDTHH:mm). */
+function snapVisitDatetimeLocalToHalfHour_(val) {
+    if (!val || typeof val !== 'string') return val;
+    const parts = val.split('T');
+    if (parts.length !== 2) return val;
+    let datePart = parts[0];
+    const tm = parts[1].match(/^(\d{2}):(\d{2})/);
+    if (!tm) return val;
+    let h = parseInt(tm[1], 10);
+    let min = parseInt(tm[2], 10);
+    if (isNaN(h) || isNaN(min)) return val;
+    if (min >= 45) {
+        h += 1;
+        min = 0;
+    } else if (min >= 15) {
+        min = 30;
+    } else {
+        min = 0;
+    }
+    if (h >= 24) {
+        const d = new Date(datePart + 'T12:00:00');
+        d.setDate(d.getDate() + 1);
+        datePart = d.toISOString().slice(0, 10);
+        h = 0;
+    }
+    return datePart + 'T' + String(h).padStart(2, '0') + ':' + String(min).padStart(2, '0');
+}
+
+function wireVisitScheduleHalfHourInputs_() {
+    ['visitScheduledAt', 'editVisitScheduledAt'].forEach((id) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.setAttribute('step', '1800');
+        const snap = () => {
+            if (el.value) el.value = snapVisitDatetimeLocalToHalfHour_(el.value);
+        };
+        el.addEventListener('change', snap);
+        el.addEventListener('blur', snap);
+    });
 }
 
 async function loadVisits() {
@@ -744,14 +747,11 @@ function showNewVisitModal() {
     if (scheduled) {
         const d = new Date();
         d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
-        scheduled.value = d.toISOString().slice(0, 16);
+        scheduled.value = snapVisitDatetimeLocalToHalfHour_(d.toISOString().slice(0, 16));
     }
-    var addrEl = document.getElementById('visitAddress');
-    if (addrEl) {
-        var addr = (currentLead && (currentLead.address || currentLead.address_line1)) ? (currentLead.address || currentLead.address_line1) : '';
-        if (!addr && currentLead && currentLead.zipcode) addr = 'Zip: ' + currentLead.zipcode;
-        addrEl.value = addr;
-    }
+    var addr = (currentLead && (currentLead.address || currentLead.address_line1)) ? (currentLead.address || currentLead.address_line1) : '';
+    if (!addr && currentLead && currentLead.zipcode) addr = 'Zip: ' + currentLead.zipcode;
+    setAddressFields('visit', parseAddressForEdit(addr));
     document.getElementById('visitNotes').value = '';
     loadUsersForVisitSelect();
     modal.classList.add('active');
@@ -858,7 +858,7 @@ async function showEditVisitModal(visitId) {
         if (scheduledEl && v.scheduled_at) {
             var d = new Date(v.scheduled_at);
             d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
-            scheduledEl.value = d.toISOString().slice(0, 16);
+            scheduledEl.value = snapVisitDatetimeLocalToHalfHour_(d.toISOString().slice(0, 16));
         }
         setAddressFields('editVisit', parseAddressForEdit(v.address));
         document.getElementById('editVisitNotes').value = v.notes || '';
@@ -877,7 +877,9 @@ function submitEditVisitForm(e) {
     e.preventDefault();
     var visitId = document.getElementById('editVisitId').value;
     if (!visitId) return false;
-    var scheduledAt = document.getElementById('editVisitScheduledAt').value;
+    var editSchedEl = document.getElementById('editVisitScheduledAt');
+    var scheduledAt = snapVisitDatetimeLocalToHalfHour_(editSchedEl.value);
+    if (editSchedEl) editSchedEl.value = scheduledAt;
     var addressLine1 = (document.getElementById('editVisitAddressLine1') && document.getElementById('editVisitAddressLine1').value) ? document.getElementById('editVisitAddressLine1').value.trim() : '';
     var addressLine2 = (document.getElementById('editVisitAddressLine2') && document.getElementById('editVisitAddressLine2').value) ? document.getElementById('editVisitAddressLine2').value.trim() : '';
     var city = (document.getElementById('editVisitCity') && document.getElementById('editVisitCity').value) ? document.getElementById('editVisitCity').value.trim() : '';
@@ -927,7 +929,9 @@ async function updateVisit(visitId, payload, submitBtn) {
 
 function submitVisitForm(e) {
     e.preventDefault();
-    const scheduledAt = document.getElementById('visitScheduledAt').value;
+    const schedEl = document.getElementById('visitScheduledAt');
+    const scheduledAt = snapVisitDatetimeLocalToHalfHour_(schedEl.value);
+    if (schedEl) schedEl.value = scheduledAt;
     const addressLine1 = document.getElementById('visitAddressLine1').value.trim();
     const addressLine2 = document.getElementById('visitAddressLine2').value.trim();
     const city = document.getElementById('visitCity').value.trim();
