@@ -62,6 +62,11 @@ const alterations = [
   ['qualification_notes', `ALTER TABLE lead_qualification ADD COLUMN qualification_notes TEXT DEFAULT NULL COMMENT 'Notas da qualificação'`],
   ['qualified_by', `ALTER TABLE lead_qualification ADD COLUMN qualified_by INT(11) DEFAULT NULL COMMENT 'FK users'`],
   ['qualified_at', `ALTER TABLE lead_qualification ADD COLUMN qualified_at TIMESTAMP NULL DEFAULT NULL`],
+  ['address_street', `ALTER TABLE lead_qualification ADD COLUMN address_street VARCHAR(255) DEFAULT NULL COMMENT 'Rua e número'`],
+  ['address_line2', `ALTER TABLE lead_qualification ADD COLUMN address_line2 VARCHAR(255) DEFAULT NULL COMMENT 'Complemento'`],
+  ['address_city', `ALTER TABLE lead_qualification ADD COLUMN address_city VARCHAR(120) DEFAULT NULL COMMENT 'Cidade'`],
+  ['address_state', `ALTER TABLE lead_qualification ADD COLUMN address_state VARCHAR(50) DEFAULT NULL COMMENT 'Estado'`],
+  ['address_zip', `ALTER TABLE lead_qualification ADD COLUMN address_zip VARCHAR(20) DEFAULT NULL COMMENT 'CEP / ZIP'`],
 ];
 
 async function main() {

@@ -127,6 +127,16 @@
             grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
             gap: 15px;
         }
+        .form-row .form-group.full-width {
+            grid-column: 1 / -1;
+        }
+        .qualification-section-title {
+            font-size: 1rem;
+            margin: 24px 0 12px;
+            color: #333;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 8px;
+        }
         .form-row-2 {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -349,6 +359,29 @@
                                     <option value="financing">Financiamento</option>
                                     <option value="insurance">Seguro</option>
                                 </select>
+                            </div>
+                        </div>
+                        <h3 class="qualification-section-title">Endereço completo do lead (serviço)</h3>
+                        <div class="form-row">
+                            <div class="form-group full-width">
+                                <label>Rua e número</label>
+                                <input type="text" id="qualAddressStreet" placeholder="ex: 123 Oak Street" maxlength="255" autocomplete="street-address">
+                            </div>
+                            <div class="form-group full-width">
+                                <label>Complemento</label>
+                                <input type="text" id="qualAddressLine2" placeholder="Apto, suite, unidade…" maxlength="255">
+                            </div>
+                            <div class="form-group">
+                                <label>Cidade</label>
+                                <input type="text" id="qualAddressCity" maxlength="120" autocomplete="address-level2">
+                            </div>
+                            <div class="form-group">
+                                <label>Estado</label>
+                                <input type="text" id="qualAddressState" placeholder="ex: FL" maxlength="50" autocomplete="address-level1">
+                            </div>
+                            <div class="form-group">
+                                <label>CEP / ZIP</label>
+                                <input type="text" id="qualAddressZip" placeholder="ex: 33101" maxlength="20" autocomplete="postal-code">
                             </div>
                         </div>
                         <div class="form-group">

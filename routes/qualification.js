@@ -43,6 +43,11 @@ export async function createOrUpdateQualification(req, res) {
 
   const body = req.body || {};
   const str = (v) => (v === undefined || v === null ? null : String(v));
+  const trimStr = (v) => {
+    if (v === undefined || v === null) return null;
+    const s = String(v).trim();
+    return s === '' ? null : s;
+  };
   const num = (v) => (v === undefined || v === null || v === '' ? null : (parseFloat(v) || null));
   const int = (v) => (v === undefined || v === null || v === '' ? null : (parseInt(v, 10) || null));
 
@@ -56,6 +61,11 @@ export async function createOrUpdateQualification(req, res) {
   const payment_type = str(body.payment_type);
   const score = int(body.score);
   const qualification_notes = str(body.qualification_notes);
+  const address_street = trimStr(body.address_street);
+  const address_line2 = trimStr(body.address_line2);
+  const address_city = trimStr(body.address_city);
+  const address_state = trimStr(body.address_state);
+  const address_zip = trimStr(body.address_zip);
   const qualified_by = userId === undefined || userId === null ? null : userId;
 
   try {
@@ -74,13 +84,17 @@ export async function createOrUpdateQualification(req, res) {
           property_type = ?, service_type = ?, estimated_area = ?,
           estimated_budget = ?, urgency = ?, decision_maker = ?,
           decision_timeline = ?, payment_type = ?, score = ?,
-          qualification_notes = ?, qualified_by = ?, qualified_at = NOW()
+          qualification_notes = ?, address_street = ?, address_line2 = ?,
+          address_city = ?, address_state = ?, address_zip = ?,
+          qualified_by = ?, qualified_at = NOW()
         WHERE lead_id = ?`,
         [
           property_type, service_type, estimated_area,
           estimated_budget, urgency, decision_maker,
           decision_timeline, payment_type, score,
-          qualification_notes, qualified_by, leadId
+          qualification_notes, address_street, address_line2,
+          address_city, address_state, address_zip,
+          qualified_by, leadId
         ]
       );
     } else {
@@ -89,12 +103,14 @@ export async function createOrUpdateQualification(req, res) {
         `INSERT INTO lead_qualification 
         (lead_id, property_type, service_type, estimated_area, estimated_budget,
          urgency, decision_maker, decision_timeline, payment_type, score,
-         qualification_notes, qualified_by, qualified_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+         qualification_notes, address_street, address_line2, address_city,
+         address_state, address_zip, qualified_by, qualified_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
         [
           leadId, property_type, service_type, estimated_area,
           estimated_budget, urgency, decision_maker, decision_timeline,
-          payment_type, score, qualification_notes, qualified_by
+          payment_type, score, qualification_notes, address_street, address_line2,
+          address_city, address_state, address_zip, qualified_by
         ]
       );
     }

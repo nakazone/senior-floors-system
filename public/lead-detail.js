@@ -301,6 +301,23 @@ function getQualificationLabel(field, value) {
     return (map && map[value]) ? map[value] : value;
 }
 
+function formatQualificationAddressBlock(qual) {
+    if (!qual) return '';
+    var street = (qual.address_street || '').trim();
+    var line2 = (qual.address_line2 || '').trim();
+    var city = (qual.address_city || '').trim();
+    var state = (qual.address_state || '').trim();
+    var zip = (qual.address_zip || '').trim();
+    if (!street && !line2 && !city && !state && !zip) return '';
+    var line1 = [street, line2].filter(Boolean).join(', ');
+    var line2b = [city, state].filter(Boolean).join(', ');
+    if (zip) line2b = line2b ? line2b + ' ' + zip : zip;
+    var inner = '';
+    if (line1) inner += escapeHtml(line1);
+    if (line2b) inner += (inner ? '<br>' : '') + escapeHtml(line2b);
+    return '<div class="qualification-summary-item span-full"><span class="label">Endereço</span><div class="value">' + inner + '</div></div>';
+}
+
 function renderQualificationSummary(qual) {
     const el = document.getElementById('qualificationSummaryContent');
     const block = document.getElementById('qualificationSummaryBlock');
@@ -318,6 +335,7 @@ function renderQualificationSummary(qual) {
         if (qual.decision_timeline) html += '<div class="qualification-summary-item"><span class="label">Prazo de Decisão</span><div class="value">' + escapeHtml(qual.decision_timeline) + '</div></div>';
         if (qual.payment_type) html += '<div class="qualification-summary-item"><span class="label">Tipo de Pagamento</span><div class="value">' + getQualificationLabel('payment_type', qual.payment_type) + '</div></div>';
     }
+    html += formatQualificationAddressBlock(qual);
     if (qual.qualification_notes) {
         html += '<div class="qualification-summary-item span-full"><span class="label">Notas</span><div class="value">' + escapeHtml(qual.qualification_notes) + '</div></div>';
     }
@@ -354,6 +372,11 @@ async function loadQualification() {
             document.getElementById('qualDecisionMaker').value = qual.decision_maker || '';
             document.getElementById('qualDecisionTimeline').value = qual.decision_timeline || '';
             document.getElementById('qualPaymentType').value = qual.payment_type || '';
+            document.getElementById('qualAddressStreet').value = qual.address_street || '';
+            document.getElementById('qualAddressLine2').value = qual.address_line2 || '';
+            document.getElementById('qualAddressCity').value = qual.address_city || '';
+            document.getElementById('qualAddressState').value = qual.address_state || '';
+            document.getElementById('qualAddressZip').value = qual.address_zip || '';
             document.getElementById('qualNotes').value = qual.qualification_notes || '';
             updateQualificationScoreDisplay();
             renderQualificationSummary(qual);
@@ -413,7 +436,12 @@ async function saveQualification() {
         decision_timeline: document.getElementById('qualDecisionTimeline').value?.trim() || null,
         payment_type: document.getElementById('qualPaymentType').value?.trim() || null,
         score: score,
-        qualification_notes: document.getElementById('qualNotes').value?.trim() || null
+        qualification_notes: document.getElementById('qualNotes').value?.trim() || null,
+        address_street: document.getElementById('qualAddressStreet').value?.trim() || null,
+        address_line2: document.getElementById('qualAddressLine2').value?.trim() || null,
+        address_city: document.getElementById('qualAddressCity').value?.trim() || null,
+        address_state: document.getElementById('qualAddressState').value?.trim() || null,
+        address_zip: document.getElementById('qualAddressZip').value?.trim() || null
     };
 
     try {
