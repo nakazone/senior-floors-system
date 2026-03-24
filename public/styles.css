@@ -1953,6 +1953,34 @@ input.score-auto {
     color: #22543d;
 }
 
+.kanban-column--visits {
+    border: 2px solid #0d9488;
+    background: linear-gradient(180deg, rgba(13, 148, 136, 0.08) 0%, var(--bg-light) 140px);
+}
+
+.kanban-column-header--visits {
+    background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%);
+}
+
+.kanban-card--visit {
+    border-left-color: #0d9488;
+}
+
+.kanban-card-body--visit {
+    line-height: 1.45;
+}
+
+.kanban-visit-datetime {
+    margin-bottom: 4px;
+}
+
+.kanban-visit-hint {
+    max-width: 58%;
+    text-align: right;
+    line-height: 1.25;
+    font-size: 0.68rem;
+}
+
 /* Mobile Modal */
 @media (max-width: 768px) {
     .modal-content {
