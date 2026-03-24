@@ -444,6 +444,24 @@ tr:hover {
     background: var(--bg-light);
 }
 
+.data-table tbody tr.lead-table-row {
+    border-left: 4px solid var(--lead-stage-color, #cbd5e1);
+}
+
+.lead-status-pipeline {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.lead-stage-color-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08);
+}
+
 /* Buttons */
 .btn {
     padding: 10px 20px;

@@ -9,6 +9,51 @@ let lastLeadCount = null;
 const NEW_LEAD_POLL_INTERVAL_MS = 30000; // 30s
 let newLeadPollTimer = null;
 
+/** Slug → cor hex (lista de leads alinhada às colunas do Kanban) */
+let leadsPipelineSlugToColor = null;
+
+function sanitizeLeadStageHexColor(c) {
+    if (c == null || c === undefined) return '';
+    const s = String(c).trim();
+    return /^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$/.test(s) ? s : '';
+}
+
+function escapeHtmlLeadList(s) {
+    return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/"/g, '&quot;');
+}
+
+async function ensureLeadsPipelineColorMap() {
+    if (leadsPipelineSlugToColor) return;
+    leadsPipelineSlugToColor = {};
+    try {
+        const response = await fetch('/api/pipeline-stages', { credentials: 'include' });
+        const data = await response.json();
+        if (data.success && Array.isArray(data.data)) {
+            const fallback = '#94a3b8';
+            data.data.forEach((stage) => {
+                if (!stage || !stage.slug) return;
+                leadsPipelineSlugToColor[stage.slug] = sanitizeLeadStageHexColor(stage.color) || fallback;
+            });
+        }
+    } catch (e) {
+        leadsPipelineSlugToColor = {};
+    }
+}
+
+function resolveLeadRowStageColor(lead) {
+    const fallback = '#94a3b8';
+    const fromJoin = sanitizeLeadStageHexColor(lead.pipeline_stage_color);
+    if (fromJoin) return fromJoin;
+    const slug = lead.pipeline_stage_slug || lead.status;
+    if (slug && leadsPipelineSlugToColor && leadsPipelineSlugToColor[slug]) {
+        return leadsPipelineSlugToColor[slug];
+    }
+    return fallback;
+}
+
 // Check authentication
 fetch('/api/auth/session', { credentials: 'include' })
     .then(r => r.json())
@@ -656,6 +701,7 @@ async function loadLeads() {
     }
     
     try {
+        await ensureLeadsPipelineColorMap();
         const response = await fetch(`/api/leads?page=${leadsPage}&limit=20`, { credentials: 'include' });
         const data = await response.json();
         
@@ -672,13 +718,18 @@ async function loadLeads() {
                     tbody.innerHTML = data.data.map(lead => {
                         var minLeft = isLeadUrgentNew(lead.created_at);
                         var urgentBadge = minLeft > 0 ? ' <span class="badge-urgent-new">Novo – ' + minLeft + ' min</span>' : '';
-                        return `<tr>
+                        var stageColor = resolveLeadRowStageColor(lead);
+                        var statusSlug = lead.status || 'new';
+                        var statusLabel =
+                            (lead.pipeline_stage_name && String(lead.pipeline_stage_name).trim()) ||
+                            statusSlug.replace(/_/g, ' ');
+                        return `<tr class="lead-table-row" style="--lead-stage-color: ${stageColor}">
                             <td>${lead.id}</td>
                             <td>${lead.name || '-'}${urgentBadge}</td>
                             <td>${lead.email || '-'}</td>
                             <td>${lead.phone || '-'}</td>
                             <td>${lead.zipcode || '-'}</td>
-                            <td><span class="badge badge-${lead.status || 'new'}">${lead.status || 'new'}</span></td>
+                            <td><span class="lead-status-pipeline" title="${escapeHtmlLeadList(statusLabel)}"><span class="lead-stage-color-dot" style="background-color: ${stageColor}" aria-hidden="true"></span><span class="badge badge-${statusSlug}">${escapeHtmlLeadList(statusLabel)}</span></span></td>
                             <td>${lead.source || '-'}</td>
                             <td>${lead.created_at ? new Date(lead.created_at).toLocaleDateString() : '-'}</td>
                             <td>
@@ -715,6 +766,7 @@ function changePageLeads(delta) {
 
 function refreshLeads() {
     leadsPage = 1;
+    leadsPipelineSlugToColor = null;
     loadLeads();
 }
 
