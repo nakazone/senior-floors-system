@@ -31,6 +31,15 @@ fetch('/api/auth/session', { credentials: 'include' })
 
 // Popup toast no canto inferior – novo lead recebido
 function showNewLeadToast(count, message) {
+    var msg = message || (count === 1 ? '1 novo lead. Contate em até 30 min!' : count + ' novos leads. Contate em até 30 min!');
+    if (typeof window.addCrmNotification === 'function') {
+        window.addCrmNotification({
+            title: count === 1 ? 'Novo lead recebido' : count + ' novos leads',
+            body: msg,
+            type: 'lead_new',
+            action: { kind: 'page', page: 'leads' },
+        });
+    }
     var container = document.getElementById('toastContainer');
     if (!container) return;
     var toast = document.createElement('div');
@@ -40,7 +49,7 @@ function showNewLeadToast(count, message) {
         '<span class="toast-lead-icon">!</span>' +
         '<div class="toast-lead-body">' +
         '<div class="toast-lead-title">Novo lead recebido!</div>' +
-        '<div class="toast-lead-msg">' + (message || (count === 1 ? '1 novo lead. Contate em até 30 min!' : count + ' novos leads. Contate em até 30 min!')) + '</div>' +
+        '<div class="toast-lead-msg">' + msg + '</div>' +
         '</div>' +
         '<button type="button" class="toast-lead-btn" onclick="this.closest(\'.toast-lead\').remove(); showPage(\'leads\');">Ver leads</button>';
     container.appendChild(toast);

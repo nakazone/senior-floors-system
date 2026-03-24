@@ -905,10 +905,28 @@
             </div>
         </main>
     </div>
+
+    <div class="notification-bell-wrap" id="notificationBellWrap">
+        <button type="button" id="notificationBellBtn" class="notification-bell-btn" aria-label="Notificações" aria-expanded="false" aria-controls="notificationPanel" title="Notificações">
+            <span class="notification-bell-icon" aria-hidden="true">🔔</span>
+            <span id="notificationBellBadge" class="notification-bell-badge" hidden>0</span>
+        </button>
+        <div id="notificationPanel" class="notification-panel" role="region" aria-label="Lista de notificações" hidden>
+            <div class="notification-panel-header">
+                <h3 class="notification-panel-title">Notificações</h3>
+                <div class="notification-panel-actions">
+                    <button type="button" class="btn-notification-text" id="notificationMarkAllRead">Marcar lidas</button>
+                    <button type="button" class="btn-notification-text btn-notification-text--danger" id="notificationClearAll">Limpar</button>
+                </div>
+            </div>
+            <div id="notificationPanelList" class="notification-panel-list"></div>
+        </div>
+    </div>
     
     <div id="toastContainer" class="toast-container" aria-live="polite"></div>
     
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+    <script src="notification-center.js"></script>
     <script src="marketing-dashboard.js"></script>
     <script src="dashboard.js"></script>
     <script src="leads-kanban.js"></script>

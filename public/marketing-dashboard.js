@@ -240,6 +240,14 @@ async function pollMarketingContactAlert() {
         ');this.closest(\'.toast-lead\').remove();">Abrir</button>';
       container.appendChild(toast);
       setTimeout(() => toast.remove(), 12000);
+      if (typeof window.addCrmNotification === 'function') {
+        window.addCrmNotification({
+          title: 'Lead sem contato (>5 min)',
+          body: lead.name || 'Lead',
+          type: 'marketing_urgent',
+          action: { kind: 'lead', leadId: lead.id },
+        });
+      }
     });
   } catch (e) {}
 }
