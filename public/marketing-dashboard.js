@@ -2,7 +2,6 @@
  * Marketing analytics page (dashboard.html #marketingPage)
  */
 let marketingCharts = {};
-let marketingAlertShown = new Set();
 
 function marketingDefaultDates() {
   const end = new Date();
@@ -141,7 +140,7 @@ async function loadMarketingDashboard() {
     }
 
     await loadMarketingAdSpend();
-    await pollMarketingContactAlert();
+    await refreshMarketingUrgentBanner();
   } catch (e) {
     if (errEl) {
       errEl.textContent = e.message || String(e);
@@ -217,39 +216,39 @@ function exportMarketingLeadsCsv() {
   window.open(`/api/marketing/export/leads?${qs}`, '_blank');
 }
 
-async function pollMarketingContactAlert() {
+/** Um único aviso na página Marketing (evita dezenas de toasts/notificações ao abrir o separador). */
+async function refreshMarketingUrgentBanner() {
+  const banner = document.getElementById('mktUrgentBanner');
+  if (!banner) return;
   try {
     const r = await fetch('/api/marketing/alerts/not-contacted', { credentials: 'include' });
     const j = await r.json();
-    if (!j.success || !j.count) return;
-    const container = document.getElementById('toastContainer');
-    j.data.forEach((lead) => {
-      const key = 'mkt-' + lead.id;
-      if (marketingAlertShown.has(key)) return;
-      marketingAlertShown.add(key);
-      if (!container) return;
-      const toast = document.createElement('div');
-      toast.className = 'toast-lead';
-      toast.innerHTML =
-        '<span class="toast-lead-icon">⏱</span><div class="toast-lead-body"><div class="toast-lead-title">Lead sem contato (&gt;5 min)</div>' +
-        '<div class="toast-lead-msg">' +
-        escapeHtml(lead.name || 'Lead') +
-        '</div></div>' +
-        '<button type="button" class="toast-lead-btn" onclick="viewLead(' +
-        lead.id +
-        ');this.closest(\'.toast-lead\').remove();">Abrir</button>';
-      container.appendChild(toast);
-      setTimeout(() => toast.remove(), 12000);
-      if (typeof window.addCrmNotification === 'function') {
-        window.addCrmNotification({
-          title: 'Lead sem contato (>5 min)',
-          body: lead.name || 'Lead',
-          type: 'marketing_urgent',
-          action: { kind: 'lead', leadId: lead.id },
-        });
-      }
-    });
-  } catch (e) {}
+    if (!j.success || !j.count) {
+      banner.style.display = 'none';
+      banner.innerHTML = '';
+      return;
+    }
+    const n = j.count;
+    const leads = j.data || [];
+    const sample = leads
+      .slice(0, 3)
+      .map((l) => escapeHtml(l.name || 'Lead'))
+      .join(', ');
+    const more = n > 3 ? ` e mais ${n - 3}` : '';
+    banner.innerHTML =
+      '<div class="mkt-urgent-banner-inner">' +
+      '<span class="mkt-urgent-banner-icon" aria-hidden="true">⏱</span>' +
+      '<div class="mkt-urgent-banner-text">' +
+      `<strong>${n} lead(s) sem contacto</strong> há mais de 5 minutos.` +
+      (sample ? `<span class="mkt-urgent-banner-names"> Ex.: ${sample}${more}.</span>` : '') +
+      '</div>' +
+      '<button type="button" class="btn btn-secondary" onclick="showPage(\'leads\')">Ver leads</button>' +
+      '</div>';
+    banner.style.display = 'block';
+  } catch (e) {
+    banner.style.display = 'none';
+    banner.innerHTML = '';
+  }
 }
 
 function initMarketingPage() {

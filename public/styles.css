@@ -1794,6 +1794,43 @@ input.score-auto {
     }
 }
 
+/* Marketing: aviso único de leads sem contacto (substitui N toasts) */
+.mkt-urgent-banner {
+    margin-bottom: var(--spacing-md);
+    padding: 12px 16px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, rgba(201, 162, 39, 0.15) 0%, rgba(230, 126, 34, 0.12) 100%);
+    border: 1px solid rgba(230, 126, 34, 0.35);
+}
+
+.mkt-urgent-banner-inner {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+}
+
+.mkt-urgent-banner-icon {
+    font-size: 1.25rem;
+    flex-shrink: 0;
+}
+
+.mkt-urgent-banner-text {
+    flex: 1;
+    min-width: 200px;
+    font-size: 0.9rem;
+    color: var(--text-dark, #1a202c);
+    line-height: 1.45;
+}
+
+.mkt-urgent-banner-names {
+    display: block;
+    margin-top: 4px;
+    font-weight: 400;
+    color: var(--text-muted, #475569);
+    font-size: 0.85rem;
+}
+
 /* Kanban Styles */
 .kanban-column {
     background: var(--bg-light);
