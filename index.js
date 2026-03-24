@@ -48,33 +48,39 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 
+// Railway / reverse proxy — necessário para cookie Secure e req.secure corretos
+app.set('trust proxy', 1);
+
+const isProduction = process.env.NODE_ENV === 'production' || !!process.env.RAILWAY_ENVIRONMENT;
+// UI em outro domínio (ex.: Vercel) chamando API no Railway: defina SESSION_CROSS_SITE=1 (cookie SameSite=None; Secure)
+const crossSiteSession = process.env.SESSION_CROSS_SITE === '1' || process.env.SESSION_CROSS_SITE === 'true';
+
 // Session configuration
 app.use(session({
   secret: process.env.SESSION_SECRET || 'senior-floors-secret-change-in-production',
   resave: false,
   saveUninitialized: false,
   name: 'seniorfloors.sid', // Nome customizado para evitar conflitos
+  rolling: true,
   cookie: {
-    secure: false, // Railway pode usar HTTP, então false é mais seguro
+    secure: crossSiteSession || isProduction,
     httpOnly: true,
-    sameSite: 'lax', // Permite cookies em navegação cross-site
+    sameSite: crossSiteSession ? 'none' : 'lax',
     maxAge: 24 * 60 * 60 * 1000 // 24 hours
   }
 }));
 
-app.use(cors({ origin: true, credentials: true }));
+app.use(cors({
+  origin: true,
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Accept', 'Authorization', 'X-Requested-With', 'X-Sheets-Sync', 'X-Sheets-Sync-Secret'],
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Serve static files (admin panel)
 app.use(express.static(path.join(__dirname, 'public')));
-
-app.options('*', (req, res) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Accept, Authorization');
-  res.sendStatus(204);
-});
 
 // Root route - redirect to admin or show API info
 app.get('/', (req, res) => {

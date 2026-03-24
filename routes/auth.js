@@ -4,6 +4,17 @@
 import bcrypt from 'bcryptjs';
 import { getDBConnection } from '../config/db.js';
 
+/** Garante que o cookie de sessão é enviado antes da resposta JSON (evita 401 em PUT seguinte). */
+function respondLoggedIn(req, res, userPayload, extra = {}) {
+  req.session.save((err) => {
+    if (err) {
+      console.error('Session save error:', err);
+      return res.status(500).json({ success: false, error: 'Could not establish session' });
+    }
+    res.json({ success: true, user: userPayload, ...extra });
+  });
+}
+
 export async function login(req, res) {
   const { email, password } = req.body;
 
@@ -104,14 +115,11 @@ export async function login(req, res) {
       // Ignorar erro se coluna não existir
     }
 
-    res.json({
-      success: true,
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        role: userRole
-      }
+    return respondLoggedIn(req, res, {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: userRole,
     });
   } catch (error) {
     console.error('Login error:', error);
