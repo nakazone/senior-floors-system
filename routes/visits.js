@@ -40,7 +40,7 @@ export async function listVisits(req, res) {
     }
 
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
-    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 20));
+    const limit = Math.min(500, Math.max(1, parseInt(req.query.limit, 10) || 20));
     const offset = (page - 1) * limit;
     const status = req.query.status || null;
     const sellerId = req.query.seller_id || null;
@@ -64,11 +64,11 @@ export async function listVisits(req, res) {
       params.push(leadId);
     }
     if (dateFrom) {
-      whereClause += ' AND v.scheduled_at >= ?';
+      whereClause += ' AND DATE(v.scheduled_at) >= ?';
       params.push(dateFrom);
     }
     if (dateTo) {
-      whereClause += ' AND v.scheduled_at <= ?';
+      whereClause += ' AND DATE(v.scheduled_at) <= ?';
       params.push(dateTo);
     }
 
