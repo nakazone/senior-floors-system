@@ -45,6 +45,28 @@ function scheduleCoversDate(s, dateStr) {
 }
 
 // Load Schedule Data
+async function loadGoogleCalendarStatusBanner() {
+    const el = document.getElementById('googleCalendarSyncBanner');
+    if (!el) return;
+    try {
+        const r = await fetch('/api/integrations/google-calendar/status', { credentials: 'include' });
+        const d = await r.json();
+        if (!d.success) return;
+        el.style.display = 'block';
+        if (d.configured) {
+            el.textContent = `Google Calendar: sincronização ativa (calendário: ${d.calendarId}). Projetos e visitas são enviados ao criar/atualizar.`;
+            el.style.borderLeft = '3px solid #34a853';
+        } else {
+            el.textContent =
+                'Google Calendar: não configurado no servidor (variáveis GOOGLE_CALENDAR_*). Veja env.example e database/add-google-calendar-event-ids.sql.';
+            el.style.color = '#666';
+            el.style.borderLeft = '3px solid #f9ab00';
+        }
+    } catch {
+        el.style.display = 'none';
+    }
+}
+
 async function loadScheduleData() {
     await Promise.all([
         loadCrews(),
@@ -54,6 +76,7 @@ async function loadScheduleData() {
 
     renderForecastDashboard(allSchedules, allLeadVisits);
     renderScheduleView();
+    loadGoogleCalendarStatusBanner();
 }
 
 // Load Crews
@@ -116,6 +139,7 @@ async function loadScheduleDashboard() {
     await Promise.all([loadSchedules(), loadLeadVisits()]);
     renderForecastDashboard(allSchedules, allLeadVisits);
     renderScheduleView();
+    loadGoogleCalendarStatusBanner();
 }
 
 // Render Forecast Dashboard

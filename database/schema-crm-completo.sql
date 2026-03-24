@@ -163,6 +163,7 @@ CREATE TABLE IF NOT EXISTS `visits` (
   `confirmed_at` timestamp NULL DEFAULT NULL COMMENT 'Quando foi confirmada',
   `completed_at` timestamp NULL DEFAULT NULL COMMENT 'Quando foi realizada',
   `notes` text DEFAULT NULL COMMENT 'Notas da visita',
+  `google_calendar_event_id` varchar(255) DEFAULT NULL COMMENT 'Google Calendar event id',
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),

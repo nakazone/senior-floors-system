@@ -67,6 +67,7 @@ CREATE TABLE IF NOT EXISTS `project_schedules` (
   `actual_end_date` date DEFAULT NULL COMMENT 'Data real de término',
   `actual_days` int(11) DEFAULT NULL COMMENT 'Dias reais',
   `notes` text DEFAULT NULL,
+  `google_calendar_event_id` varchar(255) DEFAULT NULL COMMENT 'Google Calendar event id',
   `created_by` int(11) DEFAULT NULL COMMENT 'FK users - quem criou',
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

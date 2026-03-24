@@ -13,7 +13,7 @@ import { handleReceiveLead } from './routes/receiveLead.js';
 import { handleDbCheck } from './routes/dbCheck.js';
 import { listLeads, getLead, createLead, updateLead, deleteLead } from './routes/leads.js';
 import { login, logout, checkSession } from './routes/auth.js';
-import { requireAuth } from './middleware/auth.js';
+import { requireAuth, requireRole } from './middleware/auth.js';
 import { listCustomers, getCustomer, createCustomer, updateCustomer } from './routes/customers.js';
 import { listQuotes, getQuote, createQuote, updateQuote } from './routes/quotes.js';
 import { listProjects, getProject, createProject, updateProject } from './routes/projects.js';
@@ -40,6 +40,11 @@ import { listPipelineStages } from './routes/pipelineStages.js';
 import { listEstimates, getEstimate, createEstimate, updateEstimate, deleteEstimate, getEstimateAnalytics } from './routes/estimates.js';
 import { listCrews, getCrew, createCrew, updateCrew } from './routes/crews.js';
 import { listSchedules, getSchedule, createSchedule, updateSchedule, simulateScheduleOptions, getCrewAvailability } from './routes/schedules.js';
+import {
+  googleCalendarStatus,
+  googleCalendarOAuthStart,
+  googleCalendarOAuthCallback,
+} from './routes/googleCalendarIntegration.js';
 import { getProjectFinancial, updateProjectFinancial, listExpenses, createExpense, approveExpense, listPayrollEntries, createPayrollEntry, approvePayrollEntry, getFinancialDashboard } from './routes/financials.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -180,6 +185,11 @@ app.get('/api/crews', requireAuth, listCrews);
 app.get('/api/crews/:id', requireAuth, getCrew);
 app.post('/api/crews', requireAuth, createCrew);
 app.put('/api/crews/:id', requireAuth, updateCrew);
+
+// Google Calendar (CRM → Google)
+app.get('/api/integrations/google-calendar/status', requireAuth, googleCalendarStatus);
+app.get('/api/integrations/google-calendar/oauth-url', requireAuth, requireRole('admin'), googleCalendarOAuthStart);
+app.get('/api/integrations/google-calendar/callback', googleCalendarOAuthCallback);
 
 // Project Schedules (Smart Scheduling)
 app.get('/api/schedules', requireAuth, listSchedules);

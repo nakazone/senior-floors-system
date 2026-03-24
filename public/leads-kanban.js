@@ -7,8 +7,8 @@ let pipelineStages = [];
 let allLeads = [];
 let allUsers = [];
 
-// Load users for selects
-async function loadUsers() {
+// Load users for modais de lead (não confundir com loadUsers() da página Users em dashboard.js)
+async function loadLeadFormUsers() {
     try {
         const response = await fetch('/api/users?limit=100', { credentials: 'include' });
         const data = await response.json();
@@ -86,7 +86,7 @@ async function loadPipelineStages() {
 async function loadCRMKanban() {
     currentView = 'kanban';
     // Load required data first
-    await loadUsers();
+    await loadLeadFormUsers();
     await loadPipelineStages();
     // Then load kanban board
     loadKanbanBoard();
@@ -261,7 +261,7 @@ async function updateLeadStage(leadId, stageId, stageSlug) {
 
 // Show New Lead Modal
 function showNewLeadModal() {
-    loadUsers();
+    loadLeadFormUsers();
     document.getElementById('newLeadModal').classList.add('active');
     document.getElementById('newLeadModal').style.display = 'flex';
 }
@@ -314,7 +314,7 @@ async function createLeadManual(e) {
 
 // Show Assign Lead Modal
 function showAssignLeadModal(leadId) {
-    loadUsers();
+    loadLeadFormUsers();
     document.getElementById('assignLeadId').value = leadId;
     document.getElementById('assignLeadModal').classList.add('active');
     document.getElementById('assignLeadModal').style.display = 'flex';
@@ -356,7 +356,7 @@ async function assignLead(e) {
 
 // Show Follow-up Modal
 function showFollowupModal(leadId) {
-    loadUsers();
+    loadLeadFormUsers();
     document.getElementById('followupLeadId').value = leadId;
     
     // Set default due date to tomorrow
@@ -445,7 +445,7 @@ if (typeof window !== 'undefined') {
     if (originalLoadLeads) {
         window.loadLeads = async function() {
             await originalLoadLeads();
-            await loadUsers();
+            await loadLeadFormUsers();
             await loadPipelineStages();
         };
     }

@@ -9,6 +9,7 @@ import {
   calculateEstimatedDays,
   checkAndFlagOverbooking
 } from '../services/scheduleAllocator.js';
+import { syncProjectScheduleById } from '../services/googleCalendarSync.js';
 
 /**
  * Listar agendamentos
@@ -194,16 +195,19 @@ export async function createSchedule(req, res) {
     );
     
     const [created] = await pool.query(
-      `SELECT ps.*, c.name as crew_name, p.project_number
+      `SELECT ps.*, c.name as crew_name, p.project_number, pr.name as project_name
        FROM project_schedules ps
        JOIN crews c ON ps.crew_id = c.id
        JOIN projects p ON ps.project_id = p.id
+       LEFT JOIN leads pr ON p.lead_id = pr.id
        WHERE ps.id = ?`,
       [result.insertId]
     );
-    
-    return res.status(201).json({ 
-      success: true, 
+
+    await syncProjectScheduleById(pool, result.insertId);
+
+    return res.status(201).json({
+      success: true,
       data: created[0],
       warning: hasOverbooking ? 'Schedule created but crew is overbooked on some days' : null
     });
@@ -283,13 +287,17 @@ export async function updateSchedule(req, res) {
     );
     
     const [updated] = await pool.query(
-      `SELECT ps.*, c.name as crew_name
+      `SELECT ps.*, c.name as crew_name, p.project_number, pr.name as project_name
        FROM project_schedules ps
        JOIN crews c ON ps.crew_id = c.id
+       JOIN projects p ON ps.project_id = p.id
+       LEFT JOIN leads pr ON p.lead_id = pr.id
        WHERE ps.id = ?`,
       [scheduleId]
     );
-    
+
+    await syncProjectScheduleById(pool, scheduleId);
+
     return res.json({ success: true, data: updated[0] });
   } catch (error) {
     console.error('Error updating schedule:', error);

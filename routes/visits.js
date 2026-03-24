@@ -2,6 +2,7 @@
  * Visits/Schedule API - Site visits and scheduling
  */
 import { getDBConnection } from '../config/db.js';
+import { syncVisitById } from '../services/googleCalendarSync.js';
 
 function buildAddressFromParts({ address, address_line1, address_line2, city, zipcode }) {
   if (address && String(address).trim()) return String(address).trim();
@@ -239,6 +240,7 @@ export async function createVisit(req, res) {
         ]
       );
       await updateLeadToVisitScheduled(pool, leadIdInt);
+      await syncVisitById(pool, result.insertId);
       return res.status(201).json({ success: true, data: { id: result.insertId }, message: 'Visit scheduled' });
     } catch (err) {
       if (!isUnknownColumnError(err)) {
@@ -264,6 +266,7 @@ export async function createVisit(req, res) {
         ]
       );
       await updateLeadToVisitScheduled(pool, leadIdInt);
+      await syncVisitById(pool, result.insertId);
       return res.status(201).json({ success: true, data: { id: result.insertId }, message: 'Visit scheduled' });
     } catch (err2) {
       console.error('Create visit error (legacy):', err2);
@@ -330,8 +333,11 @@ export async function updateVisit(req, res) {
     const setClause = updates.join(', ');
     const setCrm = setClause.replace(/\bseller_id\b/g, 'assigned_to');
 
+    const visitId = parseInt(req.params.id, 10);
+
     try {
       await pool.execute(`UPDATE visits SET ${setCrm} WHERE id = ?`, values);
+      await syncVisitById(pool, visitId);
       return res.json({ success: true, message: 'Visit updated' });
     } catch (err) {
       if (!isUnknownColumnError(err)) {
@@ -342,6 +348,7 @@ export async function updateVisit(req, res) {
 
     try {
       await pool.execute(`UPDATE visits SET ${setClause} WHERE id = ?`, values);
+      await syncVisitById(pool, visitId);
       return res.json({ success: true, message: 'Visit updated' });
     } catch (err2) {
       console.error('Update visit error (legacy):', err2);

@@ -20,7 +20,7 @@ fetch('/api/auth/session', { credentials: 'include' })
         loadDashboard();
         startNewLeadPolling();
         const pageParam = new URLSearchParams(window.location.search).get('page');
-        if (pageParam && document.querySelector(`[data-page="${pageParam}"]`)) {
+        if (pageParam && document.querySelector(`#dashboardSidebar [data-page="${pageParam}"]`)) {
             showPage(pageParam);
         }
     })
@@ -118,8 +118,8 @@ if (mobileMenuToggle && dashboardSidebar && mobileOverlay) {
         mobileOverlay.classList.remove('active');
     });
 
-    // Close mobile menu when clicking nav item
-    document.querySelectorAll('.nav-item').forEach(item => {
+    // Close mobile menu when clicking sidebar nav only (evita apanhar .nav-item noutras zonas)
+    dashboardSidebar.querySelectorAll('.nav-item').forEach(item => {
         item.addEventListener('click', () => {
             if (isMobile()) {
                 dashboardSidebar.classList.remove('mobile-open');
@@ -139,22 +139,31 @@ if (mobileMenuToggle && dashboardSidebar && mobileOverlay) {
     updateMobileMenuVisibility();
 }
 
-// Navigation
-document.querySelectorAll('.nav-item').forEach(item => {
-    item.addEventListener('click', (e) => {
-        e.preventDefault();
-        showPage(item.dataset.page);
+// Navigation (só links da sidebar — nunca misturar com .nav-item noutros blocos)
+const dashboardSidebarEl = document.getElementById('dashboardSidebar');
+if (dashboardSidebarEl) {
+    dashboardSidebarEl.querySelectorAll('.nav-item').forEach(item => {
+        item.addEventListener('click', (e) => {
+            e.preventDefault();
+            const page = item.dataset.page;
+            if (page) showPage(page);
+        });
     });
-});
+}
 
 function showPage(pageName) {
     document.querySelectorAll('.page-content').forEach(p => p.style.display = 'none');
-    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-    
+
+    const side = document.getElementById('dashboardSidebar');
+    if (side) {
+        side.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    }
+
     const pageEl = document.getElementById(pageName + 'Page');
     if (pageEl) {
         pageEl.style.display = 'block';
-        document.querySelector(`[data-page="${pageName}"]`).classList.add('active');
+        const navLink = side && pageName ? side.querySelector(`[data-page="${pageName}"]`) : null;
+        if (navLink) navLink.classList.add('active');
         currentPageName = pageName;
         
         // Load page data
