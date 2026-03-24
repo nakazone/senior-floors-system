@@ -97,6 +97,16 @@ function renderLead() {
     if (nextStepsEl) nextStepsEl.textContent = currentLead.next_steps || currentLead.next_steps_notes || '-';
 
     // Form fields
+    var fn = document.getElementById('leadFullName');
+    if (fn) fn.value = currentLead.name || '';
+    var sp = document.getElementById('leadSummaryPhone');
+    if (sp) sp.value = currentLead.phone || '';
+    var em = document.getElementById('leadSummaryEmail');
+    if (em) em.value = currentLead.email || '';
+    var fa = document.getElementById('leadFullAddress');
+    if (fa) fa.value = currentLead.address != null ? currentLead.address : '';
+    var z = document.getElementById('leadSummaryZip');
+    if (z) z.value = currentLead.zipcode || '';
     document.getElementById('leadNotes').value = currentLead.notes || '';
     document.getElementById('leadPriority').value = currentLead.priority || 'medium';
     document.getElementById('leadEstimatedValue').value = currentLead.estimated_value || '';
@@ -186,12 +196,41 @@ async function loadPipelineStages() {
 }
 
 async function saveLead() {
+    const name = (document.getElementById('leadFullName') && document.getElementById('leadFullName').value) ? document.getElementById('leadFullName').value.trim() : (currentLead.name || '');
+    const email = (document.getElementById('leadSummaryEmail') && document.getElementById('leadSummaryEmail').value) ? document.getElementById('leadSummaryEmail').value.trim() : (currentLead.email || '');
+    const phone = (document.getElementById('leadSummaryPhone') && document.getElementById('leadSummaryPhone').value) ? document.getElementById('leadSummaryPhone').value.trim() : (currentLead.phone || '');
+    const zipRaw = (document.getElementById('leadSummaryZip') && document.getElementById('leadSummaryZip').value) ? document.getElementById('leadSummaryZip').value.replace(/\D/g, '') : (String(currentLead.zipcode || '').replace(/\D/g, ''));
+    const addrEl = document.getElementById('leadFullAddress');
+    const addressVal = addrEl ? addrEl.value.trim() : '';
+
+    if (name.length < 2) {
+        alert('Full name deve ter pelo menos 2 caracteres.');
+        return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        alert('Email inválido.');
+        return;
+    }
+    if (phone.length < 3) {
+        alert('Telefone inválido.');
+        return;
+    }
+    if (!zipRaw || zipRaw.length < 5) {
+        alert('ZIP code deve ter pelo menos 5 dígitos.');
+        return;
+    }
+
     const updates = {
+        name,
+        email,
+        phone,
+        zipcode: zipRaw.slice(0, 10),
         notes: document.getElementById('leadNotes').value,
         priority: document.getElementById('leadPriority').value,
         estimated_value: parseFloat(document.getElementById('leadEstimatedValue').value) || null,
         status: document.getElementById('leadStatusSelect').value || currentLead.status
     };
+    if (addrEl) updates.address = addressVal || null;
 
     try {
         const response = await fetch(`/api/leads/${currentLeadId}`, {

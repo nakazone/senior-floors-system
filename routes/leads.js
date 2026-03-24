@@ -210,6 +210,7 @@ export async function updateLead(req, res) {
       'email',
       'phone',
       'zipcode',
+      ...(colSet.has('address') ? ['address'] : []),
       'message',
       'status',
       'priority',
@@ -249,7 +250,33 @@ export async function updateLead(req, res) {
         if (val === undefined) val = null;
         else if (['owner_id', 'pipeline_stage_id'].includes(key)) val = val === '' || val == null ? null : parseInt(val, 10) || null;
         else if (key === 'estimated_value') val = val === '' || val == null ? null : parseFloat(val) || null;
+        else if (key === 'zipcode' && val !== '' && val != null) {
+          val = String(val).replace(/\D/g, '').slice(0, 10);
+        } else if (key === 'address' && val != null) {
+          val = String(val).trim().slice(0, 500) || null;
+        } else if (key === 'name' && val != null) val = String(val).trim().slice(0, 255);
+        else if (key === 'email' && val != null) val = String(val).trim().slice(0, 255);
+        else if (key === 'phone' && val != null) val = String(val).trim().slice(0, 50);
         values.push(val);
+      }
+    }
+
+    const willName = body.name !== undefined;
+    const willEmail = body.email !== undefined;
+    const willPhone = body.phone !== undefined;
+    if (willName && String(body.name || '').trim().length < 2) {
+      return res.status(400).json({ success: false, error: 'Nome deve ter pelo menos 2 caracteres' });
+    }
+    if (willEmail && body.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(body.email).trim())) {
+      return res.status(400).json({ success: false, error: 'Email inválido' });
+    }
+    if (willPhone && String(body.phone || '').trim().length < 3) {
+      return res.status(400).json({ success: false, error: 'Telefone inválido' });
+    }
+    if (body.zipcode !== undefined) {
+      const z = String(body.zipcode || '').replace(/\D/g, '');
+      if (z && z.length < 5) {
+        return res.status(400).json({ success: false, error: 'ZIP deve ter pelo menos 5 dígitos' });
       }
     }
     

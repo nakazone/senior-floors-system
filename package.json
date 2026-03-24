@@ -8,7 +8,8 @@
     "start": "node index.js",
     "dev": "node --watch index.js",
     "migrate:marketing": "node database/migrate-marketing-analytics.js",
-    "fix:lead-names-csv": "node database/fix-lead-names-from-csv.js"
+    "fix:lead-names-csv": "node database/fix-lead-names-from-csv.js",
+    "migrate:lead-address": "node database/add-lead-address-column.js"
   },
   "engines": {
     "node": ">=18"

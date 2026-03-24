@@ -52,6 +52,24 @@
         .lead-meta-item strong {
             color: #666;
         }
+        .lead-contact-edit-card {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 24px;
+        }
+        .lead-contact-edit-card h3 {
+            margin: 0 0 8px 0;
+            font-size: 1.1rem;
+            color: #1e293b;
+        }
+        .lead-contact-edit-hint {
+            font-size: 0.875rem;
+            color: #64748b;
+            margin: 0 0 16px 0;
+            line-height: 1.45;
+        }
         .status-badge {
             display: inline-block;
             padding: 4px 12px;
@@ -252,6 +270,32 @@
                 <!-- Tab: Summary -->
                 <div id="summaryTab" class="tab-content active">
                     <h2>Resumo do Lead</h2>
+                    <div class="lead-contact-edit-card">
+                        <h3>Dados de contato e endereço</h3>
+                        <p class="lead-contact-edit-hint">Use estes campos para corrigir nome, telefone, email ou endereço quando o lead veio errado da planilha ou do formulário.</p>
+                        <div class="form-group">
+                            <label>Full name</label>
+                            <input type="text" id="leadFullName" maxlength="255" autocomplete="name" placeholder="Nome completo">
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Phone</label>
+                                <input type="text" id="leadSummaryPhone" maxlength="50" autocomplete="tel" placeholder="(303) 555-0100">
+                            </div>
+                            <div class="form-group">
+                                <label>Email</label>
+                                <input type="email" id="leadSummaryEmail" maxlength="255" autocomplete="email" placeholder="email@exemplo.com">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Full address</label>
+                            <textarea id="leadFullAddress" rows="3" maxlength="500" placeholder="Rua, número, complemento, cidade, estado…"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label>ZIP code <span class="optional">(5 dígitos US)</span></label>
+                            <input type="text" id="leadSummaryZip" maxlength="10" inputmode="numeric" placeholder="80202">
+                        </div>
+                    </div>
                     <div class="form-group">
                         <label>Notas</label>
                         <textarea id="leadNotes" placeholder="Adicione notas sobre este lead..."></textarea>
