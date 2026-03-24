@@ -185,17 +185,14 @@ function getScheduledVisitsForKanbanColumn() {
     });
 }
 
-// Render Kanban Board
-function renderKanbanBoard() {
-    const board = document.getElementById('kanbanBoard');
-    if (!board) return;
+/** Estágio(s) de qualificação: coluna de visitas agendadas vem logo a seguir */
+function isKanbanQualificationStage(stage) {
+    if (!stage || !stage.slug) return false;
+    const s = String(stage.slug).toLowerCase();
+    return s === 'qualified' || s === 'qualification' || s === 'qualificado';
+}
 
-    const visitStage = getVisitScheduledPipelineStage();
-    const visitsForColumn = getScheduledVisitsForKanbanColumn();
-    const visitColumnLeadIds = new Set(visitsForColumn.map((v) => v.lead_id).filter((id) => id != null));
-
-    board.innerHTML = '';
-
+function buildVisitsKanbanColumnElement(visitsForColumn) {
     const visitsColumn = document.createElement('div');
     visitsColumn.className = 'kanban-column kanban-column--visits';
     visitsColumn.dataset.visitOnly = 'true';
@@ -216,9 +213,24 @@ function renderKanbanBoard() {
                 ${visitCardsHtml}
             </div>
         `;
-    board.appendChild(visitsColumn);
+    return visitsColumn;
+}
 
-    pipelineStages.forEach((stage) => {
+// Render Kanban Board
+function renderKanbanBoard() {
+    const board = document.getElementById('kanbanBoard');
+    if (!board) return;
+
+    const visitStage = getVisitScheduledPipelineStage();
+    const visitsForColumn = getScheduledVisitsForKanbanColumn();
+    const visitColumnLeadIds = new Set(visitsForColumn.map((v) => v.lead_id).filter((id) => id != null));
+
+    board.innerHTML = '';
+
+    const visitsColumnEl = buildVisitsKanbanColumnElement(visitsForColumn);
+    let visitsColumnInserted = false;
+
+    const appendStageColumn = (stage) => {
         const stageLeads = allLeads.filter((lead) => {
             const matchesStage =
                 lead.pipeline_stage_id === stage.id ||
@@ -238,7 +250,7 @@ function renderKanbanBoard() {
         column.className = 'kanban-column';
         column.dataset.stageId = stage.id;
         column.dataset.stageSlug = stage.slug;
-        
+
         column.innerHTML = `
             <div class="kanban-column-header" style="background: ${stage.color || '#3498db'}">
                 <div class="kanban-column-title">
@@ -247,12 +259,28 @@ function renderKanbanBoard() {
                 </div>
             </div>
             <div class="kanban-column-cards" id="kanban-stage-${stage.id}">
-                ${stageLeads.map(lead => renderKanbanCard(lead)).join('')}
+                ${stageLeads.map((lead) => renderKanbanCard(lead)).join('')}
             </div>
         `;
-        
+
         board.appendChild(column);
+    };
+
+    pipelineStages.forEach((stage) => {
+        if (!visitsColumnInserted && stage.slug === 'visit_scheduled') {
+            board.appendChild(visitsColumnEl);
+            visitsColumnInserted = true;
+        }
+        appendStageColumn(stage);
+        if (!visitsColumnInserted && isKanbanQualificationStage(stage)) {
+            board.appendChild(visitsColumnEl);
+            visitsColumnInserted = true;
+        }
     });
+
+    if (!visitsColumnInserted) {
+        board.appendChild(visitsColumnEl);
+    }
 }
 
 function visitKanbanAddress(v) {
