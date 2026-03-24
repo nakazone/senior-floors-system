@@ -59,6 +59,27 @@ window.addEventListener('DOMContentLoaded', () => {
         menuBtn.addEventListener('click', () => { sidebar.classList.toggle('mobile-open'); overlay.classList.toggle('active'); });
         overlay.addEventListener('click', () => { sidebar.classList.remove('mobile-open'); overlay.classList.remove('active'); });
     }
+
+    const delBtn = document.getElementById('deleteLeadBtn');
+    if (delBtn) {
+        delBtn.addEventListener('click', async () => {
+            if (!currentLeadId || !confirm('Excluir este lead permanentemente? Esta ação não pode ser desfeita.')) return;
+            delBtn.disabled = true;
+            try {
+                const r = await fetch(`/api/leads/${currentLeadId}`, { method: 'DELETE', credentials: 'include' });
+                const d = await r.json().catch(() => ({}));
+                if (!r.ok || !d.success) {
+                    alert(d.error || 'Não foi possível excluir o lead.');
+                    delBtn.disabled = false;
+                    return;
+                }
+                window.location.href = 'dashboard.html?page=leads';
+            } catch (e) {
+                alert('Erro de rede ao excluir.');
+                delBtn.disabled = false;
+            }
+        });
+    }
 });
 
 async function loadLead() {

@@ -11,7 +11,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { handleReceiveLead } from './routes/receiveLead.js';
 import { handleDbCheck } from './routes/dbCheck.js';
-import { listLeads, getLead, createLead, updateLead } from './routes/leads.js';
+import { listLeads, getLead, createLead, updateLead, deleteLead } from './routes/leads.js';
 import { login, logout, checkSession } from './routes/auth.js';
 import { requireAuth } from './middleware/auth.js';
 import { listCustomers, getCustomer, createCustomer, updateCustomer } from './routes/customers.js';
@@ -109,6 +109,7 @@ app.post('/api/leads/:leadId/proposals', requireAuth, createProposal);
 app.get('/api/leads/:id', requireAuth, getLead);
 app.post('/api/leads', requireAuth, createLead);
 app.put('/api/leads/:id', requireAuth, updateLead);
+app.delete('/api/leads/:id', requireAuth, deleteLead);
 
 // Follow-ups (por ID de follow-up)
 app.put('/api/followups/:followupId', requireAuth, updateFollowup);
@@ -228,7 +229,7 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log('  Admin Panel: http://localhost:' + PORT);
   console.log('\n  API Endpoints:');
   console.log('  Dashboard: GET /api/dashboard/stats');
-  console.log('  Leads: GET /api/leads, GET /api/leads/:id, PUT /api/leads/:id');
+  console.log('  Leads: GET /api/leads, GET /api/leads/:id, PUT /api/leads/:id, DELETE /api/leads/:id');
   console.log('  Customers: GET /api/customers, POST /api/customers, PUT /api/customers/:id');
   console.log('  Quotes: GET /api/quotes, POST /api/quotes, PUT /api/quotes/:id');
   console.log('  Projects: GET /api/projects, POST /api/projects, PUT /api/projects/:id');

@@ -199,3 +199,51 @@ export async function updateLead(req, res) {
     return res.status(500).json({ success: false, error: e.message });
   }
 }
+
+async function execIgnoreNoSuchTable(conn, sql, params) {
+  try {
+    await conn.execute(sql, params);
+  } catch (e) {
+    if (e.code !== 'ER_NO_SUCH_TABLE') throw e;
+  }
+}
+
+/** DELETE lead and related rows (best-effort per table). */
+export async function deleteLead(req, res) {
+  if (!isDatabaseConfigured()) return res.status(503).json({ success: false, error: 'Database not configured' });
+  const id = parseInt(req.params.id, 10);
+  if (!id) return res.status(400).json({ success: false, error: 'Invalid id' });
+
+  let conn;
+  try {
+    const pool = await getDBConnection();
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
+
+    const leadId = id;
+    await execIgnoreNoSuchTable(conn, 'DELETE FROM interactions WHERE lead_id = ?', [leadId]);
+    await execIgnoreNoSuchTable(conn, 'DELETE FROM tasks WHERE lead_id = ?', [leadId]);
+    await execIgnoreNoSuchTable(conn, 'DELETE FROM lead_qualification WHERE lead_id = ?', [leadId]);
+    await execIgnoreNoSuchTable(conn, 'DELETE FROM activities WHERE lead_id = ?', [leadId]);
+    await execIgnoreNoSuchTable(conn, 'DELETE FROM proposals WHERE lead_id = ?', [leadId]);
+    await execIgnoreNoSuchTable(conn, 'DELETE FROM quotes WHERE lead_id = ?', [leadId]);
+    await execIgnoreNoSuchTable(conn, 'DELETE FROM estimates WHERE lead_id = ?', [leadId]);
+    await execIgnoreNoSuchTable(conn, 'DELETE FROM measurements WHERE lead_id = ?', [leadId]);
+    await execIgnoreNoSuchTable(conn, 'DELETE FROM visits WHERE lead_id = ?', [leadId]);
+
+    const [result] = await conn.execute('DELETE FROM leads WHERE id = ?', [leadId]);
+    if (result.affectedRows === 0) {
+      await conn.rollback();
+      return res.status(404).json({ success: false, error: 'Lead not found' });
+    }
+
+    await conn.commit();
+    return res.json({ success: true, message: 'Lead deleted' });
+  } catch (e) {
+    if (conn) await conn.rollback();
+    console.error('Delete lead error:', e);
+    return res.status(500).json({ success: false, error: e.message || 'Failed to delete lead' });
+  } finally {
+    if (conn) conn.release();
+  }
+}

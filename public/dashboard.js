@@ -547,6 +547,7 @@ async function loadLeads() {
                                 <button class="btn btn-sm" onclick="viewLead(${lead.id})" title="Ver"><span class="action-btn-icon">V</span></button>
                                 <button class="btn btn-sm" onclick="showAssignLeadModal(${lead.id})" title="Designar"><span class="action-btn-icon">U</span></button>
                                 <button class="btn btn-sm" onclick="showFollowupModal(${lead.id})" title="Follow-up"><span class="action-btn-icon">D</span></button>
+                                <button class="btn btn-sm btn-lead-delete" onclick="deleteLead(${lead.id})" title="Excluir">✕</button>
                             </td>
                         </tr>`;
                     }).join('');
@@ -583,8 +584,28 @@ function viewLead(id) {
     window.location.href = `lead-detail.html?id=${id}`;
 }
 
+async function deleteLead(id) {
+    if (!id || !confirm('Excluir este lead permanentemente? Esta ação não pode ser desfeita.')) return;
+    try {
+        const r = await fetch(`/api/leads/${id}`, { method: 'DELETE', credentials: 'include' });
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok || !d.success) {
+            alert(d.error || 'Não foi possível excluir o lead.');
+            return;
+        }
+        if (currentPageName === 'leads' && typeof loadLeads === 'function') loadLeads();
+        else if (currentPageName === 'crm') {
+            if (typeof loadCRMKanban === 'function') loadCRMKanban();
+            else if (typeof loadKanbanBoard === 'function') loadKanbanBoard();
+        }
+    } catch (e) {
+        alert('Erro de rede ao excluir.');
+    }
+}
+
 // Make functions globally available
 window.viewLead = viewLead;
+window.deleteLead = deleteLead;
 
 // Customers
 let customersPage = 1;

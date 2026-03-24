@@ -174,6 +174,7 @@ function renderKanbanCard(lead) {
                     <button onclick="viewLead(${lead.id})" title="Ver"><span class="action-btn-icon">V</span></button>
                     <button onclick="showAssignLeadModal(${lead.id})" title="Designar"><span class="action-btn-icon">U</span></button>
                     <button onclick="showFollowupModal(${lead.id})" title="Follow-up"><span class="action-btn-icon">D</span></button>
+                    <button type="button" class="btn-lead-delete-kanban" onclick="deleteLead(${lead.id})" title="Excluir">✕</button>
                 </div>
             </div>
             <div class="kanban-card-body">

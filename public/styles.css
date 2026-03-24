@@ -917,6 +917,36 @@ input.score-auto {
     font-size: 0.6rem;
 }
 
+.btn-lead-delete {
+    color: #c0392b;
+    border-color: #e6b8b8;
+    font-weight: 700;
+    min-width: 2rem;
+}
+
+.btn-lead-delete:hover {
+    color: #fff;
+    background: #c0392b;
+    border-color: #962d22;
+}
+
+.kanban-card-actions .btn-lead-delete-kanban {
+    background: transparent;
+    border: 1px solid #e6b8b8;
+    color: #c0392b;
+    border-radius: 4px;
+    padding: 2px 8px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    line-height: 1.2;
+}
+
+.kanban-card-actions .btn-lead-delete-kanban:hover {
+    background: #c0392b;
+    color: #fff;
+    border-color: #962d22;
+}
+
 .visit-card-date-icon {
     display: inline-flex;
     align-items: center;
