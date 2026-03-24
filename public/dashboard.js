@@ -104,27 +104,103 @@ function isMobile() {
     return window.innerWidth <= 768;
 }
 
-function updateMobileMenuVisibility() {
-    if (mobileMenuToggle && dashboardSidebar) {
-        if (isMobile()) {
-            mobileMenuToggle.style.display = 'block';
-        } else {
-            mobileMenuToggle.style.display = 'none';
-            dashboardSidebar.classList.remove('mobile-open');
-            if (mobileOverlay) mobileOverlay.classList.remove('active');
+const MOBILE_PAGE_TITLES = {
+    dashboard: 'Dashboard',
+    marketing: 'Marketing',
+    leads: 'Leads',
+    crm: 'CRM',
+    customers: 'Clientes',
+    quotes: 'Orçamentos',
+    projects: 'Projetos',
+    schedule: 'Agenda',
+    financeiro: 'Financeiro',
+    activities: 'Atividades',
+    users: 'Utilizadores',
+};
+
+const MOBILE_MORE_PAGES = new Set(['marketing', 'customers', 'quotes', 'projects', 'financeiro', 'activities', 'users']);
+
+function setMobileMenuOpen(open) {
+    if (!dashboardSidebar || !mobileOverlay) return;
+    dashboardSidebar.classList.toggle('mobile-open', open);
+    mobileOverlay.classList.toggle('active', open);
+    if (mobileMenuToggle) mobileMenuToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+}
+
+function syncMobileAppChrome(pageName) {
+    const titleEl = document.getElementById('mobileAppTitle');
+    if (titleEl) {
+        titleEl.textContent = MOBILE_PAGE_TITLES[pageName] || pageName;
+    }
+    document.querySelectorAll('#mobileTabBar .mobile-tab-bar__item').forEach((btn) => {
+        const tab = btn.dataset.mobileTab;
+        const inMore = MOBILE_MORE_PAGES.has(pageName);
+        const active = tab === pageName || (tab === 'more' && inMore);
+        btn.classList.toggle('mobile-tab-bar__item--active', active);
+        if (active) btn.setAttribute('aria-current', 'page');
+        else btn.removeAttribute('aria-current');
+    });
+    if (isMobile()) {
+        try {
+            window.scrollTo(0, 0);
+        } catch (e) {}
+        const main = document.querySelector('.dashboard-main');
+        if (main && typeof main.scrollTop === 'number') main.scrollTop = 0;
+        const pageEl = document.getElementById(pageName + 'Page');
+        if (pageEl) {
+            pageEl.classList.remove('mobile-page-flash');
+            void pageEl.offsetWidth;
+            pageEl.classList.add('mobile-page-flash');
         }
     }
 }
 
+function closeMobileMoreSheet() {
+    const backdrop = document.getElementById('mobileMoreBackdrop');
+    const sheet = document.getElementById('mobileMoreSheet');
+    if (backdrop) backdrop.hidden = true;
+    if (sheet) sheet.hidden = true;
+    document.body.classList.remove('mobile-more-open');
+}
+
+function openMobileMoreSheet() {
+    const backdrop = document.getElementById('mobileMoreBackdrop');
+    const sheet = document.getElementById('mobileMoreSheet');
+    if (!backdrop || !sheet) return;
+    backdrop.hidden = false;
+    sheet.hidden = false;
+    document.body.classList.add('mobile-more-open');
+}
+
+function updateMobileChromeVisibility() {
+    const header = document.getElementById('mobileAppHeader');
+    const tabBar = document.getElementById('mobileTabBar');
+    const m = isMobile();
+    if (header) header.setAttribute('aria-hidden', m ? 'false' : 'true');
+    if (tabBar) tabBar.setAttribute('aria-hidden', m ? 'false' : 'true');
+    if (!m) closeMobileMoreSheet();
+}
+
+function updateMobileMenuVisibility() {
+    if (mobileMenuToggle && dashboardSidebar) {
+        if (isMobile()) {
+            mobileMenuToggle.style.display = 'flex';
+        } else {
+            mobileMenuToggle.style.display = 'none';
+            setMobileMenuOpen(false);
+        }
+    }
+    updateMobileChromeVisibility();
+}
+
 if (mobileMenuToggle && dashboardSidebar && mobileOverlay) {
     mobileMenuToggle.addEventListener('click', () => {
-        dashboardSidebar.classList.toggle('mobile-open');
-        mobileOverlay.classList.toggle('active');
+        const open = !dashboardSidebar.classList.contains('mobile-open');
+        setMobileMenuOpen(open);
     });
 
     mobileOverlay.addEventListener('click', () => {
-        dashboardSidebar.classList.remove('mobile-open');
-        mobileOverlay.classList.remove('active');
+        setMobileMenuOpen(false);
     });
 
     // Close mobile menu when clicking sidebar nav only (evita apanhar .nav-item noutras zonas)
@@ -141,12 +217,49 @@ if (mobileMenuToggle && dashboardSidebar && mobileOverlay) {
     window.addEventListener('resize', () => {
         updateMobileMenuVisibility();
         if (!isMobile()) {
-            dashboardSidebar.classList.remove('mobile-open');
-            mobileOverlay.classList.remove('active');
+            setMobileMenuOpen(false);
         }
     });
     updateMobileMenuVisibility();
 }
+
+const mobileTabBarEl = document.getElementById('mobileTabBar');
+if (mobileTabBarEl) {
+    mobileTabBarEl.querySelectorAll('[data-mobile-tab]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const t = btn.dataset.mobileTab;
+            if (t === 'more') {
+                openMobileMoreSheet();
+                return;
+            }
+            closeMobileMoreSheet();
+            showPage(t);
+        });
+    });
+}
+
+const mobileMoreSheetEl = document.getElementById('mobileMoreSheet');
+if (mobileMoreSheetEl) {
+    mobileMoreSheetEl.querySelectorAll('[data-page]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const p = btn.dataset.page;
+            closeMobileMoreSheet();
+            if (p) showPage(p);
+        });
+    });
+}
+
+document.getElementById('mobileMoreBackdrop')?.addEventListener('click', () => closeMobileMoreSheet());
+
+document.getElementById('mobileMoreLogout')?.addEventListener('click', () => {
+    document.getElementById('logoutBtn')?.click();
+});
+
+document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    const sheet = document.getElementById('mobileMoreSheet');
+    if (sheet && !sheet.hidden) closeMobileMoreSheet();
+});
 
 // Navigation (só links da sidebar — nunca misturar com .nav-item noutros blocos)
 const dashboardSidebarEl = document.getElementById('dashboardSidebar');
@@ -219,6 +332,9 @@ function showPage(pageName) {
         }
         else if (pageName === 'activities') { currentPage = 1; loadActivities(); }
         else if (pageName === 'users') { currentPage = 1; loadUsers(); }
+
+        syncMobileAppChrome(pageName);
+        if (isMobile()) setMobileMenuOpen(false);
     }
 }
 

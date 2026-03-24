@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="theme-color" content="#1a2036">
     <title>Senior Floors - Dashboard</title>
     <!-- Favicon (mesmo padrão do site Senior Floors) -->
@@ -16,9 +16,57 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
-<body>
+<body class="dashboard-app-body">
+    <header class="mobile-app-header" id="mobileAppHeader">
+        <button type="button" class="mobile-app-header__menu" id="mobileMenuToggle" aria-label="Abrir menu completo" aria-expanded="false" aria-controls="dashboardSidebar">
+            <span class="mobile-app-header__menu-icon" aria-hidden="true"></span>
+        </button>
+        <div class="mobile-app-header__brand">
+            <img src="/assets/SeniorFloors.png" alt="" class="mobile-app-header__logo" width="28" height="28" onerror="this.style.display='none'">
+            <h1 class="mobile-app-header__title" id="mobileAppTitle">Dashboard</h1>
+        </div>
+    </header>
+
+    <div class="mobile-more-backdrop" id="mobileMoreBackdrop" hidden aria-hidden="true"></div>
+    <div class="mobile-more-sheet" id="mobileMoreSheet" role="dialog" aria-modal="true" aria-labelledby="mobileMoreSheetTitle" hidden>
+        <div class="mobile-more-sheet__handle" aria-hidden="true"></div>
+        <h2 class="mobile-more-sheet__title" id="mobileMoreSheetTitle">Mais opções</h2>
+        <nav class="mobile-more-sheet__nav" aria-label="Secções adicionais">
+            <button type="button" class="mobile-more-sheet__btn" data-page="marketing"><span class="mobile-more-sheet__emoji" aria-hidden="true">📈</span> Marketing</button>
+            <button type="button" class="mobile-more-sheet__btn" data-page="customers"><span class="mobile-more-sheet__emoji" aria-hidden="true">👥</span> Clientes</button>
+            <button type="button" class="mobile-more-sheet__btn" data-page="quotes"><span class="mobile-more-sheet__emoji" aria-hidden="true">💰</span> Orçamentos</button>
+            <button type="button" class="mobile-more-sheet__btn" data-page="projects"><span class="mobile-more-sheet__emoji" aria-hidden="true">🏗️</span> Projetos</button>
+            <button type="button" class="mobile-more-sheet__btn" data-page="financeiro"><span class="mobile-more-sheet__emoji" aria-hidden="true">💵</span> Financeiro</button>
+            <button type="button" class="mobile-more-sheet__btn" data-page="activities"><span class="mobile-more-sheet__emoji" aria-hidden="true">📝</span> Atividades</button>
+            <button type="button" class="mobile-more-sheet__btn" data-page="users"><span class="mobile-more-sheet__emoji" aria-hidden="true">👤</span> Utilizadores</button>
+        </nav>
+        <button type="button" class="mobile-more-sheet__btn mobile-more-sheet__btn--danger" id="mobileMoreLogout">Sair da conta</button>
+    </div>
+
+    <nav class="mobile-tab-bar" id="mobileTabBar" aria-label="Navegação rápida">
+        <button type="button" class="mobile-tab-bar__item mobile-tab-bar__item--active" data-mobile-tab="dashboard" aria-current="page">
+            <span class="mobile-tab-bar__icon" aria-hidden="true">📊</span>
+            <span class="mobile-tab-bar__label">Início</span>
+        </button>
+        <button type="button" class="mobile-tab-bar__item" data-mobile-tab="leads">
+            <span class="mobile-tab-bar__icon" aria-hidden="true">📋</span>
+            <span class="mobile-tab-bar__label">Leads</span>
+        </button>
+        <button type="button" class="mobile-tab-bar__item" data-mobile-tab="crm">
+            <span class="mobile-tab-bar__icon" aria-hidden="true">🎯</span>
+            <span class="mobile-tab-bar__label">CRM</span>
+        </button>
+        <button type="button" class="mobile-tab-bar__item" data-mobile-tab="schedule">
+            <span class="mobile-tab-bar__icon" aria-hidden="true">📅</span>
+            <span class="mobile-tab-bar__label">Agenda</span>
+        </button>
+        <button type="button" class="mobile-tab-bar__item" data-mobile-tab="more" aria-label="Mais opções">
+            <span class="mobile-tab-bar__icon" aria-hidden="true">⋯</span>
+            <span class="mobile-tab-bar__label">Mais</span>
+        </button>
+    </nav>
+
     <div class="dashboard-container">
-        <button class="mobile-menu-toggle" id="mobileMenuToggle" aria-label="Menu">≡</button>
         <div class="mobile-overlay" id="mobileOverlay"></div>
         
         <!-- Fixed Sidebar -->
