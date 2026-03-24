@@ -3,16 +3,15 @@
  */
 import { getDBConnection, isDatabaseConfigured } from '../config/db.js';
 import { checkDuplicateLead, getNextOwnerRoundRobin } from '../lib/leadLogic.js';
+import { notifyNewLead } from '../lib/leadPushNotify.js';
 
 function parseBody(req) {
   const ct = (req.headers['content-type'] || '').toLowerCase();
-  
-  // Se já foi parseado pelo Express middleware
+
   if (typeof req.body === 'object' && req.body !== null && Object.keys(req.body).length > 0) {
     return req.body;
   }
-  
-  // Se for JSON
+
   if (ct.includes('application/json')) {
     try {
       return JSON.parse(req.body || '{}');
@@ -20,10 +19,8 @@ function parseBody(req) {
       return {};
     }
   }
-  
-  // Se for URL-encoded (application/x-www-form-urlencoded)
+
   if (ct.includes('application/x-www-form-urlencoded')) {
-    // Express.urlencoded() já deve ter parseado, mas se não, tentar manualmente
     if (typeof req.body === 'string') {
       const params = new URLSearchParams(req.body);
       const result = {};
@@ -34,12 +31,24 @@ function parseBody(req) {
     }
     return req.body || {};
   }
-  
+
   return {};
 }
 
 export async function handleReceiveLead(req, res) {
   const post = parseBody(req);
+
+  const sheetsSecret = (process.env.SHEETS_SYNC_SECRET || '').trim();
+  const sheetsSyncHeader = (req.headers['x-sheets-sync'] || req.headers['X-Sheets-Sync'] || '').trim();
+  if (sheetsSecret && sheetsSyncHeader === '1') {
+    const fromHeader = (req.headers['x-sheets-sync-secret'] || req.headers['X-Sheets-Sync-Secret'] || '').trim();
+    const fromBody = String(post['sync-secret'] || '').trim();
+    if ((fromHeader || fromBody) !== sheetsSecret) {
+      res.setHeader('Content-Type', 'application/json; charset=UTF-8');
+      return res.status(401).json({ success: false, errors: ['Unauthorized'], api_version: 'receive-lead-system' });
+    }
+  }
+
   const form_name = (post['form-name'] || post.formName || 'contact-form').trim();
   let name = (post.name || '').trim();
   let phone = (post.phone || '').trim();
@@ -78,7 +87,9 @@ export async function handleReceiveLead(req, res) {
         const [tables] = await pool.query("SHOW TABLES LIKE 'leads'");
         if (!tables || tables.length === 0) db_error_reason = "Table 'leads' does not exist";
         else {
-          const source = form_name === 'hero-form' ? 'LP-Hero' : 'LP-Contact';
+          let source = 'LP-Contact';
+          if (form_name === 'hero-form') source = 'LP-Hero';
+          else if (/meta/i.test(form_name) || form_name === 'meta-instant-form') source = 'Meta-Instant';
           const ip_address = req.ip || req.headers['x-forwarded-for'] || null;
           let owner_id = null;
           let is_dup = false;
@@ -108,6 +119,15 @@ export async function handleReceiveLead(req, res) {
             lead_id = result.insertId;
             db_saved = true;
             inserted_new = true;
+            notifyNewLead({
+              name,
+              email,
+              phone,
+              zipcode,
+              source,
+              leadId: lead_id,
+              formName: form_name,
+            }).catch(() => {});
           }
         }
       }
