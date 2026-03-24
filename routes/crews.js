@@ -3,6 +3,7 @@
  */
 
 import { getDBConnection } from '../config/db.js';
+import { isNoSuchTableError } from '../lib/mysqlSchemaErrors.js';
 
 export async function listCrews(req, res) {
   try {
@@ -49,6 +50,9 @@ export async function listCrews(req, res) {
     
     return res.json({ success: true, data: rows });
   } catch (error) {
+    if (isNoSuchTableError(error)) {
+      return res.json({ success: true, data: [] });
+    }
     console.error('Error listing crews:', error);
     return res.status(500).json({ success: false, error: error.message });
   }

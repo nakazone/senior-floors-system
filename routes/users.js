@@ -4,6 +4,14 @@
 import bcrypt from 'bcryptjs';
 import { getDBConnection } from '../config/db.js';
 
+/** Colunas seguras para listagem (sem password) — só as que existem na tabela */
+function buildUserSelectColumns(columnNames) {
+  const names = new Set(columnNames);
+  const want = ['id', 'name', 'email', 'phone', 'role', 'is_active', 'active', 'created_at', 'updated_at', 'last_login', 'last_login_at'];
+  const pick = want.filter((w) => names.has(w));
+  return pick.length ? pick.join(', ') : 'id, name, email, role';
+}
+
 export async function listUsers(req, res) {
   try {
     const pool = await getDBConnection();
@@ -24,20 +32,22 @@ export async function listUsers(req, res) {
       whereClause += ' AND role = ?';
       params.push(role);
     }
+    const [columns] = await pool.query('SHOW COLUMNS FROM users');
+    const columnNames = columns.map((c) => c.Field);
     if (active !== null) {
-      // Verificar qual coluna existe
-      const [columns] = await pool.query(`SHOW COLUMNS FROM users`);
-      const columnNames = columns.map(c => c.Field);
       const activeField = columnNames.includes('is_active') ? 'is_active' : 'active';
       whereClause += ` AND ${activeField} = ?`;
       params.push(active ? 1 : 0);
     }
 
+    const selectList = buildUserSelectColumns(columnNames);
+    const orderCol = columnNames.includes('created_at') ? 'created_at' : 'id';
+
     const [rows] = await pool.query(
-      `SELECT id, name, email, phone, role, is_active, active, created_at, updated_at, last_login, last_login_at
+      `SELECT ${selectList}
        FROM users 
        WHERE ${whereClause}
-       ORDER BY created_at DESC 
+       ORDER BY ${orderCol} DESC 
        LIMIT ? OFFSET ?`,
       [...params, limit, offset]
     );
@@ -61,7 +71,9 @@ export async function getUser(req, res) {
       return res.status(503).json({ success: false, error: 'Database not available' });
     }
 
-    const [rows] = await pool.query('SELECT id, name, email, phone, role, is_active, active, created_at, updated_at FROM users WHERE id = ?', [req.params.id]);
+    const [colsForGet] = await pool.query('SHOW COLUMNS FROM users');
+    const selectList = buildUserSelectColumns(colsForGet.map((c) => c.Field));
+    const [rows] = await pool.query(`SELECT ${selectList} FROM users WHERE id = ?`, [req.params.id]);
     if (rows.length === 0) {
       return res.status(404).json({ success: false, error: 'User not found' });
     }
@@ -102,10 +114,17 @@ export async function createUser(req, res) {
       passwordHash = await bcrypt.hash(password, 10);
     }
 
+    const insertCols = ['name', 'email', 'role', passwordField, activeField];
+    const insertVals = [name, email, role || 'user', passwordHash, is_active !== undefined ? (is_active ? 1 : 0) : 1];
+    if (columnNames.includes('phone')) {
+      insertCols.splice(2, 0, 'phone');
+      insertVals.splice(2, 0, phone || null);
+    }
+
+    const placeholders = insertCols.map(() => '?').join(', ');
     const [result] = await pool.execute(
-      `INSERT INTO users (name, email, phone, role, ${passwordField}, ${activeField})
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [name, email, phone || null, role || 'user', passwordHash, is_active !== undefined ? (is_active ? 1 : 0) : 1]
+      `INSERT INTO users (${insertCols.join(', ')}) VALUES (${placeholders})`,
+      insertVals
     );
 
     res.status(201).json({ success: true, data: { id: result.insertId }, message: 'User created' });
@@ -138,7 +157,10 @@ export async function updateUser(req, res) {
 
     if (name !== undefined) { updates.push('name = ?'); values.push(name); }
     if (email !== undefined) { updates.push('email = ?'); values.push(email); }
-    if (phone !== undefined) { updates.push('phone = ?'); values.push(phone); }
+    if (phone !== undefined && columnNames.includes('phone')) {
+      updates.push('phone = ?');
+      values.push(phone);
+    }
     if (role !== undefined) { updates.push('role = ?'); values.push(role); }
     if (is_active !== undefined) { updates.push(`${activeField} = ?`); values.push(is_active ? 1 : 0); }
     if (password) {

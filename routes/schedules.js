@@ -3,6 +3,7 @@
  */
 
 import { getDBConnection } from '../config/db.js';
+import { isNoSuchTableError } from '../lib/mysqlSchemaErrors.js';
 import {
   simulateSchedule,
   calculateEstimatedDays,
@@ -61,6 +62,9 @@ export async function listSchedules(req, res) {
     
     return res.json({ success: true, data: rows });
   } catch (error) {
+    if (isNoSuchTableError(error)) {
+      return res.json({ success: true, data: [] });
+    }
     console.error('Error listing schedules:', error);
     return res.status(500).json({ success: false, error: error.message });
   }

@@ -4,6 +4,7 @@
  */
 
 import { getDBConnection } from '../config/db.js';
+import { isNoSuchTableError } from '../lib/mysqlSchemaErrors.js';
 
 export async function listProposals(req, res) {
   const leadId = parseInt(req.params.leadId);
@@ -48,6 +49,13 @@ export async function listProposals(req, res) {
       }
     });
   } catch (error) {
+    if (isNoSuchTableError(error)) {
+      return res.json({
+        success: true,
+        data: [],
+        pagination: { page, limit, total: 0, totalPages: 0 }
+      });
+    }
     console.error('Error listing proposals:', error);
     return res.status(500).json({ success: false, error: error.message });
   }

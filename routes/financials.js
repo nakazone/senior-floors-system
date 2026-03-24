@@ -456,36 +456,51 @@ export async function approvePayrollEntry(req, res) {
 export async function getFinancialDashboard(req, res) {
   try {
     const pool = await getDBConnection();
+    if (!pool) {
+      return res.status(503).json({ success: false, error: 'Database not available' });
+    }
     const startDate = req.query.start_date || new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
     const endDate = req.query.end_date || new Date().toISOString().split('T')[0];
     
-    // Revenue vs Cost
-    const [revenueCost] = await pool.query(
-      `SELECT 
+    // Custo estimado = material + mão de obra + overhead (schema schema-financial-engine.sql)
+    let revenueCost = [{}];
+    try {
+      const [rows] = await pool.query(
+        `SELECT 
          SUM(estimated_revenue) as estimated_revenue,
          SUM(actual_revenue) as actual_revenue,
-         SUM(estimated_total_cost) as estimated_cost,
+         SUM(COALESCE(estimated_material_cost,0) + COALESCE(estimated_labor_cost,0) + COALESCE(estimated_overhead,0)) as estimated_cost,
          SUM(actual_total_cost) as actual_cost,
          SUM(estimated_profit) as estimated_profit,
          SUM(actual_profit) as actual_profit
        FROM project_financials
        WHERE created_at BETWEEN ? AND ?`,
-      [startDate, endDate]
-    );
-    
-    // Expense breakdown by category
-    const [expenseBreakdown] = await pool.query(
-      `SELECT category, SUM(total_amount) as total
+        [startDate, endDate]
+      );
+      revenueCost = rows;
+    } catch (e) {
+      console.warn('getFinancialDashboard revenue_vs_cost:', e.message);
+    }
+
+    let expenseBreakdown = [];
+    try {
+      const [rows] = await pool.query(
+        `SELECT category, SUM(total_amount) as total
        FROM expenses
        WHERE status IN ('approved', 'paid') AND expense_date BETWEEN ? AND ?
        GROUP BY category
        ORDER BY total DESC`,
-      [startDate, endDate]
-    );
-    
-    // Monthly cash flow
-    const [cashFlow] = await pool.query(
-      `SELECT 
+        [startDate, endDate]
+      );
+      expenseBreakdown = rows;
+    } catch (e) {
+      console.warn('getFinancialDashboard expense_breakdown:', e.message);
+    }
+
+    let cashFlow = [];
+    try {
+      const [rows] = await pool.query(
+        `SELECT 
          DATE_FORMAT(expense_date, '%Y-%m') as month,
          SUM(total_amount) as expenses,
          (SELECT SUM(actual_revenue) FROM project_financials 
@@ -494,12 +509,17 @@ export async function getFinancialDashboard(req, res) {
        WHERE status IN ('approved', 'paid') AND expense_date BETWEEN ? AND ?
        GROUP BY DATE_FORMAT(expense_date, '%Y-%m')
        ORDER BY month`,
-      [startDate, endDate]
-    );
-    
-    // Project profitability ranking
-    const [profitabilityRanking] = await pool.query(
-      `SELECT 
+        [startDate, endDate]
+      );
+      cashFlow = rows;
+    } catch (e) {
+      console.warn('getFinancialDashboard monthly_cash_flow:', e.message);
+    }
+
+    let profitabilityRanking = [];
+    try {
+      const [rows] = await pool.query(
+        `SELECT 
          pf.project_id,
          p.project_number,
          pf.actual_profit,
@@ -510,11 +530,16 @@ export async function getFinancialDashboard(req, res) {
        WHERE pf.actual_profit IS NOT NULL
        ORDER BY pf.actual_profit DESC
        LIMIT 10`
-    );
-    
-    // Crew cost analysis
-    const [crewCosts] = await pool.query(
-      `SELECT 
+      );
+      profitabilityRanking = rows;
+    } catch (e) {
+      console.warn('getFinancialDashboard profitability_ranking:', e.message);
+    }
+
+    let crewCosts = [];
+    try {
+      const [rows] = await pool.query(
+        `SELECT 
          c.id as crew_id,
          c.name as crew_name,
          SUM(pe.total_cost + pe.overtime_cost) as total_cost,
@@ -524,9 +549,13 @@ export async function getFinancialDashboard(req, res) {
        WHERE pe.approved = 1 AND pe.date BETWEEN ? AND ?
        GROUP BY c.id, c.name
        ORDER BY total_cost DESC`,
-      [startDate, endDate]
-    );
-    
+        [startDate, endDate]
+      );
+      crewCosts = rows;
+    } catch (e) {
+      console.warn('getFinancialDashboard crew_cost_analysis:', e.message);
+    }
+
     return res.json({
       success: true,
       data: {
@@ -534,8 +563,8 @@ export async function getFinancialDashboard(req, res) {
         expense_breakdown: expenseBreakdown,
         monthly_cash_flow: cashFlow,
         profitability_ranking: profitabilityRanking,
-        crew_cost_analysis: crewCosts
-      }
+        crew_cost_analysis: crewCosts,
+      },
     });
   } catch (error) {
     console.error('Error getting financial dashboard:', error);
