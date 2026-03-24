@@ -4,6 +4,8 @@
 import { getDBConnection, isDatabaseConfigured } from '../config/db.js';
 import { checkDuplicateLead, getNextOwnerRoundRobin } from '../lib/leadLogic.js';
 import { notifyNewLead } from '../lib/leadPushNotify.js';
+import { getLeadsTableColumns } from '../lib/leadColumns.js';
+import { extractMarketingFromBody, MARKETING_KEYS } from '../lib/marketingLeadFields.js';
 
 function parseBody(req) {
   const ct = (req.headers['content-type'] || '').toLowerCase();
@@ -115,6 +117,15 @@ export async function handleReceiveLead(req, res) {
               const [pc] = await pool.query("SHOW COLUMNS FROM leads LIKE 'pipeline_stage_id'");
               if (pc && pc.length > 0) { cols += ', pipeline_stage_id'; place += ', ?'; values.push(1); }
             } catch (_) {}
+            const marketing = extractMarketingFromBody(post);
+            const colSet = await getLeadsTableColumns(pool);
+            for (const key of MARKETING_KEYS) {
+              if (colSet.has(key)) {
+                cols += `, \`${key}\``;
+                place += ', ?';
+                values.push(marketing[key]);
+              }
+            }
             const [result] = await pool.execute(`INSERT INTO leads (${cols}) VALUES (${place})`, values);
             lead_id = result.insertId;
             db_saved = true;

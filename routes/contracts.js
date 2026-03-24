@@ -2,6 +2,7 @@
  * Contracts/Financeiro API - Contracts and financial management
  */
 import { getDBConnection } from '../config/db.js';
+import { setLeadPipelineBySlug } from '../lib/pipelineAutomation.js';
 
 export async function listContracts(req, res) {
   try {
@@ -95,6 +96,10 @@ export async function createContract(req, res) {
        closed_amount, payment_method || null, installments || 1,
        start_date || null, end_date || null, responsible_id || null]
     );
+
+    if (lead_id) {
+      await setLeadPipelineBySlug(lead_id, 'closed_won');
+    }
 
     res.status(201).json({ success: true, data: { id: result.insertId }, message: 'Contract created' });
   } catch (error) {

@@ -2,6 +2,8 @@
  * Leads API — list, get, update (CRM)
  */
 import { getDBConnection, isDatabaseConfigured } from '../config/db.js';
+import { getLeadsTableColumns } from '../lib/leadColumns.js';
+import { extractMarketingFromBody, MARKETING_KEYS } from '../lib/marketingLeadFields.js';
 
 export async function listLeads(req, res) {
   if (!isDatabaseConfigured()) return res.status(503).json({ success: false, error: 'Database not configured' });
@@ -29,7 +31,27 @@ export async function listLeads(req, res) {
       whereClause += ' AND l.pipeline_stage_id = ?';
       params.push(pipelineStageId);
     }
-    
+    const utmCampaign = (req.query.utm_campaign || '').trim();
+    if (utmCampaign) {
+      whereClause += ' AND l.utm_campaign = ?';
+      params.push(utmCampaign);
+    }
+    const mPlatform = (req.query.marketing_platform || '').trim();
+    if (mPlatform) {
+      whereClause += ' AND l.marketing_platform = ?';
+      params.push(mPlatform);
+    }
+    const createdFrom = (req.query.created_from || req.query.date_from || '').trim().slice(0, 10);
+    if (createdFrom && /^\d{4}-\d{2}-\d{2}$/.test(createdFrom)) {
+      whereClause += ' AND DATE(l.created_at) >= ?';
+      params.push(createdFrom);
+    }
+    const createdTo = (req.query.created_to || req.query.date_to || '').trim().slice(0, 10);
+    if (createdTo && /^\d{4}-\d{2}-\d{2}$/.test(createdTo)) {
+      whereClause += ' AND DATE(l.created_at) <= ?';
+      params.push(createdTo);
+    }
+
     const [rows] = await pool.query(
       `SELECT l.*, u.name as owner_name, ps.name as pipeline_stage_name, ps.slug as pipeline_stage_slug, ps.color as pipeline_stage_color
        FROM leads l
@@ -63,7 +85,22 @@ export async function getLead(req, res) {
 export async function createLead(req, res) {
   if (!isDatabaseConfigured()) return res.status(503).json({ success: false, error: 'Database not configured' });
   
-  const { name, email, phone, zipcode, message, source, form_type, status, priority, owner_id, pipeline_stage_id, estimated_value, notes } = req.body;
+  const {
+    name,
+    email,
+    phone,
+    zipcode,
+    message,
+    source,
+    form_type,
+    status,
+    priority,
+    owner_id,
+    pipeline_stage_id,
+    estimated_value,
+    notes,
+    ...restBody
+  } = req.body;
   
   // Validation
   if (!name || name.trim().length < 2) {
@@ -95,25 +132,49 @@ export async function createLead(req, res) {
       }
     }
     
+    const colSet = await getLeadsTableColumns(pool);
+    const marketing = extractMarketingFromBody({ ...restBody, ...req.body });
+    const cols = [
+      'name',
+      'email',
+      'phone',
+      'zipcode',
+      'message',
+      'source',
+      'form_type',
+      'status',
+      'priority',
+      'owner_id',
+      'pipeline_stage_id',
+      'estimated_value',
+      'notes',
+    ];
+    const vals = [
+      name.trim(),
+      email.trim(),
+      phone.trim(),
+      zipClean.slice(0, 5),
+      message || null,
+      source || 'Manual',
+      form_type || 'manual',
+      status || 'lead_received',
+      priority || 'medium',
+      owner_id || userId || null,
+      finalPipelineStageId,
+      estimated_value || null,
+      notes || null,
+    ];
+    for (const key of MARKETING_KEYS) {
+      if (colSet.has(key)) {
+        cols.push(key);
+        vals.push(marketing[key]);
+      }
+    }
+    const colSql = cols.map((c) => `\`${c}\``).join(', ');
+    const qmarks = cols.map(() => '?').join(', ');
     const [result] = await pool.execute(
-      `INSERT INTO leads 
-       (name, email, phone, zipcode, message, source, form_type, status, priority, owner_id, pipeline_stage_id, estimated_value, notes, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
-      [
-        name.trim(),
-        email.trim(),
-        phone.trim(),
-        zipClean.slice(0, 5),
-        message || null,
-        source || 'Manual',
-        form_type || 'manual',
-        status || 'lead_received',
-        priority || 'medium',
-        owner_id || userId || null,
-        finalPipelineStageId,
-        estimated_value || null,
-        notes || null
-      ]
+      `INSERT INTO leads (${colSql}, \`created_at\`) VALUES (${qmarks}, NOW())`,
+      vals
     );
     
     // Get created lead
@@ -138,12 +199,26 @@ export async function updateLead(req, res) {
   const id = parseInt(req.params.id, 10);
   if (!id) return res.status(400).json({ success: false, error: 'Invalid id' });
   const body = req.body || {};
-  const allowed = ['name', 'email', 'phone', 'zipcode', 'message', 'status', 'priority', 'owner_id', 'pipeline_stage_id', 'estimated_value', 'notes'];
   const set = [];
   const values = [];
   
   try {
     const pool = await getDBConnection();
+    const colSet = await getLeadsTableColumns(pool);
+    const allowed = [
+      'name',
+      'email',
+      'phone',
+      'zipcode',
+      'message',
+      'status',
+      'priority',
+      'owner_id',
+      'pipeline_stage_id',
+      'estimated_value',
+      'notes',
+      ...MARKETING_KEYS.filter((k) => colSet.has(k)),
+    ];
     
     // If status is updated but pipeline_stage_id is not, try to find matching stage
     if (body.status && !body.pipeline_stage_id) {

@@ -9,3 +9,4 @@ node_modules/
 .cursor/
 dist/
 build/
+env

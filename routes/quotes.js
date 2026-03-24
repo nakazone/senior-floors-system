@@ -2,6 +2,7 @@
  * Quotes API - Quotes/Orçamentos management
  */
 import { getDBConnection } from '../config/db.js';
+import { setLeadPipelineBySlug } from '../lib/pipelineAutomation.js';
 
 export async function listQuotes(req, res) {
   try {
@@ -133,6 +134,11 @@ export async function createQuote(req, res) {
       }
     }
 
+    const st = String(status || 'draft').toLowerCase();
+    if (lead_id && ['sent', 'approved', 'accepted'].includes(st)) {
+      await setLeadPipelineBySlug(lead_id, 'proposal_sent');
+    }
+
     res.status(201).json({ success: true, data: { id: quoteId, quote_number: quoteNumber }, message: 'Quote created' });
   } catch (error) {
     console.error('Create quote error:', error);
@@ -146,6 +152,13 @@ export async function updateQuote(req, res) {
     if (!pool) {
       return res.status(503).json({ success: false, error: 'Database not available' });
     }
+
+    const [quoteRows] = await pool.query('SELECT lead_id, status FROM quotes WHERE id = ?', [req.params.id]);
+    const existing = quoteRows[0];
+    if (!existing) {
+      return res.status(404).json({ success: false, error: 'Quote not found' });
+    }
+    const prevStatus = String(existing.status || '').toLowerCase();
 
     const updates = [];
     const values = [];
@@ -168,6 +181,12 @@ export async function updateQuote(req, res) {
       `UPDATE quotes SET ${updates.join(', ')} WHERE id = ?`,
       values
     );
+
+    const newStatus = req.body.status != null ? String(req.body.status).toLowerCase() : prevStatus;
+    const becameSent = ['sent', 'approved', 'accepted'].includes(newStatus) && !['sent', 'approved', 'accepted'].includes(prevStatus);
+    if (becameSent && existing.lead_id) {
+      await setLeadPipelineBySlug(existing.lead_id, 'proposal_sent');
+    }
 
     res.json({ success: true, message: 'Quote updated' });
   } catch (error) {

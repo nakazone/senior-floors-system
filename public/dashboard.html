@@ -35,6 +35,9 @@
                     <a href="#" class="nav-item active" data-page="dashboard">
                         <span class="nav-icon" aria-hidden="true">📊</span> Dashboard
                     </a>
+                    <a href="#" class="nav-item" data-page="marketing">
+                        <span class="nav-icon" aria-hidden="true">📈</span> Marketing
+                    </a>
                     <a href="#" class="nav-item" data-page="leads">
                         <span class="nav-icon" aria-hidden="true">📋</span> Leads
                     </a>
@@ -184,6 +187,101 @@
                     <div id="kanbanView" style="display: block;">
                         <div id="kanbanBoard" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: var(--spacing-md);"></div>
                     </div>
+                </div>
+
+                <!-- Marketing Analytics -->
+                <div id="marketingPage" class="page-content" style="display: none;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--spacing-md); flex-wrap: wrap; gap: var(--spacing-sm);">
+                        <h2 class="page-title">Marketing &amp; campanhas</h2>
+                        <div style="display: flex; flex-wrap: wrap; gap: var(--spacing-sm); align-items: center;">
+                            <button type="button" class="btn btn-secondary" onclick="exportMarketingLeadsCsv()">Exportar leads CSV</button>
+                            <button type="button" class="btn btn-primary" onclick="loadMarketingDashboard()">Atualizar</button>
+                        </div>
+                    </div>
+                    <p id="mktPeriodLabel" class="text-muted" style="margin-bottom: var(--spacing-sm);"></p>
+                    <div id="mktError" class="error-message" style="display: none; margin-bottom: var(--spacing-sm);"></div>
+                    <div class="form-row" style="margin-bottom: var(--spacing-md); flex-wrap: wrap; gap: var(--spacing-sm);">
+                        <div class="form-group">
+                            <label>Início</label>
+                            <input type="date" id="mktDateStart">
+                        </div>
+                        <div class="form-group">
+                            <label>Fim</label>
+                            <input type="date" id="mktDateEnd">
+                        </div>
+                        <div class="form-group">
+                            <label>UTM campaign</label>
+                            <input type="text" id="mktUtmCampaign" placeholder="opcional">
+                        </div>
+                        <div class="form-group">
+                            <label>Plataforma</label>
+                            <select id="mktPlatform">
+                                <option value="">Todas</option>
+                                <option value="Meta">Meta</option>
+                                <option value="Google">Google</option>
+                                <option value="Organic">Organic</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Fonte (source)</label>
+                            <input type="text" id="mktSource" placeholder="ex. LP-Hero">
+                        </div>
+                        <div class="form-group" style="align-self: flex-end;">
+                            <button type="button" class="btn btn-secondary" onclick="loadMarketingDashboard()">Aplicar filtros</button>
+                        </div>
+                    </div>
+                    <div id="mktKpiGrid" class="stats-grid" style="margin-bottom: var(--spacing-md);"></div>
+                    <div class="charts-container" style="margin-bottom: var(--spacing-md);">
+                        <div class="chart-card">
+                            <h3>Leads ao longo do tempo</h3>
+                            <div class="chart-container"><canvas id="mktChartLeadsTime"></canvas></div>
+                        </div>
+                        <div class="chart-card">
+                            <h3>Receita ao longo do tempo</h3>
+                            <div class="chart-container"><canvas id="mktChartRevenueTime"></canvas></div>
+                        </div>
+                        <div class="chart-card">
+                            <h3>Funil (estágios no período)</h3>
+                            <div class="chart-container"><canvas id="mktChartFunnel"></canvas></div>
+                        </div>
+                        <div class="chart-card">
+                            <h3>Receita por campanha (UTM)</h3>
+                            <div class="chart-container"><canvas id="mktChartRevCampaign"></canvas></div>
+                        </div>
+                    </div>
+                    <div class="chart-card" style="margin-bottom: var(--spacing-md);">
+                        <h3>Receita por campanha (tabela)</h3>
+                        <div class="table-container">
+                            <table class="data-table">
+                                <thead><tr><th>Campanha</th><th>Deals</th><th>Receita</th></tr></thead>
+                                <tbody id="mktRevByCampaignBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="chart-card" style="margin-bottom: var(--spacing-md);">
+                        <h3>Gasto em mídia (Ad spend)</h3>
+                        <p>Total no período: <strong id="mktAdSpendSum">—</strong></p>
+                        <form id="mktAdSpendForm" onsubmit="submitAdSpend(event)" style="margin-bottom: var(--spacing-md);">
+                            <div class="form-row flex-wrap">
+                                <div class="form-group"><label>Plataforma</label>
+                                    <select name="platform" required><option value="Meta">Meta</option><option value="Google">Google</option><option value="Other">Other</option></select>
+                                </div>
+                                <div class="form-group"><label>Campaign name</label><input name="campaign_name" required></div>
+                                <div class="form-group"><label>UTM campaign (match)</label><input name="utm_campaign" placeholder="opcional"></div>
+                                <div class="form-group"><label>Spend ($)</label><input name="spend" type="number" step="0.01" required></div>
+                                <div class="form-group"><label>Data</label><input name="spend_date" type="date" id="mktSpendDate" required></div>
+                                <div class="form-group"><label>Notas</label><input name="notes"></div>
+                                <div class="form-group" style="align-self: flex-end;"><button type="submit" class="btn btn-primary">Adicionar</button></div>
+                            </div>
+                        </form>
+                        <div class="table-container">
+                            <table class="data-table">
+                                <thead><tr><th>Data</th><th>Plataforma</th><th>Campaign</th><th>UTM</th><th>Spend</th><th></th></tr></thead>
+                                <tbody id="mktAdSpendBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <p class="text-muted" style="font-size: 0.85rem;">Rode no servidor após deploy: <code>node database/migrate-marketing-analytics.js</code> — cria colunas UTM em <code>leads</code> e tabela <code>ad_spend</code>.</p>
                 </div>
                 
                 <!-- Modals -->
@@ -810,6 +908,7 @@
     <div id="toastContainer" class="toast-container" aria-live="polite"></div>
     
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+    <script src="marketing-dashboard.js"></script>
     <script src="dashboard.js"></script>
     <script src="leads-kanban.js"></script>
     <script src="schedule-engine.js"></script>

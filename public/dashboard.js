@@ -159,6 +159,10 @@ function showPage(pageName) {
         
         // Load page data
         if (pageName === 'dashboard') loadDashboard();
+        else if (pageName === 'marketing') {
+            if (typeof initMarketingPage === 'function') initMarketingPage();
+            if (typeof loadMarketingDashboard === 'function') loadMarketingDashboard();
+        }
         else if (pageName === 'leads') { 
             currentPage = 1; 
             loadLeads(); 

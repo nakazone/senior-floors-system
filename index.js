@@ -22,6 +22,15 @@ import { listActivities, createActivity } from './routes/activities.js';
 import { listContracts, getContract, createContract, updateContract } from './routes/contracts.js';
 import { listUsers, getUser, createUser, updateUser } from './routes/users.js';
 import { getDashboardStats } from './routes/dashboard.js';
+import {
+  getMarketingMetrics,
+  listAdSpend,
+  createAdSpend,
+  updateAdSpend,
+  deleteAdSpend,
+  exportLeadsCsv,
+  getLeadsNotContactedUrgent,
+} from './routes/marketing.js';
 import { getQualification, createOrUpdateQualification } from './routes/qualification.js';
 import { listInteractions, createInteraction } from './routes/interactions.js';
 import { getMeasurement, createOrUpdateMeasurement } from './routes/measurements.js';
@@ -62,7 +71,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 app.options('*', (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Accept, Authorization');
   res.sendStatus(204);
 });
@@ -91,6 +100,15 @@ app.get('/api/health', (req, res) => {
 
 // Dashboard
 app.get('/api/dashboard/stats', requireAuth, getDashboardStats);
+
+// Marketing analytics
+app.get('/api/marketing/metrics', requireAuth, getMarketingMetrics);
+app.get('/api/marketing/ad-spend', requireAuth, listAdSpend);
+app.post('/api/marketing/ad-spend', requireAuth, createAdSpend);
+app.put('/api/marketing/ad-spend/:id', requireAuth, updateAdSpend);
+app.delete('/api/marketing/ad-spend/:id', requireAuth, deleteAdSpend);
+app.get('/api/marketing/export/leads', requireAuth, exportLeadsCsv);
+app.get('/api/marketing/alerts/not-contacted', requireAuth, getLeadsNotContactedUrgent);
 
 // Pipeline Stages
 app.get('/api/pipeline-stages', requireAuth, listPipelineStages);
