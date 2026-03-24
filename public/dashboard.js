@@ -319,11 +319,22 @@ if (dashboardSidebarEl) {
 }
 
 function showPage(pageName) {
-    document.querySelectorAll('.page-content').forEach(p => p.style.display = 'none');
+    if (!pageName || typeof pageName !== 'string') return;
+
+    const contentRoot = document.querySelector('.dashboard-main .dashboard-content');
+    if (contentRoot) {
+        contentRoot.querySelectorAll(':scope > .page-content').forEach((p) => {
+            p.style.display = 'none';
+        });
+    } else {
+        document.querySelectorAll('.dashboard-main .page-content').forEach((p) => {
+            p.style.display = 'none';
+        });
+    }
 
     const side = document.getElementById('dashboardSidebar');
     if (side) {
-        side.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+        side.querySelectorAll('.sidebar-nav .nav-item').forEach((n) => n.classList.remove('active'));
     }
 
     const pageEl = document.getElementById(pageName + 'Page');
@@ -850,56 +861,144 @@ function showNewCustomerModal() {
     alert('New Customer form - Coming soon!');
 }
 
-// Quotes
-let quotesPage = 1;
+// Quotes (pagination: não usar nome "quotesPage" — colide com id DOM #quotesPage e quebrava showPage)
+let quotesListPage = 1;
 async function loadQuotes() {
     const tbody = document.getElementById('quotesTableBody');
-    tbody.innerHTML = '<tr><td colspan="7" class="text-center">Loading...</td></tr>';
+    if (!tbody) return;
+    tbody.innerHTML = '<tr><td colspan="8" class="text-center">Loading...</td></tr>';
     
     try {
-        const response = await fetch(`/api/quotes?page=${quotesPage}&limit=20`, { credentials: 'include' });
+        const response = await fetch(`/api/quotes?page=${quotesListPage}&limit=20`, { credentials: 'include' });
         const data = await response.json();
         
         if (data.success && data.data) {
             if (data.data.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="7" class="text-center">No quotes found</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="8" class="text-center">No quotes found</td></tr>';
             } else {
-                tbody.innerHTML = data.data.map(q => `
+                tbody.innerHTML = data.data.map(q => {
+                    const pdfCell = q.pdf_path
+                        ? `<a class="btn btn-sm" href="/api/quotes/${q.id}/invoice-pdf" target="_blank" rel="noopener">Ver PDF</a>`
+                        : '—';
+                    return `
                     <tr>
                         <td>${q.quote_number || 'N/A'}</td>
                         <td>${q.customer_name || q.lead_name || '-'}</td>
                         <td>$${parseFloat(q.total_amount || 0).toLocaleString()}</td>
                         <td><span class="badge badge-${q.status || 'draft'}">${q.status || 'draft'}</span></td>
+                        <td>${pdfCell}</td>
                         <td>${q.created_at ? new Date(q.created_at).toLocaleDateString() : '-'}</td>
                         <td>${q.expiration_date ? new Date(q.expiration_date).toLocaleDateString() : '-'}</td>
-                        <td><button class="btn btn-sm" onclick="viewQuote(${q.id})">View</button></td>
-                    </tr>
-                `).join('');
+                        <td><button type="button" class="btn btn-sm" onclick="viewQuote(${q.id})">View</button></td>
+                    </tr>`;
+                }).join('');
             }
             
             const totalPages = Math.ceil(data.total / 20);
-            document.getElementById('pageInfoQuotes').textContent = `Page ${quotesPage} of ${totalPages || 1}`;
-            document.getElementById('prevPageQuotes').disabled = quotesPage <= 1;
-            document.getElementById('nextPageQuotes').disabled = quotesPage >= totalPages;
+            document.getElementById('pageInfoQuotes').textContent = `Page ${quotesListPage} of ${totalPages || 1}`;
+            document.getElementById('prevPageQuotes').disabled = quotesListPage <= 1;
+            document.getElementById('nextPageQuotes').disabled = quotesListPage >= totalPages;
         }
     } catch (error) {
-        tbody.innerHTML = '<tr><td colspan="7" class="text-center">Error: ' + error.message + '</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center">Error: ' + error.message + '</td></tr>';
     }
 }
 
 function changePageQuotes(delta) {
-    quotesPage += delta;
-    if (quotesPage < 1) quotesPage = 1;
+    quotesListPage += delta;
+    if (quotesListPage < 1) quotesListPage = 1;
     loadQuotes();
 }
 
 function viewQuote(id) {
-    alert('View quote ' + id + ' - Feature coming soon!');
+    if (typeof showPage === 'function') showPage('quotes');
 }
 
 function showNewQuoteModal() {
-    alert('New Quote form - Coming soon!');
+    window.open('estimate-builder.html', '_blank', 'noopener');
 }
+
+function loadEstimateAnalytics() {
+    window.location.href = 'estimate-analytics.html';
+}
+
+function openImportInvoicePdfModal() {
+    const modal = document.getElementById('importInvoicePdfModal');
+    const form = document.getElementById('importInvoicePdfForm');
+    const fileInput = document.getElementById('importInvoicePdfFile');
+    const amountSec = document.getElementById('importInvoicePdfAmountSection');
+    const amountEl = document.getElementById('importInvoicePdfAmount');
+    const submitBtn = document.getElementById('importInvoicePdfSubmit');
+    if (!modal || !form) return;
+    form.reset();
+    if (amountSec) amountSec.style.display = 'none';
+    if (amountEl) amountEl.removeAttribute('required');
+    if (submitBtn) submitBtn.disabled = true;
+    if (fileInput) fileInput.value = '';
+    modal.classList.add('active');
+    modal.style.display = 'flex';
+}
+
+(function setupImportInvoicePdfModal() {
+    const fileInput = document.getElementById('importInvoicePdfFile');
+    const amountSec = document.getElementById('importInvoicePdfAmountSection');
+    const amountEl = document.getElementById('importInvoicePdfAmount');
+    const submitBtn = document.getElementById('importInvoicePdfSubmit');
+    const form = document.getElementById('importInvoicePdfForm');
+    const modal = document.getElementById('importInvoicePdfModal');
+    if (!fileInput || !amountEl || !submitBtn || !form) return;
+
+    function refreshSubmitState() {
+        const hasFile = fileInput.files && fileInput.files.length > 0;
+        const amt = parseFloat(String(amountEl.value || '').replace(',', '.'), 10);
+        submitBtn.disabled = !(hasFile && Number.isFinite(amt) && amt >= 0);
+    }
+
+    fileInput.addEventListener('change', () => {
+        const has = fileInput.files && fileInput.files.length > 0;
+        if (amountSec) amountSec.style.display = has ? 'block' : 'none';
+        if (has) {
+            amountEl.setAttribute('required', 'required');
+        } else {
+            amountEl.removeAttribute('required');
+            amountEl.value = '';
+        }
+        refreshSubmitState();
+    });
+    amountEl.addEventListener('input', refreshSubmitState);
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        if (!fileInput.files || !fileInput.files[0]) return;
+        const fd = new FormData();
+        fd.append('file', fileInput.files[0]);
+        fd.append('total_amount', amountEl.value);
+        submitBtn.disabled = true;
+        const prevText = submitBtn.textContent;
+        submitBtn.textContent = 'A guardar…';
+        try {
+            const res = await fetch('/api/quotes/import-invoice-pdf', {
+                method: 'POST',
+                credentials: 'include',
+                body: fd,
+            });
+            const json = await res.json().catch(() => ({}));
+            if (json.success) {
+                if (typeof closeModal === 'function') closeModal('importInvoicePdfModal');
+                else if (modal) modal.style.display = 'none';
+                loadQuotes();
+            } else {
+                alert(json.error || 'Erro ao importar PDF');
+            }
+        } catch (err) {
+            alert('Erro de rede ao importar PDF');
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.textContent = prevText;
+            refreshSubmitState();
+        }
+    });
+})();
 
 // Projects
 let projectsPage = 1;

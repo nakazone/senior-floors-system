@@ -15,7 +15,8 @@ import { listLeads, getLead, createLead, updateLead, deleteLead } from './routes
 import { login, logout, checkSession } from './routes/auth.js';
 import { requireAuth, requireRole } from './middleware/auth.js';
 import { listCustomers, getCustomer, createCustomer, updateCustomer } from './routes/customers.js';
-import { listQuotes, getQuote, createQuote, updateQuote } from './routes/quotes.js';
+import { listQuotes, getQuote, createQuote, updateQuote, createQuoteFromInvoicePdf, streamQuoteInvoicePdf } from './routes/quotes.js';
+import { quotePdfUploadMiddleware } from './lib/quotePdfUpload.js';
 import { listProjects, getProject, createProject, updateProject } from './routes/projects.js';
 import { listVisits, getVisit, createVisit, updateVisit } from './routes/visits.js';
 import { listActivities, createActivity } from './routes/activities.js';
@@ -154,8 +155,10 @@ app.get('/api/customers/:id', requireAuth, getCustomer);
 app.post('/api/customers', requireAuth, createCustomer);
 app.put('/api/customers/:id', requireAuth, updateCustomer);
 
-// Quotes
+// Quotes (rotas específicas antes de :id)
 app.get('/api/quotes', requireAuth, listQuotes);
+app.post('/api/quotes/import-invoice-pdf', requireAuth, quotePdfUploadMiddleware, createQuoteFromInvoicePdf);
+app.get('/api/quotes/:id/invoice-pdf', requireAuth, streamQuoteInvoicePdf);
 app.get('/api/quotes/:id', requireAuth, getQuote);
 app.post('/api/quotes', requireAuth, createQuote);
 app.put('/api/quotes/:id', requireAuth, updateQuote);

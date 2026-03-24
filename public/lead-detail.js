@@ -61,6 +61,8 @@ window.addEventListener('DOMContentLoaded', () => {
         menuBtn.addEventListener('click', () => { sidebar.classList.toggle('mobile-open'); overlay.classList.toggle('active'); });
         overlay.addEventListener('click', () => { sidebar.classList.remove('mobile-open'); overlay.classList.remove('active'); });
     }
+
+    setupLeadImportInvoicePdfForm();
 });
 
 async function loadLead() {
@@ -717,26 +719,164 @@ async function loadVisits() {
 }
 
 async function loadProposals() {
+    const container = document.getElementById('proposalsList');
+    if (!container) return;
+    container.innerHTML = '<div class="empty-state">A carregar orçamentos…</div>';
     try {
-        const response = await fetch(`/api/leads/${currentLeadId}/proposals`, { credentials: 'include' });
-        const data = await response.json();
-        
-        const container = document.getElementById('proposalsList');
-        if (data.success && data.data && data.data.length > 0) {
-            container.innerHTML = data.data.map(proposal => `
-                <div style="padding: 15px; border: 1px solid #ddd; border-radius: 4px; margin-bottom: 10px;">
-                    <h3>${proposal.proposal_number || `Proposta #${proposal.id}`}</h3>
-                    <p><strong>Valor:</strong> $${parseFloat(proposal.total_value || 0).toLocaleString()}</p>
-                    <p><strong>Status:</strong> ${proposal.status || 'draft'}</p>
-                    <p><strong>Criada em:</strong> ${new Date(proposal.created_at).toLocaleDateString()}</p>
-                </div>
-            `).join('');
-        } else {
-            container.innerHTML = '<div class="empty-state">Nenhuma proposta criada ainda.</div>';
+        const quotesUrl = `/api/quotes?lead_id=${encodeURIComponent(currentLeadId)}&limit=50`;
+        const [quotesRes, proposalsRes] = await Promise.all([
+            fetch(quotesUrl, { credentials: 'include' }),
+            fetch(`/api/leads/${currentLeadId}/proposals`, { credentials: 'include' }).catch(() => null),
+        ]);
+
+        const quotesData = await quotesRes.json();
+        let proposalsPayload = { success: false, data: [] };
+        if (proposalsRes && proposalsRes.ok) {
+            try {
+                proposalsPayload = await proposalsRes.json();
+            } catch (e) {
+                proposalsPayload = { success: false, data: [] };
+            }
         }
+
+        const quotes = quotesData.success && Array.isArray(quotesData.data) ? quotesData.data : [];
+        const proposals =
+            proposalsPayload.success && Array.isArray(proposalsPayload.data) ? proposalsPayload.data : [];
+
+        const rows = [];
+        quotes.forEach((q) => {
+            rows.push({
+                kind: 'quote',
+                id: q.id,
+                label: q.quote_number || `Quote #${q.id}`,
+                amount: q.total_amount,
+                status: q.status || 'draft',
+                created_at: q.created_at,
+                expires: q.expiration_date,
+                pdfUrl: q.pdf_path ? `/api/quotes/${q.id}/invoice-pdf` : null,
+            });
+        });
+        proposals.forEach((p) => {
+            rows.push({
+                kind: 'proposal',
+                id: p.id,
+                label: p.proposal_number || `Proposta #${p.id}`,
+                amount: p.total_value,
+                status: p.status || 'draft',
+                created_at: p.created_at,
+                expires: null,
+            });
+        });
+
+        rows.sort((a, b) => {
+            const ta = a.created_at ? new Date(a.created_at).getTime() : 0;
+            const tb = b.created_at ? new Date(b.created_at).getTime() : 0;
+            return tb - ta;
+        });
+
+        if (rows.length === 0) {
+            container.innerHTML =
+                '<div class="empty-state"><p>Nenhum orçamento (quote) ligado a este lead.</p><p>Os orçamentos criados no CRM em <strong>Quotes</strong> aparecem aqui automaticamente.</p></div>';
+            return;
+        }
+
+        container.innerHTML = rows
+            .map((row) => {
+                const badge =
+                    row.kind === 'quote'
+                        ? '<span class="proposal-kind-badge proposal-kind-badge--quote">Quote</span>'
+                        : '<span class="proposal-kind-badge proposal-kind-badge--proposal">Proposta</span>';
+                const when = row.created_at ? new Date(row.created_at).toLocaleDateString('pt-BR') : '—';
+                const exp =
+                    row.expires && row.kind === 'quote'
+                        ? `<p><strong>Expira:</strong> ${escapeHtml(new Date(row.expires).toLocaleDateString('pt-BR'))}</p>`
+                        : '';
+                return `<div class="lead-proposal-card">
+                    <div class="lead-proposal-card__head">
+                        <h3>${escapeHtml(row.label)}</h3>
+                        ${badge}
+                    </div>
+                    <p><strong>Valor:</strong> $${parseFloat(row.amount || 0).toLocaleString()}</p>
+                    <p><strong>Status:</strong> ${escapeHtml(row.status)}</p>
+                    <p><strong>Criada em:</strong> ${escapeHtml(when)}</p>
+                    ${exp}
+                    <div class="lead-proposal-card__actions">
+                        ${row.pdfUrl ? `<a class="btn btn-secondary btn-sm" href="${row.pdfUrl}" target="_blank" rel="noopener">Ver PDF</a>` : ''}
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="openLeadQuotesInCrm()">Abrir Quotes no CRM</button>
+                    </div>
+                </div>`;
+            })
+            .join('');
     } catch (error) {
-        console.error('Error loading proposals:', error);
+        console.error('Error loading quotes/proposals:', error);
+        container.innerHTML =
+            '<div class="empty-state">Erro ao carregar orçamentos. ' + escapeHtml(error.message || '') + '</div>';
     }
+}
+
+function openLeadQuotesInCrm() {
+    window.location.href = 'dashboard.html?page=quotes';
+}
+
+function setupLeadImportInvoicePdfForm() {
+    const fileInput = document.getElementById('leadImportInvoicePdfFile');
+    const amountWrap = document.getElementById('leadImportInvoicePdfAmountWrap');
+    const amountEl = document.getElementById('leadImportInvoicePdfAmount');
+    const submitBtn = document.getElementById('leadImportInvoicePdfSubmit');
+    const form = document.getElementById('leadImportInvoicePdfForm');
+    if (!fileInput || !amountEl || !submitBtn || !form || !amountWrap) return;
+
+    function refreshSubmit() {
+        const hasFile = fileInput.files && fileInput.files.length > 0;
+        const amt = parseFloat(String(amountEl.value || '').replace(',', '.'), 10);
+        submitBtn.disabled = !(hasFile && Number.isFinite(amt) && amt >= 0);
+    }
+
+    fileInput.addEventListener('change', () => {
+        const has = fileInput.files && fileInput.files.length > 0;
+        amountWrap.style.display = has ? 'block' : 'none';
+        if (has) {
+            amountEl.setAttribute('required', 'required');
+        } else {
+            amountEl.removeAttribute('required');
+            amountEl.value = '';
+        }
+        refreshSubmit();
+    });
+    amountEl.addEventListener('input', refreshSubmit);
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        if (!currentLeadId || !fileInput.files || !fileInput.files[0]) return;
+        const fd = new FormData();
+        fd.append('file', fileInput.files[0]);
+        fd.append('total_amount', amountEl.value);
+        fd.append('lead_id', String(currentLeadId));
+        submitBtn.disabled = true;
+        const prev = submitBtn.textContent;
+        submitBtn.textContent = 'A guardar…';
+        try {
+            const res = await fetch('/api/quotes/import-invoice-pdf', {
+                method: 'POST',
+                credentials: 'include',
+                body: fd,
+            });
+            const json = await res.json().catch(() => ({}));
+            if (json.success) {
+                form.reset();
+                amountWrap.style.display = 'none';
+                amountEl.removeAttribute('required');
+                await loadProposals();
+            } else {
+                alert(json.error || 'Erro ao importar PDF');
+            }
+        } catch (err) {
+            alert('Erro de rede ao importar PDF');
+        } finally {
+            submitBtn.textContent = prev;
+            refreshSubmit();
+        }
+    });
 }
 
 function switchTab(tabName) {
@@ -1021,7 +1161,7 @@ async function createVisit(payload, submitBtn) {
 }
 
 function showNewProposalModal() {
-    alert('Funcionalidade de criar proposta em desenvolvimento');
+    window.open('estimate-builder.html', '_blank', 'noopener');
 }
 
 async function createInteraction(interaction) {

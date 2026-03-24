@@ -8,6 +8,30 @@ let allLeads = [];
 let allUsers = [];
 /** Todas as visitas scheduled da API (Kanban filtra por estágio do lead) */
 let scheduledVisitsRawForKanban = [];
+/** Instâncias Sortable ativas (destruir antes de re-render para não duplicar onEnd nem “prender” cartões) */
+let kanbanSortableInstances = [];
+
+function kanbanNumericId(v) {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : NaN;
+}
+
+function findLeadByIdKanban(leadId) {
+    const n = kanbanNumericId(leadId);
+    if (!Number.isFinite(n)) return undefined;
+    return allLeads.find((l) => kanbanNumericId(l.id) === n);
+}
+
+function destroyKanbanSortables() {
+    while (kanbanSortableInstances.length) {
+        const s = kanbanSortableInstances.pop();
+        try {
+            if (s && typeof s.destroy === 'function') s.destroy();
+        } catch (e) {
+            /* ignore */
+        }
+    }
+}
 
 function escapeKanbanHtml(s) {
     if (s == null || s === undefined) return '';
@@ -163,18 +187,21 @@ function getVisitScheduledPipelineStage() {
 
 function leadIsInVisitScheduledStage(lead, visitStage) {
     if (!visitStage || !lead) return false;
-    return (
-        lead.pipeline_stage_id === visitStage.id ||
-        (lead.status === visitStage.slug && !lead.pipeline_stage_id)
-    );
+    const sid = kanbanNumericId(visitStage.id);
+    const lid = kanbanNumericId(lead.pipeline_stage_id);
+    const sameStageById = Number.isFinite(sid) && Number.isFinite(lid) && lid === sid;
+    const sameBySlugOnly =
+        lead.status === visitStage.slug &&
+        (lead.pipeline_stage_id == null || lead.pipeline_stage_id === '');
+    return sameStageById || sameBySlugOnly;
 }
 
 /** Visitas a mostrar na coluna dedicada: scheduled e lead ainda em "Visita Agendada" */
 function getScheduledVisitsForKanbanColumn() {
     const visitStage = getVisitScheduledPipelineStage();
     const filtered = scheduledVisitsRawForKanban.filter((v) => {
-        const lead = allLeads.find((l) => l.id === v.lead_id);
-        if (!lead) return true;
+        const lead = findLeadByIdKanban(v.lead_id);
+        if (!lead) return false;
         if (!visitStage) return true;
         return leadIsInVisitScheduledStage(lead, visitStage);
     });
@@ -221,9 +248,13 @@ function renderKanbanBoard() {
     const board = document.getElementById('kanbanBoard');
     if (!board) return;
 
+    destroyKanbanSortables();
+
     const visitStage = getVisitScheduledPipelineStage();
     const visitsForColumn = getScheduledVisitsForKanbanColumn();
-    const visitColumnLeadIds = new Set(visitsForColumn.map((v) => v.lead_id).filter((id) => id != null));
+    const visitColumnLeadIds = new Set(
+        visitsForColumn.map((v) => kanbanNumericId(v.lead_id)).filter((n) => Number.isFinite(n))
+    );
 
     board.innerHTML = '';
 
@@ -233,13 +264,13 @@ function renderKanbanBoard() {
     const appendStageColumn = (stage) => {
         const stageLeads = allLeads.filter((lead) => {
             const matchesStage =
-                lead.pipeline_stage_id === stage.id ||
-                (lead.status === stage.slug && !lead.pipeline_stage_id);
+                kanbanNumericId(lead.pipeline_stage_id) === kanbanNumericId(stage.id) ||
+                (lead.status === stage.slug && (lead.pipeline_stage_id == null || lead.pipeline_stage_id === ''));
             if (!matchesStage) return false;
             if (
                 visitStage &&
                 stage.id === visitStage.id &&
-                visitColumnLeadIds.has(lead.id)
+                visitColumnLeadIds.has(kanbanNumericId(lead.id))
             ) {
                 return false;
             }
@@ -296,21 +327,22 @@ function buildAddressFromVisitParts(v) {
 }
 
 function renderVisitKanbanCard(visit) {
-    const lead = allLeads.find((l) => l.id === visit.lead_id);
+    const lead = findLeadByIdKanban(visit.lead_id);
     const name = escapeKanbanHtml(visit.lead_name || lead?.name || 'Lead');
     const when = formatVisitKanbanDateTime(visit.scheduled_at);
     const addr = escapeKanbanHtml(visitKanbanAddress(visit) || '—');
     const assignee = escapeKanbanHtml(visit.assigned_to_name || '');
     const priorityClass = lead?.priority || 'medium';
-    const leadId = visit.lead_id;
+    const leadId = kanbanNumericId(visit.lead_id);
+    const leadIdAttr = Number.isFinite(leadId) ? leadId : '';
     return `
-        <div class="kanban-card kanban-card--visit" data-lead-id="${leadId}" data-visit-id="${visit.id}" draggable="true">
+        <div class="kanban-card kanban-card--visit" data-lead-id="${leadIdAttr}" data-visit-id="${visit.id}" draggable="true">
             <div class="kanban-card-header">
                 <div class="kanban-card-title">${name}</div>
                 <div class="kanban-card-actions">
-                    <button type="button" onclick="viewLead(${leadId})" title="Ver lead"><span class="action-btn-icon">V</span></button>
-                    <button type="button" onclick="showAssignLeadModal(${leadId})" title="Designar"><span class="action-btn-icon">U</span></button>
-                    <button type="button" onclick="showFollowupModal(${leadId})" title="Follow-up"><span class="action-btn-icon">D</span></button>
+                    <button type="button" onclick="viewLead(${leadIdAttr})" title="Ver lead"><span class="action-btn-icon">V</span></button>
+                    <button type="button" onclick="showAssignLeadModal(${leadIdAttr})" title="Designar"><span class="action-btn-icon">U</span></button>
+                    <button type="button" onclick="showFollowupModal(${leadIdAttr})" title="Follow-up"><span class="action-btn-icon">D</span></button>
                 </div>
             </div>
             <div class="kanban-card-body kanban-card-body--visit">
@@ -373,51 +405,50 @@ function initKanbanDragDrop() {
 function setupSortable() {
     const visitsCards = document.getElementById('kanban-visits-cards');
     if (visitsCards && typeof Sortable !== 'undefined') {
-        new Sortable(visitsCards, {
-            group: { name: 'kanban', pull: true, put: false },
-            animation: 150,
-            onEnd: async (evt) => {
-                const leadId = parseInt(evt.item.dataset.leadId, 10);
-                const col = evt.to.closest('.kanban-column');
-                if (!col || col.dataset.visitOnly === 'true') return;
-                const newStageId = parseInt(col.dataset.stageId, 10);
-                const newStageSlug = col.dataset.stageSlug;
-                const fromVisitColumn = evt.from && evt.from.id === 'kanban-visits-cards';
-                if (leadId && newStageId) {
-                    await updateLeadStage(leadId, newStageId, newStageSlug, {
-                        fromVisitColumn,
-                    });
-                }
-            },
-        });
+        kanbanSortableInstances.push(
+            new Sortable(visitsCards, {
+                group: { name: 'kanban', pull: true, put: false },
+                animation: 150,
+                onEnd: async (evt) => {
+                    const leadId = kanbanNumericId(evt.item.dataset.leadId);
+                    const col = evt.to.closest('.kanban-column');
+                    if (!col || col.dataset.visitOnly === 'true') return;
+                    const newStageId = parseInt(col.dataset.stageId, 10);
+                    const newStageSlug = col.dataset.stageSlug;
+                    if (Number.isFinite(leadId) && newStageId) {
+                        await updateLeadStage(leadId, newStageId, newStageSlug);
+                    }
+                },
+            })
+        );
     }
 
     pipelineStages.forEach((stage) => {
         const cardsContainer = document.getElementById(`kanban-stage-${stage.id}`);
         if (cardsContainer) {
-            new Sortable(cardsContainer, {
-                group: 'kanban',
-                animation: 150,
-                onEnd: async (evt) => {
-                    const leadId = parseInt(evt.item.dataset.leadId, 10);
-                    const col = evt.to.closest('.kanban-column');
-                    if (!col || col.dataset.visitOnly === 'true') return;
-                    const newStageId = parseInt(col.dataset.stageId, 10);
-                    const newStageSlug = col.dataset.stageSlug;
+            kanbanSortableInstances.push(
+                new Sortable(cardsContainer, {
+                    group: 'kanban',
+                    animation: 150,
+                    onEnd: async (evt) => {
+                        const leadId = kanbanNumericId(evt.item.dataset.leadId);
+                        const col = evt.to.closest('.kanban-column');
+                        if (!col || col.dataset.visitOnly === 'true') return;
+                        const newStageId = parseInt(col.dataset.stageId, 10);
+                        const newStageSlug = col.dataset.stageSlug;
 
-                    if (leadId && newStageId) {
-                        await updateLeadStage(leadId, newStageId, newStageSlug, {
-                            fromVisitColumn: evt.from && evt.from.id === 'kanban-visits-cards',
-                        });
-                    }
-                },
-            });
+                        if (Number.isFinite(leadId) && newStageId) {
+                            await updateLeadStage(leadId, newStageId, newStageSlug);
+                        }
+                    },
+                })
+            );
         }
     });
 }
 
 // Update Lead Stage (when dragged)
-async function updateLeadStage(leadId, stageId, stageSlug, options = {}) {
+async function updateLeadStage(leadId, stageId, stageSlug) {
     try {
         const response = await fetch(`/api/leads/${leadId}`, {
             method: 'PUT',
@@ -431,16 +462,8 @@ async function updateLeadStage(leadId, stageId, stageSlug, options = {}) {
         
         const data = await response.json();
         if (data.success) {
-            // Update local data
-            const lead = allLeads.find(l => l.id === leadId);
-            if (lead) {
-                lead.pipeline_stage_id = stageId;
-                lead.status = stageSlug;
-            }
-            if (options.fromVisitColumn) {
-                await loadKanbanBoard();
-                return;
-            }
+            await loadKanbanBoard();
+            return;
         } else {
             // Revert on error
             loadKanbanBoard();

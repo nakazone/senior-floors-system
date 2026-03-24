@@ -477,6 +477,31 @@
                         </form>
                     </div>
                 </div>
+
+                <!-- Importar PDF Invoice2Go / orçamento externo -->
+                <div id="importInvoicePdfModal" class="modal" style="display: none;">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h3>Importar PDF (ex.: Invoice2Go)</h3>
+                            <button type="button" class="modal-close" onclick="closeModal('importInvoicePdfModal')">&times;</button>
+                        </div>
+                        <form id="importInvoicePdfForm">
+                            <p class="text-muted" style="font-size:0.9rem;margin-bottom:12px;">1. Escolha o PDF. 2. Só depois aparece o campo para o <strong>valor final</strong> do orçamento no CRM.</p>
+                            <div class="form-group">
+                                <label for="importInvoicePdfFile">Ficheiro PDF *</label>
+                                <input type="file" id="importInvoicePdfFile" accept=".pdf,application/pdf" required>
+                            </div>
+                            <div id="importInvoicePdfAmountSection" class="form-group" style="display: none;">
+                                <label for="importInvoicePdfAmount">Valor final do quote ($) *</label>
+                                <input type="number" id="importInvoicePdfAmount" step="0.01" min="0" placeholder="0.00">
+                            </div>
+                            <div class="btn-group">
+                                <button type="button" class="btn btn-secondary" onclick="closeModal('importInvoicePdfModal')">Cancelar</button>
+                                <button type="submit" class="btn btn-primary" id="importInvoicePdfSubmit" disabled>Guardar quote</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
                 
                 <!-- Customers Page -->
                 <div id="customersPage" class="page-content" style="display: none;">
@@ -517,9 +542,10 @@
                 <div id="quotesPage" class="page-content" style="display: none;">
                     <div class="page-header">
                         <h2>Estimates</h2>
-                        <div style="display: flex; gap: var(--spacing-sm);">
-                            <button class="btn btn-primary" onclick="window.open('estimate-builder.html', '_blank')">+ New Estimate</button>
-                            <button class="btn btn-secondary" onclick="loadEstimateAnalytics()">Analytics</button>
+                        <div style="display: flex; gap: var(--spacing-sm); flex-wrap: wrap;">
+                            <button type="button" class="btn btn-primary" onclick="window.open('estimate-builder.html', '_blank')">+ New Estimate</button>
+                            <button type="button" class="btn btn-secondary" onclick="openImportInvoicePdfModal()">📄 Importar PDF (Invoice2Go)</button>
+                            <button type="button" class="btn btn-secondary" onclick="loadEstimateAnalytics()">Analytics</button>
                         </div>
                     </div>
                     
@@ -531,13 +557,14 @@
                                     <th>Customer</th>
                                     <th>Amount</th>
                                     <th>Status</th>
+                                    <th>PDF</th>
                                     <th>Created</th>
                                     <th>Expires</th>
                                     <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="quotesTableBody">
-                                <tr><td colspan="7" class="text-center">Loading...</td></tr>
+                                <tr><td colspan="8" class="text-center">Loading...</td></tr>
                             </tbody>
                         </table>
                     </div>

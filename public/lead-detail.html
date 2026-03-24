@@ -200,6 +200,63 @@
             font-size: 48px;
             margin-bottom: 10px;
         }
+        .tab-lead-hint {
+            font-size: 0.875rem;
+            color: #64748b;
+            margin: 0 0 16px 0;
+            line-height: 1.45;
+        }
+        .lead-proposal-card {
+            padding: 16px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            background: #fafafa;
+        }
+        .lead-proposal-card__head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 8px;
+        }
+        .lead-proposal-card__head h3 {
+            margin: 0;
+            font-size: 1.05rem;
+        }
+        .proposal-kind-badge {
+            font-size: 0.7rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            padding: 4px 8px;
+            border-radius: 6px;
+        }
+        .proposal-kind-badge--quote {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+        .proposal-kind-badge--proposal {
+            background: #fef3c7;
+            color: #92400e;
+        }
+        .lead-proposal-card__actions {
+            margin-top: 12px;
+        }
+        .lead-invoice-pdf-box {
+            background: #f1f5f9;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 20px;
+        }
+        .lead-invoice-pdf-title {
+            margin: 0 0 8px 0;
+            font-size: 1rem;
+        }
+        .lead-invoice-pdf-form .form-group {
+            margin-bottom: 12px;
+        }
     </style>
 </head>
 <body>
@@ -262,7 +319,7 @@
                     <button class="tab" data-tab="interactions">💬 Interações</button>
                     <button class="tab" data-tab="visits">🏠 Visitas</button>
                     <button class="tab" data-tab="measurements">📏 Medições</button>
-                    <button class="tab" data-tab="proposals">💰 Propostas</button>
+                    <button class="tab" data-tab="proposals">💰 Orçamentos</button>
                     <button class="tab" data-tab="contract">📄 Contrato</button>
                     <button class="tab" data-tab="production">🏗️ Produção</button>
                 </div>
@@ -471,11 +528,28 @@
                     </div>
                 </div>
 
-                <!-- Tab: Proposals -->
+                <!-- Tab: Proposals / Quotes (mesmos dados que CRM → Quotes) -->
                 <div id="proposalsTab" class="tab-content">
-                    <h2>Propostas</h2>
+                    <h2>Orçamentos &amp; propostas</h2>
+                    <p class="tab-lead-hint">Lista os orçamentos do CRM (<strong>Quotes</strong>) para este lead e, se existirem, propostas antigas do outro módulo.</p>
                     <div class="btn-group">
-                        <button class="btn btn-primary" onclick="showNewProposalModal()">+ Nova Proposta</button>
+                        <button type="button" class="btn btn-primary" onclick="showNewProposalModal()">+ Novo orçamento (builder)</button>
+                        <button type="button" class="btn btn-secondary" onclick="openLeadQuotesInCrm()">Abrir Quotes no CRM</button>
+                    </div>
+                    <div class="lead-invoice-pdf-box">
+                        <h3 class="lead-invoice-pdf-title">📄 Importar PDF (ex.: Invoice2Go)</h3>
+                        <p class="tab-lead-hint" style="margin-top:0">Depois de selecionar o PDF, aparece apenas o campo do <strong>valor final</strong> registado no CRM.</p>
+                        <form id="leadImportInvoicePdfForm" class="lead-invoice-pdf-form">
+                            <div class="form-group">
+                                <label for="leadImportInvoicePdfFile">Ficheiro PDF *</label>
+                                <input type="file" id="leadImportInvoicePdfFile" accept=".pdf,application/pdf" required>
+                            </div>
+                            <div id="leadImportInvoicePdfAmountWrap" class="form-group" style="display: none;">
+                                <label for="leadImportInvoicePdfAmount">Valor final do quote ($) *</label>
+                                <input type="number" id="leadImportInvoicePdfAmount" step="0.01" min="0" placeholder="0.00">
+                            </div>
+                            <button type="submit" class="btn btn-primary" id="leadImportInvoicePdfSubmit" disabled>Guardar quote com PDF</button>
+                        </form>
                     </div>
                     <div id="proposalsList"></div>
                 </div>
