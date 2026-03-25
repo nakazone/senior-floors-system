@@ -189,6 +189,11 @@
                             <button class="btn btn-secondary" onclick="refreshLeads()">Refresh</button>
                         </div>
                     </div>
+                    <div style="display: flex; flex-wrap: wrap; gap: var(--spacing-sm); align-items: center; margin-bottom: var(--spacing-md);">
+                        <input type="search" id="leadsListSearchInput" placeholder="Buscar por nome, email, telefone ou ID…" style="min-width: 12rem; flex: 1; max-width: 22rem; padding: 0.45rem 0.65rem; border-radius: var(--radius-sm, 6px); border: 1px solid var(--border-color, #ccc);" onkeydown="if (event.key === 'Enter') { event.preventDefault(); leadsSearchSubmit(); }" />
+                        <button type="button" class="btn btn-secondary" onclick="leadsSearchSubmit()">Buscar</button>
+                        <button type="button" class="btn btn-secondary" onclick="leadsSearchClear()">Limpar</button>
+                    </div>
                     
                     <!-- List View -->
                     <div id="listView">

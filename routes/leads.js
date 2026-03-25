@@ -10,7 +10,7 @@ export async function listLeads(req, res) {
   try {
     const pool = await getDBConnection();
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
-    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 20));
+    const limit = Math.min(1000, Math.max(1, parseInt(req.query.limit, 10) || 20));
     const offset = (page - 1) * limit;
     const status = req.query.status || null;
     const ownerId = req.query.owner_id || null;
@@ -50,6 +50,29 @@ export async function listLeads(req, res) {
     if (createdTo && /^\d{4}-\d{2}-\d{2}$/.test(createdTo)) {
       whereClause += ' AND DATE(l.created_at) <= ?';
       params.push(createdTo);
+    }
+
+    const qRaw = (req.query.q || req.query.search || '').trim().slice(0, 120);
+    if (qRaw) {
+      const needle = qRaw.toLowerCase();
+      const phoneDigits = qRaw.replace(/\D/g, '');
+      const subconds = [
+        'INSTR(LOWER(COALESCE(l.name,\'\')), ?) > 0',
+        'INSTR(LOWER(COALESCE(l.email,\'\')), ?) > 0',
+      ];
+      const searchParams = [needle, needle];
+      if (phoneDigits.length >= 3) {
+        subconds.push(
+          'INSTR(REPLACE(REPLACE(COALESCE(l.phone,\'\'),\' \',\'\'),\'-\',\'\'), ?) > 0'
+        );
+        searchParams.push(phoneDigits);
+      }
+      if (/^\d{1,10}$/.test(qRaw)) {
+        subconds.unshift('l.id = ?');
+        searchParams.unshift(parseInt(qRaw, 10));
+      }
+      whereClause += ` AND (${subconds.join(' OR ')})`;
+      params.push(...searchParams);
     }
 
     const [rows] = await pool.query(

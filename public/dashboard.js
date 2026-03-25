@@ -705,6 +705,25 @@ function renderCharts(stats) {
 
 // Leads
 let leadsPage = 1;
+const LEADS_PAGE_LIMIT = 50;
+/** Filtro de texto na lista (nome, email, telefone, ID) — alinhado ao Kanban */
+let leadsListSearch = '';
+
+function leadsSearchSubmit() {
+    const el = document.getElementById('leadsListSearchInput');
+    leadsListSearch = el ? el.value.trim() : '';
+    leadsPage = 1;
+    loadLeads();
+}
+
+function leadsSearchClear() {
+    const el = document.getElementById('leadsListSearchInput');
+    if (el) el.value = '';
+    leadsListSearch = '';
+    leadsPage = 1;
+    loadLeads();
+}
+
 async function loadLeads() {
     const tbody = document.getElementById('leadsTableBody');
     if (tbody) {
@@ -713,7 +732,11 @@ async function loadLeads() {
     
     try {
         await ensureLeadsPipelineColorMap();
-        const response = await fetch(`/api/leads?page=${leadsPage}&limit=20`, { credentials: 'include' });
+        const qParam = leadsListSearch ? `&q=${encodeURIComponent(leadsListSearch)}` : '';
+        const response = await fetch(
+            `/api/leads?page=${leadsPage}&limit=${LEADS_PAGE_LIMIT}${qParam}`,
+            { credentials: 'include' }
+        );
         const data = await response.json();
         
         if (data.success && data.data) {
@@ -754,7 +777,7 @@ async function loadLeads() {
                 }
             }
             
-            const totalPages = Math.ceil(data.total / 20);
+            const totalPages = Math.ceil(data.total / LEADS_PAGE_LIMIT);
             const pageInfo = document.getElementById('pageInfoLeads');
             if (pageInfo) pageInfo.textContent = `Page ${leadsPage} of ${totalPages || 1}`;
             const prevBtn = document.getElementById('prevPageLeads');
@@ -807,6 +830,8 @@ async function deleteLead(id) {
 // Make functions globally available
 window.viewLead = viewLead;
 window.deleteLead = deleteLead;
+window.leadsSearchSubmit = leadsSearchSubmit;
+window.leadsSearchClear = leadsSearchClear;
 
 // Customers
 let customersPage = 1;
