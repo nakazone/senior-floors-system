@@ -37,41 +37,136 @@ function parseBody(req) {
   return {};
 }
 
+/** Primeiro valor não vazio entre chaves (planilha Meta / Apps Script usa cabeçalhos variados). */
+function firstString(post, keys) {
+  for (const k of keys) {
+    if (post[k] === undefined || post[k] === null) continue;
+    const v = String(post[k]).trim();
+    if (v) return v;
+  }
+  return '';
+}
+
+function pickLeadFieldsFromPost(post) {
+  const name =
+    firstString(post, [
+      'name',
+      'full_name',
+      'full name',
+      'Full Name',
+      'fullname',
+      'Nome',
+      'nome',
+      'Name',
+      'first_name',
+      'firstname',
+      'First Name',
+    ]) ||
+    [post.first_name, post.last_name]
+      .filter((x) => x != null && String(x).trim())
+      .map((x) => String(x).trim())
+      .join(' ')
+      .trim() ||
+    [post.firstName, post.lastName]
+      .filter((x) => x != null && String(x).trim())
+      .map((x) => String(x).trim())
+      .join(' ')
+      .trim();
+  const email = firstString(post, [
+    'email',
+    'email_address',
+    'Email',
+    'Email Address',
+    'e-mail',
+    'E-mail',
+  ]);
+  const phone = firstString(post, [
+    'phone',
+    'phone_number',
+    'Phone',
+    'Phone Number',
+    'mobile',
+    'Mobile',
+    'tel',
+    'Telefone',
+  ]);
+  const zipcode = firstString(post, [
+    'zipcode',
+    'zip',
+    'zip_code',
+    'Zip',
+    'Zip code',
+    'Postal Code',
+    'postal_code',
+    'postcode',
+    'CEP',
+  ]);
+  const message = firstString(post, ['message', 'Message', 'notes', 'Comments', 'questions']);
+  return { name, email, phone, zipcode, message };
+}
+
 export async function handleReceiveLead(req, res) {
   const post = parseBody(req);
 
   const sheetsSecret = (process.env.SHEETS_SYNC_SECRET || '').trim();
   const sheetsSyncHeader = (req.headers['x-sheets-sync'] || req.headers['X-Sheets-Sync'] || '').trim();
-  if (sheetsSecret && sheetsSyncHeader === '1') {
+  const isSheetsSyncRequest = sheetsSyncHeader === '1';
+  if (sheetsSecret && isSheetsSyncRequest) {
     const fromHeader = (req.headers['x-sheets-sync-secret'] || req.headers['X-Sheets-Sync-Secret'] || '').trim();
     const fromBody = String(post['sync-secret'] || '').trim();
     if ((fromHeader || fromBody) !== sheetsSecret) {
       res.setHeader('Content-Type', 'application/json; charset=UTF-8');
-      return res.status(401).json({ success: false, errors: ['Unauthorized'], api_version: 'receive-lead-system' });
+      return res.status(401).json({
+        success: false,
+        errors: ['Unauthorized'],
+        hint: 'X-Sheets-Sync-Secret header (ou body sync-secret) deve coincidir com SHEETS_SYNC_SECRET no Railway.',
+        api_version: 'receive-lead-system',
+      });
     }
   }
 
   const form_name = (post['form-name'] || post.formName || 'contact-form').trim();
-  let name = (post.name || '').trim();
-  let phone = (post.phone || '').trim();
-  let email = (post.email || '').trim();
-  let zipcode = (post.zipcode || '').trim();
-  let message = (post.message || '').trim();
+  const picked = pickLeadFieldsFromPost(post);
+  let name = picked.name || (post.name || '').trim();
+  let phone = picked.phone || (post.phone || '').trim();
+  let email = picked.email || (post.email || '').trim();
+  let zipcode = picked.zipcode || (post.zipcode || '').trim();
+  let message = picked.message || (post.message || '').trim();
+
+  const isMetaForm = /meta/i.test(form_name) || form_name === 'meta-instant-form';
+  const relaxZipForImport = isSheetsSyncRequest || isMetaForm;
 
   const errors = [];
   if (!name || name.length < 2) errors.push('Name is required');
   if (!phone) errors.push('Phone is required');
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.push('Valid email is required');
-  const zipClean = (zipcode || '').replace(/\D/g, '');
-  if (!zipClean || zipClean.length < 5) errors.push('Valid 5-digit US zip code is required');
+  let zipClean = (zipcode || '').replace(/\D/g, '');
+  if (!zipClean || zipClean.length < 5) {
+    if (relaxZipForImport) {
+      zipClean = '00000';
+    } else {
+      errors.push('Valid 5-digit US zip code is required');
+    }
+  } else {
+    zipClean = zipClean.slice(0, 5);
+  }
   if (errors.length > 0) {
+    console.warn('[receive-lead] validation failed', {
+      errors,
+      form_name,
+      isSheetsSyncRequest,
+      nameLen: name.length,
+      emailLen: email.length,
+      phoneLen: phone.length,
+      rawZipLen: (zipcode || '').length,
+    });
     return res.status(400).json({ success: false, errors, api_version: 'receive-lead-system' });
   }
 
   name = name.slice(0, 255);
   phone = phone.slice(0, 50);
   email = email.slice(0, 255);
-  zipcode = zipClean.slice(0, 5);
+  zipcode = zipClean;
   message = message.slice(0, 65535);
 
   let lead_id = null;
@@ -106,16 +201,23 @@ export async function handleReceiveLead(req, res) {
             owner_id = await getNextOwnerRoundRobin(pool);
           }
           if (!is_dup) {
+            let defaultPipelineId = 1;
+            try {
+              const [st] = await pool.execute(
+                "SELECT id FROM pipeline_stages WHERE slug = 'lead_received' ORDER BY order_num ASC LIMIT 1"
+              );
+              if (st && st[0] && st[0].id != null) defaultPipelineId = st[0].id;
+            } catch (_) {}
             let cols = 'name, email, phone, zipcode, message, source, form_type, status, priority, ip_address';
             let place = '?, ?, ?, ?, ?, ?, ?, ?, ?, ?';
-            const values = [name, email, phone, zipcode, message, source, form_name, 'new', 'medium', ip_address];
+            const values = [name, email, phone, zipcode, message, source, form_name, 'lead_received', 'medium', ip_address];
             try {
               const [oc] = await pool.query("SHOW COLUMNS FROM leads LIKE 'owner_id'");
               if (oc && oc.length > 0) { cols += ', owner_id'; place += ', ?'; values.push(owner_id); }
             } catch (_) {}
             try {
               const [pc] = await pool.query("SHOW COLUMNS FROM leads LIKE 'pipeline_stage_id'");
-              if (pc && pc.length > 0) { cols += ', pipeline_stage_id'; place += ', ?'; values.push(1); }
+              if (pc && pc.length > 0) { cols += ', pipeline_stage_id'; place += ', ?'; values.push(defaultPipelineId); }
             } catch (_) {}
             const marketing = extractMarketingFromBody(post);
             const colSet = await getLeadsTableColumns(pool);
