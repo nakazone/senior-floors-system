@@ -143,18 +143,38 @@ export async function createLead(req, res) {
   try {
     const pool = await getDBConnection();
     const userId = req.session?.user?.id;
-    
-    // Get default pipeline stage if not provided
-    let finalPipelineStageId = pipeline_stage_id;
-    if (!finalPipelineStageId) {
-      const [stages] = await pool.execute(
-        "SELECT id FROM pipeline_stages WHERE slug = 'lead_received' ORDER BY order_num LIMIT 1"
+
+    let finalPipelineStageId =
+      pipeline_stage_id != null && pipeline_stage_id !== ''
+        ? parseInt(pipeline_stage_id, 10)
+        : null;
+    if (!Number.isFinite(finalPipelineStageId)) finalPipelineStageId = null;
+
+    let finalStatus = (status || '').trim() || 'lead_received';
+
+    if (finalPipelineStageId) {
+      const [ps] = await pool.execute('SELECT slug FROM pipeline_stages WHERE id = ? LIMIT 1', [finalPipelineStageId]);
+      if (ps.length > 0) finalStatus = ps[0].slug;
+    } else {
+      const [ps] = await pool.execute(
+        'SELECT id, slug FROM pipeline_stages WHERE slug = ? ORDER BY order_num LIMIT 1',
+        [finalStatus]
       );
-      if (stages.length > 0) {
-        finalPipelineStageId = stages[0].id;
+      if (ps.length > 0) {
+        finalPipelineStageId = ps[0].id;
+        finalStatus = ps[0].slug;
       }
     }
-    
+    if (!finalPipelineStageId) {
+      const [ps] = await pool.execute(
+        "SELECT id, slug FROM pipeline_stages WHERE slug = 'lead_received' ORDER BY order_num LIMIT 1"
+      );
+      if (ps.length > 0) {
+        finalPipelineStageId = ps[0].id;
+        finalStatus = 'lead_received';
+      }
+    }
+
     const colSet = await getLeadsTableColumns(pool);
     const marketing = extractMarketingFromBody({ ...restBody, ...req.body });
     const cols = [
@@ -180,7 +200,7 @@ export async function createLead(req, res) {
       message || null,
       source || 'Manual',
       form_type || 'manual',
-      status || 'lead_received',
+      finalStatus,
       priority || 'medium',
       owner_id || userId || null,
       finalPipelineStageId,

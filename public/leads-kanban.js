@@ -485,9 +485,70 @@ async function updateLeadStage(leadId, stageId, stageSlug) {
     }
 }
 
+/** Preenche o select de estágio do modal Novo Lead (inclui Visita Agendada, etc.). */
+async function populateNewLeadPipelineSelect() {
+    const select = document.getElementById('newLeadPipelineStage');
+    if (!select) return;
+    let stages = [];
+    try {
+        const res = await fetch('/api/pipeline-stages', { credentials: 'include' });
+        const data = await res.json();
+        if (data.success && Array.isArray(data.data)) {
+            stages = data.data
+                .filter((s) => s.is_active !== 0)
+                .sort((a, b) => (a.order_num || 0) - (b.order_num || 0));
+        }
+    } catch (e) {
+        /* ignore */
+    }
+    if (stages.length === 0) {
+        stages = [
+            { id: 1, slug: 'lead_received', name: 'Lead Recebido' },
+            { id: 2, slug: 'contact_made', name: 'Contato Realizado' },
+            { id: 3, slug: 'qualified', name: 'Qualificado' },
+            { id: 4, slug: 'visit_scheduled', name: 'Visita Agendada' },
+            { id: 5, slug: 'measurement_done', name: 'Medição Realizada' },
+            { id: 6, slug: 'proposal_created', name: 'Proposta Criada' },
+            { id: 7, slug: 'proposal_sent', name: 'Proposta Enviada' },
+            { id: 8, slug: 'negotiation', name: 'Em Negociação' },
+            { id: 9, slug: 'closed_won', name: 'Fechado - Ganhou' },
+            { id: 10, slug: 'closed_lost', name: 'Fechado - Perdido' },
+            { id: 11, slug: 'production', name: 'Produção / Obra' },
+        ];
+    }
+    const prev = select.value || 'lead_received';
+    select.innerHTML = '';
+    stages.forEach((s) => {
+        const slug = s.slug || s.name;
+        if (!slug) return;
+        const opt = document.createElement('option');
+        opt.value = slug;
+        opt.textContent = s.name || slug;
+        if (s.id != null) opt.dataset.stageId = String(s.id);
+        select.appendChild(opt);
+    });
+    let found = false;
+    for (let i = 0; i < select.options.length; i++) {
+        if (select.options[i].value === prev) {
+            select.selectedIndex = i;
+            found = true;
+            break;
+        }
+    }
+    if (!found) {
+        for (let j = 0; j < select.options.length; j++) {
+            if (select.options[j].value === 'lead_received') {
+                select.selectedIndex = j;
+                break;
+            }
+        }
+    }
+}
+
 // Show New Lead Modal
 function showNewLeadModal() {
     loadLeadFormUsers();
+    void populateNewLeadPipelineSelect();
     document.getElementById('newLeadModal').classList.add('active');
     document.getElementById('newLeadModal').style.display = 'flex';
 }
@@ -498,6 +559,12 @@ async function createLeadManual(e) {
     const form = e.target;
     const formData = new FormData(form);
     
+    const stageSelect = document.getElementById('newLeadPipelineStage');
+    const stageSlug = (stageSelect && stageSelect.value) || 'lead_received';
+    const stageOpt = stageSelect && stageSelect.options[stageSelect.selectedIndex];
+    const stageIdRaw = stageOpt && stageOpt.dataset && stageOpt.dataset.stageId;
+    const pipelineStageId = stageIdRaw ? parseInt(stageIdRaw, 10) : null;
+
     const leadData = {
         name: formData.get('name'),
         email: formData.get('email'),
@@ -508,8 +575,12 @@ async function createLeadManual(e) {
         priority: formData.get('priority') || 'medium',
         owner_id: formData.get('owner_id') || null,
         estimated_value: parseFloat(formData.get('estimated_value')) || null,
-        notes: formData.get('notes')
+        notes: formData.get('notes'),
+        status: stageSlug,
     };
+    if (Number.isFinite(pipelineStageId)) {
+        leadData.pipeline_stage_id = pipelineStageId;
+    }
     
     try {
         const response = await fetch('/api/leads', {
