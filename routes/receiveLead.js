@@ -1,6 +1,7 @@
 /**
  * POST /api/receive-lead — save lead from LP (Vercel sends here)
  */
+import crypto from 'crypto';
 import { getDBConnection, isDatabaseConfigured } from '../config/db.js';
 import { checkDuplicateLead, getNextOwnerRoundRobin } from '../lib/leadLogic.js';
 import { notifyNewLead } from '../lib/leadPushNotify.js';
@@ -37,12 +38,36 @@ function parseBody(req) {
   return {};
 }
 
+/** Cabeçalhos da planilha com espaços extra ("Email ") ou cópias trimadas. */
+function normalizePostForLead(post) {
+  if (!post || typeof post !== 'object' || Array.isArray(post)) return post || {};
+  const merged = { ...post };
+  for (const k of Object.keys(post)) {
+    if (typeof k !== 'string') continue;
+    const t = k.trim();
+    if (t && t !== k && merged[t] === undefined) merged[t] = post[k];
+  }
+  return merged;
+}
+
 /** Primeiro valor não vazio entre chaves (planilha Meta / Apps Script usa cabeçalhos variados). */
 function firstString(post, keys) {
   for (const k of keys) {
     if (post[k] === undefined || post[k] === null) continue;
     const v = String(post[k]).trim();
     if (v) return v;
+  }
+  const byLower = new Map();
+  for (const k of Object.keys(post)) {
+    if (typeof k !== 'string') continue;
+    const lk = k.trim().toLowerCase();
+    if (!byLower.has(lk)) byLower.set(lk, post[k]);
+  }
+  for (const want of keys) {
+    const v = byLower.get(String(want).trim().toLowerCase());
+    if (v === undefined || v === null) continue;
+    const s = String(v).trim();
+    if (s) return s;
   }
   return '';
 }
@@ -79,6 +104,10 @@ function pickLeadFieldsFromPost(post) {
     'Email Address',
     'e-mail',
     'E-mail',
+    'work_email',
+    'Work Email',
+    'contact_email',
+    'Contact email',
   ]);
   const phone = firstString(post, [
     'phone',
@@ -89,6 +118,9 @@ function pickLeadFieldsFromPost(post) {
     'Mobile',
     'tel',
     'Telefone',
+    'work_phone_number',
+    'Work Phone Number',
+    'work phone number',
   ]);
   const zipcode = firstString(post, [
     'zipcode',
@@ -106,7 +138,7 @@ function pickLeadFieldsFromPost(post) {
 }
 
 export async function handleReceiveLead(req, res) {
-  const post = parseBody(req);
+  const post = normalizePostForLead(parseBody(req));
 
   const sheetsSecret = (process.env.SHEETS_SYNC_SECRET || '').trim();
   const sheetsSyncHeader = (req.headers['x-sheets-sync'] || req.headers['X-Sheets-Sync'] || '').trim();
@@ -135,6 +167,12 @@ export async function handleReceiveLead(req, res) {
 
   const isMetaForm = /meta/i.test(form_name) || form_name === 'meta-instant-form';
   const relaxZipForImport = isSheetsSyncRequest || isMetaForm;
+
+  const phoneDigitsEarly = (phone || '').replace(/\D/g, '');
+  const emailLooksValid = email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  if (!emailLooksValid && isSheetsSyncRequest && phoneDigitsEarly.length >= 10) {
+    email = `meta-import-${phoneDigitsEarly.slice(-10)}-${crypto.randomBytes(4).toString('hex')}@invalid.invalid`;
+  }
 
   const errors = [];
   if (!name || name.length < 2) errors.push('Name is required');
@@ -173,6 +211,7 @@ export async function handleReceiveLead(req, res) {
   let db_saved = false;
   let inserted_new = null;
   let db_error_reason = null;
+  let duplicate_skipped = false;
 
   if (!isDatabaseConfigured()) {
     db_error_reason = 'Database not configured';
@@ -194,9 +233,15 @@ export async function handleReceiveLead(req, res) {
           const dup = await checkDuplicateLead(pool, email, phoneDigits, null);
           if (dup.is_duplicate) {
             is_dup = true;
+            duplicate_skipped = true;
             lead_id = dup.existing_id;
             db_saved = true;
             inserted_new = false;
+            console.info('[receive-lead] duplicate skipped (planilha/LP)', {
+              existing_lead_id: lead_id,
+              isSheetsSyncRequest,
+              form_name,
+            });
           } else {
             owner_id = await getNextOwnerRoundRobin(pool);
           }
@@ -256,9 +301,13 @@ export async function handleReceiveLead(req, res) {
     lead_id,
     database_saved: db_saved,
     inserted_new,
+    duplicate_skipped,
     api_version: 'receive-lead-system',
     data: { form_type: form_name, name, email, phone, zipcode },
   };
+  if (duplicate_skipped) {
+    resp.message = 'Lead já existia (email ou telefone); nenhuma linha nova inserida.';
+  }
   if (!db_saved) resp.db_error = db_error_reason || 'Unknown';
   res.setHeader('Content-Type', 'application/json; charset=UTF-8');
   res.status(200).json(resp);
