@@ -729,11 +729,40 @@ async function loadProposals() {
             fetch(`/api/leads/${currentLeadId}/proposals`, { credentials: 'include' }).catch(() => null),
         ]);
 
-        const quotesData = await quotesRes.json();
+        const quotesText = await quotesRes.text();
+        let quotesData;
+        try {
+            quotesData = quotesText && quotesText.trim() ? JSON.parse(quotesText) : {};
+        } catch (parseErr) {
+            console.warn('loadProposals: resposta quotes não é JSON', quotesRes.status, quotesText.slice(0, 400));
+            container.innerHTML =
+                '<div class="empty-state"><p>Não foi possível carregar os orçamentos.</p>' +
+                '<p>O servidor respondeu com texto em vez de JSON (muitas vezes <strong>503 Service Unavailable</strong> — CRM a reiniciar, base de dados ou proxy).</p>' +
+                '<p><strong>HTTP ' +
+                quotesRes.status +
+                '</strong></p>' +
+                (quotesText.trim()
+                    ? '<p style="font-size:0.85rem;color:#64748b;">' + escapeHtml(quotesText.trim().slice(0, 240)) + '</p>'
+                    : '') +
+                '<p>Tente atualizar a página dentro de um minuto.</p></div>';
+            return;
+        }
+
+        if (!quotesRes.ok) {
+            const msg =
+                (quotesData && (quotesData.error || quotesData.message)) ||
+                'Pedido falhou (HTTP ' + quotesRes.status + ')';
+            container.innerHTML =
+                '<div class="empty-state"><p>Erro ao carregar quotes.</p><p>' + escapeHtml(String(msg)) + '</p></div>';
+            return;
+        }
+
         let proposalsPayload = { success: false, data: [] };
         if (proposalsRes && proposalsRes.ok) {
             try {
-                proposalsPayload = await proposalsRes.json();
+                const proposalsText = await proposalsRes.text();
+                proposalsPayload =
+                    proposalsText && proposalsText.trim() ? JSON.parse(proposalsText) : { success: false, data: [] };
             } catch (e) {
                 proposalsPayload = { success: false, data: [] };
             }
