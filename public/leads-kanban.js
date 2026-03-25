@@ -336,7 +336,7 @@ function renderVisitKanbanCard(visit) {
     const leadId = kanbanNumericId(visit.lead_id);
     const leadIdAttr = Number.isFinite(leadId) ? leadId : '';
     return `
-        <div class="kanban-card kanban-card--visit" data-lead-id="${leadIdAttr}" data-visit-id="${visit.id}" draggable="true">
+        <div class="kanban-card kanban-card--visit" data-lead-id="${leadIdAttr}" data-visit-id="${visit.id}">
             <div class="kanban-card-header">
                 <div class="kanban-card-title">${name}</div>
                 <div class="kanban-card-actions">
@@ -364,7 +364,7 @@ function renderKanbanCard(lead) {
     const ownerName = lead.owner_name || 'Não designado';
     
     return `
-        <div class="kanban-card" data-lead-id="${lead.id}" draggable="true">
+        <div class="kanban-card" data-lead-id="${lead.id}">
             <div class="kanban-card-header">
                 <div class="kanban-card-title">${lead.name || 'Sem nome'}</div>
                 <div class="kanban-card-actions">
@@ -402,23 +402,22 @@ function initKanbanDragDrop() {
     }
 }
 
+const KANBAN_SORTABLE_SHARED = {
+    animation: 150,
+    emptyInsertThreshold: 48,
+    filter: 'button, .kanban-card-actions, .btn-lead-delete-kanban',
+    preventOnFilter: true,
+};
+
 function setupSortable() {
     const visitsCards = document.getElementById('kanban-visits-cards');
     if (visitsCards && typeof Sortable !== 'undefined') {
+        // Só o destino (colunas de estágio) trata onEnd — evita dupla chamada à API.
+        // draggable nativo no HTML quebra o Sortable; não usar draggable="true" nos cartões.
         kanbanSortableInstances.push(
             new Sortable(visitsCards, {
+                ...KANBAN_SORTABLE_SHARED,
                 group: { name: 'kanban', pull: true, put: false },
-                animation: 150,
-                onEnd: async (evt) => {
-                    const leadId = kanbanNumericId(evt.item.dataset.leadId);
-                    const col = evt.to.closest('.kanban-column');
-                    if (!col || col.dataset.visitOnly === 'true') return;
-                    const newStageId = parseInt(col.dataset.stageId, 10);
-                    const newStageSlug = col.dataset.stageSlug;
-                    if (Number.isFinite(leadId) && newStageId) {
-                        await updateLeadStage(leadId, newStageId, newStageSlug);
-                    }
-                },
             })
         );
     }
@@ -428,17 +427,17 @@ function setupSortable() {
         if (cardsContainer) {
             kanbanSortableInstances.push(
                 new Sortable(cardsContainer, {
-                    group: 'kanban',
-                    animation: 150,
-                    onEnd: async (evt) => {
+                    ...KANBAN_SORTABLE_SHARED,
+                    group: { name: 'kanban', pull: true, put: true },
+                    onEnd: (evt) => {
+                        if (evt.from === evt.to) return;
                         const leadId = kanbanNumericId(evt.item.dataset.leadId);
                         const col = evt.to.closest('.kanban-column');
                         if (!col || col.dataset.visitOnly === 'true') return;
                         const newStageId = parseInt(col.dataset.stageId, 10);
                         const newStageSlug = col.dataset.stageSlug;
-
                         if (Number.isFinite(leadId) && newStageId) {
-                            await updateLeadStage(leadId, newStageId, newStageSlug);
+                            void updateLeadStage(leadId, newStageId, newStageSlug);
                         }
                     },
                 })
@@ -462,7 +461,10 @@ async function updateLeadStage(leadId, stageId, stageSlug) {
         
         const data = await response.json();
         if (data.success) {
-            await loadKanbanBoard();
+            // Adiar reload: await dentro de onEnd do Sortable corta o teardown do drag e “prende” cartões.
+            queueMicrotask(() => {
+                loadKanbanBoard();
+            });
             return;
         } else {
             // Revert on error
