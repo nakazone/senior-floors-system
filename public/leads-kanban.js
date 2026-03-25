@@ -205,11 +205,21 @@ function getScheduledVisitsForKanbanColumn() {
         if (!visitStage) return true;
         return leadIsInVisitScheduledStage(lead, visitStage);
     });
-    return filtered.sort((a, b) => {
+    filtered.sort((a, b) => {
         const ta = a.scheduled_at ? new Date(a.scheduled_at).getTime() : 0;
         const tb = b.scheduled_at ? new Date(b.scheduled_at).getTime() : 0;
         return ta - tb;
     });
+    // Um cartão por lead (próxima visita): evita duplicar no Kanban quando há várias linhas em visits
+    const seenLeadIds = new Set();
+    const deduped = [];
+    for (const v of filtered) {
+        const lid = kanbanNumericId(v.lead_id);
+        if (!Number.isFinite(lid) || seenLeadIds.has(lid)) continue;
+        seenLeadIds.add(lid);
+        deduped.push(v);
+    }
+    return deduped;
 }
 
 /** Estágio(s) de qualificação: coluna de visitas agendadas vem logo a seguir */
@@ -250,7 +260,6 @@ function renderKanbanBoard() {
 
     destroyKanbanSortables();
 
-    const visitStage = getVisitScheduledPipelineStage();
     const visitsForColumn = getScheduledVisitsForKanbanColumn();
     const visitColumnLeadIds = new Set(
         visitsForColumn.map((v) => kanbanNumericId(v.lead_id)).filter((n) => Number.isFinite(n))
@@ -267,11 +276,8 @@ function renderKanbanBoard() {
                 kanbanNumericId(lead.pipeline_stage_id) === kanbanNumericId(stage.id) ||
                 (lead.status === stage.slug && (lead.pipeline_stage_id == null || lead.pipeline_stage_id === ''));
             if (!matchesStage) return false;
-            if (
-                visitStage &&
-                stage.id === visitStage.id &&
-                visitColumnLeadIds.has(kanbanNumericId(lead.id))
-            ) {
+            // Lead já está na coluna "Visitas agendadas": não repetir cartão nas colunas de estágio
+            if (visitColumnLeadIds.has(kanbanNumericId(lead.id))) {
                 return false;
             }
             return true;
