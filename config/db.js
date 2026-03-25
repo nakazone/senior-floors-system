@@ -6,6 +6,31 @@ import mysql from 'mysql2/promise';
 
 let pool = null;
 
+/** Ligações MySQL fechadas pelo servidor (idle) — recriar pool. */
+export function isTransientMysqlError(err) {
+  if (!err) return false;
+  const c = err.code;
+  return (
+    c === 'PROTOCOL_CONNECTION_LOST' ||
+    c === 'ECONNRESET' ||
+    c === 'ETIMEDOUT' ||
+    c === 'PROTOCOL_ENQUEUE_AFTER_FATAL_ERROR' ||
+    c === 'EPIPE' ||
+    err.fatal === true
+  );
+}
+
+export async function resetDbPool() {
+  if (pool) {
+    try {
+      await pool.end();
+    } catch (_) {
+      /* ignore */
+    }
+    pool = null;
+  }
+}
+
 function parseDatabaseUrl(url) {
   if (!url || typeof url !== 'string') return null;
   try {
@@ -61,6 +86,9 @@ async function getDBConnection() {
       waitForConnections: true,
       connectionLimit: 10,
       queueLimit: 0,
+      connectTimeout: 20000,
+      enableKeepAlive: true,
+      keepAliveInitialDelay: 0,
     });
     return pool;
   } catch (e) {

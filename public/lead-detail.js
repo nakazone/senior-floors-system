@@ -724,12 +724,37 @@ async function loadProposals() {
     container.innerHTML = '<div class="empty-state">A carregar orçamentos…</div>';
     try {
         const quotesUrl = `/api/quotes?lead_id=${encodeURIComponent(currentLeadId)}&limit=50`;
-        const [quotesRes, proposalsRes] = await Promise.all([
-            fetch(quotesUrl, { credentials: 'include' }),
-            fetch(`/api/leads/${currentLeadId}/proposals`, { credentials: 'include' }).catch(() => null),
-        ]);
+        const proposalsRes = await fetch(`/api/leads/${currentLeadId}/proposals`, { credentials: 'include' }).catch(
+            () => null
+        );
 
-        const quotesText = await quotesRes.text();
+        let quotesRes;
+        let quotesText = '';
+        const maxQuoteAttempts = 4;
+        for (let attempt = 1; attempt <= maxQuoteAttempts; attempt++) {
+            quotesRes = await fetch(quotesUrl, { credentials: 'include' });
+            quotesText = await quotesRes.text();
+            let bodyIsJson = false;
+            if (quotesText && quotesText.trim()) {
+                try {
+                    JSON.parse(quotesText);
+                    bodyIsJson = true;
+                } catch (e) {
+                    bodyIsJson = false;
+                }
+            }
+            const transient =
+                quotesRes.status === 502 ||
+                quotesRes.status === 503 ||
+                quotesRes.status === 504 ||
+                (quotesRes.status >= 500 && !bodyIsJson);
+            if (transient && attempt < maxQuoteAttempts) {
+                await new Promise((r) => setTimeout(r, 700 * attempt));
+                continue;
+            }
+            break;
+        }
+
         let quotesData;
         try {
             quotesData = quotesText && quotesText.trim() ? JSON.parse(quotesText) : {};
@@ -737,14 +762,14 @@ async function loadProposals() {
             console.warn('loadProposals: resposta quotes não é JSON', quotesRes.status, quotesText.slice(0, 400));
             container.innerHTML =
                 '<div class="empty-state"><p>Não foi possível carregar os orçamentos.</p>' +
-                '<p>O servidor respondeu com texto em vez de JSON (muitas vezes <strong>503 Service Unavailable</strong> — CRM a reiniciar, base de dados ou proxy).</p>' +
                 '<p><strong>HTTP ' +
                 quotesRes.status +
-                '</strong></p>' +
+                '</strong> — o proxy (ex.: Railway) ou a app não devolveram JSON. Isto costuma indicar CRM a reiniciar, base de dados desligada ou limite de recursos.</p>' +
                 (quotesText.trim()
                     ? '<p style="font-size:0.85rem;color:#64748b;">' + escapeHtml(quotesText.trim().slice(0, 240)) + '</p>'
                     : '') +
-                '<p>Tente atualizar a página dentro de um minuto.</p></div>';
+                '<p><strong>No Railway:</strong> confirme o serviço <em>web</em> em execução (sem crash loop), o plugin <strong>MySQL</strong> ligado e variáveis <code>DATABASE_URL</code> ou <code>MYSQL_URL</code> / <code>DB_*</code> definidas. Veja os logs do deploy.</p>' +
+                '<p><button type="button" class="btn btn-secondary btn-sm" onclick="loadProposals()">Tentar outra vez</button></p></div>';
             return;
         }
 
@@ -753,7 +778,8 @@ async function loadProposals() {
                 (quotesData && (quotesData.error || quotesData.message)) ||
                 'Pedido falhou (HTTP ' + quotesRes.status + ')';
             container.innerHTML =
-                '<div class="empty-state"><p>Erro ao carregar quotes.</p><p>' + escapeHtml(String(msg)) + '</p></div>';
+                '<div class="empty-state"><p>Erro ao carregar quotes.</p><p>' + escapeHtml(String(msg)) + '</p>' +
+                '<p><button type="button" class="btn btn-secondary btn-sm" onclick="loadProposals()">Tentar outra vez</button></p></div>';
             return;
         }
 

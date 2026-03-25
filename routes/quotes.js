@@ -2,64 +2,79 @@
  * Quotes API - Quotes/Orçamentos management
  */
 import fs from 'fs';
-import { getDBConnection } from '../config/db.js';
+import { getDBConnection, resetDbPool, isTransientMysqlError } from '../config/db.js';
 import { setLeadPipelineBySlug } from '../lib/pipelineAutomation.js';
 import { QUOTE_PDF_SUBDIR, resolvedPdfAbsolutePath } from '../lib/quotePdfUpload.js';
 
+async function listQuotesQuery_(pool, req) {
+  const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+  const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 20));
+  const offset = (page - 1) * limit;
+  const status = req.query.status || null;
+  const customerId = req.query.customer_id || null;
+  const leadIdRaw = req.query.lead_id;
+  const leadIdParsed =
+    leadIdRaw !== undefined && leadIdRaw !== null && String(leadIdRaw).trim() !== ''
+      ? parseInt(String(leadIdRaw).trim(), 10)
+      : NaN;
+  const leadId = Number.isFinite(leadIdParsed) ? leadIdParsed : null;
+
+  let whereClause = '1=1';
+  const params = [];
+
+  if (status) {
+    whereClause += ' AND status = ?';
+    params.push(status);
+  }
+  if (customerId) {
+    whereClause += ' AND customer_id = ?';
+    params.push(customerId);
+  }
+  if (leadId != null) {
+    whereClause += ' AND lead_id = ?';
+    params.push(leadId);
+  }
+
+  const [rows] = await pool.query(
+    `SELECT q.*, 
+            c.name as customer_name, c.email as customer_email,
+            l.name as lead_name, l.email as lead_email
+     FROM quotes q
+     LEFT JOIN customers c ON q.customer_id = c.id
+     LEFT JOIN leads l ON q.lead_id = l.id
+     WHERE ${whereClause}
+     ORDER BY q.created_at DESC 
+     LIMIT ? OFFSET ?`,
+    [...params, limit, offset]
+  );
+
+  const [[{ total }]] = await pool.query(`SELECT COUNT(*) as total FROM quotes WHERE ${whereClause}`, params);
+
+  return { rows, total, page, limit };
+}
+
 export async function listQuotes(req, res) {
   try {
-    const pool = await getDBConnection();
+    let pool = await getDBConnection();
     if (!pool) {
       return res.status(503).json({ success: false, error: 'Database not available' });
     }
 
-    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
-    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 20));
-    const offset = (page - 1) * limit;
-    const status = req.query.status || null;
-    const customerId = req.query.customer_id || null;
-    const leadIdRaw = req.query.lead_id;
-    const leadIdParsed =
-      leadIdRaw !== undefined && leadIdRaw !== null && String(leadIdRaw).trim() !== ''
-        ? parseInt(String(leadIdRaw).trim(), 10)
-        : NaN;
-    const leadId = Number.isFinite(leadIdParsed) ? leadIdParsed : null;
-
-    let whereClause = '1=1';
-    const params = [];
-
-    if (status) {
-      whereClause += ' AND status = ?';
-      params.push(status);
-    }
-    if (customerId) {
-      whereClause += ' AND customer_id = ?';
-      params.push(customerId);
-    }
-    if (leadId != null) {
-      whereClause += ' AND lead_id = ?';
-      params.push(leadId);
+    let out;
+    try {
+      out = await listQuotesQuery_(pool, req);
+    } catch (err) {
+      if (!isTransientMysqlError(err)) throw err;
+      console.warn('[quotes] list transient DB error, recreating pool:', err.code || err.message);
+      await resetDbPool();
+      pool = await getDBConnection();
+      if (!pool) {
+        return res.status(503).json({ success: false, error: 'Database not available' });
+      }
+      out = await listQuotesQuery_(pool, req);
     }
 
-    const [rows] = await pool.query(
-      `SELECT q.*, 
-              c.name as customer_name, c.email as customer_email,
-              l.name as lead_name, l.email as lead_email
-       FROM quotes q
-       LEFT JOIN customers c ON q.customer_id = c.id
-       LEFT JOIN leads l ON q.lead_id = l.id
-       WHERE ${whereClause}
-       ORDER BY q.created_at DESC 
-       LIMIT ? OFFSET ?`,
-      [...params, limit, offset]
-    );
-
-    const [[{ total }]] = await pool.query(
-      `SELECT COUNT(*) as total FROM quotes WHERE ${whereClause}`,
-      params
-    );
-
-    res.json({ success: true, data: rows, total, page, limit });
+    res.json({ success: true, data: out.rows, total: out.total, page: out.page, limit: out.limit });
   } catch (error) {
     console.error('List quotes error:', error);
     res.status(500).json({ success: false, error: error.message });
