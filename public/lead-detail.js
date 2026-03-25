@@ -791,7 +791,14 @@ async function loadProposals() {
                     row.expires && row.kind === 'quote'
                         ? `<p><strong>Expira:</strong> ${escapeHtml(new Date(row.expires).toLocaleDateString('pt-BR'))}</p>`
                         : '';
-                return `<div class="lead-proposal-card">
+                const pdfPreview =
+                    row.pdfUrl && row.kind === 'quote'
+                        ? `<div class="lead-quote-pdf-preview">
+                            <p class="lead-quote-pdf-preview-label">PDF anexado a este quote</p>
+                            <iframe class="lead-quote-pdf-iframe" src="${row.pdfUrl}" title="${escapeHtml(row.label)}"></iframe>
+                        </div>`
+                        : '';
+                return `<div class="lead-proposal-card" data-quote-id="${row.kind === 'quote' ? row.id : ''}">
                     <div class="lead-proposal-card__head">
                         <h3>${escapeHtml(row.label)}</h3>
                         ${badge}
@@ -801,9 +808,10 @@ async function loadProposals() {
                     <p><strong>Criada em:</strong> ${escapeHtml(when)}</p>
                     ${exp}
                     <div class="lead-proposal-card__actions">
-                        ${row.pdfUrl ? `<a class="btn btn-secondary btn-sm" href="${row.pdfUrl}" target="_blank" rel="noopener">Ver PDF</a>` : ''}
+                        ${row.pdfUrl ? `<a class="btn btn-secondary btn-sm" href="${row.pdfUrl}" target="_blank" rel="noopener">Abrir PDF (nova janela)</a>` : ''}
                         <button type="button" class="btn btn-secondary btn-sm" onclick="openLeadQuotesInCrm()">Abrir Quotes no CRM</button>
                     </div>
+                    ${pdfPreview}
                 </div>`;
             })
             .join('');
@@ -885,6 +893,10 @@ function switchTab(tabName) {
     
     document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
     document.getElementById(`${tabName}Tab`).classList.add('active');
+
+    if (tabName === 'proposals' && typeof loadProposals === 'function') {
+        loadProposals();
+    }
 }
 
 function showNewInteractionModal() {

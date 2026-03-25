@@ -18,7 +18,12 @@ export async function listQuotes(req, res) {
     const offset = (page - 1) * limit;
     const status = req.query.status || null;
     const customerId = req.query.customer_id || null;
-    const leadId = req.query.lead_id || null;
+    const leadIdRaw = req.query.lead_id;
+    const leadIdParsed =
+      leadIdRaw !== undefined && leadIdRaw !== null && String(leadIdRaw).trim() !== ''
+        ? parseInt(String(leadIdRaw).trim(), 10)
+        : NaN;
+    const leadId = Number.isFinite(leadIdParsed) ? leadIdParsed : null;
 
     let whereClause = '1=1';
     const params = [];
@@ -31,7 +36,7 @@ export async function listQuotes(req, res) {
       whereClause += ' AND customer_id = ?';
       params.push(customerId);
     }
-    if (leadId) {
+    if (leadId != null) {
       whereClause += ' AND lead_id = ?';
       params.push(leadId);
     }
@@ -235,10 +240,11 @@ export async function createQuoteFromInvoicePdf(req, res) {
     return res.status(400).json({ success: false, error: 'Indique o valor final do orçamento (número válido).' });
   }
   const leadRaw = req.body.lead_id;
-  const lead_id =
-    leadRaw === '' || leadRaw === undefined || leadRaw === null
-      ? null
-      : parseInt(String(leadRaw), 10) || null;
+  let lead_id = null;
+  if (leadRaw !== '' && leadRaw !== undefined && leadRaw !== null) {
+    const n = parseInt(String(leadRaw).trim(), 10);
+    if (Number.isFinite(n)) lead_id = n;
+  }
   const extraNotes = req.body.notes != null ? String(req.body.notes).trim().slice(0, 2000) : '';
   const baseNote =
     'Orçamento importado via PDF (ex.: Invoice2Go). Valor final registado no CRM.';
