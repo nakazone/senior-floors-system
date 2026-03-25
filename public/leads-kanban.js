@@ -343,6 +343,7 @@ function renderVisitKanbanCard(visit) {
                     <button type="button" onclick="viewLead(${leadIdAttr})" title="Ver lead"><span class="action-btn-icon">V</span></button>
                     <button type="button" onclick="showAssignLeadModal(${leadIdAttr})" title="Designar"><span class="action-btn-icon">U</span></button>
                     <button type="button" onclick="showFollowupModal(${leadIdAttr})" title="Follow-up"><span class="action-btn-icon">D</span></button>
+                    ${Number.isFinite(leadId) ? `<button type="button" class="btn-lead-delete-kanban" onclick="deleteLead(${leadId})" title="Excluir lead">✕</button>` : ''}
                 </div>
             </div>
             <div class="kanban-card-body kanban-card-body--visit">
