@@ -47,6 +47,8 @@ import {
   googleCalendarOAuthCallback,
 } from './routes/googleCalendarIntegration.js';
 import { getProjectFinancial, updateProjectFinancial, listExpenses, createExpense, approveExpense, listPayrollEntries, createPayrollEntry, approvePayrollEntry, getFinancialDashboard } from './routes/financials.js';
+import { getDBConnection } from './config/db.js';
+import { ensureQuoteInvoicePdfColumn } from './lib/ensureQuoteInvoicePdfColumn.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -271,17 +273,27 @@ app.use((req, res) => {
   }
 });
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Senior Floors System running on port ${PORT}`);
-  console.log('  Admin Panel: http://localhost:' + PORT);
-  console.log('\n  API Endpoints:');
-  console.log('  Dashboard: GET /api/dashboard/stats');
-  console.log('  Leads: GET /api/leads, GET /api/leads/:id, PUT /api/leads/:id, DELETE /api/leads/:id');
-  console.log('  Customers: GET /api/customers, POST /api/customers, PUT /api/customers/:id');
-  console.log('  Quotes: GET /api/quotes, POST /api/quotes, PUT /api/quotes/:id');
-  console.log('  Projects: GET /api/projects, POST /api/projects, PUT /api/projects/:id');
-  console.log('  Visits: GET /api/visits, POST /api/visits, PUT /api/visits/:id');
-  console.log('  Activities: GET /api/activities, POST /api/activities');
-  console.log('  Contracts: GET /api/contracts, POST /api/contracts, PUT /api/contracts/:id');
-  console.log('  Users: GET /api/users, POST /api/users, PUT /api/users/:id');
+async function start() {
+  const pool = await getDBConnection();
+  await ensureQuoteInvoicePdfColumn(pool);
+
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Senior Floors System running on port ${PORT}`);
+    console.log('  Admin Panel: http://localhost:' + PORT);
+    console.log('\n  API Endpoints:');
+    console.log('  Dashboard: GET /api/dashboard/stats');
+    console.log('  Leads: GET /api/leads, GET /api/leads/:id, PUT /api/leads/:id, DELETE /api/leads/:id');
+    console.log('  Customers: GET /api/customers, POST /api/customers, PUT /api/customers/:id');
+    console.log('  Quotes: GET /api/quotes, POST /api/quotes, PUT /api/quotes/:id');
+    console.log('  Projects: GET /api/projects, POST /api/projects, PUT /api/projects/:id');
+    console.log('  Visits: GET /api/visits, POST /api/visits, PUT /api/visits/:id');
+    console.log('  Activities: GET /api/activities, POST /api/activities');
+    console.log('  Contracts: GET /api/contracts, POST /api/contracts, PUT /api/contracts/:id');
+    console.log('  Users: GET /api/users, POST /api/users, PUT /api/users/:id');
+  });
+}
+
+start().catch((err) => {
+  console.error('Failed to start server:', err);
+  process.exit(1);
 });

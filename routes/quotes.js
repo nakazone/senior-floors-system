@@ -440,7 +440,8 @@ export async function streamQuoteInvoicePdf(req, res) {
       return res.status(404).json({
         success: false,
         error:
-          'Ficheiro PDF já não está no disco (ex.: redeploy no Railway sem volume). Execute a migração invoice_pdf e volte a importar o PDF, ou anexe um volume em uploads/.',
+          'O PDF deste orçamento já não existe no servidor (só havia cópia em disco, p.ex. após redeploy). Volte a importar o mesmo PDF: a app grava agora uma cópia na base de dados para não perder.',
+        code: 'QUOTE_PDF_DISK_MISSING',
       });
     }
     res.setHeader('Content-Type', 'application/pdf');
