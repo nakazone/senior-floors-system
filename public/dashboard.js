@@ -902,9 +902,10 @@ async function loadQuotes() {
                 tbody.innerHTML = '<tr><td colspan="8" class="text-center">No quotes found</td></tr>';
             } else {
                 tbody.innerHTML = data.data.map(q => {
-                    const pdfCell = q.pdf_path
-                        ? `<a class="btn btn-sm" href="/api/quotes/${q.id}/invoice-pdf" target="_blank" rel="noopener">Ver PDF</a>`
-                        : '—';
+                    const pdfCell =
+                        q.pdf_path || q.has_invoice_pdf
+                            ? `<a class="btn btn-sm" href="/api/quotes/${q.id}/invoice-pdf" target="_blank" rel="noopener">Ver PDF</a>`
+                            : '—';
                     return `
                     <tr>
                         <td>${q.quote_number || 'N/A'}</td>

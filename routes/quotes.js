@@ -6,6 +6,43 @@ import { getDBConnection, resetDbPool, isTransientMysqlError } from '../config/d
 import { setLeadPipelineBySlug } from '../lib/pipelineAutomation.js';
 import { QUOTE_PDF_SUBDIR, resolvedPdfAbsolutePath } from '../lib/quotePdfUpload.js';
 
+/** Colunas de `quotes` para listagens sem trazer LONGBLOB; inclui has_invoice_pdf quando a coluna existe. */
+async function getQuoteListSelectParts(pool) {
+  const [colRows] = await pool.query(
+    `SELECT COLUMN_NAME AS n FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'quotes'
+     ORDER BY ORDINAL_POSITION`
+  );
+  const colNames = colRows.map((r) => r.n);
+  const hasBlob = colNames.includes('invoice_pdf');
+  const selectCols = colNames.filter((n) => n !== 'invoice_pdf');
+  const simple = `${selectCols.map((n) => `\`${n}\``).join(', ')}${
+    hasBlob
+      ? ', (`invoice_pdf` IS NOT NULL AND LENGTH(`invoice_pdf`) > 0) AS `has_invoice_pdf`'
+      : ''
+  }`;
+  const joined = `${selectCols.map((n) => `q.\`${n}\``).join(', ')}${
+    hasBlob
+      ? ', (q.`invoice_pdf` IS NOT NULL AND LENGTH(q.`invoice_pdf`) > 0) AS `has_invoice_pdf`'
+      : ''
+  }`;
+  return { hasBlob, simple, joined };
+}
+
+async function quotesTableHasInvoicePdf(pool) {
+  const [rows] = await pool.query(
+    `SELECT COUNT(*) AS c FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'quotes' AND COLUMN_NAME = 'invoice_pdf'`
+  );
+  return rows[0].c > 0;
+}
+
+function pdfBufferNonEmpty(buf) {
+  if (buf == null) return false;
+  if (Buffer.isBuffer(buf)) return buf.length > 0;
+  return Buffer.byteLength(buf) > 0;
+}
+
 async function listQuotesQuery_(pool, req) {
   const page = Math.max(1, parseInt(req.query.page, 10) || 1);
   const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 20));
@@ -38,15 +75,17 @@ async function listQuotesQuery_(pool, req) {
   /** Página do lead só precisa de colunas de `quotes` — evita JOINs (menos pontos de falha e mais rápido). */
   const simpleLeadList = leadId != null && !status && !customerId;
 
+  const { simple: quoteSelectSimple, joined: quoteSelectJoined } = await getQuoteListSelectParts(pool);
+
   let rows;
   if (simpleLeadList) {
     [rows] = await pool.query(
-      `SELECT * FROM quotes WHERE lead_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?`,
+      `SELECT ${quoteSelectSimple} FROM quotes WHERE lead_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?`,
       [leadId, limit, offset]
     );
   } else {
     [rows] = await pool.query(
-      `SELECT q.*, 
+      `SELECT ${quoteSelectJoined},
               c.name as customer_name, c.email as customer_email,
               l.name as lead_name, l.email as lead_email
        FROM quotes q
@@ -104,13 +143,17 @@ export async function getQuote(req, res) {
       return res.status(404).json({ success: false, error: 'Quote not found' });
     }
 
-    const quote = quotes[0];
+    const quoteRow = quotes[0];
+    const blob = quoteRow.invoice_pdf;
+    const hasStoredPdf = pdfBufferNonEmpty(blob);
+    const quote = { ...quoteRow };
+    delete quote.invoice_pdf;
 
     // Buscar items do quote
     const [items] = await pool.query('SELECT * FROM quote_items WHERE quote_id = ? ORDER BY id', [req.params.id]);
 
     const data = { ...quote, items };
-    if (quote.pdf_path) {
+    if (quote.pdf_path || hasStoredPdf) {
       data.invoice_pdf_url = `/api/quotes/${quote.id}/invoice-pdf`;
     }
     res.json({ success: true, data });
@@ -277,6 +320,18 @@ export async function createQuoteFromInvoicePdf(req, res) {
   const notes = extraNotes ? `${baseNote}\n${extraNotes}` : baseNote;
 
   const relativePath = `${QUOTE_PDF_SUBDIR}/${req.file.filename}`;
+  let pdfBuf;
+  try {
+    pdfBuf = fs.readFileSync(req.file.path);
+  } catch (readErr) {
+    console.error('createQuoteFromInvoicePdf read:', readErr);
+    try {
+      fs.unlinkSync(req.file.path);
+    } catch (e) {
+      /* ignore */
+    }
+    return res.status(400).json({ success: false, error: 'Não foi possível ler o PDF.' });
+  }
 
   try {
     const pool = await getDBConnection();
@@ -290,13 +345,30 @@ export async function createQuoteFromInvoicePdf(req, res) {
     }
 
     const quoteNumber = await generateNextQuoteNumber(pool);
+    const hasBlobCol = await quotesTableHasInvoicePdf(pool);
 
-    const [result] = await pool.execute(
-      `INSERT INTO quotes (lead_id, customer_id, project_id, total_amount, labor_amount, materials_amount,
-                          status, quote_number, expiration_date, notes, created_by, pdf_path)
-       VALUES (?, NULL, NULL, ?, 0, 0, 'draft', ?, NULL, ?, ?, ?)`,
-      [lead_id, total, quoteNumber, notes, req.session.userId || null, relativePath]
-    );
+    let result;
+    if (hasBlobCol) {
+      [result] = await pool.execute(
+        `INSERT INTO quotes (lead_id, customer_id, project_id, total_amount, labor_amount, materials_amount,
+                            status, quote_number, expiration_date, notes, created_by, pdf_path, invoice_pdf)
+         VALUES (?, NULL, NULL, ?, 0, 0, 'draft', ?, NULL, ?, ?, NULL, ?)`,
+        [lead_id, total, quoteNumber, notes, req.session.userId || null, pdfBuf]
+      );
+    } else {
+      [result] = await pool.execute(
+        `INSERT INTO quotes (lead_id, customer_id, project_id, total_amount, labor_amount, materials_amount,
+                            status, quote_number, expiration_date, notes, created_by, pdf_path)
+         VALUES (?, NULL, NULL, ?, 0, 0, 'draft', ?, NULL, ?, ?, ?)`,
+        [lead_id, total, quoteNumber, notes, req.session.userId || null, relativePath]
+      );
+    }
+
+    try {
+      fs.unlinkSync(req.file.path);
+    } catch (e) {
+      /* ignore */
+    }
 
     const quoteId = result.insertId;
 
@@ -323,6 +395,13 @@ export async function createQuoteFromInvoicePdf(req, res) {
           'Coluna pdf_path em falta na tabela quotes. Execute: ALTER TABLE quotes ADD COLUMN pdf_path VARCHAR(500) NULL;',
       });
     }
+    if (error.code === 'ER_BAD_FIELD_ERROR' && String(error.message || '').includes('invoice_pdf')) {
+      return res.status(500).json({
+        success: false,
+        error:
+          'Coluna invoice_pdf em falta. No servidor rode: node database/migrate-quote-invoice-pdf-blob.js (ou npm run migrate:quote-pdf-blob).',
+      });
+    }
     res.status(500).json({ success: false, error: error.message });
   }
 }
@@ -337,13 +416,32 @@ export async function streamQuoteInvoicePdf(req, res) {
     if (!pool) {
       return res.status(503).json({ success: false, error: 'Database not available' });
     }
-    const [rows] = await pool.query('SELECT id, pdf_path FROM quotes WHERE id = ?', [id]);
-    if (!rows.length || !rows[0].pdf_path) {
+    const hasBlob = await quotesTableHasInvoicePdf(pool);
+    let rows;
+    if (hasBlob) {
+      [rows] = await pool.query('SELECT id, pdf_path, invoice_pdf FROM quotes WHERE id = ?', [id]);
+    } else {
+      [rows] = await pool.query('SELECT id, pdf_path FROM quotes WHERE id = ?', [id]);
+    }
+    if (!rows.length) {
       return res.status(404).json({ success: false, error: 'PDF não disponível para este quote.' });
     }
-    const abs = resolvedPdfAbsolutePath(rows[0].pdf_path);
+    const row = rows[0];
+    if (hasBlob && pdfBufferNonEmpty(row.invoice_pdf)) {
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', 'inline; filename="orcamento.pdf"');
+      return res.send(Buffer.from(row.invoice_pdf));
+    }
+    if (!row.pdf_path) {
+      return res.status(404).json({ success: false, error: 'PDF não disponível para este quote.' });
+    }
+    const abs = resolvedPdfAbsolutePath(row.pdf_path);
     if (!abs || !fs.existsSync(abs)) {
-      return res.status(404).json({ success: false, error: 'Ficheiro não encontrado no servidor.' });
+      return res.status(404).json({
+        success: false,
+        error:
+          'Ficheiro PDF já não está no disco (ex.: redeploy no Railway sem volume). Execute a migração invoice_pdf e volte a importar o PDF, ou anexe um volume em uploads/.',
+      });
     }
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', 'inline; filename="orcamento.pdf"');

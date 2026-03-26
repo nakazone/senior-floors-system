@@ -809,7 +809,10 @@ async function loadProposals() {
                 status: q.status || 'draft',
                 created_at: q.created_at,
                 expires: q.expiration_date,
-                pdfUrl: q.pdf_path ? `/api/quotes/${q.id}/invoice-pdf` : null,
+                pdfUrl:
+                  q.pdf_path || q.has_invoice_pdf
+                    ? `/api/quotes/${q.id}/invoice-pdf`
+                    : null,
             });
         });
         proposals.forEach((p) => {
