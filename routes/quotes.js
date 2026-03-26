@@ -35,18 +35,29 @@ async function listQuotesQuery_(pool, req) {
     params.push(leadId);
   }
 
-  const [rows] = await pool.query(
-    `SELECT q.*, 
-            c.name as customer_name, c.email as customer_email,
-            l.name as lead_name, l.email as lead_email
-     FROM quotes q
-     LEFT JOIN customers c ON q.customer_id = c.id
-     LEFT JOIN leads l ON q.lead_id = l.id
-     WHERE ${whereClause}
-     ORDER BY q.created_at DESC 
-     LIMIT ? OFFSET ?`,
-    [...params, limit, offset]
-  );
+  /** Página do lead só precisa de colunas de `quotes` — evita JOINs (menos pontos de falha e mais rápido). */
+  const simpleLeadList = leadId != null && !status && !customerId;
+
+  let rows;
+  if (simpleLeadList) {
+    [rows] = await pool.query(
+      `SELECT * FROM quotes WHERE lead_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?`,
+      [leadId, limit, offset]
+    );
+  } else {
+    [rows] = await pool.query(
+      `SELECT q.*, 
+              c.name as customer_name, c.email as customer_email,
+              l.name as lead_name, l.email as lead_email
+       FROM quotes q
+       LEFT JOIN customers c ON q.customer_id = c.id
+       LEFT JOIN leads l ON q.lead_id = l.id
+       WHERE ${whereClause}
+       ORDER BY q.created_at DESC 
+       LIMIT ? OFFSET ?`,
+      [...params, limit, offset]
+    );
+  }
 
   const [[{ total }]] = await pool.query(`SELECT COUNT(*) as total FROM quotes WHERE ${whereClause}`, params);
 

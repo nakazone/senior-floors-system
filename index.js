@@ -85,8 +85,18 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Serve static files (admin panel)
-app.use(express.static(path.join(__dirname, 'public')));
+// Ficheiros HTML/JS sem cache agressivo (evita CRM antigo após deploy)
+app.use(
+  express.static(path.join(__dirname, 'public'), {
+    setHeaders(res, filePath) {
+      const lower = String(filePath).toLowerCase();
+      if (lower.endsWith('.html') || lower.endsWith('.js')) {
+        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+      }
+    },
+  })
+);
 
 // Root route - redirect to admin or show API info
 app.get('/', (req, res) => {

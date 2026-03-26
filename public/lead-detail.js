@@ -724,15 +724,16 @@ async function loadProposals() {
     container.innerHTML = '<div class="empty-state">A carregar orçamentos…</div>';
     try {
         const quotesUrl = `/api/quotes?lead_id=${encodeURIComponent(currentLeadId)}&limit=50`;
-        const proposalsRes = await fetch(`/api/leads/${currentLeadId}/proposals`, { credentials: 'include' }).catch(
-            () => null
-        );
+        const proposalsRes = await fetch(`/api/leads/${currentLeadId}/proposals`, {
+            credentials: 'include',
+            cache: 'no-store',
+        }).catch(() => null);
 
         let quotesRes;
         let quotesText = '';
         const maxQuoteAttempts = 4;
         for (let attempt = 1; attempt <= maxQuoteAttempts; attempt++) {
-            quotesRes = await fetch(quotesUrl, { credentials: 'include' });
+            quotesRes = await fetch(quotesUrl, { credentials: 'include', cache: 'no-store' });
             quotesText = await quotesRes.text();
             let bodyIsJson = false;
             if (quotesText && quotesText.trim()) {
