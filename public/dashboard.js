@@ -9,6 +9,10 @@ let lastLeadCount = null;
 const NEW_LEAD_POLL_INTERVAL_MS = 30000; // 30s
 let newLeadPollTimer = null;
 
+/** Permissões do utilizador com sessão (menu + módulo Users) */
+let crmUserPermissions = [];
+let crmUserRole = '';
+
 /** Slug → cor hex (lista de leads alinhada às colunas do Kanban) */
 let leadsPipelineSlugToColor = null;
 
@@ -54,14 +58,43 @@ function resolveLeadRowStageColor(lead) {
     return fallback;
 }
 
-// Check authentication
+function applyCrmNavPermissions(permissions, role) {
+    const keys = new Set(permissions || []);
+    const isAdmin = role === 'admin';
+    document.querySelectorAll('[data-crm-permission]').forEach((el) => {
+        const need = el.getAttribute('data-crm-permission');
+        if (!need) return;
+        if (isAdmin || keys.has(need)) {
+            el.style.display = '';
+        } else {
+            el.style.display = 'none';
+        }
+    });
+    updateUsersPageActions();
+}
+
+function updateUsersPageActions() {
+    const n = document.getElementById('crmNewUserBtn');
+    if (!n) return;
+    const show = crmUserRole === 'admin' || crmUserPermissions.includes('users.create');
+    n.style.display = show ? '' : 'none';
+}
+
 fetch('/api/auth/session', { credentials: 'include' })
-    .then(r => r.json())
-    .then(data => {
+    .then((r) => r.json())
+    .then((data) => {
         if (!data.authenticated) {
             window.location.href = '/login.html';
             return;
         }
+        const u = data.user || {};
+        if (u.must_change_password) {
+            window.location.href = '/change-password.html';
+            return;
+        }
+        crmUserPermissions = Array.isArray(u.permissions) ? u.permissions : [];
+        crmUserRole = u.role || '';
+        applyCrmNavPermissions(crmUserPermissions, crmUserRole);
         loadDashboard();
         startNewLeadPolling();
         const pageParam = new URLSearchParams(window.location.search).get('page');
@@ -69,7 +102,7 @@ fetch('/api/auth/session', { credentials: 'include' })
             showPage(pageParam);
         }
     })
-    .catch(err => {
+    .catch((err) => {
         console.error('Session check error:', err);
         window.location.href = '/login.html';
     });
@@ -1231,41 +1264,87 @@ function showNewActivityModal() {
     alert('New Activity form - Coming soon!');
 }
 
-// Users
+// Users & permissões por módulo
 let usersPage = 1;
+let permissionRegistryCache = null;
+
+function escapeHtmlCrm(s) {
+    return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/"/g, '&quot;');
+}
+
+async function fetchPermissionRegistry() {
+    if (permissionRegistryCache) return permissionRegistryCache;
+    const res = await fetch('/api/permissions', { credentials: 'include' });
+    const data = await res.json();
+    permissionRegistryCache = data.success ? data : { by_group: {}, data: [] };
+    return permissionRegistryCache;
+}
+
 async function loadUsers() {
     const tbody = document.getElementById('usersTableBody');
-    tbody.innerHTML = '<tr><td colspan="8" class="text-center">Loading...</td></tr>';
-    
+    if (!tbody) return;
+    tbody.innerHTML = '<tr><td colspan="8" class="text-center">A carregar…</td></tr>';
+    updateUsersPageActions();
+
     try {
         const response = await fetch(`/api/users?page=${usersPage}&limit=20`, { credentials: 'include' });
         const data = await response.json();
-        
+
+        if (response.status === 403) {
+            tbody.innerHTML =
+                '<tr><td colspan="8" class="text-center">Sem permissão para ver utilizadores (' +
+                escapeHtmlCrm(data.error || '') +
+                ').</td></tr>';
+            return;
+        }
+
         if (data.success && data.data) {
+            const canEdit = crmUserRole === 'admin' || crmUserPermissions.includes('users.edit');
+            const canDel = crmUserRole === 'admin' || crmUserPermissions.includes('users.delete');
+
             if (data.data.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="8" class="text-center">No users found</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="8" class="text-center">Nenhum utilizador encontrado</td></tr>';
             } else {
-                tbody.innerHTML = data.data.map(u => `
-                    <tr>
+                tbody.innerHTML = data.data
+                    .map((u) => {
+                        const active = u.is_active !== undefined ? u.is_active : u.active;
+                        const mustPw = u.must_change_password ? ' <span class="badge badge-warning" title="Trocar senha">senha</span>' : '';
+                        const actions = [];
+                        if (canEdit)
+                            actions.push(
+                                `<button type="button" class="btn btn-sm" onclick="openCrmUserModal(${u.id})">Editar</button>`
+                            );
+                        if (canDel)
+                            actions.push(
+                                `<button type="button" class="btn btn-sm btn-danger" onclick="deactivateCrmUser(${u.id})">Desativar</button>`
+                            );
+                        return `<tr>
                         <td>${u.id}</td>
-                        <td>${u.name || '-'}</td>
-                        <td>${u.email || '-'}</td>
-                        <td>${u.phone || '-'}</td>
-                        <td>${u.role || '-'}</td>
-                        <td><span class="badge badge-${(u.is_active !== undefined ? u.is_active : u.active) ? 'active' : 'inactive'}">${(u.is_active !== undefined ? u.is_active : u.active) ? 'Active' : 'Inactive'}</span></td>
-                        <td>${u.created_at ? new Date(u.created_at).toLocaleDateString() : '-'}</td>
-                        <td><button class="btn btn-sm" onclick="viewUser(${u.id})">View</button></td>
-                    </tr>
-                `).join('');
+                        <td>${escapeHtmlCrm(u.name || '-')}${mustPw}</td>
+                        <td>${escapeHtmlCrm(u.email || '-')}</td>
+                        <td>${escapeHtmlCrm(u.phone || '-')}</td>
+                        <td>${escapeHtmlCrm(u.role || '-')}</td>
+                        <td><span class="badge badge-${active ? 'active' : 'inactive'}">${active ? 'Ativo' : 'Inativo'}</span></td>
+                        <td>${u.created_at ? new Date(u.created_at).toLocaleDateString('pt-PT') : '—'}</td>
+                        <td>${actions.join(' ') || '—'}</td>
+                    </tr>`;
+                    })
+                    .join('');
             }
-            
+
             const totalPages = Math.ceil(data.total / 20);
-            document.getElementById('pageInfoUsers').textContent = `Page ${usersPage} of ${totalPages || 1}`;
+            document.getElementById('pageInfoUsers').textContent = `Página ${usersPage} de ${totalPages || 1}`;
             document.getElementById('prevPageUsers').disabled = usersPage <= 1;
             document.getElementById('nextPageUsers').disabled = usersPage >= totalPages;
+        } else {
+            tbody.innerHTML =
+                '<tr><td colspan="8" class="text-center">Erro: ' + escapeHtmlCrm(data.error || 'desconhecido') + '</td></tr>';
         }
     } catch (error) {
-        tbody.innerHTML = '<tr><td colspan="8" class="text-center">Error: ' + error.message + '</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center">Erro: ' + escapeHtmlCrm(error.message) + '</td></tr>';
     }
 }
 
@@ -1275,10 +1354,255 @@ function changePageUsers(delta) {
     loadUsers();
 }
 
-function viewUser(id) {
-    alert('View user ' + id + ' - Feature coming soon!');
+function closeCrmUserModal() {
+    const modal = document.getElementById('crmUserModal');
+    if (modal) modal.classList.remove('active');
 }
 
 function showNewUserModal() {
-    alert('New User form - Coming soon!');
+    openCrmUserModal(null);
 }
+
+function renderPermCheckboxes(byGroup, selectedSet, enabled) {
+    let html = '';
+    const keys = Object.keys(byGroup || {}).sort();
+    for (const g of keys) {
+        const items = byGroup[g] || [];
+        html +=
+            '<div style="margin-bottom:0.75rem"><strong style="text-transform:capitalize">' +
+            escapeHtmlCrm(g) +
+            '</strong>';
+        for (const p of items) {
+            const id = p.id;
+            const checked = selectedSet.has(id) ? ' checked' : '';
+            const dis = enabled ? '' : ' disabled';
+            html +=
+                '<label style="display:flex;align-items:flex-start;gap:0.5rem;margin:0.25rem 0 0 1rem;cursor:' +
+                (enabled ? 'pointer' : 'default') +
+                '">' +
+                '<input type="checkbox" class="crm-perm-cb" data-perm-id="' +
+                id +
+                '"' +
+                checked +
+                dis +
+                '>' +
+                '<span>' +
+                escapeHtmlCrm(p.permission_name || p.permission_key) +
+                ' <small style="color:#94a3b8">(' +
+                escapeHtmlCrm(p.permission_key) +
+                ')</small></span></label>';
+        }
+        html += '</div>';
+    }
+    return html || '<p>Nenhuma permissão na base de dados.</p>';
+}
+
+function collectSelectedPermissionIds() {
+    return Array.from(document.querySelectorAll('.crm-perm-cb:checked'))
+        .map((cb) => parseInt(cb.getAttribute('data-perm-id'), 10))
+        .filter((n) => Number.isFinite(n));
+}
+
+async function openCrmUserModal(userId) {
+    const modal = document.getElementById('crmUserModal');
+    const title = document.getElementById('crmUserModalTitle');
+    const errEl = document.getElementById('crmUserFormError');
+    const permsSection = document.getElementById('crmUserPermsSection');
+    const groupsEl = document.getElementById('crmUserPermsGroups');
+    const form = document.getElementById('crmUserForm');
+    if (!modal || !form) return;
+
+    errEl.style.display = 'none';
+    form.reset();
+    document.getElementById('crmUserFormId').value = userId != null ? String(userId) : '';
+    document.getElementById('crmUserActive').checked = true;
+    document.getElementById('crmUserForcePwChange').checked = true;
+
+    const canManage =
+        crmUserRole === 'admin' || crmUserPermissions.includes('users.manage_permissions');
+    const reg = await fetchPermissionRegistry();
+    const byG = reg.by_group || {};
+
+    const roleSelect = document.getElementById('crmUserRole');
+    const onRoleChange = function () {
+        if (roleSelect.value === 'admin') {
+            permsSection.style.display = 'none';
+        } else {
+            permsSection.style.display = '';
+        }
+    };
+    roleSelect.onchange = onRoleChange;
+
+    if (userId != null) {
+        title.textContent = 'Editar utilizador';
+        document.getElementById('crmUserPasswordHint').textContent = '(deixe vazio para não alterar)';
+        const [ur, pr] = await Promise.all([
+            fetch(`/api/users/${userId}`, { credentials: 'include' }).then((r) => r.json()),
+            fetch(`/api/users/${userId}/permissions`, { credentials: 'include' }).then((r) => r.json()),
+        ]);
+        if (!ur.success || !ur.data) {
+            alert(ur.error || 'Erro ao carregar utilizador');
+            return;
+        }
+        const d = ur.data;
+        document.getElementById('crmUserName').value = d.name || '';
+        document.getElementById('crmUserEmail').value = d.email || '';
+        document.getElementById('crmUserPhone').value = d.phone || '';
+        document.getElementById('crmUserRole').value = d.role || 'sales_rep';
+        document.getElementById('crmUserPassword').value = '';
+        const active = d.is_active !== undefined ? d.is_active : d.active;
+        document.getElementById('crmUserActive').checked = !!active;
+        document.getElementById('crmUserForcePwChange').checked = !!d.must_change_password;
+        const selected = new Set(
+            pr.success && pr.data && Array.isArray(pr.data.permission_ids) ? pr.data.permission_ids : []
+        );
+        if (String(d.role).toLowerCase() === 'admin') {
+            permsSection.style.display = 'none';
+        } else {
+            permsSection.style.display = '';
+            document.getElementById('crmUserPermsHelp').textContent = canManage
+                ? 'Marque os módulos permitidos para este utilizador.'
+                : 'Apenas utilizadores com permissão “Manage User Permissions” podem alterar isto.';
+            groupsEl.innerHTML = renderPermCheckboxes(byG, selected, canManage);
+        }
+    } else {
+        title.textContent = 'Novo utilizador';
+        document.getElementById('crmUserPasswordHint').textContent = '(obrigatório, mín. 8 caracteres)';
+        document.getElementById('crmUserRole').value = 'sales_rep';
+        permsSection.style.display = '';
+        document.getElementById('crmUserPermsHelp').textContent =
+            'Opcional: deixe vazio para aplicar o pacote pré-definido por função. Ou marque módulos específicos.';
+        groupsEl.innerHTML = renderPermCheckboxes(byG, new Set(), true);
+        onRoleChange();
+    }
+
+    modal.classList.add('active');
+}
+
+async function deactivateCrmUser(id) {
+    if (!confirm('Desativar este utilizador? Não poderá iniciar sessão.')) return;
+    try {
+        const res = await fetch(`/api/users/${id}`, { method: 'DELETE', credentials: 'include' });
+        const j = await res.json();
+        if (!res.ok) {
+            alert(j.error || 'Falha ao desativar');
+            return;
+        }
+        loadUsers();
+    } catch (e) {
+        alert(e.message || 'Erro de rede');
+    }
+}
+
+async function onCrmUserFormSubmit(e) {
+    e.preventDefault();
+    const errEl = document.getElementById('crmUserFormError');
+    errEl.style.display = 'none';
+    const id = document.getElementById('crmUserFormId').value.trim();
+    const name = document.getElementById('crmUserName').value.trim();
+    const email = document.getElementById('crmUserEmail').value.trim();
+    const phone = document.getElementById('crmUserPhone').value.trim();
+    const role = document.getElementById('crmUserRole').value;
+    const pw = document.getElementById('crmUserPassword').value;
+    const isActive = document.getElementById('crmUserActive').checked;
+    const forcePw = document.getElementById('crmUserForcePwChange').checked;
+    const submitBtn = document.getElementById('crmUserFormSubmit');
+
+    if (!id && (!pw || pw.length < 8)) {
+        errEl.textContent = 'Defina uma senha inicial com pelo menos 8 caracteres.';
+        errEl.style.display = 'block';
+        return;
+    }
+    if (pw && pw.length < 8) {
+        errEl.textContent = 'A senha deve ter pelo menos 8 caracteres.';
+        errEl.style.display = 'block';
+        return;
+    }
+
+    submitBtn.disabled = true;
+    try {
+        if (!id) {
+            const body = {
+                name,
+                email,
+                phone: phone || null,
+                role,
+                is_active: isActive,
+                force_password_change: forcePw,
+                password: pw,
+            };
+            if (role !== 'admin') {
+                const pids = collectSelectedPermissionIds();
+                if (pids.length > 0) body.permission_ids = pids;
+            }
+            const res = await fetch('/api/users', {
+                method: 'POST',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+            });
+            const j = await res.json();
+            if (!res.ok) {
+                errEl.textContent = j.error || 'Erro ao criar.';
+                errEl.style.display = 'block';
+                submitBtn.disabled = false;
+                return;
+            }
+        } else {
+            const body = {
+                name,
+                email,
+                phone: phone || null,
+                role,
+                is_active: isActive,
+                force_password_change: forcePw,
+            };
+            if (pw) body.password = pw;
+            const res = await fetch(`/api/users/${id}`, {
+                method: 'PUT',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+            });
+            const j = await res.json();
+            if (!res.ok) {
+                errEl.textContent = j.error || 'Erro ao atualizar.';
+                errEl.style.display = 'block';
+                submitBtn.disabled = false;
+                return;
+            }
+            if (
+                role !== 'admin' &&
+                (crmUserRole === 'admin' || crmUserPermissions.includes('users.manage_permissions'))
+            ) {
+                const pids = collectSelectedPermissionIds();
+                const pr = await fetch(`/api/users/${id}/permissions`, {
+                    method: 'PUT',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ permission_ids: pids }),
+                });
+                const pj = await pr.json();
+                if (!pr.ok) {
+                    errEl.textContent = pj.error || 'Dados guardados, mas falhou ao atualizar permissões.';
+                    errEl.style.display = 'block';
+                    submitBtn.disabled = false;
+                    loadUsers();
+                    return;
+                }
+            }
+        }
+        closeCrmUserModal();
+        permissionRegistryCache = null;
+        loadUsers();
+    } catch (ex) {
+        errEl.textContent = ex.message || 'Erro de rede.';
+        errEl.style.display = 'block';
+    }
+    submitBtn.disabled = false;
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const f = document.getElementById('crmUserForm');
+    if (f) f.addEventListener('submit', onCrmUserFormSubmit);
+});

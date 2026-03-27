@@ -12,8 +12,8 @@ import { fileURLToPath } from 'url';
 import { handleReceiveLead, handleReceiveLeadBatch } from './routes/receiveLead.js';
 import { handleDbCheck } from './routes/dbCheck.js';
 import { listLeads, getLead, createLead, updateLead, deleteLead } from './routes/leads.js';
-import { login, logout, checkSession } from './routes/auth.js';
-import { requireAuth, requireRole } from './middleware/auth.js';
+import { login, logout, checkSession, changePassword } from './routes/auth.js';
+import { requireAuth, requireRole, requirePermission } from './middleware/auth.js';
 import { listCustomers, getCustomer, createCustomer, updateCustomer } from './routes/customers.js';
 import {
   listQuotes,
@@ -29,7 +29,16 @@ import { listProjects, getProject, createProject, updateProject } from './routes
 import { listVisits, getVisit, createVisit, updateVisit } from './routes/visits.js';
 import { listActivities, createActivity } from './routes/activities.js';
 import { listContracts, getContract, createContract, updateContract } from './routes/contracts.js';
-import { listUsers, getUser, createUser, updateUser } from './routes/users.js';
+import {
+  listUsers,
+  getUser,
+  createUser,
+  updateUser,
+  deleteUser,
+  getUserPermissions,
+  updateUserPermissions,
+} from './routes/users.js';
+import { listPermissionRegistry } from './routes/permissions.js';
 import { getDashboardStats } from './routes/dashboard.js';
 import {
   getMarketingMetrics,
@@ -57,6 +66,7 @@ import {
 import { getProjectFinancial, updateProjectFinancial, listExpenses, createExpense, approveExpense, listPayrollEntries, createPayrollEntry, approvePayrollEntry, getFinancialDashboard } from './routes/financials.js';
 import { getDBConnection } from './config/db.js';
 import { ensureQuoteInvoicePdfColumn } from './lib/ensureQuoteInvoicePdfColumn.js';
+import { ensureUserModuleColumns } from './lib/ensureUserModuleColumns.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -120,6 +130,7 @@ app.get('/', (req, res) => {
 app.post('/api/auth/login', login);
 app.post('/api/auth/logout', logout);
 app.get('/api/auth/session', checkSession);
+app.post('/api/auth/change-password', requireAuth, changePassword);
 
 // Public API routes (LP can call these)
 app.get('/api/db-check', handleDbCheck);
@@ -250,11 +261,22 @@ app.post('/api/payroll', requireAuth, createPayrollEntry);
 app.put('/api/payroll/:id/approve', requireAuth, approvePayrollEntry);
 app.get('/api/financial/dashboard', requireAuth, getFinancialDashboard);
 
-// Users
-app.get('/api/users', requireAuth, listUsers);
-app.get('/api/users/:id', requireAuth, getUser);
-app.post('/api/users', requireAuth, createUser);
-app.put('/api/users/:id', requireAuth, updateUser);
+// Permissions (matriz de módulos)
+app.get('/api/permissions', requireAuth, requirePermission('users.view'), listPermissionRegistry);
+
+// Users (subpaths antes de :id)
+app.get('/api/users/:id/permissions', requireAuth, requirePermission('users.view'), getUserPermissions);
+app.put(
+  '/api/users/:id/permissions',
+  requireAuth,
+  requirePermission('users.manage_permissions'),
+  updateUserPermissions
+);
+app.get('/api/users', requireAuth, requirePermission('users.view'), listUsers);
+app.get('/api/users/:id', requireAuth, requirePermission('users.view'), getUser);
+app.post('/api/users', requireAuth, requirePermission('users.create'), createUser);
+app.put('/api/users/:id', requireAuth, requirePermission('users.edit'), updateUser);
+app.delete('/api/users/:id', requireAuth, requirePermission('users.delete'), deleteUser);
 
 // Compatibility: system.php?api=receive-lead
 app.all('/system.php', (req, res) => {
@@ -286,6 +308,7 @@ app.use((req, res) => {
 async function start() {
   const pool = await getDBConnection();
   await ensureQuoteInvoicePdfColumn(pool);
+  await ensureUserModuleColumns(pool);
 
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`Senior Floors System running on port ${PORT}`);

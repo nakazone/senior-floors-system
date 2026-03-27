@@ -89,7 +89,8 @@
             .then(r => r.json())
             .then(data => {
                 if (data.authenticated) {
-                    window.location.href = '/dashboard.html';
+                    var u = data.user || {};
+                    window.location.href = u.must_change_password ? '/change-password.html' : '/dashboard.html';
                 }
             })
             .catch(err => {
@@ -124,9 +125,10 @@
                 const data = await response.json();
                 
                 if (data.success) {
-                    // Aguardar um pouco para garantir que a sessão foi salva
+                    var u = data.user || {};
+                    var dest = u.must_change_password ? '/change-password.html' : '/dashboard.html';
                     setTimeout(() => {
-                        window.location.href = '/dashboard.html';
+                        window.location.href = dest;
                     }, 100);
                 } else {
                     errorDiv.textContent = data.error || 'Login failed';

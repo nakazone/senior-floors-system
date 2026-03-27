@@ -32,13 +32,13 @@
         <div class="mobile-more-sheet__handle" aria-hidden="true"></div>
         <h2 class="mobile-more-sheet__title" id="mobileMoreSheetTitle">Mais opções</h2>
         <nav class="mobile-more-sheet__nav" aria-label="Secções adicionais">
-            <button type="button" class="mobile-more-sheet__btn" data-page="marketing"><span class="mobile-more-sheet__emoji" aria-hidden="true">📈</span> Marketing</button>
-            <button type="button" class="mobile-more-sheet__btn" data-page="customers"><span class="mobile-more-sheet__emoji" aria-hidden="true">👥</span> Clientes</button>
-            <button type="button" class="mobile-more-sheet__btn" data-page="quotes"><span class="mobile-more-sheet__emoji" aria-hidden="true">💰</span> Orçamentos</button>
-            <button type="button" class="mobile-more-sheet__btn" data-page="projects"><span class="mobile-more-sheet__emoji" aria-hidden="true">🏗️</span> Projetos</button>
-            <button type="button" class="mobile-more-sheet__btn" data-page="financeiro"><span class="mobile-more-sheet__emoji" aria-hidden="true">💵</span> Financeiro</button>
-            <button type="button" class="mobile-more-sheet__btn" data-page="activities"><span class="mobile-more-sheet__emoji" aria-hidden="true">📝</span> Atividades</button>
-            <button type="button" class="mobile-more-sheet__btn" data-page="users"><span class="mobile-more-sheet__emoji" aria-hidden="true">👤</span> Utilizadores</button>
+            <button type="button" class="mobile-more-sheet__btn" data-page="marketing" data-crm-permission="reports.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">📈</span> Marketing</button>
+            <button type="button" class="mobile-more-sheet__btn" data-page="customers" data-crm-permission="customers.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">👥</span> Clientes</button>
+            <button type="button" class="mobile-more-sheet__btn" data-page="quotes" data-crm-permission="quotes.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">💰</span> Orçamentos</button>
+            <button type="button" class="mobile-more-sheet__btn" data-page="projects" data-crm-permission="projects.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">🏗️</span> Projetos</button>
+            <button type="button" class="mobile-more-sheet__btn" data-page="financeiro" data-crm-permission="contracts.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">💵</span> Financeiro</button>
+            <button type="button" class="mobile-more-sheet__btn" data-page="activities" data-crm-permission="activities.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">📝</span> Atividades</button>
+            <button type="button" class="mobile-more-sheet__btn" data-page="users" data-crm-permission="users.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">👤</span> Utilizadores</button>
         </nav>
         <button type="button" class="mobile-more-sheet__btn mobile-more-sheet__btn--danger" id="mobileMoreLogout">Sair da conta</button>
     </div>
@@ -83,34 +83,34 @@
                     <a href="#" class="nav-item active" data-page="dashboard">
                         <span class="nav-icon" aria-hidden="true">📊</span> Dashboard
                     </a>
-                    <a href="#" class="nav-item" data-page="marketing">
+                    <a href="#" class="nav-item" data-page="marketing" data-crm-permission="reports.view">
                         <span class="nav-icon" aria-hidden="true">📈</span> Marketing
                     </a>
-                    <a href="#" class="nav-item" data-page="leads">
+                    <a href="#" class="nav-item" data-page="leads" data-crm-permission="leads.view">
                         <span class="nav-icon" aria-hidden="true">📋</span> Leads
                     </a>
-                    <a href="#" class="nav-item" data-page="crm">
+                    <a href="#" class="nav-item" data-page="crm" data-crm-permission="pipeline.view">
                         <span class="nav-icon" aria-hidden="true">🎯</span> CRM
                     </a>
-                    <a href="#" class="nav-item" data-page="customers">
+                    <a href="#" class="nav-item" data-page="customers" data-crm-permission="customers.view">
                         <span class="nav-icon" aria-hidden="true">👥</span> Customers
                     </a>
-                    <a href="#" class="nav-item" data-page="quotes">
+                    <a href="#" class="nav-item" data-page="quotes" data-crm-permission="quotes.view">
                         <span class="nav-icon" aria-hidden="true">💰</span> Quotes
                     </a>
-                    <a href="#" class="nav-item" data-page="projects">
+                    <a href="#" class="nav-item" data-page="projects" data-crm-permission="projects.view">
                         <span class="nav-icon" aria-hidden="true">🏗️</span> Projects
                     </a>
-                    <a href="#" class="nav-item" data-page="schedule">
+                    <a href="#" class="nav-item" data-page="schedule" data-crm-permission="visits.view">
                         <span class="nav-icon" aria-hidden="true">📅</span> Schedule
                     </a>
-                    <a href="#" class="nav-item" data-page="financeiro">
+                    <a href="#" class="nav-item" data-page="financeiro" data-crm-permission="contracts.view">
                         <span class="nav-icon" aria-hidden="true">💵</span> Financeiro
                     </a>
-                    <a href="#" class="nav-item" data-page="activities">
+                    <a href="#" class="nav-item" data-page="activities" data-crm-permission="activities.view">
                         <span class="nav-icon" aria-hidden="true">📝</span> Activities
                     </a>
-                    <a href="#" class="nav-item" data-page="users">
+                    <a href="#" class="nav-item" data-page="users" data-crm-permission="users.view">
                         <span class="nav-icon" aria-hidden="true">👤</span> Users
                     </a>
                 </nav>
@@ -959,8 +959,8 @@
                 <!-- Users Page -->
                 <div id="usersPage" class="page-content" style="display: none;">
                     <div class="page-header">
-                        <h2>Users</h2>
-                        <button class="btn btn-primary" onclick="showNewUserModal()">+ New User</button>
+                        <h2>Utilizadores</h2>
+                        <button type="button" class="btn btn-primary" id="crmNewUserBtn" onclick="showNewUserModal()">+ Novo utilizador</button>
                     </div>
                     
                     <div class="table-container">
@@ -974,23 +974,82 @@
                                     <th>Role</th>
                                     <th>Status</th>
                                     <th>Created</th>
-                                    <th>Actions</th>
+                                    <th>Ações</th>
                                 </tr>
                             </thead>
                             <tbody id="usersTableBody">
-                                <tr><td colspan="8" class="text-center">Loading...</td></tr>
+                                <tr><td colspan="8" class="text-center">A carregar…</td></tr>
                             </tbody>
                         </table>
                     </div>
                     
                     <div class="pagination">
-                        <button id="prevPageUsers" class="btn btn-secondary" onclick="changePageUsers(-1)">Previous</button>
-                        <span id="pageInfoUsers">Page 1</span>
-                        <button id="nextPageUsers" class="btn btn-secondary" onclick="changePageUsers(1)">Next</button>
+                        <button type="button" id="prevPageUsers" class="btn btn-secondary" onclick="changePageUsers(-1)">Anterior</button>
+                        <span id="pageInfoUsers">Página 1</span>
+                        <button type="button" id="nextPageUsers" class="btn btn-secondary" onclick="changePageUsers(1)">Seguinte</button>
                     </div>
                 </div>
             </div>
         </main>
+    </div>
+
+    <div id="crmUserModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="crmUserModalTitle" style="display: none;">
+        <div class="modal-content" style="max-width: 640px; max-height: 90vh; overflow: hidden; display: flex; flex-direction: column;">
+            <div class="modal-header">
+                <h3 id="crmUserModalTitle">Utilizador</h3>
+                <button type="button" class="modal-close" onclick="closeCrmUserModal()" aria-label="Fechar">&times;</button>
+            </div>
+            <form id="crmUserForm" class="modal-body" style="overflow-y: auto; flex: 1;">
+                <input type="hidden" id="crmUserFormId" value="">
+                <div class="form-group">
+                    <label for="crmUserName">Nome</label>
+                    <input type="text" id="crmUserName" required maxlength="255" autocomplete="name">
+                </div>
+                <div class="form-group">
+                    <label for="crmUserEmail">Email</label>
+                    <input type="email" id="crmUserEmail" required autocomplete="email">
+                </div>
+                <div class="form-group">
+                    <label for="crmUserPhone">Telefone</label>
+                    <input type="text" id="crmUserPhone" maxlength="50" autocomplete="tel">
+                </div>
+                <div class="form-group">
+                    <label for="crmUserRole">Função</label>
+                    <select id="crmUserRole">
+                        <option value="sales_rep">Comercial</option>
+                        <option value="project_manager">Gestor de projeto</option>
+                        <option value="support">Suporte</option>
+                        <option value="admin">Administrador</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="crmUserPassword">Senha <span id="crmUserPasswordHint" style="font-weight:400;color:#64748b">(opcional ao editar)</span></label>
+                    <input type="password" id="crmUserPassword" minlength="8" autocomplete="new-password" placeholder="Mín. 8 caracteres">
+                </div>
+                <div class="form-group">
+                    <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;">
+                        <input type="checkbox" id="crmUserForcePwChange" checked>
+                        Obrigar troca de senha no próximo login
+                    </label>
+                </div>
+                <div class="form-group">
+                    <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;">
+                        <input type="checkbox" id="crmUserActive" checked>
+                        Conta ativa
+                    </label>
+                </div>
+                <div id="crmUserPermsSection" style="margin-top:1rem;border-top:1px solid var(--border-color, #e2e8f0);padding-top:1rem;display:none;">
+                    <h4 style="margin:0 0 0.5rem;font-size:1rem;">Módulos e permissões</h4>
+                    <p id="crmUserPermsHelp" style="font-size:0.85rem;color:#64748b;margin:0 0 0.75rem;">Marque o que este utilizador pode fazer. Administradores têm acesso total.</p>
+                    <div id="crmUserPermsGroups" style="max-height:220px;overflow-y:auto;font-size:0.9rem;"></div>
+                </div>
+                <p id="crmUserFormError" class="error-message" style="display:none;margin-top:0.75rem;"></p>
+                <div class="modal-footer-lightbox" style="margin-top:1rem;display:flex;gap:0.5rem;justify-content:flex-end;">
+                    <button type="button" class="btn btn-secondary" onclick="closeCrmUserModal()">Cancelar</button>
+                    <button type="submit" class="btn btn-primary" id="crmUserFormSubmit">Guardar</button>
+                </div>
+            </form>
+        </div>
     </div>
 
     <div class="notification-bell-wrap" id="notificationBellWrap">
