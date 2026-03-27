@@ -1,5 +1,6 @@
 /**
  * POST /api/receive-lead — save lead from LP (Vercel sends here)
+ * POST /api/receive-lead-batch — vários leads num pedido (1 UrlFetch no Google Apps Script)
  */
 import crypto from 'crypto';
 import { getDBConnection, isDatabaseConfigured } from '../config/db.js';
@@ -48,6 +49,34 @@ function normalizePostForLead(post) {
     if (t && t !== k && merged[t] === undefined) merged[t] = post[k];
   }
   return merged;
+}
+
+function getSheetsSyncFromRequest(req) {
+  return (req.headers['x-sheets-sync'] || req.headers['X-Sheets-Sync'] || '').trim() === '1';
+}
+
+/** Retorna { error: { status, json } } se 401; senão { error: null }. */
+function checkSheetsSyncAuth(req, post) {
+  const sheetsSecret = (process.env.SHEETS_SYNC_SECRET || '').trim();
+  const isSheetsSyncRequest = getSheetsSyncFromRequest(req);
+  if (sheetsSecret && isSheetsSyncRequest) {
+    const fromHeader = (req.headers['x-sheets-sync-secret'] || req.headers['X-Sheets-Sync-Secret'] || '').trim();
+    const fromBody = String(post['sync-secret'] || '').trim();
+    if ((fromHeader || fromBody) !== sheetsSecret) {
+      return {
+        error: {
+          status: 401,
+          json: {
+            success: false,
+            errors: ['Unauthorized'],
+            hint: 'X-Sheets-Sync-Secret header (ou body sync-secret) deve coincidir com SHEETS_SYNC_SECRET no Railway.',
+            api_version: 'receive-lead-system',
+          },
+        },
+      };
+    }
+  }
+  return { error: null };
 }
 
 /** Primeiro valor não vazio entre chaves (planilha Meta / Apps Script usa cabeçalhos variados). */
@@ -137,26 +166,11 @@ function pickLeadFieldsFromPost(post) {
   return { name, email, phone, zipcode, message };
 }
 
-export async function handleReceiveLead(req, res) {
-  const post = normalizePostForLead(parseBody(req));
-
-  const sheetsSecret = (process.env.SHEETS_SYNC_SECRET || '').trim();
-  const sheetsSyncHeader = (req.headers['x-sheets-sync'] || req.headers['X-Sheets-Sync'] || '').trim();
-  const isSheetsSyncRequest = sheetsSyncHeader === '1';
-  if (sheetsSecret && isSheetsSyncRequest) {
-    const fromHeader = (req.headers['x-sheets-sync-secret'] || req.headers['X-Sheets-Sync-Secret'] || '').trim();
-    const fromBody = String(post['sync-secret'] || '').trim();
-    if ((fromHeader || fromBody) !== sheetsSecret) {
-      res.setHeader('Content-Type', 'application/json; charset=UTF-8');
-      return res.status(401).json({
-        success: false,
-        errors: ['Unauthorized'],
-        hint: 'X-Sheets-Sync-Secret header (ou body sync-secret) deve coincidir com SHEETS_SYNC_SECRET no Railway.',
-        api_version: 'receive-lead-system',
-      });
-    }
-  }
-
+/**
+ * Lógica de um lead após autenticação sheets (se aplicável).
+ * @returns {{ status: number, json: object }}
+ */
+async function ingestOneLead(req, post, isSheetsSyncRequest) {
   const form_name = (post['form-name'] || post.formName || 'contact-form').trim();
   const picked = pickLeadFieldsFromPost(post);
   let name = picked.name || (post.name || '').trim();
@@ -198,7 +212,10 @@ export async function handleReceiveLead(req, res) {
       phoneLen: phone.length,
       rawZipLen: (zipcode || '').length,
     });
-    return res.status(400).json({ success: false, errors, api_version: 'receive-lead-system' });
+    return {
+      status: 400,
+      json: { success: false, errors, api_version: 'receive-lead-system' },
+    };
   }
 
   name = name.slice(0, 255);
@@ -258,11 +275,19 @@ export async function handleReceiveLead(req, res) {
             const values = [name, email, phone, zipcode, message, source, form_name, 'lead_received', 'medium', ip_address];
             try {
               const [oc] = await pool.query("SHOW COLUMNS FROM leads LIKE 'owner_id'");
-              if (oc && oc.length > 0) { cols += ', owner_id'; place += ', ?'; values.push(owner_id); }
+              if (oc && oc.length > 0) {
+                cols += ', owner_id';
+                place += ', ?';
+                values.push(owner_id);
+              }
             } catch (_) {}
             try {
               const [pc] = await pool.query("SHOW COLUMNS FROM leads LIKE 'pipeline_stage_id'");
-              if (pc && pc.length > 0) { cols += ', pipeline_stage_id'; place += ', ?'; values.push(defaultPipelineId); }
+              if (pc && pc.length > 0) {
+                cols += ', pipeline_stage_id';
+                place += ', ?';
+                values.push(defaultPipelineId);
+              }
             } catch (_) {}
             const marketing = extractMarketingFromBody(post);
             const colSet = await getLeadsTableColumns(pool);
@@ -309,6 +334,90 @@ export async function handleReceiveLead(req, res) {
     resp.message = 'Lead já existia (email ou telefone); nenhuma linha nova inserida.';
   }
   if (!db_saved) resp.db_error = db_error_reason || 'Unknown';
+  return { status: 200, json: resp };
+}
+
+export async function handleReceiveLead(req, res) {
+  const post = normalizePostForLead(parseBody(req));
+
+  const auth = checkSheetsSyncAuth(req, post);
+  if (auth.error) {
+    res.setHeader('Content-Type', 'application/json; charset=UTF-8');
+    return res.status(auth.error.status).json(auth.error.json);
+  }
+
+  const isSheetsSyncRequest = getSheetsSyncFromRequest(req);
+  const out = await ingestOneLead(req, post, isSheetsSyncRequest);
   res.setHeader('Content-Type', 'application/json; charset=UTF-8');
-  res.status(200).json(resp);
+  res.status(out.status).json(out.json);
+}
+
+/**
+ * Um único UrlFetch com N leads. Exige SHEETS_SYNC_SECRET e cabeçalhos de sync.
+ */
+export async function handleReceiveLeadBatch(req, res) {
+  res.setHeader('Content-Type', 'application/json; charset=UTF-8');
+
+  const sheetsSecret = (process.env.SHEETS_SYNC_SECRET || '').trim();
+  if (!sheetsSecret) {
+    return res.status(503).json({
+      success: false,
+      error: 'Defina SHEETS_SYNC_SECRET no Railway para usar /api/receive-lead-batch.',
+      api_version: 'receive-lead-batch',
+    });
+  }
+  if (!getSheetsSyncFromRequest(req)) {
+    return res.status(401).json({
+      success: false,
+      errors: ['Unauthorized'],
+      hint: 'Envie o cabeçalho X-Sheets-Sync: 1',
+      api_version: 'receive-lead-batch',
+    });
+  }
+  const fromHeader = (req.headers['x-sheets-sync-secret'] || req.headers['X-Sheets-Sync-Secret'] || '').trim();
+  if (fromHeader !== sheetsSecret) {
+    return res.status(401).json({
+      success: false,
+      errors: ['Unauthorized'],
+      hint: 'X-Sheets-Sync-Secret deve coincidir com SHEETS_SYNC_SECRET.',
+      api_version: 'receive-lead-batch',
+    });
+  }
+
+  const root = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
+  const leadsRaw = root.leads;
+  if (!Array.isArray(leadsRaw) || leadsRaw.length === 0) {
+    return res.status(400).json({
+      success: false,
+      error: 'Corpo JSON deve incluir "leads": [ { "name", "email", "phone", ... }, ... ]',
+      api_version: 'receive-lead-batch',
+    });
+  }
+
+  const max = Math.min(200, Math.max(1, parseInt(process.env.RECEIVE_LEAD_BATCH_MAX || '150', 10) || 150));
+  const leads = leadsRaw.slice(0, max);
+  const defaultForm = String(root['form-name'] || 'meta-instant-form').trim();
+
+  const results = [];
+  for (let i = 0; i < leads.length; i++) {
+    const item = leads[i];
+    const obj = typeof item === 'object' && item !== null ? item : {};
+    const post = normalizePostForLead({
+      ...obj,
+      'form-name': obj['form-name'] || defaultForm,
+    });
+    const out = await ingestOneLead(req, post, true);
+    results.push({
+      index: i,
+      status: out.status,
+      ...out.json,
+    });
+  }
+
+  return res.status(200).json({
+    success: true,
+    api_version: 'receive-lead-batch',
+    count: results.length,
+    results,
+  });
 }

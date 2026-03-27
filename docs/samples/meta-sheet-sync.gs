@@ -5,7 +5,10 @@
  * Depois: ⚙️ Definições do projeto → Propriedades do script → adicionar API_SYNC_SECRET
  *         (mesmo valor que SHEETS_SYNC_SECRET no Railway).
  *
- * Agendar: Acionadores → syncMetaLeadsToCrm → disparador temporal (ex.: a cada 5–15 min).
+ * Agendar: Acionadores → syncMetaLeadsToCrm → disparador temporal (recomendado: 10–30 min).
+ * Cada execução faz 1 UrlFetch para POST .../api/receive-lead-batch (vários leads no JSON).
+ * Requer CRM atualizado com esse endpoint e SHEETS_SYNC_SECRET no Railway.
+ * Quota Gmail ~20k UrlFetch/dia: com batch, 20k execuções ≈ até 20k × MAX_LEADS_PER_BATCH linhas.
  */
 
 var CONFIG = {
@@ -22,6 +25,10 @@ var CONFIG = {
   FORM_NAME: 'meta-instant-form',
   /** Linha do cabeçalho (1 = primeira linha da folha) */
   HEADER_ROW: 1,
+  /**
+   * Máximo de linhas por execução (um único HTTP). Não pode exceder ~150–200 (limite no servidor).
+   */
+  MAX_LEADS_PER_BATCH: 150,
   /**
    * Opcional: nome EXATO do cabeçalho na planilha para o nome (minúsculas, como após trim).
    * Ex.: "full name"
@@ -56,6 +63,19 @@ function formatUsPhoneForCrm_(raw) {
 }
 
 function syncMetaLeadsToCrm() {
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(15000)) {
+    Logger.log('syncMetaLeadsToCrm: outra execução está a correr; ignorado para não duplicar UrlFetch.');
+    return;
+  }
+  try {
+    syncMetaLeadsToCrmBody_();
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function syncMetaLeadsToCrmBody_() {
   var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
   var data = sheet.getDataRange().getValues();
   if (data.length < CONFIG.HEADER_ROW + 1) return;
@@ -115,12 +135,19 @@ function syncMetaLeadsToCrm() {
     );
   }
 
-  var url = CONFIG.API_BASE.replace(/\/$/, '') + '/api/receive-lead';
+  var batchUrl = CONFIG.API_BASE.replace(/\/$/, '') + '/api/receive-lead-batch';
+  var maxLeads = Math.max(1, parseInt(CONFIG.MAX_LEADS_PER_BATCH, 10) || 150);
+  var batchLeads = [];
+  var batchRowR = [];
   var synced = 0;
   var skipped = 0;
   var failed = 0;
 
   for (var r = CONFIG.HEADER_ROW; r < data.length; r++) {
+    if (batchLeads.length >= maxLeads) {
+      Logger.log('syncMetaLeadsToCrm: lote máximo (' + maxLeads + '); resto na próxima execução.');
+      break;
+    }
     var row = data[r];
     var flag = String(row[col.synced] || '').trim().toLowerCase();
     if (flag === 'true' || flag === 'yes' || flag === '1' || flag === 'ok' || flag === 'synced') continue;
@@ -144,44 +171,82 @@ function syncMetaLeadsToCrm() {
       'form-name': CONFIG.FORM_NAME,
     };
     if (zipRaw) payload.zipcode = zipRaw;
-
     if (service) payload.message = service;
 
-    var options = {
-      method: 'post',
-      contentType: 'application/x-www-form-urlencoded',
-      payload: payload,
-      headers: {
-        'X-Sheets-Sync': '1',
-        'X-Sheets-Sync-Secret': getApiSyncSecret_(),
-      },
-      muteHttpExceptions: true,
-    };
+    batchLeads.push(payload);
+    batchRowR.push(r);
+  }
 
-    var res = UrlFetchApp.fetch(url, options);
-    var code = res.getResponseCode();
-    var body = res.getContentText() || '';
+  if (batchLeads.length === 0) {
+    Logger.log('syncMetaLeadsToCrm: nenhuma linha pendente.');
+    return;
+  }
 
-    if (code >= 200 && code < 300) {
-      try {
-        var j = JSON.parse(body);
-        if (j.duplicate_skipped) {
-          Logger.log('Linha ' + (r + 1) + ' duplicado → lead_id existente ' + j.lead_id);
-        } else if (j.inserted_new === false) {
-          Logger.log('Linha ' + (r + 1) + ' resposta OK sem insert novo: ' + body.slice(0, 200));
-        }
-      } catch (e) {
-        /* corpo não JSON */
+  var jsonPayload = JSON.stringify({
+    'form-name': CONFIG.FORM_NAME,
+    leads: batchLeads,
+  });
+  var options = {
+    method: 'post',
+    contentType: 'application/json',
+    payload: jsonPayload,
+    headers: {
+      'X-Sheets-Sync': '1',
+      'X-Sheets-Sync-Secret': getApiSyncSecret_(),
+    },
+    muteHttpExceptions: true,
+  };
+
+  var res;
+  try {
+    res = UrlFetchApp.fetch(batchUrl, options);
+  } catch (fetchErr) {
+    var msg = String(fetchErr && fetchErr.message ? fetchErr.message : fetchErr);
+    if (/urlfetch|too many times/i.test(msg)) {
+      Logger.log(
+        'Quota UrlFetch do Google esgotada (tenta amanhã) ou limite por minuto. Com batch já é só 1 pedido por execução — use intervalo maior no acionador ou Google Workspace.'
+      );
+    }
+    throw fetchErr;
+  }
+
+  var code = res.getResponseCode();
+  var body = res.getContentText() || '';
+  if (code < 200 || code >= 300) {
+    Logger.log('syncMetaLeadsToCrm: batch HTTP ' + code + ' ' + body.slice(0, 800));
+    return;
+  }
+
+  var parsed;
+  try {
+    parsed = JSON.parse(body);
+  } catch (e) {
+    Logger.log('syncMetaLeadsToCrm: resposta não JSON: ' + body.slice(0, 400));
+    return;
+  }
+  if (!parsed.results || !parsed.results.length) {
+    Logger.log('syncMetaLeadsToCrm: batch sem results');
+    return;
+  }
+
+  for (var bi = 0; bi < parsed.results.length; bi++) {
+    var item = parsed.results[bi];
+    var idx = item.index;
+    if (idx < 0 || idx >= batchRowR.length) continue;
+    var rowIdx = batchRowR[idx];
+    if (item.status >= 200 && item.status < 300 && item.success) {
+      if (item.duplicate_skipped) {
+        Logger.log('Linha ' + (rowIdx + 1) + ' duplicado → lead_id ' + item.lead_id);
       }
-      sheet.getRange(r + 1, col.synced + 1).setValue(new Date().toISOString());
+      sheet.getRange(rowIdx + 1, col.synced + 1).setValue(new Date().toISOString());
       synced++;
     } else {
-      Logger.log('Linha ' + (r + 1) + ' falha HTTP ' + code + ' ' + body.slice(0, 500));
+      Logger.log('Linha ' + (rowIdx + 1) + ' falha status ' + item.status + ' ' + JSON.stringify(item).slice(0, 400));
       failed++;
     }
   }
 
-  Logger.log('syncMetaLeadsToCrm: enviadas/marcadas ' + synced + ' | ignoradas ' + skipped + ' | falhas HTTP ' + failed);
+  Logger.log('syncMetaLeadsToCrm: marcadas ' + synced + ' | falhas item ' + failed + ' | ignoradas ' + skipped);
 }
 
 function isLikelyServiceOrCampaignHeader_(h) {

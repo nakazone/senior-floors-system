@@ -9,7 +9,7 @@ import cors from 'cors';
 import session from 'express-session';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { handleReceiveLead } from './routes/receiveLead.js';
+import { handleReceiveLead, handleReceiveLeadBatch } from './routes/receiveLead.js';
 import { handleDbCheck } from './routes/dbCheck.js';
 import { listLeads, getLead, createLead, updateLead, deleteLead } from './routes/leads.js';
 import { login, logout, checkSession } from './routes/auth.js';
@@ -116,6 +116,7 @@ app.get('/api/auth/session', checkSession);
 // Public API routes (LP can call these)
 app.get('/api/db-check', handleDbCheck);
 app.post('/api/receive-lead', handleReceiveLead);
+app.post('/api/receive-lead-batch', handleReceiveLeadBatch);
 app.get('/api/health', (req, res) => {
   res.json({ ok: true, service: 'senior-floors-system', time: new Date().toISOString() });
 });
