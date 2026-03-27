@@ -275,6 +275,51 @@ export async function updateQuote(req, res) {
   }
 }
 
+export async function deleteQuote(req, res) {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (!id) {
+      return res.status(400).json({ success: false, error: 'Invalid id' });
+    }
+    const leadIdRaw = req.query.lead_id;
+    const leadIdParsed =
+      leadIdRaw !== undefined && leadIdRaw !== null && String(leadIdRaw).trim() !== ''
+        ? parseInt(String(leadIdRaw).trim(), 10)
+        : NaN;
+    const leadIdFilter = Number.isFinite(leadIdParsed) ? leadIdParsed : null;
+
+    const pool = await getDBConnection();
+    if (!pool) {
+      return res.status(503).json({ success: false, error: 'Database not available' });
+    }
+
+    const [rows] = await pool.query('SELECT id, lead_id FROM quotes WHERE id = ?', [id]);
+    if (!rows.length) {
+      return res.status(404).json({ success: false, error: 'Quote not found' });
+    }
+    if (leadIdFilter != null && rows[0].lead_id != leadIdFilter) {
+      return res.status(403).json({ success: false, error: 'Este quote não pertence a este lead.' });
+    }
+
+    try {
+      await pool.execute('UPDATE contracts SET quote_id = NULL WHERE quote_id = ?', [id]);
+    } catch (_) {
+      /* tabela/coluna opcional */
+    }
+    try {
+      await pool.execute('DELETE FROM quote_items WHERE quote_id = ?', [id]);
+    } catch (_) {
+      /* quote_items pode não existir */
+    }
+    await pool.execute('DELETE FROM quotes WHERE id = ?', [id]);
+    res.setHeader('Content-Type', 'application/json; charset=UTF-8');
+    res.json({ success: true, message: 'Quote eliminado.' });
+  } catch (error) {
+    console.error('Delete quote error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+}
+
 async function generateNextQuoteNumber(pool) {
   const [lastQuote] = await pool.query(
     "SELECT quote_number FROM quotes WHERE quote_number IS NOT NULL ORDER BY id DESC LIMIT 1"

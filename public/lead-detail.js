@@ -868,6 +868,11 @@ async function loadProposals() {
                     ${exp}
                     <div class="lead-proposal-card__actions">
                         ${row.pdfUrl ? `<a class="btn btn-secondary btn-sm" href="${row.pdfUrl}" target="_blank" rel="noopener">Abrir PDF (nova janela)</a>` : ''}
+                        ${
+                          row.kind === 'quote'
+                            ? `<button type="button" class="btn btn-danger btn-sm" onclick="deleteLeadQuote(${row.id})">Excluir quote</button>`
+                            : ''
+                        }
                         <button type="button" class="btn btn-secondary btn-sm" onclick="openLeadQuotesInCrm()">Abrir Quotes no CRM</button>
                     </div>
                     ${pdfPreview}
@@ -883,6 +888,31 @@ async function loadProposals() {
 
 function openLeadQuotesInCrm() {
     window.location.href = 'dashboard.html?page=quotes';
+}
+
+async function deleteLeadQuote(quoteId) {
+    if (!currentLeadId || !quoteId) return;
+    if (!confirm('Excluir este orçamento (quote)? Esta ação não pode ser desfeita.')) return;
+    try {
+        const res = await fetch(
+            `/api/quotes/${encodeURIComponent(quoteId)}?lead_id=${encodeURIComponent(currentLeadId)}`,
+            { method: 'DELETE', credentials: 'include', cache: 'no-store' }
+        );
+        let data = {};
+        try {
+            const t = await res.text();
+            if (t && t.trim()) data = JSON.parse(t);
+        } catch (_) {
+            /* ignore */
+        }
+        if (!res.ok) {
+            alert(data.error || data.message || 'Não foi possível excluir o quote (HTTP ' + res.status + ').');
+            return;
+        }
+        loadProposals();
+    } catch (e) {
+        alert(e.message || 'Erro de rede ao excluir o quote.');
+    }
 }
 
 function setupLeadImportInvoicePdfForm() {

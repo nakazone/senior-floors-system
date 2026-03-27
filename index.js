@@ -15,7 +15,15 @@ import { listLeads, getLead, createLead, updateLead, deleteLead } from './routes
 import { login, logout, checkSession } from './routes/auth.js';
 import { requireAuth, requireRole } from './middleware/auth.js';
 import { listCustomers, getCustomer, createCustomer, updateCustomer } from './routes/customers.js';
-import { listQuotes, getQuote, createQuote, updateQuote, createQuoteFromInvoicePdf, streamQuoteInvoicePdf } from './routes/quotes.js';
+import {
+  listQuotes,
+  getQuote,
+  createQuote,
+  updateQuote,
+  deleteQuote,
+  createQuoteFromInvoicePdf,
+  streamQuoteInvoicePdf,
+} from './routes/quotes.js';
 import { quotePdfUploadMiddleware } from './lib/quotePdfUpload.js';
 import { listProjects, getProject, createProject, updateProject } from './routes/projects.js';
 import { listVisits, getVisit, createVisit, updateVisit } from './routes/visits.js';
@@ -175,6 +183,7 @@ app.get('/api/quotes/:id/invoice-pdf', requireAuth, streamQuoteInvoicePdf);
 app.get('/api/quotes/:id', requireAuth, getQuote);
 app.post('/api/quotes', requireAuth, createQuote);
 app.put('/api/quotes/:id', requireAuth, updateQuote);
+app.delete('/api/quotes/:id', requireAuth, deleteQuote);
 
 // Estimates (Professional Flooring Estimate Engine)
 app.get('/api/estimates', requireAuth, listEstimates);
