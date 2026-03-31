@@ -368,37 +368,6 @@ async function start() {
   const skipMysqlPing =
     process.env.SKIP_MYSQL_PING === '1' || process.env.SKIP_MYSQL_PING === 'true';
 
-  if (!skipMysqlPing) {
-    if (!pool) {
-      const t = getMysqlConnectionTargetInfo();
-      console.error('[db] FATAL: sem pool MySQL. configured=', t.configured);
-      console.error(
-        '[db] Railway: no serviço NODE, adicione DATABASE_URL (referência ao plugin MySQL) ou MYSQLHOST/MYSQLUSER/…'
-      );
-      process.exit(1);
-    }
-    const ping = await verifyMysqlPoolConnectivity(pool);
-    if (!ping.ok) {
-      const t = getMysqlConnectionTargetInfo();
-      const err = ping.error;
-      console.error(
-        '[db] FATAL: MySQL inacessível em',
-        `${t.host}:${t.port}`,
-        '—',
-        err?.code || err?.message
-      );
-      console.error(
-        '[db] Corrija DATABASE_URL no serviço NODE (referência ao MySQL no mesmo projeto). Remova DB_HOST duplicado se conflitar.'
-      );
-      console.error('[db] Para ignorar (não recomendado): SKIP_MYSQL_PING=1');
-      process.exit(1);
-    }
-    console.log('[db] MySQL OK (ping).');
-  }
-
-  await ensureQuoteInvoicePdfColumn(pool);
-  await ensureUserModuleColumns(pool);
-
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`Senior Floors System running on port ${PORT}`);
     console.log('  Admin Panel: http://localhost:' + PORT);
@@ -412,6 +381,35 @@ async function start() {
     console.log('  Activities: GET /api/activities, POST /api/activities');
     console.log('  Contracts: GET /api/contracts, POST /api/contracts, PUT /api/contracts/:id');
     console.log('  Users: GET/POST/PUT/DELETE /api/users, permissões, change-password');
+
+    (async () => {
+      if (!pool) {
+        console.error(
+          '[db] AVISO: sem pool MySQL — no serviço Node defina DATABASE_URL (referência ao MySQL). Diagnóstico: GET /api/health/db'
+        );
+        return;
+      }
+      if (!skipMysqlPing) {
+        const ping = await verifyMysqlPoolConnectivity(pool);
+        if (!ping.ok) {
+          const t = getMysqlConnectionTargetInfo();
+          const err = ping.error;
+          console.error(
+            '[db] AVISO: MySQL inacessível em',
+            `${t.host}:${t.port}`,
+            '—',
+            err?.code || err?.message
+          );
+          console.error(
+            '[db] Corrija DATABASE_URL no Node (mesmo projeto que o MySQL). Rotas que usam BD respondem 503 até lá.'
+          );
+        } else {
+          console.log('[db] MySQL OK (ping).');
+        }
+      }
+      await ensureQuoteInvoicePdfColumn(pool);
+      await ensureUserModuleColumns(pool);
+    })().catch((e) => console.error('[db] Arranque pós-listen:', e));
   });
 }
 
