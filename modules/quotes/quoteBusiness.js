@@ -36,8 +36,10 @@ export async function loadQuoteContext(pool, quoteId) {
   );
   if (!quotes.length) return null;
   const q = quotes[0];
+  const itemCols = await repo.quoteItemColumns(pool);
+  const ob = repo.quoteItemsOrderByClause(itemCols);
   const [items] = await pool.query(
-    'SELECT * FROM quote_items WHERE quote_id = ? ORDER BY sort_order, id',
+    `SELECT * FROM quote_items WHERE quote_id = ? ORDER BY ${ob}`,
     [quoteId]
   );
   return {
@@ -94,7 +96,16 @@ export async function saveQuoteFull(pool, quoteId, body, userId, { snapshotPrevi
   await repo.replaceQuoteItems(pool, quoteId, items);
 
   if (prev && userId) {
-    await repo.insertQuoteSnapshot(pool, quoteId, prev, userId);
+    try {
+      await repo.insertQuoteSnapshot(pool, quoteId, prev, userId);
+    } catch (e) {
+      const msg = String(e?.sqlMessage || e?.message || '');
+      if (e?.code === 'ER_NO_SUCH_TABLE' && msg.includes('quote_snapshots')) {
+        console.warn('[quotes] quote_snapshots ausente — ignorar snapshot. Rode migrate:quotes-module.');
+      } else {
+        throw e;
+      }
+    }
   }
 
   return loadQuoteContext(pool, quoteId);
@@ -325,8 +336,10 @@ export async function getByPublicToken(pool, token) {
   );
   if (!quotes.length) return null;
   const q = quotes[0];
+  const itemCols = await repo.quoteItemColumns(pool);
+  const ob = repo.quoteItemsOrderByClause(itemCols);
   const [items] = await pool.query(
-    'SELECT * FROM quote_items WHERE quote_id = ? ORDER BY sort_order, id',
+    `SELECT * FROM quote_items WHERE quote_id = ? ORDER BY ${ob}`,
     [q.id]
   );
   return { quote: q, items: items.map(mapItemRow) };

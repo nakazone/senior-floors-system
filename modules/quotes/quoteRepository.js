@@ -12,6 +12,35 @@ export async function quoteColumns(pool) {
   return new Set(colRows.map((r) => r.n));
 }
 
+export async function quoteItemColumns(pool) {
+  const [colRows] = await pool.query(
+    `SELECT COLUMN_NAME AS n FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'quote_items' ORDER BY ORDINAL_POSITION`
+  );
+  return new Set(colRows.map((r) => r.n));
+}
+
+/** ORDER BY seguro para schemas com ou sem sort_order (pré-migrate quotes-module). */
+export function quoteItemsOrderByClause(colSet) {
+  return colSet.has('sort_order') ? '`sort_order`, `id`' : '`id`';
+}
+
+const QUOTE_ITEM_INSERT_ORDER = [
+  'quote_id',
+  'floor_type',
+  'area_sqft',
+  'unit_price',
+  'total_price',
+  'notes',
+  'type',
+  'name',
+  'description',
+  'quantity',
+  'service_catalog_id',
+  'unit_type',
+  'sort_order',
+];
+
 export async function insertQuoteSnapshot(pool, quoteId, payload, userId) {
   await pool.execute(
     `INSERT INTO quote_snapshots (quote_id, snapshot_json, created_by) VALUES (?, CAST(? AS CHAR CHARACTER SET utf8mb4), ?)`,
@@ -40,31 +69,36 @@ function safeJson(s) {
 }
 
 export async function replaceQuoteItems(pool, quoteId, items) {
+  const colSet = await quoteItemColumns(pool);
+  const fields = QUOTE_ITEM_INSERT_ORDER.filter((f) => colSet.has(f));
+  if (!fields.length || !fields.includes('quote_id')) {
+    throw new Error('quote_items: colunas insuficientes (esperado pelo menos quote_id)');
+  }
   await pool.execute('DELETE FROM quote_items WHERE quote_id = ?', [quoteId]);
   let order = 0;
   for (const raw of items) {
     order += 1;
     const it = normalizeRow(raw, order);
+    const rowMap = {
+      quote_id: quoteId,
+      floor_type: it.floor_type,
+      area_sqft: it.area_sqft,
+      unit_price: it.unit_price,
+      total_price: it.total_price,
+      notes: it.notes || null,
+      type: it.type,
+      name: it.name || null,
+      description: it.description || null,
+      quantity: it.quantity,
+      service_catalog_id: it.service_catalog_id,
+      unit_type: it.unit_type,
+      sort_order: it.sort_order,
+    };
+    const vals = fields.map((f) => rowMap[f]);
+    const ph = fields.map(() => '?').join(', ');
     await pool.execute(
-      `INSERT INTO quote_items (
-        quote_id, floor_type, area_sqft, unit_price, total_price, notes, type, name, description, quantity,
-        service_catalog_id, unit_type, sort_order
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        quoteId,
-        it.floor_type,
-        it.area_sqft,
-        it.unit_price,
-        it.total_price,
-        it.notes || null,
-        it.type,
-        it.name || null,
-        it.description || null,
-        it.quantity,
-        it.service_catalog_id,
-        it.unit_type,
-        it.sort_order,
-      ]
+      `INSERT INTO quote_items (${fields.map((f) => `\`${f}\``).join(', ')}) VALUES (${ph})`,
+      vals
     );
   }
 }

@@ -5,6 +5,17 @@ import { getDBConnection } from '../config/db.js';
 import * as business from '../modules/quotes/quoteBusiness.js';
 import * as repo from '../modules/quotes/quoteRepository.js';
 
+function mysqlText(e) {
+  return String(e?.sqlMessage || e?.message || '');
+}
+
+/** Tabela ausente ou mensagem típica do MySQL (sqlMessage nem sempre repete o nome). */
+function isMissingTableOrUnknown(e, nameFragment) {
+  if (!e) return false;
+  if (e.code === 'ER_NO_SUCH_TABLE') return nameFragment ? mysqlText(e).includes(nameFragment) : true;
+  return nameFragment ? mysqlText(e).includes(nameFragment) : false;
+}
+
 export async function postQuoteCreateFull(req, res) {
   try {
     const pool = await getDBConnection();
@@ -97,7 +108,7 @@ export async function getQuoteSnapshots(req, res) {
     try {
       rows = await repo.listSnapshots(pool, id);
     } catch (err) {
-      if (String(err.message || '').includes('quote_snapshots')) {
+      if (isMissingTableOrUnknown(err, 'quote_snapshots')) {
         return res.json({ success: true, data: [], message: 'Run migrate-quotes-module-complete.js' });
       }
       throw err;
@@ -118,7 +129,7 @@ export async function getQuoteCatalog(req, res) {
     try {
       rows = await repo.listCatalog(pool, activeOnly);
     } catch (e) {
-      if (String(e.message || '').includes('quote_service_catalog')) {
+      if (isMissingTableOrUnknown(e, 'quote_service_catalog')) {
         return res.json({ success: true, data: [], message: 'Run migrate-quotes-module-complete.js' });
       }
       throw e;
@@ -166,6 +177,12 @@ export async function postQuoteCatalog(req, res) {
     res.status(201).json({ success: true, data: { id } });
   } catch (e) {
     console.error('postQuoteCatalog:', e);
+    if (isMissingTableOrUnknown(e, 'quote_service_catalog')) {
+      return res.status(503).json({
+        success: false,
+        error: 'Migração pendente: npm run migrate:quotes-module (quote_service_catalog).',
+      });
+    }
     res.status(500).json({ success: false, error: e.message });
   }
 }
@@ -184,6 +201,12 @@ export async function putQuoteCatalog(req, res) {
     res.json({ success: true });
   } catch (e) {
     console.error('putQuoteCatalog:', e);
+    if (isMissingTableOrUnknown(e, 'quote_service_catalog')) {
+      return res.status(503).json({
+        success: false,
+        error: 'Migração pendente: npm run migrate:quotes-module (quote_service_catalog).',
+      });
+    }
     res.status(500).json({ success: false, error: e.message });
   }
 }
@@ -198,6 +221,12 @@ export async function deleteQuoteCatalog(req, res) {
     res.json({ success: true });
   } catch (e) {
     console.error('deleteQuoteCatalog:', e);
+    if (isMissingTableOrUnknown(e, 'quote_service_catalog')) {
+      return res.status(503).json({
+        success: false,
+        error: 'Migração pendente: npm run migrate:quotes-module (quote_service_catalog).',
+      });
+    }
     res.status(500).json({ success: false, error: e.message });
   }
 }
@@ -210,7 +239,7 @@ export async function getQuoteTemplates(req, res) {
     try {
       rows = await repo.listTemplates(pool);
     } catch (e) {
-      if (String(e.message || '').includes('quote_templates')) {
+      if (isMissingTableOrUnknown(e, 'quote_templates')) {
         return res.json({ success: true, data: [] });
       }
       throw e;
