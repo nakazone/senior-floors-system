@@ -130,11 +130,39 @@ export async function getQuoteCatalog(req, res) {
   }
 }
 
+function normalizeCatalogBody(body) {
+  const name = body.name != null ? String(body.name).trim() : '';
+  const category = body.category != null ? String(body.category).trim() : '';
+  if (!name) return { error: 'Nome do serviço é obrigatório.' };
+  if (!category) return { error: 'Categoria é obrigatória.' };
+  const defaultRate = parseFloat(String(body.default_rate ?? body.defaultRate ?? '').replace(',', '.'));
+  if (!Number.isFinite(defaultRate) || defaultRate < 0) {
+    return { error: 'Preço / taxa padrão inválido (use um número ≥ 0).' };
+  }
+  return {
+    row: {
+      name: name.slice(0, 255),
+      category: category.slice(0, 64),
+      default_rate: defaultRate,
+      unit_type: body.unit_type || body.unitType || 'sq_ft',
+      default_description:
+        body.default_description != null
+          ? String(body.default_description).trim().slice(0, 4000) || null
+          : null,
+      active: body.active !== false && body.active !== 0 && body.active !== '0',
+    },
+  };
+}
+
 export async function postQuoteCatalog(req, res) {
   try {
+    const norm = normalizeCatalogBody(req.body);
+    if (norm.error) {
+      return res.status(400).json({ success: false, error: norm.error });
+    }
     const pool = await getDBConnection();
     if (!pool) return res.status(503).json({ success: false, error: 'Database not available' });
-    const id = await repo.insertCatalogItem(pool, req.body);
+    const id = await repo.insertCatalogItem(pool, norm.row);
     res.status(201).json({ success: true, data: { id } });
   } catch (e) {
     console.error('postQuoteCatalog:', e);
@@ -146,9 +174,13 @@ export async function putQuoteCatalog(req, res) {
   try {
     const id = parseInt(req.params.id, 10);
     if (!id) return res.status(400).json({ success: false, error: 'Invalid id' });
+    const norm = normalizeCatalogBody(req.body);
+    if (norm.error) {
+      return res.status(400).json({ success: false, error: norm.error });
+    }
     const pool = await getDBConnection();
     if (!pool) return res.status(503).json({ success: false, error: 'Database not available' });
-    await repo.updateCatalogItem(pool, id, req.body);
+    await repo.updateCatalogItem(pool, id, norm.row);
     res.json({ success: true });
   } catch (e) {
     console.error('putQuoteCatalog:', e);
