@@ -257,7 +257,15 @@ export async function getQuoteTemplate(req, res) {
     if (!id) return res.status(400).json({ success: false, error: 'Invalid id' });
     const pool = await getDBConnection();
     if (!pool) return res.status(503).json({ success: false, error: 'Database not available' });
-    const tpl = await repo.getTemplateWithItems(pool, id);
+    let tpl;
+    try {
+      tpl = await repo.getTemplateWithItems(pool, id);
+    } catch (e) {
+      if (isMissingTableOrUnknown(e, 'quote_template_items') || isMissingTableOrUnknown(e, 'quote_templates')) {
+        return res.status(404).json({ success: false, error: 'Not found' });
+      }
+      throw e;
+    }
     if (!tpl) return res.status(404).json({ success: false, error: 'Not found' });
     res.json({ success: true, data: tpl });
   } catch (e) {

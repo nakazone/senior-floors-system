@@ -131,7 +131,8 @@
                         window.location.href = dest;
                     }, 100);
                 } else {
-                    errorDiv.textContent = data.error || 'Login failed';
+                    errorDiv.textContent =
+                        (data.error || 'Login failed') + (data.message ? ' — ' + data.message : '');
                     errorDiv.style.display = 'block';
                     loginBtn.disabled = false;
                     loginBtn.textContent = 'Login';

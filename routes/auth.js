@@ -27,8 +27,20 @@ async function comparePassword(plain, stored) {
   return ok;
 }
 
+/** express-session grava JSON; BigInt quebra JSON.stringify — normalizar id do MySQL. */
+function sessionSafeUserId(id) {
+  if (id == null) return null;
+  if (typeof id === 'bigint') {
+    const n = Number(id);
+    return Number.isSafeInteger(n) ? n : String(id);
+  }
+  const n = Number(id);
+  return Number.isFinite(n) ? n : id;
+}
+
 async function setSessionForUser(req, pool, user, columnNames, passwordField, userRole) {
-  req.session.userId = user.id;
+  const uid = sessionSafeUserId(user.id);
+  req.session.userId = uid;
   req.session.userEmail = user.email;
   req.session.userRole = userRole;
   req.session.userName = user.name;
@@ -39,7 +51,7 @@ async function setSessionForUser(req, pool, user, columnNames, passwordField, us
     : false;
 
   try {
-    req.session.permissionKeys = await resolvePermissionKeysForUser(pool, user.id, userRole);
+    req.session.permissionKeys = await resolvePermissionKeysForUser(pool, uid, userRole);
   } catch (_) {
     req.session.permissionKeys = [];
   }
@@ -104,7 +116,7 @@ export async function login(req, res) {
       if (userRole === 'admin') {
         await setSessionForUser(req, pool, user, columnNames, passwordField, userRole);
         const payload = {
-          id: user.id,
+          id: sessionSafeUserId(user.id),
           name: user.name,
           email: user.email,
           role: userRole,
@@ -170,7 +182,7 @@ export async function checkSession(req, res) {
       success: true,
       authenticated: true,
       user: {
-        id: req.session.userId,
+        id: sessionSafeUserId(req.session.userId),
         email: req.session.userEmail,
         role: req.session.userRole,
         name: req.session.userName,

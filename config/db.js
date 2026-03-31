@@ -196,6 +196,8 @@ async function getDBConnection() {
     pool = mysql.createPool({
       ...config,
       charset: 'utf8mb4',
+      supportBigNumbers: true,
+      bigNumberStrings: true,
       waitForConnections: true,
       connectionLimit: 10,
       queueLimit: 0,

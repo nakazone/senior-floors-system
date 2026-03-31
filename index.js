@@ -82,6 +82,9 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 
+// res.json não serializa BigInt (quebra APIs/sessão se algum campo escapar)
+app.set('json replacer', (_, value) => (typeof value === 'bigint' ? value.toString() : value));
+
 // Railway / reverse proxy — necessário para cookie Secure e req.secure corretos
 app.set('trust proxy', 1);
 
