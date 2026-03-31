@@ -24,6 +24,8 @@ import {
   createQuoteFromInvoicePdf,
   streamQuoteInvoicePdf,
 } from './routes/quotes.js';
+import * as quoteExt from './routes/quoteExtended.js';
+import * as publicQuote from './routes/publicQuote.js';
 import { quotePdfUploadMiddleware } from './lib/quotePdfUpload.js';
 import { listProjects, getProject, createProject, updateProject } from './routes/projects.js';
 import { listVisits, getVisit, createVisit, updateVisit } from './routes/visits.js';
@@ -140,6 +142,10 @@ app.get('/api/health', (req, res) => {
   res.json({ ok: true, service: 'senior-floors-system', time: new Date().toISOString() });
 });
 
+// Public quote (token link — no auth)
+app.get('/api/public/quotes/:token', publicQuote.getPublicQuote);
+app.post('/api/public/quotes/:token/approve', publicQuote.postApproveQuote);
+
 // Protected API routes (require authentication)
 
 // Dashboard
@@ -190,7 +196,22 @@ app.put('/api/customers/:id', requireAuth, updateCustomer);
 // Quotes (rotas específicas antes de :id)
 app.get('/api/quotes', requireAuth, listQuotes);
 app.post('/api/quotes/import-invoice-pdf', requireAuth, quotePdfUploadMiddleware, createQuoteFromInvoicePdf);
+app.post('/api/quotes/full', requireAuth, requirePermission('quotes.create'), quoteExt.postQuoteCreateFull);
+app.post('/api/quotes/from-template', requireAuth, requirePermission('quotes.create'), quoteExt.postQuoteFromTemplate);
+app.get('/api/quote-catalog', requireAuth, requirePermission('quotes.view'), quoteExt.getQuoteCatalog);
+app.post('/api/quote-catalog', requireAuth, requirePermission('quotes.edit'), quoteExt.postQuoteCatalog);
+app.put('/api/quote-catalog/:id', requireAuth, requirePermission('quotes.edit'), quoteExt.putQuoteCatalog);
+app.delete('/api/quote-catalog/:id', requireAuth, requirePermission('quotes.edit'), quoteExt.deleteQuoteCatalog);
+app.get('/api/quote-templates', requireAuth, requirePermission('quotes.view'), quoteExt.getQuoteTemplates);
+app.get('/api/quote-templates/:id', requireAuth, requirePermission('quotes.view'), quoteExt.getQuoteTemplate);
+app.post('/api/quote-templates', requireAuth, requirePermission('quotes.edit'), quoteExt.postQuoteTemplate);
+app.delete('/api/quote-templates/:id', requireAuth, requirePermission('quotes.edit'), quoteExt.deleteQuoteTemplate);
 app.get('/api/quotes/:id/invoice-pdf', requireAuth, streamQuoteInvoicePdf);
+app.put('/api/quotes/:id/full', requireAuth, requirePermission('quotes.edit'), quoteExt.putQuoteSaveFull);
+app.post('/api/quotes/:id/duplicate', requireAuth, requirePermission('quotes.create'), quoteExt.postQuoteDuplicate);
+app.post('/api/quotes/:id/generate-pdf', requireAuth, requirePermission('quotes.edit'), quoteExt.postQuoteGeneratePdf);
+app.post('/api/quotes/:id/send-email', requireAuth, requirePermission('quotes.edit'), quoteExt.postQuoteSendEmail);
+app.get('/api/quotes/:id/snapshots', requireAuth, requirePermission('quotes.view'), quoteExt.getQuoteSnapshots);
 app.get('/api/quotes/:id', requireAuth, getQuote);
 app.post('/api/quotes', requireAuth, createQuote);
 app.put('/api/quotes/:id', requireAuth, updateQuote);
@@ -322,7 +343,7 @@ async function start() {
     console.log('  Visits: GET /api/visits, POST /api/visits, PUT /api/visits/:id');
     console.log('  Activities: GET /api/activities, POST /api/activities');
     console.log('  Contracts: GET /api/contracts, POST /api/contracts, PUT /api/contracts/:id');
-    console.log('  Users: GET /api/users, POST /api/users, PUT /api/users/:id');
+    console.log('  Users: GET/POST/PUT/DELETE /api/users, permissões, change-password');
   });
 }
 

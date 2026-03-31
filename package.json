@@ -11,6 +11,7 @@
     "migrate:quote-pdf-blob": "node database/migrate-quote-invoice-pdf-blob.js",
     "fix:lead-names-csv": "node database/fix-lead-names-from-csv.js",
     "migrate:lead-address": "node database/add-lead-address-column.js",
+    "migrate:quotes-module": "node database/migrate-quotes-module-complete.js",
     "google-calendar:token": "node scripts/google-oauth-token.mjs"
   },
   "engines": {
@@ -24,6 +25,7 @@
     "express-session": "^1.17.3",
     "googleapis": "^144.0.0",
     "multer": "^2.1.1",
-    "mysql2": "^3.6.5"
+    "mysql2": "^3.6.5",
+    "pdf-lib": "^1.17.1"
   }
 }

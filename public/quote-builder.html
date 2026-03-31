@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Quote Builder — Senior Floors CRM</title>
+  <link rel="icon" type="image/png" href="/assets/SeniorFloors.png" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" />
+  <style>body { font-family: Inter, system-ui, sans-serif; }</style>
+</head>
+<body class="bg-slate-50 text-slate-900 min-h-screen">
+  <header class="bg-[#1a2036] text-white shadow">
+    <div class="max-w-6xl mx-auto px-4 py-4 flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <h1 class="text-lg font-bold">Quote builder</h1>
+        <p class="text-xs text-white/70">Senior Floors · Installation &amp; sand / finish</p>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <a href="dashboard.html?page=quotes" class="px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-sm">← Quotes list</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-4 py-8 space-y-6" id="app">
+    <p id="authMsg" class="text-red-600 text-sm hidden"></p>
+
+    <section class="bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-4">
+      <div class="grid md:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs font-semibold text-slate-500 mb-1">Client *</label>
+          <select id="customerId" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"></select>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-500 mb-1">Service type</label>
+          <select id="serviceType" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
+            <option value="Installation">Installation</option>
+            <option value="Sand & Finishing">Sand &amp; Finishing</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-500 mb-1">Status</label>
+          <select id="status" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
+            <option value="draft">Draft</option>
+            <option value="sent">Sent</option>
+            <option value="viewed">Viewed</option>
+            <option value="approved">Approved</option>
+            <option value="rejected">Rejected</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-500 mb-1">Expiration</label>
+          <input type="date" id="expirationDate" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+        </div>
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-slate-500 mb-1">Load template</label>
+        <div class="flex gap-2 flex-wrap">
+          <select id="templateSelect" class="flex-1 min-w-[200px] border border-slate-300 rounded-lg px-3 py-2 text-sm"></select>
+          <button type="button" id="btnApplyTemplate" class="px-4 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-sm font-medium">Apply</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-4">
+      <div class="flex justify-between items-center flex-wrap gap-2">
+        <h2 class="text-sm font-bold text-slate-800">Line items</h2>
+        <button type="button" id="btnAddLine" class="px-3 py-1.5 rounded-lg bg-[#d6b598] text-[#1a2036] text-sm font-semibold">+ Add line</button>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm" id="itemsTable">
+          <thead>
+            <tr class="text-left text-xs text-slate-500 border-b">
+              <th class="pb-2 pr-2">Description</th>
+              <th class="pb-2 pr-2 w-28">Unit</th>
+              <th class="pb-2 pr-2 w-24">Qty</th>
+              <th class="pb-2 pr-2 w-28">Rate</th>
+              <th class="pb-2 pr-2 w-28">Amount</th>
+              <th class="pb-2 w-10"></th>
+            </tr>
+          </thead>
+          <tbody id="itemsBody"></tbody>
+        </table>
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-slate-500 mb-1">Add from catalog</label>
+        <select id="catalogPick" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"></select>
+      </div>
+    </section>
+
+    <section class="bg-white rounded-xl border border-slate-200 shadow-sm p-6 grid md:grid-cols-2 gap-6">
+      <div class="space-y-3">
+        <h2 class="text-sm font-bold text-slate-800">Totals</h2>
+        <div class="flex justify-between text-sm"><span>Subtotal</span><span id="dispSubtotal">$0.00</span></div>
+        <div class="flex gap-2 items-center">
+          <select id="discountType" class="border rounded-lg px-2 py-1 text-sm">
+            <option value="percentage">Discount %</option>
+            <option value="fixed">Discount $</option>
+          </select>
+          <input type="number" id="discountValue" step="0.01" value="0" class="border rounded-lg px-2 py-1 text-sm w-28" />
+        </div>
+        <div class="flex justify-between text-sm"><span>Tax ($)</span>
+          <input type="number" id="taxTotal" step="0.01" value="0" class="border rounded-lg px-2 py-1 text-sm w-28 text-right" />
+        </div>
+        <div class="flex justify-between text-base font-bold border-t pt-2"><span>Total</span><span id="dispTotal">$0.00</span></div>
+      </div>
+      <div class="space-y-3">
+        <h2 class="text-sm font-bold text-slate-800">Notes &amp; terms</h2>
+        <textarea id="notes" rows="3" class="w-full border rounded-lg px-3 py-2 text-sm" placeholder="Client-facing notes"></textarea>
+        <textarea id="terms" rows="4" class="w-full border rounded-lg px-3 py-2 text-sm" placeholder="Terms & conditions"></textarea>
+      </div>
+    </section>
+
+    <section class="bg-slate-100 rounded-xl border border-slate-200 p-6 space-y-3">
+      <p class="text-xs text-slate-600" id="quoteMeta">New quote</p>
+      <p class="text-xs break-all hidden" id="publicLinkWrap"><span class="font-semibold">Public link:</span> <a id="publicLink" class="text-blue-600 underline" target="_blank" rel="noopener"></a></p>
+      <div class="flex flex-wrap gap-2">
+        <button type="button" id="btnSave" class="px-4 py-2 rounded-lg bg-[#1a2036] text-white text-sm font-semibold">Save draft</button>
+        <button type="button" id="btnPdf" class="px-4 py-2 rounded-lg bg-slate-200 text-sm font-semibold disabled:opacity-50" disabled>Generate PDF</button>
+        <button type="button" id="btnEmail" class="px-4 py-2 rounded-lg bg-slate-200 text-sm font-semibold disabled:opacity-50" disabled>Send email</button>
+        <button type="button" id="btnDup" class="px-4 py-2 rounded-lg bg-slate-200 text-sm font-semibold disabled:opacity-50" disabled>Duplicate</button>
+        <button type="button" id="btnSaveTpl" class="px-4 py-2 rounded-lg border border-slate-300 text-sm font-semibold">Save as template</button>
+      </div>
+    </section>
+  </main>
+
+  <script src="quote-builder.js?v=quotes-v2-1"></script>
+</body>
+</html>

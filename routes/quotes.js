@@ -3,6 +3,7 @@
  */
 import fs from 'fs';
 import { getDBConnection, resetDbPool, isTransientMysqlError } from '../config/db.js';
+import { mapItemRow } from '../modules/quotes/quoteBusiness.js';
 import { setLeadPipelineBySlug } from '../lib/pipelineAutomation.js';
 import { QUOTE_PDF_SUBDIR, resolvedPdfAbsolutePath } from '../lib/quotePdfUpload.js';
 
@@ -150,9 +151,11 @@ export async function getQuote(req, res) {
     delete quote.invoice_pdf;
 
     // Buscar items do quote
-    const [items] = await pool.query('SELECT * FROM quote_items WHERE quote_id = ? ORDER BY id', [req.params.id]);
+    const [items] = await pool.query('SELECT * FROM quote_items WHERE quote_id = ? ORDER BY id', [
+      req.params.id,
+    ]);
 
-    const data = { ...quote, items };
+    const data = { ...quote, items: items.map(mapItemRow) };
     if (quote.pdf_path || hasStoredPdf) {
       data.invoice_pdf_url = `/api/quotes/${quote.id}/invoice-pdf`;
     }
