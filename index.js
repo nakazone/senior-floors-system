@@ -80,7 +80,15 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const PORT = Number(process.env.PORT) || 3000;
+const rawPort = process.env.PORT;
+const PORT =
+  rawPort !== undefined && rawPort !== null && String(rawPort).trim() !== ''
+    ? parseInt(String(rawPort), 10)
+    : 3000;
+if (!Number.isFinite(PORT) || PORT < 1 || PORT > 65535) {
+  console.error('[boot] PORT inválido:', rawPort);
+  process.exit(1);
+}
 
 // res.json não serializa BigInt (quebra APIs/sessão se algum campo escapar)
 app.set('json replacer', (_, value) => (typeof value === 'bigint' ? value.toString() : value));
@@ -436,4 +444,12 @@ async function start() {
 start().catch((err) => {
   console.error('Failed to start server:', err);
   process.exit(1);
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('[fatal] uncaughtException', err);
+  process.exit(1);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('[fatal] unhandledRejection', reason);
 });
