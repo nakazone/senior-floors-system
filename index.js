@@ -66,7 +66,11 @@ import {
   googleCalendarOAuthCallback,
 } from './routes/googleCalendarIntegration.js';
 import { getProjectFinancial, updateProjectFinancial, listExpenses, createExpense, approveExpense, listPayrollEntries, createPayrollEntry, approvePayrollEntry, getFinancialDashboard } from './routes/financials.js';
-import { getDBConnection } from './config/db.js';
+import {
+  getDBConnection,
+  getMysqlConnectionTargetInfo,
+  verifyMysqlPoolConnectivity,
+} from './config/db.js';
 import { ensureQuoteInvoicePdfColumn } from './lib/ensureQuoteInvoicePdfColumn.js';
 import { ensureUserModuleColumns } from './lib/ensureUserModuleColumns.js';
 
@@ -140,6 +144,39 @@ app.post('/api/receive-lead', handleReceiveLead);
 app.post('/api/receive-lead-batch', handleReceiveLeadBatch);
 app.get('/api/health', (req, res) => {
   res.json({ ok: true, service: 'senior-floors-system', time: new Date().toISOString() });
+});
+
+/** Ligação real ao MySQL (diagnóstico Railway). Sem credenciais na resposta. */
+app.get('/api/health/db', async (req, res) => {
+  const target = getMysqlConnectionTargetInfo();
+  const body = {
+    ok: false,
+    configured: target.configured,
+    host: target.host,
+    port: target.port,
+    database: target.database,
+    error_code: null,
+    message: null,
+  };
+  try {
+    if (!target.configured) {
+      body.message = 'MySQL não configurado (sem DATABASE_URL / DB_* / MYSQL* válidos).';
+      return res.status(503).json(body);
+    }
+    const pool = await getDBConnection();
+    if (!pool) {
+      body.message = 'Pool não disponível.';
+      return res.status(503).json(body);
+    }
+    await pool.query('SELECT 1');
+    body.ok = true;
+    body.message = 'MySQL respondeu.';
+    res.json(body);
+  } catch (e) {
+    body.error_code = e.code || null;
+    body.message = e.message || String(e);
+    res.status(503).json(body);
+  }
 });
 
 // Public quote (token link — no auth)
@@ -328,6 +365,37 @@ app.use((req, res) => {
 
 async function start() {
   const pool = await getDBConnection();
+  const skipMysqlPing =
+    process.env.SKIP_MYSQL_PING === '1' || process.env.SKIP_MYSQL_PING === 'true';
+
+  if (!skipMysqlPing) {
+    if (!pool) {
+      const t = getMysqlConnectionTargetInfo();
+      console.error('[db] FATAL: sem pool MySQL. configured=', t.configured);
+      console.error(
+        '[db] Railway: no serviço NODE, adicione DATABASE_URL (referência ao plugin MySQL) ou MYSQLHOST/MYSQLUSER/…'
+      );
+      process.exit(1);
+    }
+    const ping = await verifyMysqlPoolConnectivity(pool);
+    if (!ping.ok) {
+      const t = getMysqlConnectionTargetInfo();
+      const err = ping.error;
+      console.error(
+        '[db] FATAL: MySQL inacessível em',
+        `${t.host}:${t.port}`,
+        '—',
+        err?.code || err?.message
+      );
+      console.error(
+        '[db] Corrija DATABASE_URL no serviço NODE (referência ao MySQL no mesmo projeto). Remova DB_HOST duplicado se conflitar.'
+      );
+      console.error('[db] Para ignorar (não recomendado): SKIP_MYSQL_PING=1');
+      process.exit(1);
+    }
+    console.log('[db] MySQL OK (ping).');
+  }
+
   await ensureQuoteInvoicePdfColumn(pool);
   await ensureUserModuleColumns(pool);
 

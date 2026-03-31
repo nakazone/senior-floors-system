@@ -1,9 +1,19 @@
 /**
  * Quotes module v2: catalog, templates, snapshots, public flow fields.
  * Idempotent. Run: node database/migrate-quotes-module-complete.js
+ * Railway: railway run npm run migrate:quotes-module (usa DATABASE_URL do serviço).
+ *
+ * Carrega sempre senior-floors-system/.env (relativo a este arquivo) com override: true,
+ * para não perder DB_HOST por: (1) cwd errado; (2) export DB_* no shell (dotenv padrão não sobrescreve).
  */
-import 'dotenv/config';
+import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import mysql from 'mysql2/promise';
+import { getMysqlConnectionConfig, getMysqlEnvDiagnostics } from '../config/db.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: path.resolve(__dirname, '..', '.env'), override: true });
 
 async function columnExists(conn, table, column) {
   const [rows] = await conn.query(
@@ -19,13 +29,76 @@ async function addColumn(conn, table, ddl) {
 }
 
 async function main() {
-  const conn = await mysql.createConnection({
-    host: process.env.DB_HOST,
-    user: process.env.DB_USER,
-    password: process.env.DB_PASS,
-    database: process.env.DB_NAME,
-    multipleStatements: true,
-  });
+  const base = getMysqlConnectionConfig();
+  if (!base) {
+    const d = getMysqlEnvDiagnostics();
+    console.error('Sem configuração MySQL válida.');
+    console.error('');
+    console.error('Diagnóstico (nada de senhas):');
+    console.error(
+      '  DATABASE_URL / DATABASE_PUBLIC_URL / MYSQL_URL:',
+      d.urlSet ? (d.urlParsesOk ? 'OK (parseou)' : 'definida mas URL inválida ou incompleta') : 'ausente'
+    );
+    if (d.urlOvertakenByDbHost) {
+      console.error(
+        '  (URL apontava para localhost; configuração DB_HOST remoto será usada em vez da URL.)'
+      );
+    }
+    console.error('  DB_HOST:', d.dbHost ? 'OK' : 'ausente');
+    console.error('  DB_USER:', d.dbUser ? 'OK' : 'ausente');
+    console.error('  DB_NAME:', d.dbName ? 'OK' : 'ausente');
+    console.error('  DB_PASS:', d.dbPassSet ? 'definida' : 'ausente (pode ser linha vazia DB_PASS=)');
+    console.error('');
+    console.error(
+      'O arquivo .env deve ficar em:\n  senior-floors-system/.env\n' +
+        'Copie: cp env.example .env\n' +
+        'Preencha DB_HOST, DB_USER, DB_PASS, DB_NAME (Railway → serviço MySQL → Variables).'
+    );
+    console.error('');
+    console.error(
+      'Alternativa: railway link && railway run npm run migrate:quotes-module\n' +
+        '(usa as variáveis do projeto no Railway; DATABASE_URL deve ser a do MySQL, não da app errada).'
+    );
+    process.exit(1);
+  }
+  let conn;
+  try {
+    conn = await mysql.createConnection({
+      ...base,
+      multipleStatements: true,
+    });
+  } catch (e) {
+    if (e.code === 'ECONNREFUSED' && (base.host === '127.0.0.1' || base.host === 'localhost')) {
+      const raw = (process.env.DB_HOST || '').trim().toLowerCase();
+      const envSaysLocal = raw === 'localhost' || raw === '127.0.0.1' || raw === '::1';
+      console.error(
+        'MySQL recusou conexão em ' +
+          base.host +
+          ':' +
+          base.port +
+          ' — não há MySQL escutando aí (típico sem servidor local).'
+      );
+      if (envSaysLocal) {
+        console.error('');
+        console.error(
+          'O Node está a usar DB_HOST=localhost (ou 127.0.0.1). No ficheiro senior-floors-system/.env ponha o host do MySQL na Railway;'
+        );
+        console.error('ex.: DB_HOST=mysql-production-xxxx.up.railway.app');
+        console.error(
+          'Se o .env já está certo: no terminal pode ter export DB_HOST=localhost — isso ganhava sobre o .env antes. Rode: unset DB_HOST DATABASE_URL MYSQL_URL DATABASE_PUBLIC_URL'
+        );
+      } else {
+        console.error(
+          '\nConfira DB_HOST em senior-floors-system/.env ou use DATABASE_URL com o host correto do MySQL.'
+        );
+      }
+      console.error(
+        '\nAlternativa: da pasta senior-floors-system, com `railway link` ao serviço Node que referencia o MySQL:'
+      );
+      console.error('  railway run npm run migrate:quotes-module');
+    }
+    throw e;
+  }
 
   console.log('Quotes module complete migration…');
 

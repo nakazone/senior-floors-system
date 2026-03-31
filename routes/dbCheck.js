@@ -17,15 +17,20 @@ export async function handleDbCheck(req, res) {
   else {
     try {
       const pool = await getDBConnection();
-      out.connection_ok = !!pool;
-      if (pool) {
+      if (!pool) {
+        out.connection_ok = false;
+        out.hint = 'Pool não criado. Verifique DATABASE_URL (referência ao MySQL) ou DB_* / MYSQL*.';
+      } else {
+        await pool.query('SELECT 1');
+        out.connection_ok = true;
         const [t] = await pool.query("SHOW TABLES LIKE 'leads'");
         out.table_leads_exists = t && t.length > 0;
         if (!out.table_leads_exists) out.hint = "Table 'leads' does not exist. Run your schema SQL.";
-      } else out.hint = 'Failed to connect. Check DB_* variables.';
+      }
     } catch (e) {
       out.connection_ok = false;
       out.hint = e.message;
+      if (e.code) out.error_code = e.code;
     }
   }
   res.setHeader('Content-Type', 'application/json; charset=UTF-8');
