@@ -1,10 +1,11 @@
 /**
  * Quotes module v2: catalog, templates, snapshots, public flow fields.
  * Idempotent. Run: node database/migrate-quotes-module-complete.js
- * Railway: railway run npm run migrate:quotes-module (usa DATABASE_URL do serviço).
+ * Railway (no laptop): railway run npm run migrate:quotes-module
+ * — não carrega .env (evita DB_HOST=localhost misturado com MYSQL_URL); usa TCP proxy para
+ * hosts *.railway.app / *.railway.internal.
  *
- * Carrega sempre senior-floors-system/.env (relativo a este arquivo) com override: true,
- * para não perder DB_HOST por: (1) cwd errado; (2) export DB_* no shell (dotenv padrão não sobrescreve).
+ * Local sem CLI: node database/migrate-quotes-module-complete.js — carrega .env com override.
  */
 import dotenv from 'dotenv';
 import path from 'path';
@@ -13,7 +14,37 @@ import mysql from 'mysql2/promise';
 import { getMysqlConnectionConfig, getMysqlEnvDiagnostics } from '../config/db.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-dotenv.config({ path: path.resolve(__dirname, '..', '.env'), override: true });
+const envPath = path.resolve(__dirname, '..', '.env');
+/**
+ * `railway run` injeta MYSQL_* / MYSQL_URL. Se carregarmos .env com override:false, o ficheiro
+ * ainda preenche DB_HOST=localhost (chave ausente no env) e getMysqlConnectionConfig() passa a
+ * usar DB_* em vez do URL — liga ao MySQL errado. Com Railway CLI: não carregar .env.
+ */
+const envInjectedByRailway =
+  Boolean(process.env.RAILWAY_PROJECT_ID) ||
+  Boolean(process.env.MYSQL_URL?.trim()) ||
+  Boolean(process.env.MYSQLHOST?.trim());
+if (!envInjectedByRailway) {
+  dotenv.config({ path: envPath, override: true });
+}
+
+/**
+ * A partir do portátil: MYSQL_URL (interno) e host *.up.railway.app na 3306 não aceitam ligação
+ * direta. Usar RAILWAY_TCP_PROXY_* (ex.: switchback.proxy.rlwy.net:24357). RDS/outros hosts não
+ * são alterados.
+ */
+function applyRailwayTcpProxyIfNeeded(cfg) {
+  if (!cfg) return null;
+  const ph = process.env.RAILWAY_TCP_PROXY_DOMAIN?.trim();
+  const pp = process.env.RAILWAY_TCP_PROXY_PORT?.trim();
+  if (!ph || !pp) return cfg;
+  const h = (cfg.host || '').trim().toLowerCase();
+  if (h === 'localhost' || h === '127.0.0.1' || h === '::1') return cfg;
+  const railwayHost =
+    h.endsWith('.railway.internal') || h.endsWith('.up.railway.app') || h.includes('.railway.app');
+  if (!railwayHost) return cfg;
+  return { ...cfg, host: ph, port: parseInt(pp, 10) || cfg.port };
+}
 
 async function columnExists(conn, table, column) {
   const [rows] = await conn.query(
@@ -29,7 +60,7 @@ async function addColumn(conn, table, ddl) {
 }
 
 async function main() {
-  const base = getMysqlConnectionConfig();
+  const base = applyRailwayTcpProxyIfNeeded(getMysqlConnectionConfig());
   if (!base) {
     const d = getMysqlEnvDiagnostics();
     console.error('Sem configuração MySQL válida.');
