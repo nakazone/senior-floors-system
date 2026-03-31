@@ -2,7 +2,7 @@
  * Authentication routes - Login, Logout, Session, Change password
  */
 import bcrypt from 'bcryptjs';
-import { getDBConnection } from '../config/db.js';
+import { getDBConnection, resetDbPool } from '../config/db.js';
 import { resolvePermissionKeysForUser } from '../lib/userPermissions.js';
 
 /** Garante que o cookie de sessão é enviado antes da resposta JSON (evita 401 em PUT seguinte). */
@@ -36,6 +36,30 @@ function sessionSafeUserId(id) {
   }
   const n = Number(id);
   return Number.isFinite(n) ? n : id;
+}
+
+function isDbConnectivityError(e) {
+  if (!e) return false;
+  const c = e.code;
+  return (
+    c === 'ETIMEDOUT' ||
+    c === 'ECONNREFUSED' ||
+    c === 'PROTOCOL_CONNECTION_LOST' ||
+    c === 'ECONNRESET' ||
+    c === 'EPIPE' ||
+    e.fatal === true
+  );
+}
+
+function dbConnectivityResponse(res, code) {
+  resetDbPool().catch(() => {});
+  return res.status(503).json({
+    success: false,
+    error: 'Não foi possível ligar ao MySQL.',
+    message:
+      'Timeout ou ligação recusada. No Railway: serviço Node → Variables → DATABASE_URL como referência ao MySQL no mesmo projeto. Apague DB_HOST/DB_* manuais que conflitem. Teste GET /api/health/db',
+    code: code || undefined,
+  });
 }
 
 async function setSessionForUser(req, pool, user, columnNames, passwordField, userRole) {
@@ -147,7 +171,7 @@ export async function login(req, res) {
     }
 
     const payload = {
-      id: user.id,
+      id: sessionSafeUserId(user.id),
       name: user.name,
       email: user.email,
       role: userRole,
@@ -159,6 +183,9 @@ export async function login(req, res) {
   } catch (error) {
     console.error('Login error:', error);
     console.error('Error stack:', error.stack);
+    if (isDbConnectivityError(error)) {
+      return dbConnectivityResponse(res, error.code);
+    }
     res.status(500).json({
       success: false,
       error: 'Internal server error',
@@ -273,6 +300,9 @@ export async function changePassword(req, res) {
     });
   } catch (error) {
     console.error('changePassword:', error);
+    if (isDbConnectivityError(error)) {
+      return dbConnectivityResponse(res, error.code);
+    }
     res.status(500).json({ success: false, error: error.message });
   }
 }
