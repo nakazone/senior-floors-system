@@ -80,6 +80,12 @@
       .replace(/"/g, '&quot;');
   }
 
+  /** MySQL/JSON pode devolver id como string; comparações com número falham com === */
+  function rowById(arr, id) {
+    const n = Number(id);
+    return arr.find((x) => Number(x.id) === n);
+  }
+
   async function load() {
     const all = $('showInactive').checked ? '1' : '0';
     const r = await api('/api/quote-catalog' + (all === '1' ? '?all=1' : ''));
@@ -104,7 +110,7 @@
   }
 
   function edit(id) {
-    const row = rows.find((x) => x.id === id);
+    const row = rowById(rows, id);
     if (!row) return;
     $('editId').value = String(id);
     $('modalTitle').textContent = 'Editar serviço';
@@ -125,7 +131,7 @@
   }
 
   async function reactivate(id) {
-    const row = rows.find((x) => x.id === id);
+    const row = rowById(rows, id);
     if (!row) return;
     await api('/api/quote-catalog/' + id, {
       method: 'PUT',

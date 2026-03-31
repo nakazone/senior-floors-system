@@ -16,6 +16,12 @@
     return Math.round(q * r * 100) / 100;
   }
 
+  function normalizeCatalogId(v) {
+    if (v == null || v === '') return null;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  }
+
   function sumItems() {
     return items.reduce((s, it) => s + lineAmount(Number(it.quantity) || 0, Number(it.rate) || 0), 0);
   }
@@ -145,7 +151,7 @@
       quantity: it.quantity,
       rate: it.rate,
       notes: it.notes,
-      service_catalog_id: it.service_catalog_id,
+      service_catalog_id: normalizeCatalogId(it.service_catalog_id),
     }));
     if (!items.length) items = [{ description: '', unit_type: 'sq_ft', quantity: 1, rate: 0 }];
     $('quoteMeta').textContent = `Quote ${q.quote_number || '#' + q.id} · total ${money(q.total_amount)}`;
@@ -175,7 +181,7 @@
         quantity: Number(it.quantity) || 0,
         rate: Number(it.rate) || 0,
         notes: it.notes || null,
-        service_catalog_id: it.service_catalog_id || null,
+        service_catalog_id: normalizeCatalogId(it.service_catalog_id),
         type: 'service',
       })),
     };
@@ -266,14 +272,14 @@
     $('catalogPick').addEventListener('change', () => {
       const idc = parseInt($('catalogPick').value, 10);
       if (!idc) return;
-      const row = catalog.find((c) => c.id === idc);
+      const row = catalog.find((c) => Number(c.id) === idc);
       if (row) {
         items.push({
           description: row.default_description || row.name,
           unit_type: row.unit_type || 'sq_ft',
           quantity: 1,
           rate: Number(row.default_rate) || 0,
-          service_catalog_id: row.id,
+          service_catalog_id: normalizeCatalogId(row.id),
         });
         $('catalogPick').value = '';
         renderItems();
@@ -292,7 +298,7 @@
         quantity: Number(x.quantity) || 1,
         rate: Number(x.rate) || 0,
         notes: x.notes,
-        service_catalog_id: x.service_catalog_id,
+        service_catalog_id: normalizeCatalogId(x.service_catalog_id),
       }));
       if (!items.length) items = [{ description: '', unit_type: 'sq_ft', quantity: 1, rate: 0 }];
       renderItems();
@@ -339,7 +345,7 @@
           quantity: it.quantity,
           rate: it.rate,
           notes: it.notes,
-          service_catalog_id: it.service_catalog_id,
+          service_catalog_id: normalizeCatalogId(it.service_catalog_id),
         })),
       };
       try {
