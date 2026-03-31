@@ -76,13 +76,21 @@ function mysqlPluginConfigFromEnv() {
 
 function isDatabaseConfigured() {
   const url = process.env.DATABASE_URL || process.env.DATABASE_PUBLIC_URL || process.env.MYSQL_URL;
-  if (url) return true;
+  if (url?.trim()) {
+    const fromUrl = parseDatabaseUrl(url);
+    if (fromUrl && fromUrl.user && fromUrl.database) return true;
+  }
   if (mysqlPluginConfigFromEnv()) return true;
   const user = process.env.DB_USER || '';
   const pass = process.env.DB_PASS || '';
   const name = process.env.DB_NAME || '';
   const noPlaceholder = (s) => s && !/SEU_USUARIO|SUA_SENHA|your_db/i.test(s);
-  return noPlaceholder(user) && noPlaceholder(pass) && noPlaceholder(name);
+  return Boolean(
+    process.env.DB_HOST?.trim() &&
+      noPlaceholder(user) &&
+      noPlaceholder(pass) &&
+      noPlaceholder(name)
+  );
 }
 
 /**

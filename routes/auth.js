@@ -55,7 +55,12 @@ export async function login(req, res) {
   try {
     const pool = await getDBConnection();
     if (!pool) {
-      return res.status(503).json({ success: false, error: 'Database not available' });
+      return res.status(503).json({
+        success: false,
+        error: 'Database not available',
+        hint:
+          'No Railway: no serviço Node, defina DATABASE_URL referenciando o MySQL (ou MYSQLHOST/MYSQLUSER/MYSQLPASSWORD/MYSQLDATABASE). Teste GET /api/health/db',
+      });
     }
 
     const [columns] = await pool.query(`SHOW COLUMNS FROM users`);
@@ -202,7 +207,12 @@ export async function changePassword(req, res) {
 
     const pool = await getDBConnection();
     if (!pool) {
-      return res.status(503).json({ success: false, error: 'Database not available' });
+      return res.status(503).json({
+        success: false,
+        error: 'Database not available',
+        hint:
+          'No Railway: no serviço Node, defina DATABASE_URL referenciando o MySQL (ou MYSQLHOST/MYSQLUSER/MYSQLPASSWORD/MYSQLDATABASE). Teste GET /api/health/db',
+      });
     }
 
     const [columns] = await pool.query(`SHOW COLUMNS FROM users`);
