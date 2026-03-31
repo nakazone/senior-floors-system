@@ -5,6 +5,7 @@
  */
 import 'dotenv/config';
 import express from 'express';
+import 'express-async-errors';
 import cors from 'cors';
 import session from 'express-session';
 import path from 'path';
@@ -70,6 +71,7 @@ import {
   getDBConnection,
   getMysqlConnectionTargetInfo,
   verifyMysqlPoolConnectivity,
+  resetDbPool,
 } from './config/db.js';
 import { ensureQuoteInvoicePdfColumn } from './lib/ensureQuoteInvoicePdfColumn.js';
 import { ensureUserModuleColumns } from './lib/ensureUserModuleColumns.js';
@@ -343,14 +345,29 @@ app.all('/system.php', (req, res) => {
   res.status(404).json({ error: 'Not found' });
 });
 
-// Error handling middleware
+// Error handling middleware (express-async-errors envia rejeições async para aqui)
 app.use((err, req, res, next) => {
   console.error('Unhandled error:', err);
   console.error('Stack:', err.stack);
-  res.status(500).json({ 
-    success: false, 
-    error: 'Internal server error',
-    message: process.env.NODE_ENV === 'development' ? err.message : undefined
+  const c = err && err.code;
+  const transientDb =
+    c === 'ECONNREFUSED' ||
+    c === 'ETIMEDOUT' ||
+    c === 'PROTOCOL_CONNECTION_LOST' ||
+    c === 'ECONNRESET' ||
+    c === 'EPIPE' ||
+    (err && err.fatal === true);
+  if (transientDb) {
+    resetDbPool().catch(() => {});
+  }
+  const showDetail =
+    process.env.NODE_ENV === 'development' || process.env.API_ERROR_DETAIL === '1';
+  const status = transientDb ? 503 : 500;
+  res.status(status).json({
+    success: false,
+    error: transientDb ? 'Database temporarily unavailable' : 'Internal server error',
+    code: c || undefined,
+    message: showDetail ? (err && err.message) : undefined,
   });
 });
 
