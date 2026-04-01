@@ -50,6 +50,15 @@ async function loadEmployee(pool, id) {
   return rows[0] || null;
 }
 
+/** @param {unknown} v */
+function normalizeSector(v) {
+  if (v === undefined || v === null || v === '') return null;
+  const s = String(v).toLowerCase().replace(/-/g, '_');
+  if (s === 'installation') return 'installation';
+  if (s === 'sand_finish' || s === 'sandandfinish' || s === 'sand and finish') return 'sand_finish';
+  return null;
+}
+
 /** @param {import('express').Request} req @param {import('express').Response} res */
 export async function getPayrollDashboard(req, res) {
   try {
@@ -125,24 +134,41 @@ export async function createEmployee(req, res) {
   try {
     const pool = await getDBConnection();
     const b = req.body || {};
-    const [r] = await pool.execute(
-      `INSERT INTO construction_payroll_employees
-       (name, role, phone, email, payment_type, daily_rate, hourly_rate, overtime_rate, payment_method, user_id, is_active)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        String(b.name || '').trim() || 'Sem nome',
-        b.role != null ? String(b.role) : null,
-        b.phone != null ? String(b.phone) : null,
-        b.email != null ? String(b.email) : null,
-        ['daily', 'hourly', 'mixed'].includes(b.payment_type) ? b.payment_type : 'daily',
-        Number(b.daily_rate) || 0,
-        Number(b.hourly_rate) || 0,
-        Number(b.overtime_rate) || 0,
-        b.payment_method != null ? String(b.payment_method) : null,
-        b.user_id != null && b.user_id !== '' ? parseInt(b.user_id, 10) : null,
-        b.is_active === false || b.is_active === 0 ? 0 : 1,
-      ]
-    );
+    const sector = normalizeSector(b.sector);
+    const baseParams = [
+      String(b.name || '').trim() || 'Sem nome',
+      b.role != null ? String(b.role) : null,
+      b.phone != null ? String(b.phone) : null,
+      b.email != null ? String(b.email) : null,
+      ['daily', 'hourly', 'mixed'].includes(b.payment_type) ? b.payment_type : 'daily',
+      Number(b.daily_rate) || 0,
+      Number(b.hourly_rate) || 0,
+      Number(b.overtime_rate) || 0,
+      b.payment_method != null ? String(b.payment_method) : null,
+      b.user_id != null && b.user_id !== '' ? parseInt(b.user_id, 10) : null,
+      b.is_active === false || b.is_active === 0 ? 0 : 1,
+    ];
+    let r;
+    try {
+      const params = [...baseParams.slice(0, 9), sector, baseParams[9], baseParams[10]];
+      [r] = await pool.execute(
+        `INSERT INTO construction_payroll_employees
+         (name, role, phone, email, payment_type, daily_rate, hourly_rate, overtime_rate, payment_method, sector, user_id, is_active)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        params
+      );
+    } catch (e) {
+      if (e.code === 'ER_BAD_FIELD_ERROR' && String(e.message || '').includes('sector')) {
+        [r] = await pool.execute(
+          `INSERT INTO construction_payroll_employees
+           (name, role, phone, email, payment_type, daily_rate, hourly_rate, overtime_rate, payment_method, user_id, is_active)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          baseParams
+        );
+      } else {
+        throw e;
+      }
+    }
     const [rows] = await pool.query('SELECT * FROM construction_payroll_employees WHERE id = ?', [r.insertId]);
     return res.status(201).json({ success: true, data: rows[0] });
   } catch (err) {
@@ -157,35 +183,74 @@ export async function updateEmployee(req, res) {
     const existing = await loadEmployee(pool, id);
     if (!existing) return res.status(404).json({ success: false, error: 'Não encontrado' });
     const b = req.body || {};
-    await pool.execute(
-      `UPDATE construction_payroll_employees SET
-        name = COALESCE(?, name),
-        role = ?,
-        phone = ?,
-        email = ?,
-        payment_type = COALESCE(?, payment_type),
-        daily_rate = COALESCE(?, daily_rate),
-        hourly_rate = COALESCE(?, hourly_rate),
-        overtime_rate = COALESCE(?, overtime_rate),
-        payment_method = ?,
-        user_id = ?,
-        is_active = COALESCE(?, is_active)
-       WHERE id = ?`,
-      [
-        b.name != null ? String(b.name).trim() : null,
-        b.role !== undefined ? b.role : existing.role,
-        b.phone !== undefined ? b.phone : existing.phone,
-        b.email !== undefined ? b.email : existing.email,
-        b.payment_type != null && ['daily', 'hourly', 'mixed'].includes(b.payment_type) ? b.payment_type : null,
-        b.daily_rate != null ? Number(b.daily_rate) : null,
-        b.hourly_rate != null ? Number(b.hourly_rate) : null,
-        b.overtime_rate != null ? Number(b.overtime_rate) : null,
-        b.payment_method !== undefined ? b.payment_method : existing.payment_method,
-        b.user_id !== undefined ? (b.user_id === '' || b.user_id == null ? null : parseInt(b.user_id, 10)) : existing.user_id,
-        b.is_active !== undefined ? (b.is_active ? 1 : 0) : null,
-        id,
-      ]
-    );
+    const params = [
+      b.name != null ? String(b.name).trim() : null,
+      b.role !== undefined ? b.role : existing.role,
+      b.phone !== undefined ? b.phone : existing.phone,
+      b.email !== undefined ? b.email : existing.email,
+      b.payment_type != null && ['daily', 'hourly', 'mixed'].includes(b.payment_type) ? b.payment_type : null,
+      b.daily_rate != null ? Number(b.daily_rate) : null,
+      b.hourly_rate != null ? Number(b.hourly_rate) : null,
+      b.overtime_rate != null ? Number(b.overtime_rate) : null,
+      b.payment_method !== undefined ? b.payment_method : existing.payment_method,
+      b.sector !== undefined ? normalizeSector(b.sector) : existing.sector,
+      b.user_id !== undefined ? (b.user_id === '' || b.user_id == null ? null : parseInt(b.user_id, 10)) : existing.user_id,
+      b.is_active !== undefined ? (b.is_active ? 1 : 0) : null,
+      id,
+    ];
+    try {
+      await pool.execute(
+        `UPDATE construction_payroll_employees SET
+          name = COALESCE(?, name),
+          role = ?,
+          phone = ?,
+          email = ?,
+          payment_type = COALESCE(?, payment_type),
+          daily_rate = COALESCE(?, daily_rate),
+          hourly_rate = COALESCE(?, hourly_rate),
+          overtime_rate = COALESCE(?, overtime_rate),
+          payment_method = ?,
+          sector = ?,
+          user_id = ?,
+          is_active = COALESCE(?, is_active)
+         WHERE id = ?`,
+        params
+      );
+    } catch (e) {
+      if (e.code === 'ER_BAD_FIELD_ERROR' && String(e.message || '').includes('sector')) {
+        await pool.execute(
+          `UPDATE construction_payroll_employees SET
+            name = COALESCE(?, name),
+            role = ?,
+            phone = ?,
+            email = ?,
+            payment_type = COALESCE(?, payment_type),
+            daily_rate = COALESCE(?, daily_rate),
+            hourly_rate = COALESCE(?, hourly_rate),
+            overtime_rate = COALESCE(?, overtime_rate),
+            payment_method = ?,
+            user_id = ?,
+            is_active = COALESCE(?, is_active)
+           WHERE id = ?`,
+          [
+            params[0],
+            params[1],
+            params[2],
+            params[3],
+            params[4],
+            params[5],
+            params[6],
+            params[7],
+            params[8],
+            params[10],
+            params[11],
+            params[12],
+          ]
+        );
+      } else {
+        throw e;
+      }
+    }
     const row = await loadEmployee(pool, id);
     return res.json({ success: true, data: row });
   } catch (err) {
@@ -196,13 +261,31 @@ export async function updateEmployee(req, res) {
 export async function listPeriods(req, res) {
   try {
     const pool = await getDBConnection();
-    const [rows] = await pool.query(
-      `SELECT p.*,
-        (SELECT COUNT(*) FROM construction_payroll_timesheets t WHERE t.period_id = p.id) AS line_count,
-        (SELECT COALESCE(SUM(calculated_amount),0) FROM construction_payroll_timesheets t WHERE t.period_id = p.id) AS total_amount
-       FROM construction_payroll_periods p
-       ORDER BY p.start_date DESC, p.id DESC`
-    );
+    let rows;
+    try {
+      const [r] = await pool.query(
+        `SELECT p.*,
+          (SELECT COUNT(*) FROM construction_payroll_timesheets t WHERE t.period_id = p.id) AS line_count,
+          (SELECT COALESCE(SUM(calculated_amount),0) FROM construction_payroll_timesheets t WHERE t.period_id = p.id) AS total_amount,
+          (SELECT COALESCE(SUM(a.reimbursement),0) FROM construction_payroll_period_adjustments a WHERE a.period_id = p.id) AS reimbursement_total
+         FROM construction_payroll_periods p
+         ORDER BY p.start_date DESC, p.id DESC`
+      );
+      rows = r;
+    } catch (e) {
+      if (isMissingTable(e) && String(e.message || '').includes('construction_payroll_period_adjustments')) {
+        const [r] = await pool.query(
+          `SELECT p.*,
+            (SELECT COUNT(*) FROM construction_payroll_timesheets t WHERE t.period_id = p.id) AS line_count,
+            (SELECT COALESCE(SUM(calculated_amount),0) FROM construction_payroll_timesheets t WHERE t.period_id = p.id) AS total_amount
+           FROM construction_payroll_periods p
+           ORDER BY p.start_date DESC, p.id DESC`
+        );
+        rows = (r || []).map((x) => ({ ...x, reimbursement_total: 0 }));
+      } else {
+        throw e;
+      }
+    }
     return res.json({ success: true, data: rows });
   } catch (err) {
     return sendDbError(res, err);
@@ -220,7 +303,20 @@ export async function getPeriod(req, res) {
        FROM construction_payroll_timesheets WHERE period_id = ?`,
       [id]
     );
-    return res.json({ success: true, data: { ...p, ...agg } });
+    let reimbursement_total = 0;
+    try {
+      const [[r]] = await pool.query(
+        'SELECT COALESCE(SUM(reimbursement),0) AS s FROM construction_payroll_period_adjustments WHERE period_id = ?',
+        [id]
+      );
+      reimbursement_total = Number(r.s) || 0;
+    } catch (_) {
+      /* tabela opcional até migrate */
+    }
+    return res.json({
+      success: true,
+      data: { ...p, ...agg, reimbursement_total },
+    });
   } catch (err) {
     return sendDbError(res, err);
   }
@@ -308,30 +404,162 @@ export async function getPeriodPreview(req, res) {
     const id = parseInt(req.params.id, 10);
     const p = await loadPeriod(pool, id);
     if (!p) return res.status(404).json({ success: false, error: 'Não encontrado' });
-    const [byEmp] = await pool.query(
-      `SELECT e.id AS employee_id, e.name, e.payment_type,
-        COUNT(t.id) AS line_count,
-        COALESCE(SUM(t.calculated_amount),0) AS subtotal
-       FROM construction_payroll_timesheets t
-       INNER JOIN construction_payroll_employees e ON e.id = t.employee_id
-       WHERE t.period_id = ?
-       GROUP BY e.id, e.name, e.payment_type
-       ORDER BY e.name`,
+
+    let byEmpTs = [];
+    try {
+      const [rows] = await pool.query(
+        `SELECT e.id AS employee_id, e.name, e.payment_type, e.sector,
+          COUNT(t.id) AS line_count,
+          COALESCE(SUM(t.calculated_amount),0) AS subtotal
+         FROM construction_payroll_timesheets t
+         INNER JOIN construction_payroll_employees e ON e.id = t.employee_id
+         WHERE t.period_id = ?
+         GROUP BY e.id, e.name, e.payment_type, e.sector
+         ORDER BY e.name`,
+        [id]
+      );
+      byEmpTs = rows || [];
+    } catch (e) {
+      if (e.code === 'ER_BAD_FIELD_ERROR' && String(e.message || '').includes('sector')) {
+        const [rows] = await pool.query(
+          `SELECT e.id AS employee_id, e.name, e.payment_type,
+            COUNT(t.id) AS line_count,
+            COALESCE(SUM(t.calculated_amount),0) AS subtotal
+           FROM construction_payroll_timesheets t
+           INNER JOIN construction_payroll_employees e ON e.id = t.employee_id
+           WHERE t.period_id = ?
+           GROUP BY e.id, e.name, e.payment_type
+           ORDER BY e.name`,
+          [id]
+        );
+        byEmpTs = (rows || []).map((r) => ({ ...r, sector: null }));
+      } else {
+        throw e;
+      }
+    }
+
+    let adjRows = [];
+    try {
+      const [ar] = await pool.query(
+        'SELECT employee_id, reimbursement, notes FROM construction_payroll_period_adjustments WHERE period_id = ?',
+        [id]
+      );
+      adjRows = ar || [];
+    } catch (_) {
+      adjRows = [];
+    }
+
+    const adjMap = new Map(adjRows.map((r) => [r.employee_id, r]));
+    const seen = new Set();
+    const by_employee = [];
+
+    for (const row of byEmpTs) {
+      seen.add(row.employee_id);
+      const adj = adjMap.get(row.employee_id);
+      const reim = adj ? Number(adj.reimbursement) || 0 : 0;
+      const sub = Number(row.subtotal) || 0;
+      by_employee.push({
+        employee_id: row.employee_id,
+        name: row.name,
+        payment_type: row.payment_type,
+        sector: row.sector,
+        line_count: Number(row.line_count) || 0,
+        subtotal: sub,
+        reimbursement: reim,
+        reimbursement_notes: adj?.notes || null,
+        employee_total: Math.round((sub + reim) * 100) / 100,
+      });
+    }
+
+    for (const adj of adjRows) {
+      if (seen.has(adj.employee_id)) continue;
+      const emp = await loadEmployee(pool, adj.employee_id);
+      if (!emp) continue;
+      const reim = Number(adj.reimbursement) || 0;
+      by_employee.push({
+        employee_id: adj.employee_id,
+        name: emp.name,
+        payment_type: emp.payment_type,
+        sector: emp.sector,
+        line_count: 0,
+        subtotal: 0,
+        reimbursement: reim,
+        reimbursement_notes: adj.notes || null,
+        employee_total: Math.round(reim * 100) / 100,
+      });
+    }
+
+    by_employee.sort((a, b) => String(a.name).localeCompare(String(b.name)));
+
+    const [[grandTs]] = await pool.query(
+      'SELECT COALESCE(SUM(calculated_amount),0) AS s FROM construction_payroll_timesheets WHERE period_id = ?',
       [id]
     );
-    const [[grand]] = await pool.query(
-      'SELECT COALESCE(SUM(calculated_amount),0) AS grand_total FROM construction_payroll_timesheets WHERE period_id = ?',
-      [id]
-    );
+    let grandReim = 0;
+    try {
+      const [[gr]] = await pool.query(
+        'SELECT COALESCE(SUM(reimbursement),0) AS s FROM construction_payroll_period_adjustments WHERE period_id = ?',
+        [id]
+      );
+      grandReim = Number(gr.s) || 0;
+    } catch (_) {}
+
+    const grand_timesheet = Number(grandTs.s) || 0;
+    const grand_total = Math.round((grand_timesheet + grandReim) * 100) / 100;
+
     return res.json({
       success: true,
       data: {
         period: p,
-        by_employee: byEmp,
-        grand_total: Number(grand.grand_total) || 0,
+        by_employee,
+        grand_timesheet,
+        grand_reimbursement: grandReim,
+        grand_total,
       },
     });
   } catch (err) {
+    return sendDbError(res, err);
+  }
+}
+
+export async function putPeriodAdjustments(req, res) {
+  try {
+    const pool = await getDBConnection();
+    const periodId = parseInt(req.params.id, 10);
+    await assertPeriodWritable(pool, periodId);
+    const list = req.body?.adjustments;
+    if (!Array.isArray(list)) {
+      return res.status(400).json({ success: false, error: 'Body.adjustments deve ser um array' });
+    }
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+      await conn.execute('DELETE FROM construction_payroll_period_adjustments WHERE period_id = ?', [periodId]);
+      for (const r of list) {
+        if (!r || typeof r !== 'object') continue;
+        const eid = parseInt(r.employee_id, 10);
+        if (!eid) continue;
+        const emp = await loadEmployee(conn, eid);
+        if (!emp) continue;
+        const amt = Math.round((Number(r.reimbursement) || 0) * 100) / 100;
+        const notes = r.notes != null ? String(r.notes).slice(0, 500) : null;
+        if (amt === 0 && (!notes || notes === '')) continue;
+        await conn.execute(
+          `INSERT INTO construction_payroll_period_adjustments (period_id, employee_id, reimbursement, notes)
+           VALUES (?,?,?,?)`,
+          [periodId, eid, amt, notes]
+        );
+      }
+      await conn.commit();
+    } catch (e) {
+      await conn.rollback();
+      throw e;
+    } finally {
+      conn.release();
+    }
+    return res.json({ success: true });
+  } catch (err) {
+    if (err.statusCode) return res.status(err.statusCode).json({ success: false, error: err.message });
     return sendDbError(res, err);
   }
 }
@@ -342,7 +570,7 @@ export async function listTimesheets(req, res) {
     const periodId = parseInt(req.params.periodId, 10);
     const p = await loadPeriod(pool, periodId);
     if (!p) return res.status(404).json({ success: false, error: 'Período não encontrado' });
-    let q = `SELECT t.*, e.name AS employee_name, e.payment_type AS employee_payment_type,
+    let q = `SELECT t.*, e.name AS employee_name, e.payment_type AS employee_payment_type, e.sector AS employee_sector,
               pr.project_number, pr.status AS project_status
        FROM construction_payroll_timesheets t
        INNER JOIN construction_payroll_employees e ON e.id = t.employee_id
@@ -358,7 +586,19 @@ export async function listTimesheets(req, res) {
       params.push(parseInt(req.query.project_id, 10));
     }
     q += ' ORDER BY t.work_date ASC, t.id ASC';
-    const [rows] = await pool.query(q, params);
+    let rows;
+    try {
+      const [r] = await pool.query(q, params);
+      rows = r;
+    } catch (e) {
+      if (e.code === 'ER_BAD_FIELD_ERROR' && String(e.message || '').includes('sector')) {
+        const q2 = q.replace('e.payment_type AS employee_payment_type, e.sector AS employee_sector,', 'e.payment_type AS employee_payment_type,');
+        const [r] = await pool.query(q2, params);
+        rows = (r || []).map((x) => ({ ...x, employee_sector: null }));
+      } else {
+        throw e;
+      }
+    }
     return res.json({ success: true, data: rows, period: p });
   } catch (err) {
     return sendDbError(res, err);
@@ -563,20 +803,59 @@ export async function reportEmployeeEarnings(req, res) {
     if (!from || !to) {
       return res.status(400).json({ success: false, error: 'Parâmetros from e to (YYYY-MM-DD) são obrigatórios' });
     }
-    const [rows] = await pool.query(
-      `SELECT e.id AS employee_id, e.name, e.role,
-        COUNT(t.id) AS entries,
-        COALESCE(SUM(t.days_worked),0) AS total_days,
-        COALESCE(SUM(t.regular_hours),0) AS total_regular_hours,
-        COALESCE(SUM(t.overtime_hours),0) AS total_overtime_hours,
-        COALESCE(SUM(t.calculated_amount),0) AS total_earnings
-       FROM construction_payroll_timesheets t
-       INNER JOIN construction_payroll_employees e ON e.id = t.employee_id
-       WHERE t.work_date >= ? AND t.work_date <= ?
-       GROUP BY e.id, e.name, e.role
-       ORDER BY total_earnings DESC`,
-      [from, to]
-    );
+    let rows;
+    try {
+      const [r] = await pool.query(
+        `SELECT e.id AS employee_id, e.name, e.role, e.sector,
+          COUNT(t.id) AS entries,
+          COALESCE(SUM(t.days_worked),0) AS total_days,
+          COALESCE(SUM(t.regular_hours),0) AS total_regular_hours,
+          COALESCE(SUM(t.overtime_hours),0) AS total_overtime_hours,
+          COALESCE(SUM(t.calculated_amount),0) AS timesheet_earnings,
+          COALESCE((
+            SELECT SUM(a.reimbursement) FROM construction_payroll_period_adjustments a
+            INNER JOIN construction_payroll_periods p ON p.id = a.period_id
+            WHERE a.employee_id = e.id AND p.end_date >= ? AND p.end_date <= ?
+          ), 0) AS reimbursement_total,
+          COALESCE(SUM(t.calculated_amount),0) + COALESCE((
+            SELECT SUM(a.reimbursement) FROM construction_payroll_period_adjustments a
+            INNER JOIN construction_payroll_periods p ON p.id = a.period_id
+            WHERE a.employee_id = e.id AND p.end_date >= ? AND p.end_date <= ?
+          ), 0) AS total_earnings
+         FROM construction_payroll_timesheets t
+         INNER JOIN construction_payroll_employees e ON e.id = t.employee_id
+         WHERE t.work_date >= ? AND t.work_date <= ?
+         GROUP BY e.id, e.name, e.role, e.sector
+         ORDER BY total_earnings DESC`,
+        [from, to, from, to, from, to]
+      );
+      rows = r;
+    } catch (e) {
+      if (
+        isMissingTable(e) ||
+        (e.code === 'ER_BAD_FIELD_ERROR' && String(e.message || '').includes('sector'))
+      ) {
+        const [r] = await pool.query(
+          `SELECT e.id AS employee_id, e.name, e.role,
+            COUNT(t.id) AS entries,
+            COALESCE(SUM(t.days_worked),0) AS total_days,
+            COALESCE(SUM(t.regular_hours),0) AS total_regular_hours,
+            COALESCE(SUM(t.overtime_hours),0) AS total_overtime_hours,
+            COALESCE(SUM(t.calculated_amount),0) AS timesheet_earnings,
+            0 AS reimbursement_total,
+            COALESCE(SUM(t.calculated_amount),0) AS total_earnings
+           FROM construction_payroll_timesheets t
+           INNER JOIN construction_payroll_employees e ON e.id = t.employee_id
+           WHERE t.work_date >= ? AND t.work_date <= ?
+           GROUP BY e.id, e.name, e.role
+           ORDER BY total_earnings DESC`,
+          [from, to]
+        );
+        rows = (r || []).map((x) => ({ ...x, sector: null }));
+      } else {
+        throw e;
+      }
+    }
     return res.json({ success: true, data: rows, range: { from, to } });
   } catch (err) {
     return sendDbError(res, err);
@@ -619,9 +898,25 @@ export async function reportTotalExpenses(req, res) {
         'SELECT COALESCE(SUM(calculated_amount),0) AS total, COUNT(*) AS lines FROM construction_payroll_timesheets WHERE period_id = ?',
         [pid]
       );
+      let reim = 0;
+      try {
+        const [[r]] = await pool.query(
+          'SELECT COALESCE(SUM(reimbursement),0) AS s FROM construction_payroll_period_adjustments WHERE period_id = ?',
+          [pid]
+        );
+        reim = Number(r.s) || 0;
+      } catch (_) {}
+      const labor = Number(agg.total) || 0;
       return res.json({
         success: true,
-        data: { scope: 'period', period: p, total: Number(agg.total) || 0, line_count: Number(agg.lines) || 0 },
+        data: {
+          scope: 'period',
+          period: p,
+          timesheet_total: labor,
+          reimbursement_total: reim,
+          total: Math.round((labor + reim) * 100) / 100,
+          line_count: Number(agg.lines) || 0,
+        },
       });
     }
     const from = req.query.from;
@@ -636,11 +931,25 @@ export async function reportTotalExpenses(req, res) {
       'SELECT COALESCE(SUM(calculated_amount),0) AS total, COUNT(*) AS lines FROM construction_payroll_timesheets WHERE work_date >= ? AND work_date <= ?',
       [from, to]
     );
+    let reimRange = 0;
+    try {
+      const [[r]] = await pool.query(
+        `SELECT COALESCE(SUM(a.reimbursement),0) AS s
+         FROM construction_payroll_period_adjustments a
+         INNER JOIN construction_payroll_periods p ON p.id = a.period_id
+         WHERE p.end_date >= ? AND p.end_date <= ?`,
+        [from, to]
+      );
+      reimRange = Number(r.s) || 0;
+    } catch (_) {}
+    const labor = Number(agg.total) || 0;
     return res.json({
       success: true,
       data: {
         scope: 'range',
-        total: Number(agg.total) || 0,
+        timesheet_total: labor,
+        reimbursement_total: reimRange,
+        total: Math.round((labor + reimRange) * 100) / 100,
         line_count: Number(agg.lines) || 0,
         range: { from, to },
       },

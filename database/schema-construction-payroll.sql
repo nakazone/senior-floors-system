@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS `construction_payroll_employees` (
   `hourly_rate` decimal(12,2) NOT NULL DEFAULT 0.00,
   `overtime_rate` decimal(12,2) NOT NULL DEFAULT 0.00,
   `payment_method` varchar(64) DEFAULT NULL COMMENT 'check, ach, cash, zelle, etc.',
+  `sector` enum('installation','sand_finish') DEFAULT NULL COMMENT 'Installation vs Sand & Finish',
   `user_id` int(11) DEFAULT NULL COMMENT 'optional link to CRM users.id (no FK — type/host variance)',
   `is_active` tinyint(1) NOT NULL DEFAULT 1,
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -68,4 +69,19 @@ CREATE TABLE IF NOT EXISTS `construction_payroll_timesheets` (
   KEY `idx_created_by` (`created_by`),
   CONSTRAINT `fk_cpt_period` FOREIGN KEY (`period_id`) REFERENCES `construction_payroll_periods` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_cpt_employee` FOREIGN KEY (`employee_id`) REFERENCES `construction_payroll_employees` (`id`) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `construction_payroll_period_adjustments` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `period_id` int(11) NOT NULL,
+  `employee_id` int(11) NOT NULL,
+  `reimbursement` decimal(12,2) NOT NULL DEFAULT 0.00 COMMENT 'Reembolso no fechamento do período',
+  `notes` varchar(500) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uniq_period_employee_adj` (`period_id`,`employee_id`),
+  KEY `idx_cppa_employee` (`employee_id`),
+  CONSTRAINT `fk_cppa_period` FOREIGN KEY (`period_id`) REFERENCES `construction_payroll_periods` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_cppa_employee` FOREIGN KEY (`employee_id`) REFERENCES `construction_payroll_employees` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

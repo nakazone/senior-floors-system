@@ -15,6 +15,12 @@ let currentPeriod = null;
 let timesheetRows = [];
 let closingPeriodMode = false;
 
+function sectorLabel(s) {
+  if (s === 'installation') return 'Installation';
+  if (s === 'sand_finish') return 'Sand & Finish';
+  return '—';
+}
+
 function money(n) {
   const x = Number(n) || 0;
   return new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' }).format(x);
@@ -66,10 +72,15 @@ function showAuth(msg) {
 
 function setManageUi() {
   const show = canManage;
-  ['btnNewEmployee', 'btnNewPeriod'].forEach((id) => {
+  ['btnNewEmployee', 'btnNewPeriod', 'btnNewEmployeeEmpty'].forEach((id) => {
     const el = document.getElementById(id);
     if (el) el.classList.toggle('hidden', !show);
   });
+  const hint = document.getElementById('empPermHint');
+  if (hint) {
+    const hasView = role === 'admin' || permissionKeys.includes('payroll.view');
+    hint.classList.toggle('hidden', canManage || !hasView);
+  }
   refreshPeriodActions();
 }
 
@@ -103,7 +114,7 @@ async function loadSession() {
   const hasView = role === 'admin' || permissionKeys.includes('payroll.view');
   canManage = role === 'admin' || permissionKeys.includes('payroll.manage');
   if (!hasView) {
-    showAuth('You do not have payroll.view permission.');
+    showAuth('Sem permissão payroll.view para ver esta página.');
     return false;
   }
   showAuth('');
@@ -135,6 +146,13 @@ async function loadEmployees() {
     employeesById[e.id] = e;
   });
   renderEmployeeTable();
+  updateEmployeeEmptyState();
+}
+
+function updateEmployeeEmptyState() {
+  const wrap = document.getElementById('empEmptyCta');
+  if (!wrap) return;
+  wrap.classList.toggle('hidden', employees.length > 0);
 }
 
 async function loadProjects() {
@@ -148,7 +166,7 @@ async function loadPeriods() {
   periods = j.data || [];
   const sel = document.getElementById('periodSelect');
   const prev = selectedPeriodId;
-  sel.innerHTML = '<option value="">Select period…</option>';
+  sel.innerHTML = '<option value="">Selecione o período…</option>';
   periods.forEach((p) => {
     const opt = document.createElement('option');
     opt.value = String(p.id);
@@ -174,14 +192,15 @@ function renderEmployeeTable() {
     tr.innerHTML = `
       <td class="px-3 py-2 font-medium">${escapeHtml(e.name)}</td>
       <td class="px-3 py-2">${escapeHtml(e.role || '—')}</td>
+      <td class="px-3 py-2">${escapeHtml(sectorLabel(e.sector))}</td>
       <td class="px-3 py-2">${escapeHtml(e.payment_type)}</td>
       <td class="px-3 py-2 text-right">${money(e.daily_rate)}</td>
       <td class="px-3 py-2 text-right">${money(e.hourly_rate)}</td>
       <td class="px-3 py-2 text-right">${money(e.overtime_rate)}</td>
       <td class="px-3 py-2">${escapeHtml(e.payment_method || '—')}</td>
-      <td class="px-3 py-2">${e.is_active ? 'Yes' : 'No'}</td>
+      <td class="px-3 py-2">${e.is_active ? 'Sim' : 'Não'}</td>
       <td class="px-3 py-2 text-right">
-        ${canManage ? `<button type="button" class="text-[#1a2036] font-semibold underline text-xs emp-edit" data-id="${e.id}">Edit</button>` : '—'}
+        ${canManage ? `<button type="button" class="text-[#1a2036] font-semibold underline text-xs emp-edit" data-id="${e.id}">Editar</button>` : '—'}
       </td>`;
     tb.appendChild(tr);
   });
@@ -227,6 +246,15 @@ function defaultWorkDate() {
   return s;
 }
 
+function bumpInput(tr, sel, delta, min = 0) {
+  const input = tr.querySelector(sel);
+  if (!input || input.disabled) return;
+  const cur = Number(input.value) || 0;
+  const n = Math.max(min, Math.round((cur + delta) * 100) / 100);
+  input.value = n === 0 ? '' : String(n);
+  refreshRowAmount(tr);
+}
+
 function refreshRowAmount(tr) {
   const empId = parseInt(tr.querySelector('.ts-emp').value, 10);
   const row = {
@@ -244,6 +272,17 @@ function bindRowEvents(tr) {
     el.addEventListener('change', () => refreshRowAmount(tr));
     el.addEventListener('input', () => refreshRowAmount(tr));
   });
+  tr.querySelector('.ts-days-dec')?.addEventListener('click', () => bumpInput(tr, '.ts-days', -0.25));
+  tr.querySelector('.ts-days-inc')?.addEventListener('click', () => bumpInput(tr, '.ts-days', 0.25));
+  tr.querySelector('.ts-reg-dec')?.addEventListener('click', () => bumpInput(tr, '.ts-reg', -0.25));
+  tr.querySelector('.ts-reg-inc')?.addEventListener('click', () => bumpInput(tr, '.ts-reg', 0.25));
+  tr.querySelector('.ts-reg-2')?.addEventListener('click', () => bumpInput(tr, '.ts-reg', 2));
+  tr.querySelector('.ts-reg-4')?.addEventListener('click', () => bumpInput(tr, '.ts-reg', 4));
+  tr.querySelector('.ts-ot-dec')?.addEventListener('click', () => bumpInput(tr, '.ts-ot', -0.25));
+  tr.querySelector('.ts-ot-inc')?.addEventListener('click', () => bumpInput(tr, '.ts-ot', 0.25));
+  tr.querySelector('.ts-ot-1')?.addEventListener('click', () => bumpInput(tr, '.ts-ot', 1));
+  tr.querySelector('.ts-ot-2')?.addEventListener('click', () => bumpInput(tr, '.ts-ot', 2));
+  tr.querySelector('.ts-ot-4')?.addEventListener('click', () => bumpInput(tr, '.ts-ot', 4));
   tr.querySelector('.ts-full').addEventListener('click', () => {
     tr.querySelector('.ts-days').value = '1';
     refreshRowAmount(tr);
@@ -260,10 +299,10 @@ function bindRowEvents(tr) {
       return;
     }
     if (!canManage) return;
-    if (!window.confirm('Delete this timesheet line?')) return;
+    if (!window.confirm('Apagar esta linha do quadro de horas?')) return;
     try {
       await api('DELETE', `/timesheets/${id}`);
-      window.crmToast?.success?.('Line deleted');
+      window.crmToast?.success?.('Linha removida');
       await loadTimesheetsForPeriod();
     } catch (err) {
       window.crmToast?.error?.(err.message);
@@ -279,19 +318,51 @@ function appendTimesheetRow(data) {
   if (id) tr.dataset.lineId = String(id);
   const locked = currentPeriod?.status === 'closed';
   const dis = locked || !canManage ? ' disabled' : '';
+  const d0 = data?.days_worked ?? '';
+  const r0 = data?.regular_hours ?? '';
+  const o0 = data?.overtime_hours ?? '';
   tr.innerHTML = `
-    <td class="px-2 py-1"><input type="date" class="ts-date w-full border rounded px-1 py-1 text-xs"${dis} value="${data?.work_date || ''}" /></td>
-    <td class="px-2 py-1"><select class="ts-emp w-full border rounded px-1 py-1 text-xs"${dis}>${employeeOptionsHtml(data?.employee_id)}</select></td>
-    <td class="px-2 py-1"><select class="ts-proj w-full border rounded px-1 py-1 text-xs"${dis}>${projectOptionsHtml(data?.project_id)}</select></td>
-    <td class="px-2 py-1"><input type="number" step="0.25" min="0" class="ts-days w-full border rounded px-1 py-1 text-xs"${dis} value="${data?.days_worked ?? ''}" /></td>
-    <td class="px-2 py-1"><input type="number" step="0.25" min="0" class="ts-reg w-full border rounded px-1 py-1 text-xs"${dis} value="${data?.regular_hours ?? ''}" /></td>
-    <td class="px-2 py-1"><input type="number" step="0.25" min="0" class="ts-ot w-full border rounded px-1 py-1 text-xs"${dis} value="${data?.overtime_hours ?? ''}" /></td>
-    <td class="px-2 py-1"><input type="text" class="ts-notes w-full border rounded px-1 py-1 text-xs"${dis} value="" /></td>
-    <td class="px-2 py-1 text-right ts-amt text-xs font-medium">${money(data?.calculated_amount ?? 0)}</td>
-    <td class="px-2 py-1 whitespace-nowrap">
-      <button type="button" class="ts-full px-1 py-0.5 text-[10px] border rounded${locked || !canManage ? ' opacity-40' : ''}" ${locked || !canManage ? 'disabled' : ''}>1d</button>
-      <button type="button" class="ts-half px-1 py-0.5 text-[10px] border rounded${locked || !canManage ? ' opacity-40' : ''}" ${locked || !canManage ? 'disabled' : ''}>½</button>
-      <button type="button" class="ts-del px-1 py-0.5 text-[10px] border rounded text-red-700${locked || !canManage ? ' opacity-40' : ''}" ${locked || !canManage ? 'disabled' : ''}>×</button>
+    <td class="px-2 py-1 align-top"><input type="date" class="ts-date w-full border rounded px-2 py-2 text-sm"${dis} value="${data?.work_date || ''}" /></td>
+    <td class="px-2 py-1 align-top"><select class="ts-emp w-full border rounded px-2 py-2 text-sm"${dis}>${employeeOptionsHtml(data?.employee_id)}</select></td>
+    <td class="px-2 py-1 align-top"><select class="ts-proj w-full border rounded px-2 py-2 text-sm"${dis}>${projectOptionsHtml(data?.project_id)}</select></td>
+    <td class="px-1 py-1 align-top">
+      <div class="flex items-center justify-center gap-0.5">
+        <button type="button" class="ts-numbtn ts-days-dec"${dis} aria-label="Menos dia">−</button>
+        <input type="number" inputmode="decimal" step="0.25" min="0" class="ts-days payroll-num-input w-[4.25rem] border rounded"${dis} value="${d0 === '' || d0 == null ? '' : d0}" />
+        <button type="button" class="ts-numbtn ts-days-inc"${dis} aria-label="Mais dia">+</button>
+      </div>
+      <div class="flex justify-center gap-1 mt-1">
+        <button type="button" class="ts-full text-[10px] px-2 py-1 border border-slate-200 rounded${locked || !canManage ? ' opacity-40' : ''}" ${locked || !canManage ? 'disabled' : ''}>1d</button>
+        <button type="button" class="ts-half text-[10px] px-2 py-1 border border-slate-200 rounded${locked || !canManage ? ' opacity-40' : ''}" ${locked || !canManage ? 'disabled' : ''}>½</button>
+      </div>
+    </td>
+    <td class="px-1 py-1 align-top">
+      <div class="flex items-center justify-center gap-0.5">
+        <button type="button" class="ts-numbtn ts-reg-dec"${dis} aria-label="Menos horas">−</button>
+        <input type="number" inputmode="decimal" step="0.25" min="0" class="ts-reg payroll-num-input w-[4.25rem] border rounded"${dis} value="${r0 === '' || r0 == null ? '' : r0}" />
+        <button type="button" class="ts-numbtn ts-reg-inc"${dis} aria-label="Mais horas">+</button>
+      </div>
+      <div class="flex justify-center gap-1 mt-1 flex-wrap">
+        <button type="button" class="ts-reg-2 text-[10px] px-2 py-1 border border-slate-200 rounded${locked || !canManage ? ' opacity-40' : ''}" ${locked || !canManage ? 'disabled' : ''}>+2h</button>
+        <button type="button" class="ts-reg-4 text-[10px] px-2 py-1 border border-slate-200 rounded${locked || !canManage ? ' opacity-40' : ''}" ${locked || !canManage ? 'disabled' : ''}>+4h</button>
+      </div>
+    </td>
+    <td class="px-1 py-1 align-top">
+      <div class="flex items-center justify-center gap-0.5">
+        <button type="button" class="ts-numbtn ts-ot-dec"${dis} aria-label="Menos HE">−</button>
+        <input type="number" inputmode="decimal" step="0.25" min="0" class="ts-ot payroll-num-input w-[4.25rem] border rounded"${dis} value="${o0 === '' || o0 == null ? '' : o0}" />
+        <button type="button" class="ts-numbtn ts-ot-inc"${dis} aria-label="Mais HE">+</button>
+      </div>
+      <div class="flex justify-center gap-1 mt-1 flex-wrap">
+        <button type="button" class="ts-ot-1 text-[10px] px-2 py-1 border border-amber-200 bg-amber-50 rounded${locked || !canManage ? ' opacity-40' : ''}" ${locked || !canManage ? 'disabled' : ''}>+1h</button>
+        <button type="button" class="ts-ot-2 text-[10px] px-2 py-1 border border-amber-200 bg-amber-50 rounded${locked || !canManage ? ' opacity-40' : ''}" ${locked || !canManage ? 'disabled' : ''}>+2h</button>
+        <button type="button" class="ts-ot-4 text-[10px] px-2 py-1 border border-amber-200 bg-amber-50 rounded${locked || !canManage ? ' opacity-40' : ''}" ${locked || !canManage ? 'disabled' : ''}>+4h</button>
+      </div>
+    </td>
+    <td class="px-2 py-1 align-top"><input type="text" class="ts-notes w-full border rounded px-2 py-2 text-sm"${dis} value="" /></td>
+    <td class="px-2 py-1 text-right ts-amt text-sm font-semibold align-middle">${money(data?.calculated_amount ?? 0)}</td>
+    <td class="px-2 py-1 align-middle">
+      <button type="button" class="ts-del px-2 py-1 text-sm border border-red-200 text-red-700 rounded${locked || !canManage ? ' opacity-40' : ''}" ${locked || !canManage ? 'disabled' : ''} title="Apagar linha">×</button>
     </td>`;
   tb.appendChild(tr);
   if (data?.notes) tr.querySelector('.ts-notes').value = data.notes;
@@ -319,14 +390,18 @@ async function loadTimesheetsForPeriod() {
     currentPeriod = null;
     document.getElementById('periodMeta').textContent = '';
     document.getElementById('periodLockBadge').classList.add('hidden');
+    document.getElementById('periodRunningTotal').textContent = money(0);
+    refreshPeriodActions();
     return;
   }
   const j = await api('GET', `/periods/${selectedPeriodId}/timesheets`);
   currentPeriod = j.period;
   timesheetRows = j.data || [];
   const p = currentPeriod;
+  const freqPt =
+    p?.frequency === 'weekly' ? 'Semanal' : p?.frequency === 'biweekly' ? 'Quinzenal' : p?.frequency === 'monthly' ? 'Mensal' : p?.frequency || '';
   document.getElementById('periodMeta').textContent = p
-    ? `Frequency: ${p.frequency} · ${p.start_date} → ${p.end_date} · Status: ${p.status}`
+    ? `${freqPt} · ${p.start_date} → ${p.end_date} · ${p.status === 'closed' ? 'Fechado' : 'Aberto'}`
     : '';
   const badge = document.getElementById('periodLockBadge');
   if (p?.status === 'closed') badge.classList.remove('hidden');
@@ -374,7 +449,7 @@ function openEmployeeModal(editId) {
   const m = document.getElementById('empModal');
   document.getElementById('empFormErr').classList.add('hidden');
   document.getElementById('empEditId').value = editId || '';
-  document.getElementById('empModalTitle').textContent = editId ? 'Edit employee' : 'New employee';
+  document.getElementById('empModalTitle').textContent = editId ? 'Editar funcionário' : 'Novo funcionário';
   document.getElementById('empActiveWrap').classList.toggle('hidden', !editId);
   if (editId) {
     const e = employeesById[editId];
@@ -388,6 +463,7 @@ function openEmployeeModal(editId) {
     document.getElementById('empHourly').value = e.hourly_rate ?? '';
     document.getElementById('empOt').value = e.overtime_rate ?? '';
     document.getElementById('empPayMethod').value = e.payment_method || '';
+    document.getElementById('empSector').value = e.sector || '';
     document.getElementById('empActive').checked = !!e.is_active;
   } else {
     ['empName', 'empRole', 'empPhone', 'empEmail', 'empPayMethod'].forEach((id) => {
@@ -397,6 +473,7 @@ function openEmployeeModal(editId) {
     document.getElementById('empDaily').value = '0';
     document.getElementById('empHourly').value = '0';
     document.getElementById('empOt').value = '0';
+    document.getElementById('empSector').value = '';
   }
   m.classList.remove('hidden');
   m.classList.add('flex');
@@ -422,22 +499,23 @@ async function saveEmployee() {
     hourly_rate: Number(document.getElementById('empHourly').value) || 0,
     overtime_rate: Number(document.getElementById('empOt').value) || 0,
     payment_method: document.getElementById('empPayMethod').value.trim() || null,
+    sector: document.getElementById('empSector').value || null,
   };
   if (editId) {
     body.is_active = document.getElementById('empActive').checked;
   }
   if (!body.name) {
-    err.textContent = 'Name is required.';
+    err.textContent = 'O nome é obrigatório.';
     err.classList.remove('hidden');
     return;
   }
   try {
     if (editId) {
       await api('PUT', `/employees/${editId}`, body);
-      window.crmToast?.success?.('Employee updated');
+      window.crmToast?.success?.('Funcionário atualizado');
     } else {
       await api('POST', '/employees', body);
-      window.crmToast?.success?.('Employee created');
+      window.crmToast?.success?.('Funcionário criado');
     }
     closeEmployeeModal();
     await loadEmployees();
@@ -477,14 +555,14 @@ async function savePeriod() {
     end_date: document.getElementById('perEnd').value,
   };
   if (!body.name) {
-    err.textContent = 'Name is required.';
+    err.textContent = 'O nome do período é obrigatório.';
     err.classList.remove('hidden');
     return;
   }
   try {
     const j = await api('POST', '/periods', body);
     closePeriodModal();
-    window.crmToast?.success?.('Period created');
+    window.crmToast?.success?.('Período criado');
     selectedPeriodId = j.data?.id;
     await loadPeriods();
     document.getElementById('periodSelect').value = String(selectedPeriodId);
@@ -499,21 +577,65 @@ function fillPreviewModal(data, opts) {
   closingPeriodMode = !!(opts && opts.closing);
   const tbody = document.getElementById('previewTbody');
   tbody.innerHTML = '';
+  const periodClosed = data.period?.status === 'closed';
+  const editReim = closingPeriodMode && canManage && !periodClosed;
+
+  document.getElementById('previewReimHint')?.classList.toggle('hidden', !editReim);
+
   (data.by_employee || []).forEach((row) => {
     const tr = document.createElement('tr');
     tr.className = 'border-t border-slate-100';
-    tr.innerHTML = `<td class="px-3 py-2">${escapeHtml(row.name)}</td>
+    tr.dataset.employeeId = String(row.employee_id);
+    const reimVal = Number(row.reimbursement) || 0;
+    const reimCell = editReim
+      ? `<td class="px-2 py-2"><input type="number" step="0.01" min="0" class="preview-reim-input w-full border rounded-lg px-2 py-2 text-sm" value="${reimVal}" /></td>`
+      : `<td class="px-3 py-2 text-right">${money(reimVal)}</td>`;
+    tr.innerHTML = `<td class="px-3 py-2 font-medium">${escapeHtml(row.name)}</td>
+      <td class="px-3 py-2 text-slate-600">${escapeHtml(sectorLabel(row.sector))}</td>
       <td class="px-3 py-2 text-right">${row.line_count}</td>
-      <td class="px-3 py-2 text-right">${money(row.subtotal)}</td>`;
+      <td class="px-3 py-2 text-right">${money(row.subtotal)}</td>
+      ${reimCell}
+      <td class="px-3 py-2 text-right font-semibold">${money(row.employee_total != null ? row.employee_total : Number(row.subtotal) + reimVal)}</td>`;
     tbody.appendChild(tr);
   });
-  document.getElementById('previewGrand').textContent = money(data.grand_total);
-  document.getElementById('previewTitle').textContent = closingPeriodMode ? 'Close period — preview' : 'Payroll preview';
+
+  const sumSheet = (data.by_employee || []).reduce((s, r) => s + (Number(r.subtotal) || 0), 0);
+  const sumReim = (data.by_employee || []).reduce((s, r) => s + (Number(r.reimbursement) || 0), 0);
+  const gSheet = data.grand_timesheet != null ? Number(data.grand_timesheet) : sumSheet;
+  const gReim = data.grand_reimbursement != null ? Number(data.grand_reimbursement) : sumReim;
+  const gTot =
+    data.grand_total != null ? Number(data.grand_total) : Math.round((gSheet + gReim) * 100) / 100;
+
+  document.getElementById('previewGrandSheet').textContent = money(gSheet);
+  document.getElementById('previewGrandReim').textContent = money(gReim);
+  document.getElementById('previewGrandTotal').textContent = money(gTot);
+
+  document.getElementById('previewTitle').textContent = closingPeriodMode
+    ? 'Fechamento — conferir e reembolsos'
+    : 'Pré-visualização da folha';
   document.getElementById('previewSubtitle').textContent = data.period
     ? `${data.period.name} (${data.period.start_date} → ${data.period.end_date})`
     : '';
   document.getElementById('previewCloseActions').classList.toggle('hidden', !closingPeriodMode);
   document.getElementById('previewCloseOnly').classList.toggle('hidden', closingPeriodMode);
+}
+
+function collectAdjustmentsFromPreview() {
+  const rows = [];
+  document.querySelectorAll('#previewTbody tr').forEach((tr) => {
+    const id = parseInt(tr.dataset.employeeId, 10);
+    if (!id) return;
+    const inp = tr.querySelector('.preview-reim-input');
+    const n = inp ? Number(inp.value) || 0 : 0;
+    rows.push({ employee_id: id, reimbursement: n });
+  });
+  return rows;
+}
+
+async function saveAdjustmentsFromPreview() {
+  if (!selectedPeriodId || !canManage) return;
+  const adjustments = collectAdjustmentsFromPreview();
+  await api('PUT', `/periods/${selectedPeriodId}/adjustments`, { adjustments });
 }
 
 function openPreviewModal() {
@@ -531,7 +653,7 @@ function closePreviewModal() {
 
 async function fetchAndShowPreview(closing) {
   if (!selectedPeriodId) {
-    window.crmToast?.error?.('Select a period first.');
+    window.crmToast?.error?.('Selecione um período.');
     return;
   }
   try {
@@ -546,8 +668,9 @@ async function fetchAndShowPreview(closing) {
 async function confirmClosePeriod() {
   if (!selectedPeriodId) return;
   try {
+    await saveAdjustmentsFromPreview();
     await api('POST', `/periods/${selectedPeriodId}/close`);
-    window.crmToast?.success?.('Period closed and locked.');
+    window.crmToast?.success?.('Período fechado e bloqueado.');
     closePreviewModal();
     await loadPeriods();
     await loadDashboard();
@@ -584,21 +707,24 @@ function renderReportTable(title, headers, rows) {
 async function runReportEmployees() {
   const from = document.getElementById('reportFrom').value;
   const to = document.getElementById('reportTo').value;
-  if (!from || !to) return window.crmToast?.error?.('Set from/to dates.');
+  if (!from || !to) return window.crmToast?.error?.('Defina as datas De / Até.');
   const j = await api('GET', `/reports/employee-earnings?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
   const rows = (j.data || []).map((r) => [
     escapeHtml(r.name),
+    escapeHtml(sectorLabel(r.sector)),
     escapeHtml(r.role || '—'),
     String(r.entries),
+    money(r.timesheet_earnings != null ? r.timesheet_earnings : r.total_earnings),
+    money(r.reimbursement_total != null ? r.reimbursement_total : 0),
     money(r.total_earnings),
   ]);
-  renderReportTable('Employee earnings', ['Employee', 'Role', 'Entries', 'Total'], rows);
+  renderReportTable('Ganhos por funcionário', ['Nome', 'Setor', 'Função', 'Linhas', 'Folha', 'Reemb.', 'Total'], rows);
 }
 
 async function runReportProjects() {
   const from = document.getElementById('reportFrom').value;
   const to = document.getElementById('reportTo').value;
-  if (!from || !to) return window.crmToast?.error?.('Set from/to dates.');
+  if (!from || !to) return window.crmToast?.error?.('Defina as datas De / Até.');
   const j = await api('GET', `/reports/project-labor?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
   const rows = (j.data || []).map((r) => [
     r.project_id ? `#${r.project_id}` : '—',
@@ -606,19 +732,23 @@ async function runReportProjects() {
     String(r.entries),
     money(r.labor_cost),
   ]);
-  renderReportTable('Project labor cost', ['Project ID', 'Number', 'Entries', 'Labor cost'], rows);
+  renderReportTable('Mão de obra por projeto', ['Projeto', 'Número', 'Linhas', 'Custo'], rows);
 }
 
 async function runReportTotal() {
   const from = document.getElementById('reportFrom').value;
   const to = document.getElementById('reportTo').value;
-  if (!from || !to) return window.crmToast?.error?.('Set from/to dates.');
+  if (!from || !to) return window.crmToast?.error?.('Defina as datas De / Até.');
   const j = await api('GET', `/reports/total-expenses?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
   const d = j.data || {};
+  const sheet = d.timesheet_total != null ? d.timesheet_total : d.total;
+  const reim = d.reimbursement_total != null ? d.reimbursement_total : 0;
+  const tot = d.total != null ? d.total : sheet + reim;
   document.getElementById('reportOut').innerHTML = `
-    <h3 class="font-bold text-slate-800 mb-2">Total payroll expenses</h3>
-    <p class="text-lg font-bold text-[#1a2036]">${money(d.total)}</p>
-    <p class="text-sm text-slate-500">${d.line_count} lines · ${from} → ${to}</p>`;
+    <h3 class="font-bold text-slate-800 mb-2">Total (folha + reembolsos)</h3>
+    <p class="text-lg font-bold text-[#1a2036]">${money(tot)}</p>
+    <p class="text-sm text-slate-600">Folha: ${money(sheet)} · Reembolsos (períodos com fim no intervalo): ${money(reim)}</p>
+    <p class="text-sm text-slate-500">${d.line_count} linhas no quadro · ${from} → ${to}</p>`;
 }
 
 async function reloadAll() {
@@ -645,7 +775,7 @@ document.getElementById('btnSaveTimesheet')?.addEventListener('click', async () 
   const lines = collectLinesFromGrid();
   try {
     await api('POST', `/periods/${selectedPeriodId}/timesheets/bulk`, { lines });
-    window.crmToast?.success?.('Timesheet saved');
+    window.crmToast?.success?.('Quadro guardado');
     await loadTimesheetsForPeriod();
     await loadPeriods();
     await loadDashboard();
@@ -657,7 +787,17 @@ document.getElementById('btnPreviewPayroll')?.addEventListener('click', () => fe
 document.getElementById('btnPreviewClose')?.addEventListener('click', () => fetchAndShowPreview(true));
 document.getElementById('previewCloseOnly')?.addEventListener('click', () => closePreviewModal());
 document.getElementById('previewCancelClose')?.addEventListener('click', () => closePreviewModal());
+document.getElementById('previewSaveAdjustments')?.addEventListener('click', async () => {
+  try {
+    await saveAdjustmentsFromPreview();
+    window.crmToast?.success?.('Reembolsos guardados');
+    await fetchAndShowPreview(true);
+  } catch (e) {
+    window.crmToast?.error?.(e.message);
+  }
+});
 document.getElementById('previewConfirmClose')?.addEventListener('click', () => confirmClosePeriod());
+document.getElementById('btnNewEmployeeEmpty')?.addEventListener('click', () => openEmployeeModal(null));
 document.getElementById('btnReportEmployees')?.addEventListener('click', () => runReportEmployees().catch((e) => window.crmToast?.error?.(e.message)));
 document.getElementById('btnReportProjects')?.addEventListener('click', () => runReportProjects().catch((e) => window.crmToast?.error?.(e.message)));
 document.getElementById('btnReportTotal')?.addEventListener('click', () => runReportTotal().catch((e) => window.crmToast?.error?.(e.message)));

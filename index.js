@@ -378,6 +378,12 @@ app.put('/api/construction-payroll/employees/:id', requireAuth, requirePermissio
 app.get('/api/construction-payroll/periods', requireAuth, requirePermission('payroll.view'), constructionPayroll.listPeriods);
 app.post('/api/construction-payroll/periods', requireAuth, requirePermission('payroll.manage'), constructionPayroll.createPeriod);
 app.get('/api/construction-payroll/periods/:id/preview', requireAuth, requirePermission('payroll.view'), constructionPayroll.getPeriodPreview);
+app.put(
+  '/api/construction-payroll/periods/:id/adjustments',
+  requireAuth,
+  requirePermission('payroll.manage'),
+  constructionPayroll.putPeriodAdjustments
+);
 app.post('/api/construction-payroll/periods/:id/close', requireAuth, requirePermission('payroll.manage'), constructionPayroll.closePeriod);
 app.get('/api/construction-payroll/periods/:periodId/timesheets', requireAuth, requirePermission('payroll.view'), constructionPayroll.listTimesheets);
 app.post(
