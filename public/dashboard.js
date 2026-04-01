@@ -868,9 +868,18 @@ window.leadsSearchClear = leadsSearchClear;
 
 // Clients (/api/customers)
 let customersPage = 1;
+
+function escapeClientCell(s) {
+    if (s == null || s === '') return '';
+    return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/"/g, '&quot;');
+}
+
 async function loadCustomers() {
     const tbody = document.getElementById('customersTableBody');
-    tbody.innerHTML = '<tr><td colspan="9" class="text-center">Loading...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="10" class="text-center">Loading...</td></tr>';
     
     try {
         const response = await fetch(`/api/customers?page=${customersPage}&limit=20`, { credentials: 'include' });
@@ -878,21 +887,27 @@ async function loadCustomers() {
         
         if (data.success && data.data) {
             if (data.data.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="9" class="text-center">No clients found</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="10" class="text-center">No clients found</td></tr>';
             } else {
-                tbody.innerHTML = data.data.map(c => `
+                tbody.innerHTML = data.data.map(c => {
+                    const leadCell =
+                        c.lead_id != null && c.lead_id !== ''
+                            ? `<a href="lead-detail.html?id=${encodeURIComponent(c.lead_id)}">#${c.lead_id}</a>`
+                            : '—';
+                    return `
                     <tr>
                         <td>${c.id}</td>
-                        <td>${c.name || '-'}</td>
-                        <td>${c.email || '-'}</td>
-                        <td>${c.phone || '-'}</td>
-                        <td>${c.city || '-'}</td>
-                        <td>${c.customer_type || '-'}</td>
+                        <td>${escapeClientCell(c.name) || '-'}</td>
+                        <td>${escapeClientCell(c.email) || '-'}</td>
+                        <td>${escapeClientCell(c.phone) || '-'}</td>
+                        <td>${escapeClientCell(c.city) || '-'}</td>
+                        <td>${escapeClientCell(c.customer_type) || '-'}</td>
+                        <td>${leadCell}</td>
                         <td><span class="badge badge-${c.status || 'active'}">${c.status || 'active'}</span></td>
                         <td>${c.created_at ? new Date(c.created_at).toLocaleDateString() : '-'}</td>
-                        <td><button class="btn btn-sm" onclick="viewCustomer(${c.id})">View</button></td>
-                    </tr>
-                `).join('');
+                        <td><button type="button" class="btn btn-sm" onclick="viewCustomer(${c.id})">Edit</button></td>
+                    </tr>`;
+                }).join('');
             }
             
             const totalPages = Math.ceil(data.total / 20);
@@ -901,7 +916,7 @@ async function loadCustomers() {
             document.getElementById('nextPageCustomers').disabled = customersPage >= totalPages;
         }
     } catch (error) {
-        tbody.innerHTML = '<tr><td colspan="9" class="text-center">Error: ' + error.message + '</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="10" class="text-center">Error: ' + escapeClientCell(error.message) + '</td></tr>';
     }
 }
 
@@ -911,13 +926,141 @@ function changePageCustomers(delta) {
     loadCustomers();
 }
 
-function viewCustomer(id) {
-    alert('View client ' + id + ' - Feature coming soon!');
+function resetClientForm() {
+    const ids = [
+        'clientFormId', 'clientFormLeadId', 'clientName', 'clientEmail', 'clientPhone',
+        'clientAddress', 'clientCity', 'clientState', 'clientZip', 'clientNotes', 'clientFormError',
+    ];
+    ids.forEach((id) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        if (id === 'clientFormError') {
+            el.textContent = '';
+            el.style.display = 'none';
+        } else el.value = '';
+    });
+    const typeEl = document.getElementById('clientType');
+    if (typeEl) typeEl.value = 'residential';
+    const st = document.getElementById('clientStatus');
+    if (st) st.value = 'active';
 }
 
 function showNewCustomerModal() {
-    alert('New client form - Coming soon!');
+    resetClientForm();
+    const t = document.getElementById('clientModalTitle');
+    if (t) t.textContent = 'Novo cliente';
+    const modal = document.getElementById('clientModal');
+    if (modal) modal.style.display = 'flex';
 }
+
+async function viewCustomer(id) {
+    resetClientForm();
+    const t = document.getElementById('clientModalTitle');
+    if (t) t.textContent = 'Editar cliente';
+    const err = document.getElementById('clientFormError');
+    try {
+        const res = await fetch(`/api/customers/${id}`, { credentials: 'include' });
+        const data = await res.json();
+        if (!data.success || !data.data) {
+            if (err) {
+                err.textContent = data.error || 'Não foi possível carregar o cliente';
+                err.style.display = 'block';
+            }
+            return;
+        }
+        const c = data.data;
+        const set = (fid, v) => {
+            const el = document.getElementById(fid);
+            if (el) el.value = v != null && v !== '' ? String(v) : '';
+        };
+        document.getElementById('clientFormId').value = String(c.id);
+        set('clientFormLeadId', c.lead_id != null ? c.lead_id : '');
+        set('clientName', c.name);
+        set('clientEmail', c.email);
+        set('clientPhone', c.phone);
+        set('clientAddress', c.address);
+        set('clientCity', c.city);
+        set('clientState', c.state);
+        set('clientZip', c.zipcode);
+        set('clientType', c.customer_type || 'residential');
+        set('clientStatus', c.status || 'active');
+        set('clientNotes', c.notes);
+        const modal = document.getElementById('clientModal');
+        if (modal) modal.style.display = 'flex';
+    } catch (e) {
+        if (err) {
+            err.textContent = e.message || 'Erro de rede';
+            err.style.display = 'block';
+        }
+    }
+}
+
+async function submitClientForm(ev) {
+    ev.preventDefault();
+    const errEl = document.getElementById('clientFormError');
+    if (errEl) {
+        errEl.textContent = '';
+        errEl.style.display = 'none';
+    }
+    const id = document.getElementById('clientFormId').value.trim();
+    const body = {
+        name: document.getElementById('clientName').value.trim(),
+        email: document.getElementById('clientEmail').value.trim(),
+        phone: document.getElementById('clientPhone').value.trim(),
+        address: document.getElementById('clientAddress').value.trim() || null,
+        city: document.getElementById('clientCity').value.trim() || null,
+        state: document.getElementById('clientState').value.trim() || null,
+        zipcode: document.getElementById('clientZip').value.replace(/\D/g, '').slice(0, 10) || null,
+        customer_type: document.getElementById('clientType').value,
+        notes: document.getElementById('clientNotes').value.trim() || null,
+    };
+    const leadRaw = document.getElementById('clientFormLeadId').value.trim();
+    if (leadRaw && !id) body.lead_id = parseInt(leadRaw, 10);
+
+    if (id) {
+        body.status = document.getElementById('clientStatus').value;
+    }
+
+    const btn = document.getElementById('clientFormSubmit');
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'A guardar…';
+    }
+    try {
+        const url = id ? `/api/customers/${encodeURIComponent(id)}` : '/api/customers';
+        const method = id ? 'PUT' : 'POST';
+        const res = await fetch(url, {
+            method,
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+            if (errEl) {
+                errEl.textContent = data.error || 'Pedido falhou (HTTP ' + res.status + ')';
+                errEl.style.display = 'block';
+            }
+            return;
+        }
+        if (typeof closeModal === 'function') closeModal('clientModal');
+        loadCustomers();
+    } catch (e) {
+        if (errEl) {
+            errEl.textContent = e.message || 'Erro de rede';
+            errEl.style.display = 'block';
+        }
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = 'Guardar';
+        }
+    }
+}
+
+window.viewCustomer = viewCustomer;
+window.showNewCustomerModal = showNewCustomerModal;
+window.submitClientForm = submitClientForm;
 
 // Quotes (pagination: não usar nome "quotesPage" — colide com id DOM #quotesPage e quebrava showPage)
 let quotesListPage = 1;

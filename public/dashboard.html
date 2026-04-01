@@ -513,12 +513,89 @@
                         </form>
                     </div>
                 </div>
+
+                <!-- Cliente (cadastro / edição) -->
+                <div id="clientModal" class="modal" style="display: none;">
+                    <div class="modal-content" style="max-width: 560px;">
+                        <div class="modal-header">
+                            <h3 id="clientModalTitle">Novo cliente</h3>
+                            <button type="button" class="modal-close" onclick="closeModal('clientModal')">&times;</button>
+                        </div>
+                        <form id="clientForm" onsubmit="submitClientForm(event)">
+                            <input type="hidden" id="clientFormId" value="">
+                            <input type="hidden" id="clientFormLeadId" value="">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="clientName">Nome *</label>
+                                    <input type="text" id="clientName" required maxlength="255" autocomplete="name">
+                                </div>
+                                <div class="form-group">
+                                    <label for="clientType">Tipo *</label>
+                                    <select id="clientType" required>
+                                        <option value="residential">Cliente final (residencial)</option>
+                                        <option value="builder">Builder</option>
+                                        <option value="commercial">Comercial</option>
+                                        <option value="property_manager">Property manager</option>
+                                        <option value="investor">Investidor</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="clientEmail">Email *</label>
+                                    <input type="email" id="clientEmail" required maxlength="255" autocomplete="email">
+                                </div>
+                                <div class="form-group">
+                                    <label for="clientPhone">Telefone</label>
+                                    <input type="tel" id="clientPhone" maxlength="50" autocomplete="tel" placeholder="Opcional no cadastro manual">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="clientAddress">Morada</label>
+                                <textarea id="clientAddress" rows="2" maxlength="500"></textarea>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="clientCity">Cidade</label>
+                                    <input type="text" id="clientCity" maxlength="100">
+                                </div>
+                                <div class="form-group">
+                                    <label for="clientState">Estado</label>
+                                    <input type="text" id="clientState" maxlength="50">
+                                </div>
+                                <div class="form-group">
+                                    <label for="clientZip">ZIP</label>
+                                    <input type="text" id="clientZip" maxlength="10" inputmode="numeric">
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="clientStatus">Estado</label>
+                                    <select id="clientStatus">
+                                        <option value="active">Ativo</option>
+                                        <option value="inactive">Inativo</option>
+                                        <option value="archived">Arquivado</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="clientNotes">Notas</label>
+                                <textarea id="clientNotes" rows="3" maxlength="8000"></textarea>
+                            </div>
+                            <p id="clientFormError" class="text-muted" style="color:#c0392b;display:none;font-size:0.9rem;"></p>
+                            <div class="btn-group">
+                                <button type="button" class="btn btn-secondary" onclick="closeModal('clientModal')">Cancelar</button>
+                                <button type="submit" class="btn btn-primary" id="clientFormSubmit">Guardar</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
                 
                 <!-- Clients (API: /api/customers — builders e clientes finais) -->
                 <div id="customersPage" class="page-content" style="display: none;">
                     <div class="page-header">
                         <h2>Clients</h2>
-                        <button class="btn btn-primary" onclick="showNewCustomerModal()">+ New client</button>
+                        <button type="button" class="btn btn-primary" onclick="showNewCustomerModal()" data-crm-permission="customers.create">+ New client</button>
                     </div>
                     
                     <div class="table-container">
@@ -531,13 +608,14 @@
                                     <th>Phone</th>
                                     <th>City</th>
                                     <th>Type</th>
+                                    <th>Lead</th>
                                     <th>Status</th>
                                     <th>Created</th>
                                     <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="customersTableBody">
-                                <tr><td colspan="9" class="text-center">Loading...</td></tr>
+                                <tr><td colspan="10" class="text-center">Loading...</td></tr>
                             </tbody>
                         </table>
                     </div>

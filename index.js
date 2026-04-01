@@ -15,7 +15,14 @@ import { handleDbCheck } from './routes/dbCheck.js';
 import { listLeads, getLead, createLead, updateLead, deleteLead } from './routes/leads.js';
 import { login, logout, checkSession, changePassword } from './routes/auth.js';
 import { requireAuth, requireRole, requirePermission } from './middleware/auth.js';
-import { listCustomers, getCustomer, createCustomer, updateCustomer } from './routes/customers.js';
+import {
+  listCustomers,
+  getCustomer,
+  createCustomer,
+  updateCustomer,
+  getCustomerByLead,
+  createCustomerFromLead,
+} from './routes/customers.js';
 import {
   listQuotes,
   getQuote,
@@ -239,10 +246,12 @@ app.get('/api/proposals/:proposalId', requireAuth, getProposal);
 app.put('/api/proposals/:proposalId', requireAuth, updateProposal);
 
 // Customers
+app.get('/api/customers/by-lead/:leadId', requireAuth, getCustomerByLead);
+app.post('/api/customers/from-lead', requireAuth, requirePermission('customers.create'), createCustomerFromLead);
 app.get('/api/customers', requireAuth, listCustomers);
 app.get('/api/customers/:id', requireAuth, getCustomer);
-app.post('/api/customers', requireAuth, createCustomer);
-app.put('/api/customers/:id', requireAuth, updateCustomer);
+app.post('/api/customers', requireAuth, requirePermission('customers.create'), createCustomer);
+app.put('/api/customers/:id', requireAuth, requirePermission('customers.edit'), updateCustomer);
 
 // Quotes (rotas específicas antes de :id)
 app.get('/api/quotes', requireAuth, listQuotes);

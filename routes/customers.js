@@ -2,6 +2,7 @@
  * Clients API — tabela `customers` (builders, clientes finais convertidos de leads).
  */
 import { getDBConnection } from '../config/db.js';
+import { ensureClientFromLead } from '../modules/clients/leadToClient.js';
 
 export async function listCustomers(req, res) {
   try {
@@ -30,12 +31,17 @@ export async function listCustomers(req, res) {
       params.push(searchTerm, searchTerm, searchTerm);
     }
 
+    const [[{ lc }]] = await pool.query(
+      `SELECT COUNT(*) AS lc FROM information_schema.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'customers' AND COLUMN_NAME = 'lead_id'`
+    );
+    const selectCols =
+      Number(lc) > 0
+        ? 'id, lead_id, name, email, phone, city, state, zipcode, customer_type, owner_id, status, created_at'
+        : 'id, name, email, phone, city, state, zipcode, customer_type, owner_id, status, created_at';
+
     const [rows] = await pool.query(
-      `SELECT id, name, email, phone, city, state, zipcode, customer_type, owner_id, status, created_at 
-       FROM customers 
-       WHERE ${whereClause}
-       ORDER BY created_at DESC 
-       LIMIT ? OFFSET ?`,
+      `SELECT ${selectCols} FROM customers WHERE ${whereClause} ORDER BY created_at DESC LIMIT ? OFFSET ?`,
       [...params, limit, offset]
     );
 
@@ -77,22 +83,149 @@ export async function createCustomer(req, res) {
       return res.status(503).json({ success: false, error: 'Database not available' });
     }
 
-    const { name, email, phone, address, city, state, zipcode, customer_type, owner_id, notes } = req.body;
+    const { name, email, phone, address, city, state, zipcode, customer_type, owner_id, notes, lead_id } =
+      req.body || {};
 
-    if (!name || !email || !phone) {
-      return res.status(400).json({ success: false, error: 'Name, email, and phone are required' });
+    if (!name || !email) {
+      return res.status(400).json({ success: false, error: 'Nome e email são obrigatórios' });
+    }
+    const phoneVal = phone != null && String(phone).trim().length >= 3 ? String(phone).trim() : '—';
+
+    const leadIdNum =
+      lead_id != null && lead_id !== '' ? parseInt(String(lead_id), 10) : null;
+    const leadOk = Number.isFinite(leadIdNum) && leadIdNum > 0 ? leadIdNum : null;
+
+    const [colRows] = await pool.query(
+      `SELECT COLUMN_NAME AS n FROM information_schema.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'customers' AND COLUMN_NAME = 'lead_id'`
+    );
+    const hasLeadId = colRows.length > 0;
+
+    if (hasLeadId && leadOk) {
+      const [dup] = await pool.query('SELECT id FROM customers WHERE lead_id = ? LIMIT 1', [leadOk]);
+      if (dup.length) {
+        return res.status(409).json({
+          success: false,
+          error: 'Já existe cliente ligado a este lead',
+          data: { id: dup[0].id },
+        });
+      }
+    }
+
+    if (hasLeadId && leadOk) {
+      const [result] = await pool.execute(
+        `INSERT INTO customers (name, email, phone, address, city, state, zipcode, customer_type, owner_id, notes, status, lead_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?)`,
+        [
+          String(name).trim().slice(0, 255),
+          String(email).trim().slice(0, 255),
+          phoneVal.slice(0, 50),
+          address != null ? String(address).trim().slice(0, 5000) || null : null,
+          city != null ? String(city).trim().slice(0, 100) || null : null,
+          state != null ? String(state).trim().slice(0, 50) || null : null,
+          zipcode != null ? String(zipcode).replace(/\D/g, '').slice(0, 10) || null : null,
+          customer_type || 'residential',
+          owner_id != null && owner_id !== '' ? parseInt(String(owner_id), 10) || null : null,
+          notes != null ? String(notes).trim().slice(0, 8000) || null : null,
+          leadOk,
+        ]
+      );
+      return res.status(201).json({ success: true, data: { id: result.insertId }, message: 'Client created' });
     }
 
     const [result] = await pool.execute(
       `INSERT INTO customers (name, email, phone, address, city, state, zipcode, customer_type, owner_id, notes, status)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')`,
-      [name, email, phone, address || null, city || null, state || null, zipcode || null, 
-       customer_type || 'residential', owner_id || null, notes || null]
+      [
+        String(name).trim().slice(0, 255),
+        String(email).trim().slice(0, 255),
+        phoneVal.slice(0, 50),
+        address != null ? String(address).trim().slice(0, 5000) || null : null,
+        city != null ? String(city).trim().slice(0, 100) || null : null,
+        state != null ? String(state).trim().slice(0, 50) || null : null,
+        zipcode != null ? String(zipcode).replace(/\D/g, '').slice(0, 10) || null : null,
+        customer_type || 'residential',
+        owner_id != null && owner_id !== '' ? parseInt(String(owner_id), 10) || null : null,
+        notes != null ? String(notes).trim().slice(0, 8000) || null : null,
+      ]
     );
 
     res.status(201).json({ success: true, data: { id: result.insertId }, message: 'Client created' });
   } catch (error) {
     console.error('Create customer error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+}
+
+/** GET cliente ligado a um lead (lead_id). */
+export async function getCustomerByLead(req, res) {
+  try {
+    const leadId = parseInt(req.params.leadId, 10);
+    if (!leadId) return res.status(400).json({ success: false, error: 'Invalid lead id' });
+    const pool = await getDBConnection();
+    if (!pool) return res.status(503).json({ success: false, error: 'Database not available' });
+
+    const [colRows] = await pool.query(
+      `SELECT COLUMN_NAME AS n FROM information_schema.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'customers' AND COLUMN_NAME = 'lead_id'`
+    );
+    if (!colRows.length) {
+      return res.json({ success: true, data: null, message: 'lead_id column missing; run migrate:customers-lead-id' });
+    }
+
+    const [rows] = await pool.query('SELECT * FROM customers WHERE lead_id = ? LIMIT 1', [leadId]);
+    if (!rows.length) return res.json({ success: true, data: null });
+    res.json({ success: true, data: rows[0] });
+  } catch (error) {
+    console.error('getCustomerByLead:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+}
+
+/** POST corpo { lead_id, customer_type? } — força conversão (qualquer estágio). */
+export async function createCustomerFromLead(req, res) {
+  try {
+    const leadId = parseInt(req.body?.lead_id, 10);
+    if (!leadId) return res.status(400).json({ success: false, error: 'lead_id é obrigatório' });
+    const pool = await getDBConnection();
+    if (!pool) return res.status(503).json({ success: false, error: 'Database not available' });
+
+    const [leads] = await pool.query(
+      `SELECT l.*, ps.slug AS pipeline_stage_slug
+       FROM leads l
+       LEFT JOIN pipeline_stages ps ON l.pipeline_stage_id = ps.id
+       WHERE l.id = ?`,
+      [leadId]
+    );
+    if (!leads.length) return res.status(404).json({ success: false, error: 'Lead not found' });
+
+    const r = await ensureClientFromLead(pool, leads[0], {
+      force: true,
+      customer_type: req.body?.customer_type,
+    });
+    if (r.reason === 'invalid_email') {
+      return res.status(400).json({
+        success: false,
+        error: 'Lead sem email válido — corrija no lead antes de criar cliente',
+      });
+    }
+    if (r.created && r.customer_id) {
+      return res.status(201).json({
+        success: true,
+        data: { id: r.customer_id },
+        message: 'Client created from lead',
+      });
+    }
+    if (r.customer_id) {
+      return res.status(200).json({
+        success: true,
+        data: { id: r.customer_id },
+        message: 'Client already linked to this lead',
+      });
+    }
+    return res.status(400).json({ success: false, error: r.reason || 'Could not create client' });
+  } catch (error) {
+    console.error('createCustomerFromLead:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 }

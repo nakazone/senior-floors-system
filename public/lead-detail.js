@@ -79,6 +79,7 @@ async function loadLead() {
             loadInteractions();
             loadVisits();
             loadProposals();
+            loadLinkedClient();
         } else {
             alert('Erro ao carregar lead: ' + (data.error || 'Desconhecido'));
             window.location.href = 'dashboard.html';
@@ -244,6 +245,13 @@ async function saveLead() {
 
         const data = await response.json();
         if (data.success) {
+            if (data.client_conversion && data.client_conversion.created && data.client_conversion.customer_id) {
+                alert(
+                    'Cliente CRM criado automaticamente (ID ' +
+                        data.client_conversion.customer_id +
+                        '). Aparece em Dashboard → Clients quando o estágio é Fechado - Ganhou ou Produção.'
+                );
+            }
             loadLead();
         } else {
             alert('Erro ao atualizar: ' + (data.error || 'Desconhecido'));
@@ -253,6 +261,83 @@ async function saveLead() {
         alert('Erro ao salvar');
     }
 }
+
+async function loadLinkedClient() {
+    const wrap = document.getElementById('leadClientBanner');
+    if (!wrap || !currentLeadId) return;
+    wrap.style.display = 'none';
+    wrap.classList.remove('lead-client-banner--ok');
+    try {
+        const res = await fetch('/api/customers/by-lead/' + encodeURIComponent(currentLeadId), {
+            credentials: 'include',
+        });
+        const data = await res.json();
+        if (!data.success) return;
+        if (data.data && data.data.id) {
+            const c = data.data;
+            wrap.classList.add('lead-client-banner--ok');
+            wrap.innerHTML =
+                '<strong>Cliente no CRM:</strong> ' +
+                escapeHtml(c.name || '') +
+                ' · ID ' +
+                c.id +
+                ' · <a href="dashboard.html?page=customers">Abrir Clients</a>';
+            wrap.style.display = 'block';
+            return;
+        }
+        const st = (currentLead && (currentLead.pipeline_stage_slug || currentLead.status)) || '';
+        const hint =
+            st === 'closed_won' || st === 'production'
+                ? ' O estágio já é ganho/produção — se não vir cliente, verifique o email do lead ou crie manualmente.'
+                : ' Ao mover para <strong>Fechado - Ganhou</strong> ou <strong>Produção / Obra</strong>, o cliente é criado automaticamente (com email válido).';
+        wrap.innerHTML =
+            '<span class="text-muted">Sem cliente CRM ligado.</span>' +
+            hint +
+            '<div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;">' +
+            '<label style="font-size:0.85rem;">Tipo: <select id="leadConvertClientType">' +
+            '<option value="residential">Cliente final (residencial)</option>' +
+            '<option value="builder">Builder</option>' +
+            '<option value="commercial">Comercial</option>' +
+            '<option value="property_manager">Property manager</option>' +
+            '<option value="investor">Investidor</option>' +
+            '</select></label>' +
+            '<button type="button" class="btn btn-secondary btn-sm" onclick="convertLeadToClient()">Criar cliente agora</button>' +
+            '</div>';
+        wrap.style.display = 'block';
+    } catch (e) {
+        console.warn('loadLinkedClient:', e);
+    }
+}
+
+async function convertLeadToClient() {
+    if (!currentLeadId) return;
+    const sel = document.getElementById('leadConvertClientType');
+    const customer_type = sel && sel.value ? sel.value : 'residential';
+    try {
+        const res = await fetch('/api/customers/from-lead', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ lead_id: currentLeadId, customer_type: customer_type }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.status === 403) {
+            alert('Sem permissão para criar clientes (customers.create).');
+            return;
+        }
+        if (!data.success) {
+            alert(data.error || 'Não foi possível criar o cliente (HTTP ' + res.status + ').');
+            return;
+        }
+        const cid = data.data && data.data.id;
+        alert(cid ? 'Cliente CRM #' + cid + ' criado ou já existia.' : 'Cliente atualizado.');
+        loadLinkedClient();
+    } catch (err) {
+        alert(err.message || 'Erro de rede');
+    }
+}
+
+window.convertLeadToClient = convertLeadToClient;
 
 /**
  * Calcula score de qualificação (0-100) com base em: tipo, serviço, área, orçamento, urgência.

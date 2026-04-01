@@ -4,6 +4,7 @@
 import { getDBConnection, isDatabaseConfigured } from '../config/db.js';
 import { getLeadsTableColumns } from '../lib/leadColumns.js';
 import { extractMarketingFromBody, MARKETING_KEYS } from '../lib/marketingLeadFields.js';
+import { ensureClientFromLead } from '../modules/clients/leadToClient.js';
 
 export async function listLeads(req, res) {
   if (!isDatabaseConfigured()) return res.status(503).json({ success: false, error: 'Database not configured' });
@@ -337,8 +338,22 @@ export async function updateLead(req, res) {
        WHERE l.id = ?`,
       [id]
     );
-    
-    return res.json({ success: true, data: rows[0] });
+
+    let client_conversion = null;
+    try {
+      const conv = await ensureClientFromLead(pool, rows[0]);
+      if (conv.created || conv.customer_id) {
+        client_conversion = {
+          created: !!conv.created,
+          customer_id: conv.customer_id ?? null,
+          reason: conv.reason || null,
+        };
+      }
+    } catch (convErr) {
+      console.error('ensureClientFromLead:', convErr);
+    }
+
+    return res.json({ success: true, data: rows[0], client_conversion });
   } catch (e) {
     console.error('Update lead error:', e);
     return res.status(500).json({ success: false, error: e.message });

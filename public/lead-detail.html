@@ -268,6 +268,19 @@
             height: min(520px, 70vh);
             border: 0;
         }
+        .lead-client-banner {
+            margin-bottom: 1rem;
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            background: #e8f4fd;
+            border: 1px solid #b8daff;
+            font-size: 0.95rem;
+            line-height: 1.5;
+        }
+        .lead-client-banner.lead-client-banner--ok {
+            background: #ecfdf5;
+            border-color: #a7f3d0;
+        }
         .lead-invoice-pdf-box {
             background: #f1f5f9;
             border: 1px solid #e2e8f0;
@@ -336,6 +349,8 @@
                         </div>
                     </div>
                 </div>
+
+                <div id="leadClientBanner" class="lead-client-banner" style="display: none;" role="status"></div>
 
                 <div class="tabs">
                     <button class="tab active" data-tab="summary">📋 Resumo</button>
@@ -811,6 +826,6 @@
         </div>
     </div>
 
-    <script src="lead-detail.js?v=20250330-quote-builder"></script>
+    <script src="lead-detail.js?v=20250331-clients"></script>
 </body>
 </html>
