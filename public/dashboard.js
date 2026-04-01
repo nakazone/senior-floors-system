@@ -863,6 +863,7 @@ async function deleteLead(id) {
 // Make functions globally available
 window.viewLead = viewLead;
 window.deleteLead = deleteLead;
+window.deleteQuote = deleteQuote;
 window.leadsSearchSubmit = leadsSearchSubmit;
 window.leadsSearchClear = leadsSearchClear;
 
@@ -1151,11 +1152,13 @@ async function loadQuotes() {
     const tbody = document.getElementById('quotesTableBody');
     if (!tbody) return;
     tbody.innerHTML = '<tr><td colspan="8" class="text-center">Loading...</td></tr>';
-    
+    const canDeleteQuote =
+        crmUserRole === 'admin' || (Array.isArray(crmUserPermissions) && crmUserPermissions.includes('quotes.edit'));
+
     try {
         const response = await fetch(`/api/quotes?page=${quotesListPage}&limit=20`, { credentials: 'include' });
         const data = await response.json();
-        
+
         if (data.success && data.data) {
             if (data.data.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="8" class="text-center">No quotes found</td></tr>';
@@ -1165,6 +1168,9 @@ async function loadQuotes() {
                         q.pdf_path || q.has_invoice_pdf
                             ? `<a class="btn btn-sm" href="/api/quotes/${q.id}/invoice-pdf" target="_blank" rel="noopener">Ver PDF</a>`
                             : '—';
+                    const deleteBtn = canDeleteQuote
+                        ? `<button type="button" class="btn btn-sm btn-danger" onclick="deleteQuote(${q.id})" title="Excluir orçamento">Excluir</button>`
+                        : '';
                     return `
                     <tr>
                         <td>${q.quote_number || 'N/A'}</td>
@@ -1174,7 +1180,10 @@ async function loadQuotes() {
                         <td>${pdfCell}</td>
                         <td>${q.created_at ? new Date(q.created_at).toLocaleDateString() : '-'}</td>
                         <td>${q.expiration_date ? new Date(q.expiration_date).toLocaleDateString() : '-'}</td>
-                        <td><button type="button" class="btn btn-sm" onclick="viewQuote(${q.id})">View</button></td>
+                        <td style="display:flex;flex-wrap:wrap;gap:0.35rem;align-items:center;">
+                            <button type="button" class="btn btn-sm" onclick="viewQuote(${q.id})">View</button>
+                            ${deleteBtn}
+                        </td>
                     </tr>`;
                 }).join('');
             }
@@ -1199,6 +1208,25 @@ function viewQuote(id) {
     const qid = parseInt(String(id), 10);
     if (!Number.isFinite(qid) || qid <= 0) return;
     window.open(`quote-builder.html?id=${qid}`, '_blank', 'noopener');
+}
+
+async function deleteQuote(id) {
+    const qid = parseInt(String(id), 10);
+    if (!Number.isFinite(qid) || qid <= 0) return;
+    if (!confirm('Excluir este orçamento permanentemente? As linhas e o registo serão removidos. Esta ação não pode ser desfeita.')) {
+        return;
+    }
+    try {
+        const r = await fetch(`/api/quotes/${qid}`, { method: 'DELETE', credentials: 'include' });
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok || d.success === false) {
+            alert(d.error || 'Não foi possível excluir o orçamento.');
+            return;
+        }
+        if (typeof loadQuotes === 'function') loadQuotes();
+    } catch (e) {
+        alert('Erro de rede ao excluir o orçamento.');
+    }
 }
 
 function showNewQuoteModal() {

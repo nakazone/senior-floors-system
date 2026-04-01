@@ -19,6 +19,59 @@
     '$' +
     (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+  let qbNotifyTimer = null;
+
+  function hideQuoteNotify() {
+    const root = $('qbNotify');
+    if (!root) return;
+    root.classList.add('hidden');
+    root.setAttribute('aria-hidden', 'true');
+    if (qbNotifyTimer) {
+      clearTimeout(qbNotifyTimer);
+      qbNotifyTimer = null;
+    }
+  }
+
+  /**
+   * Pop-up de notificação (envio de e-mail ao cliente, etc.).
+   * @param {{ type?: 'success'|'error', title: string, message: string, ms?: number }} opts
+   */
+  function showQuoteNotify(opts) {
+    const root = $('qbNotify');
+    const titleEl = $('qbNotifyTitle');
+    const msgEl = $('qbNotifyMsg');
+    const iconEl = $('qbNotifyIcon');
+    if (!root || !titleEl || !msgEl) return;
+    const type = opts.type === 'error' ? 'error' : 'success';
+    const ms = typeof opts.ms === 'number' ? opts.ms : type === 'error' ? 9000 : 5500;
+    root.classList.remove('qb-notify--success', 'qb-notify--error', 'hidden');
+    root.classList.add(type === 'error' ? 'qb-notify--error' : 'qb-notify--success');
+    titleEl.textContent = opts.title || '';
+    msgEl.textContent = opts.message || '';
+    if (iconEl) iconEl.textContent = type === 'error' ? '⚠️' : '✉️';
+    root.setAttribute('aria-hidden', 'false');
+    if (qbNotifyTimer) clearTimeout(qbNotifyTimer);
+    qbNotifyTimer = setTimeout(() => hideQuoteNotify(), ms);
+  }
+
+  function wireQuoteNotify() {
+    const root = $('qbNotify');
+    const panel = root && root.querySelector('.qb-notify__panel');
+    const closeBtn = $('qbNotifyClose');
+    if (!root || !panel) return;
+    panel.addEventListener('click', (e) => e.stopPropagation());
+    root.addEventListener('click', () => hideQuoteNotify());
+    if (closeBtn) {
+      closeBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        hideQuoteNotify();
+      });
+    }
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && root && !root.classList.contains('hidden')) hideQuoteNotify();
+    });
+  }
+
   function lineAmount(q, r) {
     return Math.round(q * r * 100) / 100;
   }
@@ -910,17 +963,29 @@
       await api(`/api/quotes/${quoteId}/generate-pdf`, { method: 'POST', body: '{}' });
       window.open(`/api/quotes/${quoteId}/invoice-pdf`, '_blank');
     });
+    wireQuoteNotify();
+
     $('btnEmail').addEventListener('click', async () => {
       if (!quoteId) return;
       const cid = parseInt(String($('customerId') && $('customerId').value), 10);
       if (!Number.isFinite(cid) || cid <= 0) {
-        alert('Selecione um cliente. O e-mail é o cadastrado no CRM.');
+        showQuoteNotify({
+          type: 'error',
+          title: 'Cliente necessário',
+          message: 'Selecione um cliente. O e-mail enviado é o cadastrado no CRM.',
+          ms: 8000,
+        });
         return;
       }
       const cust = clients.find((c) => Number(c.id) === cid);
       const preview = cust && cust.email ? String(cust.email).trim() : '';
       if (!preview) {
-        alert('Este cliente não tem e-mail no cadastro. Edite o cliente (CRM) e adicione o e-mail antes de enviar.');
+        showQuoteNotify({
+          type: 'error',
+          title: 'E-mail em falta',
+          message: 'Este cliente não tem e-mail no cadastro. Edite o cliente no CRM e adicione o e-mail antes de enviar.',
+          ms: 10000,
+        });
         return;
       }
       try {
@@ -929,9 +994,18 @@
           body: JSON.stringify({}),
         });
         const how = r.transport === 'smtp' ? 'SMTP' : r.transport === 'resend' ? 'Resend' : 'servidor';
-        alert(`E-mail enviado para ${preview} (${how}).`);
+        showQuoteNotify({
+          type: 'success',
+          title: 'E-mail enviado',
+          message: `O orçamento foi enviado para ${preview} (${how}).`,
+        });
       } catch (e) {
-        alert(e.message || 'Falha ao enviar.');
+        showQuoteNotify({
+          type: 'error',
+          title: 'Falha ao enviar',
+          message: e.message || 'Não foi possível enviar o e-mail. Tente novamente ou verifique a configuração do servidor.',
+          ms: 12000,
+        });
       }
     });
     $('btnDup').addEventListener('click', async () => {

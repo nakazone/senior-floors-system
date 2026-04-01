@@ -295,7 +295,7 @@ app.get('/api/quotes/:id/snapshots', requireAuth, requirePermission('quotes.view
 app.get('/api/quotes/:id', requireAuth, getQuote);
 app.post('/api/quotes', requireAuth, createQuote);
 app.put('/api/quotes/:id', requireAuth, updateQuote);
-app.delete('/api/quotes/:id', requireAuth, deleteQuote);
+app.delete('/api/quotes/:id', requireAuth, requirePermission('quotes.edit'), deleteQuote);
 
 // Estimates (Professional Flooring Estimate Engine)
 app.get('/api/estimates', requireAuth, listEstimates);

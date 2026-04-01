@@ -140,6 +140,91 @@
       font-size: 0.85rem;
       resize: vertical;
     }
+    /* Notificação envio e-mail (substitui alert nativo) */
+    .qb-notify {
+      position: fixed;
+      inset: 0;
+      z-index: 10000;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 1.25rem;
+      padding-top: max(1.25rem, env(safe-area-inset-top));
+      background: rgba(26, 32, 54, 0.45);
+      backdrop-filter: blur(3px);
+      -webkit-backdrop-filter: blur(3px);
+    }
+    .qb-notify.hidden {
+      display: none !important;
+    }
+    .qb-notify__panel {
+      margin-top: 0.5rem;
+      max-width: min(420px, 100%);
+      width: 100%;
+      background: #fff;
+      border-radius: 14px;
+      box-shadow: 0 24px 64px rgba(0, 0, 0, 0.22);
+      padding: 1.35rem 1.5rem 1.25rem;
+      position: relative;
+      border-top: 4px solid #1a2036;
+      animation: qbNotifyIn 0.22s ease-out;
+    }
+    @keyframes qbNotifyIn {
+      from {
+        opacity: 0;
+        transform: translateY(-12px) scale(0.98);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+    .qb-notify--success .qb-notify__panel {
+      border-top-color: #059669;
+    }
+    .qb-notify--error .qb-notify__panel {
+      border-top-color: #b91c1c;
+    }
+    .qb-notify__close {
+      position: absolute;
+      top: 0.4rem;
+      right: 0.4rem;
+      width: 2.25rem;
+      height: 2.25rem;
+      border: none;
+      background: transparent;
+      color: #64748b;
+      font-size: 1.5rem;
+      line-height: 1;
+      cursor: pointer;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .qb-notify__close:hover {
+      background: #f1f5f9;
+      color: #1a2036;
+    }
+    .qb-notify__icon {
+      font-size: 2rem;
+      line-height: 1;
+      margin-bottom: 0.35rem;
+    }
+    .qb-notify__title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: #1a2036;
+      margin: 0 2rem 0.5rem 0;
+      font-family: Inter, system-ui, sans-serif;
+    }
+    .qb-notify__msg {
+      font-size: 0.9rem;
+      color: #4b5563;
+      margin: 0;
+      line-height: 1.45;
+      font-family: Inter, system-ui, sans-serif;
+    }
     /* Tabela de linhas — descrição legível, scroll horizontal suave */
     .qb-items-table-wrap {
       overflow-x: auto;
@@ -499,6 +584,15 @@
     </div>
   </div>
 
-  <script src="quote-builder.js?v=quotes-erp-5"></script>
+  <div id="qbNotify" class="qb-notify hidden" role="alertdialog" aria-modal="true" aria-labelledby="qbNotifyTitle" aria-hidden="true">
+    <div class="qb-notify__panel" role="document">
+      <button type="button" class="qb-notify__close" id="qbNotifyClose" aria-label="Fechar">×</button>
+      <div class="qb-notify__icon" id="qbNotifyIcon" aria-hidden="true"></div>
+      <h2 id="qbNotifyTitle" class="qb-notify__title"></h2>
+      <p id="qbNotifyMsg" class="qb-notify__msg"></p>
+    </div>
+  </div>
+
+  <script src="quote-builder.js?v=quotes-erp-6"></script>
 </body>
 </html>
