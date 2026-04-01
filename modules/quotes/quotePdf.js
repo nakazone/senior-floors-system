@@ -222,40 +222,50 @@ export async function buildQuotePdfBuffer(opts) {
   });
 
   const contentTopY = pageH - accentBarH - gapBelowAccent;
+  /** Top edge of logo / company block (PDF y): text caps align to this line. */
+  const logoTopY = contentTopY;
 
   const logo = await tryEmbedLogo(pdf);
   const lw = logo ? 68 : 0;
   const lh = logo ? (logo.height / logo.width) * lw : 0;
-  const logoBottomY = contentTopY - lh;
-  const logoMidY = lh > 0 ? logoBottomY + lh / 2 : contentTopY;
+  const logoBottomY = logoTopY - lh;
 
   if (logo) {
     page.drawImage(logo, { x: margin, y: logoBottomY, width: lw, height: lh });
   }
 
   const nameSize = 17;
-  const textX = margin + (logo ? lw + 16 : 0);
-  const nameBaselineY = lh > 0 ? logoMidY - nameSize * 0.12 : contentTopY - 4;
+  const tagSize = 8.5;
+  const textColumnX = margin + (logo ? lw + 18 : 0);
+  const nameLeading = 14;
+  const metaLeading = 12;
+  const nameBaselineY = logoTopY - nameSize * 0.72;
+  const tagBaselineY = nameBaselineY - nameLeading;
+  const contactBaselineY = tagBaselineY - metaLeading;
 
   page.drawText(COMPANY.name, {
-    x: textX,
+    x: textColumnX,
     y: nameBaselineY,
     size: nameSize,
     font: fontBold,
     color: PAL.primary,
   });
-  const tagY = nameBaselineY - 20;
-  page.drawText(COMPANY.tagline, { x: textX, y: tagY, size: 8.5, font, color: PAL.primaryMuted });
-  const contactY = tagY - 15;
+  page.drawText(COMPANY.tagline, {
+    x: textColumnX,
+    y: tagBaselineY,
+    size: tagSize,
+    font,
+    color: PAL.primaryMuted,
+  });
   page.drawText(`${COMPANY.phone} · ${COMPANY.email}`, {
-    x: textX,
-    y: contactY,
-    size: 8.5,
+    x: textColumnX,
+    y: contactBaselineY,
+    size: tagSize,
     font,
     color: PAL.primaryMuted,
   });
 
-  const textBlockLowY = contactY - 3;
+  const textBlockLowY = contactBaselineY - 4;
   const headerLowY = lh > 0 ? Math.min(logoBottomY, textBlockLowY) : textBlockLowY;
 
   const rightW = 178;
@@ -412,31 +422,11 @@ export async function buildQuotePdfBuffer(opts) {
   const totalsX = pageW - margin - 198;
   const valX = pageW - margin - 58;
 
-  const drawRow = (label, val, { bold = false, accent = false } = {}) => {
+  const drawRow = (label, val, { bold = false } = {}) => {
     ensureSpace(72);
-    if (accent) {
-      const fs = 10;
-      const barPad = 5;
-      const barH = fontBold.heightAtSize(fs) + 2 * barPad;
-      const barTop = y;
-      const barBottom = barTop - barH;
-      const baselineY = baselineCenteredInBar(barBottom, barH, fs);
-      page.drawRectangle({
-        x: totalsX - 8,
-        y: barBottom,
-        width: pageW - margin - (totalsX - 8) + 8,
-        height: barH,
-        color: PAL.primary,
-        opacity: 1,
-      });
-      page.drawText(label, { x: totalsX, y: baselineY, size: fs, font: fontBold, color: PAL.white });
-      page.drawText(val, { x: valX, y: baselineY, size: fs, font: fontBold, color: PAL.secondary });
-      y = barBottom - 6;
-    } else {
-      page.drawText(label, { x: totalsX, y, size: 9, font, color: PAL.lineMuted });
-      page.drawText(val, { x: valX, y, size: 9, font: bold ? fontBold : font, color: textColor });
-      y -= lineH + 2;
-    }
+    page.drawText(label, { x: totalsX, y, size: 9, font, color: PAL.lineMuted });
+    page.drawText(val, { x: valX, y, size: 9, font: bold ? fontBold : font, color: textColor });
+    y -= lineH + 2;
   };
 
   drawRow('Subtotal', money(sub));
@@ -444,10 +434,57 @@ export async function buildQuotePdfBuffer(opts) {
   const discType = quote.discount_type === 'fixed' ? '$' : '%';
   const discVal = Number(quote.discount_value) || 0;
   drawRow(`Discount (${discType})`, discType === '$' ? money(discVal) : `${discVal}%`);
-  y -= 2;
-  drawRow('TOTAL', money(total), { accent: true });
+  y -= 8;
+  page.drawText('Quote total', { x: margin, y, size: 8, font: fontBold, color: PAL.secondaryDark });
+  y -= 12;
 
-  y -= 22;
+  /** Full-width callout: valor final grande e legível (padrão visual). */
+  const drawGrandTotalCallout = (valStr) => {
+    ensureSpace(100);
+    const fsVal = 20;
+    const fsLabel = 11;
+    const barPadY = 14;
+    const barH = fontBold.heightAtSize(fsVal) + 2 * barPadY;
+    const barTop = y;
+    const barBottom = barTop - barH;
+    const baselineVal = baselineCenteredInBar(barBottom, barH, fsVal);
+    const baselineLabel = baselineVal - (fsVal - fsLabel) * 0.32;
+
+    page.drawRectangle({
+      x: margin,
+      y: barBottom,
+      width: contentW,
+      height: barH,
+      color: PAL.primary,
+    });
+    page.drawRectangle({
+      x: margin,
+      y: barBottom,
+      width: 5,
+      height: barH,
+      color: PAL.secondary,
+    });
+    page.drawText('TOTAL', {
+      x: margin + 14,
+      y: baselineLabel,
+      size: fsLabel,
+      font: fontBold,
+      color: PAL.white,
+    });
+    const valW = fontBold.widthOfTextAtSize(valStr, fsVal);
+    page.drawText(valStr, {
+      x: pageW - margin - valW,
+      y: baselineVal,
+      size: fsVal,
+      font: fontBold,
+      color: PAL.secondary,
+    });
+    y = barBottom - 14;
+  };
+
+  drawGrandTotalCallout(money(total));
+
+  y -= 12;
   page.drawText('Terms & conditions', { x: margin, y, size: 9, font: fontBold, color: PAL.secondaryDark });
   y -= lineH + 2;
   const terms = quote.terms_conditions || defaultTerms();

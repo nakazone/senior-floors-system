@@ -33,6 +33,7 @@ import {
   streamQuoteInvoicePdf,
 } from './routes/quotes.js';
 import * as quoteExt from './routes/quoteExtended.js';
+import { getEmailTransportStatus } from './modules/quotes/quoteMail.js';
 import * as erpMaterials from './routes/erpMaterials.js';
 import * as publicQuote from './routes/publicQuote.js';
 import { quotePdfUploadMiddleware } from './lib/quotePdfUpload.js';
@@ -169,6 +170,10 @@ app.get('/api/health', (req, res) => {
 });
 
 /** Ligação real ao MySQL (diagnóstico Railway). Sem credenciais na resposta. */
+app.get('/api/health/email', (req, res) => {
+  res.json({ ok: true, ...getEmailTransportStatus(), time: new Date().toISOString() });
+});
+
 app.get('/api/health/db', async (req, res) => {
   const target = getMysqlConnectionTargetInfo();
   const body = {
@@ -405,10 +410,17 @@ app.use((err, req, res, next) => {
   });
 });
 
-// 404 handler
+// 404 handler (rotas /api/* desconhecidas — ver path/method na resposta)
 app.use((req, res) => {
   if (req.path.startsWith('/api/')) {
-    res.status(404).json({ success: false, error: 'Not found' });
+    res.status(404).json({
+      success: false,
+      error: 'Not found',
+      path: req.path,
+      method: req.method,
+      hint:
+        'Confirme o URL (ex.: POST /api/quotes/:id/send-email, GET /api/health/email). Deploy recente inclui /api/health/email.',
+    });
   } else {
     res.status(404).send('Page not found');
   }

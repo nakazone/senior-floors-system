@@ -91,7 +91,12 @@ export async function postQuoteSendEmail(req, res) {
       html: req.body.html,
     });
     if (!r.ok) return res.status(400).json({ success: false, error: r.error, details: r.details });
-    res.json({ success: true, resend_id: r.id });
+    res.json({
+      success: true,
+      message_id: r.id,
+      resend_id: r.id,
+      transport: r.transport || 'unknown',
+    });
   } catch (e) {
     console.error('postQuoteSendEmail:', e);
     res.status(500).json({ success: false, error: e.message });

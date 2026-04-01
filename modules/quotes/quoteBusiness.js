@@ -368,10 +368,23 @@ export async function generatePdfAndStore(pool, quoteId) {
 export async function mailQuote(pool, quoteId, EmailOpts = {}) {
   const ctx = await loadQuoteContext(pool, quoteId);
   if (!ctx) return { ok: false, error: 'Quote not found' };
-  const email = EmailOpts.to || ctx.quote.customer_email;
+  const rawTo = EmailOpts.to != null ? String(EmailOpts.to).trim() : '';
+  const custEmail =
+    ctx.quote.customer_email != null ? String(ctx.quote.customer_email).trim() : '';
+  const email = rawTo || custEmail;
+  if (!email) {
+    return {
+      ok: false,
+      error:
+        'E-mail em falta: indique o destinatário no envio ou associe um cliente com e-mail a este orçamento.',
+    };
+  }
   let pdfBuf = EmailOpts.pdfBuffer;
   if (!pdfBuf) {
     const gen = await generatePdfAndStore(pool, quoteId);
+    if (!gen.ok || !gen.buffer) {
+      return { ok: false, error: gen.error || 'Não foi possível gerar o PDF do orçamento.' };
+    }
     pdfBuf = gen.buffer;
   }
   const base =

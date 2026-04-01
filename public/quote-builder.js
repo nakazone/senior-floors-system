@@ -893,16 +893,25 @@
     });
     $('btnEmail').addEventListener('click', async () => {
       if (!quoteId) return;
-      const to = prompt('Send to email (client):');
-      if (!to) return;
+      const cid = parseInt(String($('customerId') && $('customerId').value), 10);
+      const cust = Number.isFinite(cid) ? clients.find((c) => Number(c.id) === cid) : null;
+      const defaultTo = cust && cust.email ? String(cust.email).trim() : '';
+      const to = prompt('E-mail do destinatário:', defaultTo);
+      if (to == null) return;
+      const addr = String(to).trim();
+      if (!addr) {
+        alert('Indique um e-mail válido.');
+        return;
+      }
       try {
-        await api(`/api/quotes/${quoteId}/send-email`, {
+        const r = await api(`/api/quotes/${quoteId}/send-email`, {
           method: 'POST',
-          body: JSON.stringify({ to }),
+          body: JSON.stringify({ to: addr }),
         });
-        alert('Email sent (if Resend is configured on the server).');
+        const how = r.transport === 'smtp' ? 'SMTP' : r.transport === 'resend' ? 'Resend' : 'servidor';
+        alert(`E-mail enviado (${how}).`);
       } catch (e) {
-        alert(e.message);
+        alert(e.message || 'Falha ao enviar.');
       }
     });
     $('btnDup').addEventListener('click', async () => {
