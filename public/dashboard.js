@@ -1196,7 +1196,9 @@ function changePageQuotes(delta) {
 }
 
 function viewQuote(id) {
-    if (typeof showPage === 'function') showPage('quotes');
+    const qid = parseInt(String(id), 10);
+    if (!Number.isFinite(qid) || qid <= 0) return;
+    window.open(`quote-builder.html?id=${qid}`, '_blank', 'noopener');
 }
 
 function showNewQuoteModal() {
