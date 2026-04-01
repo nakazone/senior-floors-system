@@ -85,6 +85,7 @@ import {
 import { ensureQuoteInvoicePdfColumn } from './lib/ensureQuoteInvoicePdfColumn.js';
 import { ensureUserModuleColumns } from './lib/ensureUserModuleColumns.js';
 import { ensureCustomersResponsibleNameColumn } from './lib/ensureCustomersResponsibleNameColumn.js';
+import { getUiConfig } from './routes/uiConfig.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -273,6 +274,7 @@ app.get('/api/quote-templates/:id', requireAuth, requirePermission('quotes.view'
 app.post('/api/quote-templates', requireAuth, requirePermission('quotes.edit'), quoteExt.postQuoteTemplate);
 app.delete('/api/quote-templates/:id', requireAuth, requirePermission('quotes.edit'), quoteExt.deleteQuoteTemplate);
 
+app.get('/api/config/ui', requireAuth, getUiConfig);
 app.get('/api/erp/category-margins', requireAuth, requirePermission('quotes.view'), erpMaterials.getCategoryMargins);
 app.put('/api/erp/category-margins', requireAuth, requirePermission('quotes.edit'), erpMaterials.putCategoryMargin);
 app.get('/api/erp/suppliers', requireAuth, requirePermission('quotes.view'), erpMaterials.listSuppliersApi);

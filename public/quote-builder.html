@@ -475,8 +475,10 @@
         <button type="button" id="modalBtnProduct" class="flex-1 py-2 rounded-lg border-2 border-slate-200 text-sm font-medium hover:bg-slate-50">Produto</button>
       </div>
       <div id="modalProductSection" class="hidden space-y-3">
+        <label class="block text-xs font-semibold text-slate-500">Pesquisar produto</label>
+        <input type="search" id="modalProductSearch" class="w-full border rounded-lg px-3 py-2 text-sm" placeholder="Nome, SKU, fornecedor…" autocomplete="off" />
         <label class="block text-xs font-semibold text-slate-500">Produto</label>
-        <select id="modalProductSelect" class="w-full border rounded-lg px-3 py-2 text-sm"></select>
+        <select id="modalProductSelect" class="w-full border rounded-lg px-3 py-2 text-sm" size="8"></select>
         <p id="modalProductHint" class="text-xs text-amber-700 hidden"></p>
         <div class="grid grid-cols-2 gap-2 text-xs">
           <div><span class="text-slate-500">Custo</span><div id="modalDispCost" class="font-mono font-medium">—</div></div>
@@ -497,6 +499,6 @@
     </div>
   </div>
 
-  <script src="quote-builder.js?v=quotes-erp-4"></script>
+  <script src="quote-builder.js?v=quotes-erp-5"></script>
 </body>
 </html>

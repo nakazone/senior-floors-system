@@ -674,12 +674,28 @@
       modal.classList.remove('flex');
     }
 
-    function fillProductSelect() {
+    function fillProductSelect(filterRaw) {
       const sel = $('modalProductSelect');
-      sel.innerHTML = '<option value="">— Select product —</option>';
-      erpProducts.forEach((p) => {
+      const q = String(filterRaw || '')
+        .trim()
+        .toLowerCase();
+      sel.innerHTML = '<option value="">— Escolher produto —</option>';
+      const list = !q
+        ? erpProducts
+        : erpProducts.filter((p) => {
+            const blob = `${p.supplier_name || ''} ${p.name || ''} ${p.sku || ''} ${p.category || ''}`.toLowerCase();
+            return blob.includes(q);
+          });
+      list.forEach((p) => {
         const lab = `${escapeAttr(p.supplier_name || '')}: ${escapeAttr(p.name)} (${escapeAttr(p.category)})`;
         sel.innerHTML += `<option value="${p.id}">${lab}</option>`;
+      });
+    }
+
+    const modalProductSearch = $('modalProductSearch');
+    if (modalProductSearch) {
+      modalProductSearch.addEventListener('input', () => {
+        fillProductSelect(modalProductSearch.value);
       });
     }
 
@@ -704,7 +720,8 @@
     $('modalBtnProduct').addEventListener('click', () => {
       modalProductSection.classList.remove('hidden');
       modalConfirmProduct.classList.remove('hidden');
-      fillProductSelect();
+      if (modalProductSearch) modalProductSearch.value = '';
+      fillProductSelect('');
       modalPreview = null;
       $('modalDispCost').textContent = '—';
       $('modalDispDefMargin').textContent = '—';
@@ -770,11 +787,13 @@
       }
       const qty = parseFloat($('modalQty').value) || 1;
       const pr = modalPreview.product;
+      const descFromProduct =
+        pr.description != null && String(pr.description).trim() ? String(pr.description).trim() : '';
       items.push({
         item_type: 'product',
         product_id: pr.id,
         name: pr.name || '',
-        description: '',
+        description: descFromProduct,
         unit_type: pr.unit_type || 'sq_ft',
         quantity: qty,
         rate: sell,

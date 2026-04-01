@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#1a2036" />
+  <title>On-Site Quote — Senior Floors</title>
+  <link rel="icon" type="image/png" href="/assets/SeniorFloors.png" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    html { font-family: Inter, system-ui, sans-serif; }
+    .os-safe-pb { padding-bottom: max(0.75rem, env(safe-area-inset-bottom)); }
+    .os-safe-pt { padding-top: max(0.5rem, env(safe-area-inset-top)); }
+    #mainScroll { -webkit-overflow-scrolling: touch; }
+    .os-step-dot { width: 8px; height: 8px; border-radius: 9999px; background: rgba(255,255,255,0.25); transition: background 0.2s; }
+    .os-step-dot--on { background: #d6b598; transform: scale(1.15); }
+    .os-card-tap { transition: transform 0.12s ease, box-shadow 0.12s ease; }
+    .os-card-tap:active { transform: scale(0.98); }
+    .os-card-tap.os-card-tap--sel { ring: 2px; box-shadow: 0 0 0 2px #d6b598; border-color: #d6b598; }
+  </style>
+</head>
+<body class="bg-slate-100 text-slate-900 min-h-screen">
+  <p id="authBanner" class="hidden fixed top-0 left-0 right-0 z-[60] bg-red-600 text-white text-center text-sm py-2 px-3 os-safe-pt"></p>
+
+  <header class="fixed top-0 left-0 right-0 z-40 bg-[#1a2036] text-white shadow-lg os-safe-pt">
+    <div class="flex items-center justify-between gap-2 px-3 py-2">
+      <a href="dashboard.html?page=quotes" class="text-sm font-medium text-white/90 hover:text-white shrink-0">← CRM</a>
+      <div class="text-center min-w-0 flex-1">
+        <div class="text-[10px] uppercase tracking-wider text-white/50 font-semibold">New quote</div>
+        <h1 class="text-sm font-bold truncate">📱 On-Site Quote</h1>
+      </div>
+      <span id="stepLabel" class="text-xs text-white/70 shrink-0 whitespace-nowrap">Step 1/6</span>
+    </div>
+    <div id="stepperDots" class="flex justify-center gap-1.5 px-3 pb-2" aria-hidden="true"></div>
+    <div class="px-3 pb-2 border-t border-white/10">
+      <div class="flex items-center justify-between gap-2 bg-white/10 rounded-lg px-3 py-2">
+        <span class="text-xs font-semibold text-white/80 uppercase tracking-wide">Total</span>
+        <span id="pricingTotal" class="text-lg font-bold text-[#d6b598] tabular-nums">$0.00</span>
+      </div>
+    </div>
+  </header>
+
+  <main id="mainScroll" class="overflow-y-auto overscroll-contain px-3" style="padding-top: 132px; padding-bottom: 120px; min-height: 100vh;">
+    <p id="migrateMsg" class="text-amber-800 text-xs mb-3 hidden"></p>
+
+    <!-- STEP 1 -->
+    <section id="panelStep1" class="step-panel space-y-4 pb-4">
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-3">
+        <h2 class="text-base font-bold text-[#1a2036]">🏠 Client info</h2>
+        <label class="block text-xs font-semibold text-slate-600">Name</label>
+        <input id="clientName" type="text" autocomplete="name" class="w-full rounded-xl border border-slate-200 px-3 py-3 text-base" placeholder="John Smith" />
+        <label class="block text-xs font-semibold text-slate-600">Email <span class="text-slate-400 font-normal">(optional — auto if empty)</span></label>
+        <input id="clientEmail" type="email" autocomplete="email" class="w-full rounded-xl border border-slate-200 px-3 py-3 text-base" placeholder="john@email.com" />
+        <label class="block text-xs font-semibold text-slate-600">Phone</label>
+        <input id="clientPhone" type="tel" autocomplete="tel" class="w-full rounded-xl border border-slate-200 px-3 py-3 text-base" placeholder="(720) 555-1234" />
+        <label class="block text-xs font-semibold text-slate-600">Address</label>
+        <input id="clientAddress" type="text" autocomplete="street-address" class="w-full rounded-xl border border-slate-200 px-3 py-3 text-base" placeholder="1234 Elm St, Denver" />
+        <p id="placesHint" class="text-[11px] text-slate-500 hidden">Google Places: type to suggest. Without API key, search uses OpenStreetMap.</p>
+        <div id="addressSuggestions" class="hidden rounded-xl border border-slate-200 bg-white divide-y divide-slate-100 max-h-40 overflow-y-auto text-sm"></div>
+        <button type="button" id="btnUseLocation" class="w-full py-3 rounded-xl border-2 border-[#1a2036]/20 font-semibold text-[#1a2036] text-sm os-card-tap">
+          Use current location 📍
+        </button>
+      </div>
+    </section>
+
+    <!-- STEP 2 -->
+    <section id="panelStep2" class="step-panel hidden space-y-4 pb-4">
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-4">
+        <h2 class="text-base font-bold text-[#1a2036]">📐 Measurements</h2>
+        <div class="text-xs font-semibold text-slate-600">Mode</div>
+        <div class="flex rounded-xl border border-slate-200 overflow-hidden">
+          <button type="button" id="modeTotal" class="flex-1 py-3 text-sm font-semibold bg-[#1a2036] text-white">Total sq ft</button>
+          <button type="button" id="modeRooms" class="flex-1 py-3 text-sm font-semibold bg-white text-slate-700">Room by room</button>
+        </div>
+        <div id="blockTotalSqft">
+          <label class="block text-xs font-semibold text-slate-600">Total sq ft</label>
+          <input id="inputTotalSqft" type="number" min="0" step="1" class="w-full rounded-xl border border-slate-200 px-3 py-3 text-base tabular-nums" value="850" />
+        </div>
+        <div id="blockRooms" class="hidden space-y-3">
+          <div id="roomList" class="space-y-2"></div>
+          <button type="button" id="btnAddRoom" class="w-full py-4 rounded-2xl bg-gradient-to-b from-[#2a3150] to-[#1a2036] text-white font-bold text-base shadow-md os-card-tap">
+            + Add room
+          </button>
+          <div class="flex justify-between text-sm font-bold pt-2 border-t border-slate-100">
+            <span>Total</span>
+            <span id="roomSumDisplay" class="text-[#1a2036] tabular-nums">0 sqft</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- STEP 3 -->
+    <section id="panelStep3" class="step-panel hidden space-y-4 pb-4">
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-3">
+        <h2 class="text-base font-bold text-[#1a2036]">🛠️ Service</h2>
+        <div class="grid gap-3">
+          <button type="button" data-svc="installation" class="svc-card os-card-tap rounded-2xl border-2 border-slate-200 p-4 text-left">
+            <div class="font-bold text-[#1a2036]">Installation</div>
+            <div class="text-xs text-slate-500 mt-1">New floors / install</div>
+          </button>
+          <button type="button" data-svc="sand" class="svc-card os-card-tap rounded-2xl border-2 border-slate-200 p-4 text-left">
+            <div class="font-bold text-[#1a2036]">Sand &amp; Finish</div>
+            <div class="text-xs text-slate-500 mt-1">Refinish existing wood</div>
+          </button>
+          <button type="button" data-svc="both" class="svc-card os-card-tap rounded-2xl border-2 border-slate-200 p-4 text-left">
+            <div class="font-bold text-[#1a2036]">Both</div>
+            <div class="text-xs text-slate-500 mt-1">Install + refinishing scope</div>
+          </button>
+        </div>
+        <p class="text-xs text-slate-500">Selected: <span id="svcSelectedLabel" class="font-semibold text-slate-700">Installation</span></p>
+      </div>
+    </section>
+
+    <!-- STEP 4 -->
+    <section id="panelStep4" class="step-panel hidden space-y-4 pb-4">
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-3">
+        <h2 class="text-base font-bold text-[#1a2036]">🪵 Material</h2>
+        <div class="flex rounded-xl border border-slate-200 overflow-hidden text-sm font-semibold">
+          <button type="button" id="matWe" class="flex-1 py-3 bg-[#1a2036] text-white">We provide</button>
+          <button type="button" id="matCust" class="flex-1 py-3 bg-white text-slate-700">Customer provides</button>
+        </div>
+        <div id="blockProductSearch" class="space-y-2">
+          <label class="text-xs font-semibold text-slate-600">Search product</label>
+          <div class="relative">
+            <input id="productSearch" type="search" class="w-full rounded-xl border border-slate-200 pl-3 pr-10 py-3 text-base" placeholder="White Oak 5&quot;" autocomplete="off" />
+            <span class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true">🔍</span>
+          </div>
+          <div id="productPickList" class="hidden rounded-xl border border-slate-200 max-h-36 overflow-y-auto text-sm divide-y divide-slate-100"></div>
+          <div id="productSelected" class="rounded-xl bg-slate-50 border border-slate-200 p-3 text-sm space-y-1 hidden">
+            <div class="font-bold text-[#1a2036]" id="prodName"></div>
+            <div class="text-xs text-slate-600">Cost: <span id="prodCost"></span>/unit · Margin: <span id="prodMargin"></span>% · Sell: <span id="prodSell"></span>/unit</div>
+            <label class="block text-xs font-semibold text-slate-600 pt-2">Quantity (sq ft)</label>
+            <input id="productQty" type="number" min="0" step="1" class="w-full rounded-lg border border-slate-200 px-2 py-2 tabular-nums" />
+          </div>
+        </div>
+        <p id="matCustNote" class="hidden text-xs text-slate-500">No material line — customer supplies flooring.</p>
+      </div>
+    </section>
+
+    <!-- STEP 5 -->
+    <section id="panelStep5" class="step-panel hidden space-y-4 pb-4">
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-4">
+        <h2 class="text-base font-bold text-[#1a2036]">➕ Add-ons</h2>
+        <div class="space-y-2" id="addonToggles"></div>
+        <div>
+          <div class="text-xs font-semibold text-slate-600 mb-2">Quick options</div>
+          <div class="grid grid-cols-3 gap-2">
+            <button type="button" id="presetBasic" class="py-3 rounded-xl border-2 border-slate-200 text-xs font-bold os-card-tap">Basic</button>
+            <button type="button" id="presetStandard" class="py-3 rounded-xl border-2 border-slate-200 text-xs font-bold os-card-tap">Standard ⭐</button>
+            <button type="button" id="presetPremium" class="py-3 rounded-xl border-2 border-slate-200 text-xs font-bold os-card-tap">Premium</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- STEP 6 -->
+    <section id="panelStep6" class="step-panel hidden space-y-4 pb-4">
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-3">
+        <h2 class="text-base font-bold text-[#1a2036]">📄 Quote summary</h2>
+        <div id="summaryLines" class="text-sm space-y-2 border-b border-slate-100 pb-3"></div>
+        <div class="flex justify-between text-base font-bold">
+          <span>Total</span>
+          <span id="summaryTotal" class="text-[#1a2036] tabular-nums">$0.00</span>
+        </div>
+        <div class="rounded-xl bg-emerald-50 border border-emerald-200 px-3 py-2 text-sm">
+          <span class="text-emerald-800 font-semibold">💰 Est. monthly</span>
+          <span id="summaryMonthly" class="float-right font-bold text-emerald-900 tabular-nums">$0/mo</span>
+          <p class="text-[10px] text-emerald-700/80 mt-1">Indicative 36-mo — not an offer of credit.</p>
+        </div>
+        <label class="flex items-center justify-center gap-2 w-full py-3 rounded-xl border-2 border-dashed border-slate-300 text-sm font-semibold text-slate-600 cursor-pointer">
+          📸 Add photos
+          <input id="photoInput" type="file" accept="image/*" capture="environment" multiple class="hidden" />
+        </label>
+        <div id="photoThumbs" class="flex flex-wrap gap-2"></div>
+        <label class="flex items-center gap-2 text-xs text-slate-600 cursor-pointer">
+          <input type="checkbox" id="chkGbb" class="rounded border-slate-300" />
+          Show Good / Better / Best before sending
+        </label>
+        <button type="button" id="btnOpenGbb" class="w-full py-2 rounded-xl bg-violet-100 text-violet-900 font-semibold text-sm">Preview packages</button>
+      </div>
+    </section>
+
+    <!-- GBB -->
+    <section id="panelGbb" class="hidden space-y-4 pb-4">
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-3">
+        <h2 class="text-base font-bold text-[#1a2036]">Choose an option</h2>
+        <div id="gbbCards" class="space-y-3"></div>
+        <button type="button" id="gbbBack" class="w-full py-3 rounded-xl border border-slate-200 font-semibold text-sm">Back to summary</button>
+      </div>
+    </section>
+  </main>
+
+  <footer id="actionFooter" class="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-200 shadow-[0_-4px_20px_rgba(0,0,0,0.06)] os-safe-pb">
+    <div id="footerNav" class="flex gap-2 p-3">
+      <button type="button" id="btnBack" class="flex-1 py-3 rounded-xl border-2 border-slate-200 font-semibold text-slate-700 text-sm hidden">⬅️ Back</button>
+      <button type="button" id="btnNext" class="flex-[2] py-3 rounded-xl bg-[#1a2036] text-white font-bold text-sm shadow-md">Next ➡️</button>
+    </div>
+    <div id="footerFinal" class="hidden p-3 space-y-2">
+      <button type="button" id="btnSendQuote" class="w-full py-3 rounded-xl bg-[#1a2036] text-white font-bold text-sm">Send quote</button>
+      <div class="flex gap-2">
+        <button type="button" id="btnApprove" class="flex-1 py-2.5 rounded-xl bg-emerald-600 text-white font-semibold text-xs">Approve now ✅</button>
+        <button type="button" id="btnDeposit" class="flex-1 py-2.5 rounded-xl bg-amber-500 text-white font-semibold text-xs">Collect deposit 💳</button>
+      </div>
+    </div>
+  </footer>
+
+  <button type="button" id="fabAdd" class="fixed z-50 w-14 h-14 rounded-full bg-[#d6b598] text-[#1a2036] font-bold text-2xl shadow-lg flex items-center justify-center bottom-24 right-4 border-2 border-white/90 os-safe-pb" style="margin-bottom: env(safe-area-inset-bottom);" aria-label="Add item">+</button>
+
+  <!-- Sheet: quick add -->
+  <div id="sheetBackdrop" class="hidden fixed inset-0 z-[55] bg-black/40" aria-hidden="true"></div>
+  <div id="sheetAdd" class="hidden fixed z-[56] left-2 right-2 bottom-2 max-h-[70vh] rounded-2xl bg-white shadow-2xl p-4 overflow-y-auto os-safe-pb" role="dialog" aria-labelledby="sheetAddTitle">
+    <h3 id="sheetAddTitle" class="font-bold text-[#1a2036] mb-3">Quick add</h3>
+    <label class="text-xs font-semibold text-slate-600">Description</label>
+    <input id="quickLineName" type="text" class="w-full rounded-xl border border-slate-200 px-3 py-2 mb-2" placeholder="e.g. Closet upgrade" />
+    <label class="text-xs font-semibold text-slate-600">Amount ($)</label>
+    <input id="quickLineAmt" type="number" min="0" step="0.01" class="w-full rounded-xl border border-slate-200 px-3 py-2 mb-3 tabular-nums" />
+    <div class="flex gap-2">
+      <button type="button" id="sheetCancel" class="flex-1 py-2.5 rounded-xl border border-slate-200 font-semibold text-sm">Cancel</button>
+      <button type="button" id="sheetSaveLine" class="flex-1 py-2.5 rounded-xl bg-[#1a2036] text-white font-semibold text-sm">Add</button>
+    </div>
+    <p class="text-[11px] text-slate-500 mt-3">🎤 Voice (Chrome): tap mic in browser bar or use system dictation on mobile where available.</p>
+    <button type="button" id="btnVoice" class="mt-2 w-full py-2 rounded-xl bg-slate-100 text-slate-700 font-semibold text-sm">🎤 Try voice (this device)</button>
+  </div>
+
+  <script src="onsite-quote.js"></script>
+</body>
+</html>

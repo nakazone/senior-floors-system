@@ -185,6 +185,7 @@ export async function getProductPricingPreview(req, res) {
           unit_type: product.unit_type,
           cost_price: Number(product.cost_price),
           sku: product.sku,
+          description: product.description != null ? String(product.description) : '',
           supplier_id: product.supplier_id,
           supplier_name: product.supplier_name,
         },
