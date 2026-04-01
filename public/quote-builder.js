@@ -22,6 +22,30 @@
     return Number.isFinite(n) ? n : null;
   }
 
+  function emptyLine() {
+    return {
+      description: '',
+      unit_type: 'sq_ft',
+      quantity: 1,
+      rate: 0,
+      service_type: 'Installation',
+      notes: null,
+      catalog_customer_notes: null,
+      service_catalog_id: null,
+    };
+  }
+
+  function catalogPricingSource() {
+    const r = document.querySelector('input[name="pricingCatalog"]:checked');
+    return r && r.value === 'builder' ? 'builder' : 'customer';
+  }
+
+  function effectiveCatalogRate(row, source) {
+    const b = Number(row.rate_builder != null ? row.rate_builder : row.default_rate) || 0;
+    const c = Number(row.rate_customer != null ? row.rate_customer : row.default_rate) || 0;
+    return source === 'builder' ? b : c;
+  }
+
   function sumItems() {
     return items.reduce((s, it) => s + lineAmount(Number(it.quantity) || 0, Number(it.rate) || 0), 0);
   }
@@ -51,6 +75,56 @@
       .replace(/</g, '&lt;');
   }
 
+  function updateRowAmount(tr, idx) {
+    const amt = lineAmount(Number(items[idx].quantity) || 0, Number(items[idx].rate) || 0);
+    const cell = tr.querySelector('[data-amt]');
+    if (cell) cell.textContent = money(amt);
+  }
+
+  function bindItemInputs(tb) {
+    tb.querySelectorAll('input[data-k]').forEach((el) => {
+      el.addEventListener('input', function () {
+        const idx = parseInt(this.getAttribute('data-i'), 10);
+        const k = this.getAttribute('data-k');
+        items[idx][k] = k === 'description' ? this.value : parseFloat(this.value) || 0;
+        recalc();
+        const tr = this.closest('tr');
+        if (tr) updateRowAmount(tr, idx);
+      });
+    });
+    tb.querySelectorAll('select[data-k]').forEach((el) => {
+      el.addEventListener('change', function () {
+        const idx = parseInt(this.getAttribute('data-i'), 10);
+        const k = this.getAttribute('data-k');
+        if (k === 'unit_type') items[idx].unit_type = this.value;
+        else if (k === 'service_type') items[idx].service_type = this.value;
+      });
+    });
+  }
+
+  function attachItemsTableHandlers(tb) {
+    tb.onclick = (e) => {
+      const cbtn = e.target.closest('[data-comment]');
+      if (cbtn) {
+        const idx = parseInt(cbtn.getAttribute('data-comment'), 10);
+        const cur = items[idx].notes != null ? String(items[idx].notes) : '';
+        const next = window.prompt('Comment for this line (shown on the PDF under the line):', cur);
+        if (next === null) return;
+        items[idx].notes = next.trim() || null;
+        renderItems();
+        return;
+      }
+      const del = e.target.closest('[data-del]');
+      if (del) {
+        const idx = parseInt(del.getAttribute('data-del'), 10);
+        items.splice(idx, 1);
+        if (!items.length) items = [emptyLine()];
+        recalc();
+        renderItems();
+      }
+    };
+  }
+
   function renderItems() {
     const tb = $('itemsBody');
     tb.innerHTML = '';
@@ -58,7 +132,15 @@
       const tr = document.createElement('tr');
       tr.className = 'border-b border-slate-100';
       const amt = lineAmount(Number(it.quantity) || 0, Number(it.rate) || 0);
+      const hasNote = !!(it.notes && String(it.notes).trim());
+      const st = it.service_type || 'Installation';
       tr.innerHTML = `
+        <td class="py-2 pr-2 align-top">
+          <select data-k="service_type" data-i="${idx}" class="w-full border rounded px-1 py-1 text-xs">
+            <option value="Installation">Installation</option>
+            <option value="Sand & Finishing">Sand &amp; Finishing</option>
+          </select>
+        </td>
         <td class="py-2 pr-2"><input data-k="description" data-i="${idx}" type="text" class="w-full border rounded px-2 py-1 text-sm" value="${escapeAttr(it.description || '')}" /></td>
         <td class="py-2 pr-2">
           <select data-k="unit_type" data-i="${idx}" class="w-full border rounded px-1 py-1 text-xs">
@@ -70,35 +152,21 @@
         </td>
         <td class="py-2 pr-2"><input data-k="quantity" data-i="${idx}" type="number" step="0.01" class="w-full border rounded px-2 py-1 text-sm" value="${it.quantity ?? 1}" /></td>
         <td class="py-2 pr-2"><input data-k="rate" data-i="${idx}" type="number" step="0.01" class="w-full border rounded px-2 py-1 text-sm" value="${it.rate ?? 0}" /></td>
-        <td class="py-2 pr-2 text-right font-medium">${money(amt)}</td>
-        <td class="py-2"><button type="button" data-del="${idx}" class="text-red-600 text-xs">✕</button></td>`;
+        <td class="py-2 pr-2 text-right font-medium" data-amt>${money(amt)}</td>
+        <td class="py-2 pr-2 text-center">
+          <button type="button" data-comment="${idx}" class="text-xs font-medium px-2 py-1 rounded border border-slate-200 hover:bg-slate-50 ${hasNote ? 'text-[#1a2036] bg-amber-50 border-amber-200' : 'text-slate-600'}">Comment</button>
+        </td>
+        <td class="py-2 align-top"><button type="button" data-del="${idx}" class="text-red-600 text-xs">✕</button></td>`;
       tb.appendChild(tr);
       tr.querySelector(`select[data-k="unit_type"][data-i="${idx}"]`).value = it.unit_type || 'sq_ft';
+      const stSel = tr.querySelector(`select[data-k="service_type"][data-i="${idx}"]`);
+      if (stSel) {
+        stSel.value = st === 'Sand & Finishing' ? 'Sand & Finishing' : 'Installation';
+      }
     });
 
-    tb.querySelectorAll('input[data-k]').forEach((el) => {
-      el.addEventListener('input', () => {
-        const idx = parseInt(el.getAttribute('data-i'), 10);
-        const k = el.getAttribute('data-k');
-        items[idx][k] = k === 'description' ? el.value : parseFloat(el.value) || 0;
-        recalc();
-        renderItems();
-      });
-    });
-    tb.querySelectorAll('select[data-k]').forEach((el) => {
-      el.addEventListener('change', () => {
-        const idx = parseInt(el.getAttribute('data-i'), 10);
-        items[idx].unit_type = el.value;
-      });
-    });
-    tb.querySelectorAll('button[data-del]').forEach((b) => {
-      b.addEventListener('click', () => {
-        items.splice(parseInt(b.getAttribute('data-del'), 10), 1);
-        if (!items.length) items = [{ description: '', unit_type: 'sq_ft', quantity: 1, rate: 0 }];
-        recalc();
-        renderItems();
-      });
-    });
+    bindItemInputs(tb);
+    attachItemsTableHandlers(tb);
     recalc();
   }
 
@@ -137,7 +205,6 @@
     if (!q) return;
     quoteId = q.id;
     $('customerId').value = q.customer_id || '';
-    $('serviceType').value = q.service_type || 'Installation';
     $('status').value = q.status || 'draft';
     $('expirationDate').value = q.expiration_date ? String(q.expiration_date).slice(0, 10) : '';
     $('notes').value = q.notes || '';
@@ -151,9 +218,11 @@
       quantity: it.quantity,
       rate: it.rate,
       notes: it.notes,
+      service_type: it.service_type || 'Installation',
+      catalog_customer_notes: it.catalog_customer_notes || null,
       service_catalog_id: normalizeCatalogId(it.service_catalog_id),
     }));
-    if (!items.length) items = [{ description: '', unit_type: 'sq_ft', quantity: 1, rate: 0 }];
+    if (!items.length) items = [emptyLine()];
     $('quoteMeta').textContent = `Quote ${q.quote_number || '#' + q.id} · total ${money(q.total_amount)}`;
     setPublicLink(q.public_token);
     enableActions();
@@ -166,7 +235,6 @@
     const dv = parseFloat($('discountValue').value) || 0;
     return {
       customer_id: parseInt($('customerId').value, 10) || null,
-      service_type: $('serviceType').value,
       status: $('status').value,
       expiration_date: $('expirationDate').value || null,
       notes: $('notes').value || null,
@@ -181,6 +249,8 @@
         quantity: Number(it.quantity) || 0,
         rate: Number(it.rate) || 0,
         notes: it.notes || null,
+        service_type: it.service_type || null,
+        catalog_customer_notes: it.catalog_customer_notes || null,
         service_catalog_id: normalizeCatalogId(it.service_catalog_id),
         type: 'service',
       })),
@@ -240,7 +310,9 @@
     const cp = $('catalogPick');
     cp.innerHTML = '<option value="">— Pick catalog line —</option>';
     catalog.forEach((row) => {
-      cp.innerHTML += `<option value="${row.id}">${escapeAttr(row.name)} — $${row.default_rate}/${row.unit_type}</option>`;
+      const b = Number(row.rate_builder != null ? row.rate_builder : row.default_rate) || 0;
+      const c = Number(row.rate_customer != null ? row.rate_customer : row.default_rate) || 0;
+      cp.innerHTML += `<option value="${row.id}">${escapeAttr(row.name)} — B:${money(b)} / C:${money(c)} (${escapeAttr(row.unit_type || '')})</option>`;
     });
 
     const ts = $('templateSelect');
@@ -254,7 +326,7 @@
     if (qid) {
       await loadQuote(parseInt(qid, 10));
     } else {
-      items = [{ description: '', unit_type: 'sq_ft', quantity: 1, rate: 0 }];
+      items = [emptyLine()];
       $('quoteMeta').textContent = 'New quote';
       setPublicLink('');
       enableActions();
@@ -262,7 +334,7 @@
     }
 
     $('btnAddLine').addEventListener('click', () => {
-      items.push({ description: '', unit_type: 'sq_ft', quantity: 1, rate: 0 });
+      items.push(emptyLine());
       renderItems();
     });
     $('discountType').addEventListener('change', () => recalc());
@@ -274,11 +346,20 @@
       if (!idc) return;
       const row = catalog.find((c) => Number(c.id) === idc);
       if (row) {
+        const src = catalogPricingSource();
+        const rate = effectiveCatalogRate(row, src);
+        const catNotes = row.notes_customer != null ? String(row.notes_customer).trim() : '';
+        const category = row.category || 'Installation';
+        const lineSt =
+          category === 'Sand & Finishing' || String(category).includes('Sand') ? 'Sand & Finishing' : 'Installation';
         items.push({
           description: row.default_description || row.name,
           unit_type: row.unit_type || 'sq_ft',
           quantity: 1,
-          rate: Number(row.default_rate) || 0,
+          rate,
+          service_type: lineSt,
+          notes: null,
+          catalog_customer_notes: catNotes || null,
           service_catalog_id: normalizeCatalogId(row.id),
         });
         $('catalogPick').value = '';
@@ -291,16 +372,17 @@
       if (!tid) return;
       const r = await api(`/api/quote-templates/${tid}`);
       const t = r.data;
-      if (t.service_type) $('serviceType').value = t.service_type;
       items = (t.items || []).map((x) => ({
         description: x.description,
         unit_type: x.unit_type || 'sq_ft',
         quantity: Number(x.quantity) || 1,
         rate: Number(x.rate) || 0,
         notes: x.notes,
+        service_type: x.service_type || 'Installation',
+        catalog_customer_notes: x.catalog_customer_notes || null,
         service_catalog_id: normalizeCatalogId(x.service_catalog_id),
       }));
-      if (!items.length) items = [{ description: '', unit_type: 'sq_ft', quantity: 1, rate: 0 }];
+      if (!items.length) items = [emptyLine()];
       renderItems();
     });
 
@@ -338,13 +420,14 @@
       if (!name) return;
       const body = {
         name,
-        service_type: $('serviceType').value,
         items: items.map((it) => ({
           description: it.description,
           unit_type: it.unit_type,
           quantity: it.quantity,
           rate: it.rate,
           notes: it.notes,
+          service_type: it.service_type,
+          catalog_customer_notes: it.catalog_customer_notes,
           service_catalog_id: normalizeCatalogId(it.service_catalog_id),
         })),
       };

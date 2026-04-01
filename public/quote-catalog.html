@@ -45,7 +45,8 @@
               <th class="px-4 py-3">Nome</th>
               <th class="px-4 py-3">Categoria</th>
               <th class="px-4 py-3">Unidade</th>
-              <th class="px-4 py-3 text-right">Taxa padrão</th>
+              <th class="px-4 py-3 text-right">Builder</th>
+              <th class="px-4 py-3 text-right">Customer</th>
               <th class="px-4 py-3">Ativo</th>
               <th class="px-4 py-3 text-right">Ações</th>
             </tr>
@@ -74,23 +75,41 @@
             <option value="Sand & Finishing">Sand &amp; Finishing</option>
           </select>
         </div>
-        <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs font-semibold text-slate-500 mb-1">Unidade *</label>
+          <select id="fUnit" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
+            <option value="sq_ft">Sq Ft (pé quadrado)</option>
+            <option value="linear_ft">Linear Ft (pé linear)</option>
+            <option value="inches">Inches</option>
+            <option value="fixed">Fixed (preço fixo)</option>
+          </select>
+        </div>
+        <div class="border-b border-slate-200 flex gap-1" role="tablist">
+          <button type="button" data-catalog-tab="builder" class="catalog-tab px-3 py-2 text-sm font-medium rounded-t-lg border border-b-0 border-slate-200 bg-slate-100 text-slate-900">Builder</button>
+          <button type="button" data-catalog-tab="customer" class="catalog-tab px-3 py-2 text-sm font-medium rounded-t-lg border border-transparent text-slate-600 hover:bg-slate-50">Customer</button>
+        </div>
+        <div id="panelBuilder" class="catalog-panel space-y-3 border border-slate-200 rounded-b-lg rounded-tr-lg p-4 bg-slate-50/50">
           <div>
-            <label class="block text-xs font-semibold text-slate-500 mb-1">Unidade *</label>
-            <select id="fUnit" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
-              <option value="sq_ft">Sq Ft (pé quadrado)</option>
-              <option value="linear_ft">Linear Ft (pé linear)</option>
-              <option value="inches">Inches</option>
-              <option value="fixed">Fixed (preço fixo)</option>
-            </select>
+            <label class="block text-xs font-semibold text-slate-500 mb-1">Preço negociação Builder (USD) *</label>
+            <input id="fRateBuilder" type="number" step="0.01" min="0" required class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white" placeholder="0.00" />
           </div>
           <div>
-            <label class="block text-xs font-semibold text-slate-500 mb-1">Taxa padrão (USD) *</label>
-            <input id="fRate" type="number" step="0.01" min="0" required class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" placeholder="0.00" />
+            <label class="block text-xs font-semibold text-slate-500 mb-1">Notas Builder (interno)</label>
+            <textarea id="fNotesBuilder" rows="2" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white" placeholder="Referência interna; não vai no PDF do cliente"></textarea>
+          </div>
+        </div>
+        <div id="panelCustomer" class="catalog-panel hidden space-y-3 border border-slate-200 rounded-b-lg rounded-tr-lg p-4 bg-slate-50/50">
+          <div>
+            <label class="block text-xs font-semibold text-slate-500 mb-1">Preço negociação Customer (USD) *</label>
+            <input id="fRateCustomer" type="number" step="0.01" min="0" required class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white" placeholder="0.00" />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-500 mb-1">Comentário Customer (PDF)</label>
+            <textarea id="fNotesCustomer" rows="3" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white" placeholder="Aparece no orçamento final (PDF) por baixo da linha"></textarea>
           </div>
         </div>
         <div>
-          <label class="block text-xs font-semibold text-slate-500 mb-1">Descrição padrão (vai para a linha do orçamento)</label>
+          <label class="block text-xs font-semibold text-slate-500 mb-1">Descrição padrão (texto da linha no orçamento)</label>
           <textarea id="fDesc" rows="3" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" placeholder="Texto sugerido ao adicionar do catálogo"></textarea>
         </div>
         <div id="fActiveWrap" class="hidden">
@@ -108,6 +127,6 @@
     </div>
   </div>
 
-  <script src="quote-catalog.js?v=1"></script>
+  <script src="quote-catalog.js?v=2"></script>
 </body>
 </html>

@@ -23,15 +23,21 @@
     const items = j.data.items || [];
     const client = [q.customer_name, q.customer_email].filter(Boolean).join(' · ');
     const lines = items
-      .map(
-        (it) => `
+      .map((it) => {
+        const st = it.service_type ? `<span class="text-[11px] text-slate-500 block mb-0.5">${escapeHtml(it.service_type)}</span>` : '';
+        const cn = String(it.catalog_customer_notes || '').trim();
+        const ln = String(it.notes || '').trim();
+        const extra = [];
+        if (cn) extra.push(`<div class="text-[11px] text-slate-500 mt-1">${escapeHtml(cn)}</div>`);
+        if (ln) extra.push(`<div class="text-[11px] text-slate-600 mt-1 italic">Comment: ${escapeHtml(ln)}</div>`);
+        return `
       <tr class="border-b border-slate-100 text-sm">
-        <td class="py-2 pr-2">${escapeHtml(it.description || '')}</td>
+        <td class="py-2 pr-2">${st}${escapeHtml(it.description || '')}${extra.join('')}</td>
         <td class="py-2 text-right">${Number(it.quantity) || 0}</td>
         <td class="py-2 text-right">${money(it.rate)}</td>
         <td class="py-2 text-right font-medium">${money(it.amount)}</td>
-      </tr>`
-      )
+      </tr>`;
+      })
       .join('');
 
     const approved = String(q.status).toLowerCase() === 'approved';

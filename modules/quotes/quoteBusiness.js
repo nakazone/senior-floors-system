@@ -3,6 +3,16 @@ import * as repo from './quoteRepository.js';
 import { buildQuotePdfBuffer } from './quotePdf.js';
 import { sendQuoteEmail } from './quoteMail.js';
 
+/** Resumo no quote (PDF / listagem): tipos únicos por linha, ex. "Installation · Sand & Finishing". */
+export function deriveQuoteServiceSummary(items) {
+  const set = new Set();
+  for (const it of items || []) {
+    const t = String(it.service_type || '').trim();
+    if (t) set.add(t);
+  }
+  return set.size ? [...set].sort().join(' · ') : null;
+}
+
 export function mapItemRow(dbRow) {
   if (!dbRow) return null;
   const quantity = Number(dbRow.quantity ?? dbRow.area_sqft) || 0;
@@ -20,6 +30,8 @@ export function mapItemRow(dbRow) {
     amount,
     total_price: amount,
     notes: dbRow.notes || null,
+    service_type: dbRow.service_type || null,
+    catalog_customer_notes: dbRow.catalog_customer_notes || null,
     type: dbRow.type || 'service',
     floor_type: dbRow.floor_type,
     sort_order: dbRow.sort_order ?? 0,
@@ -73,7 +85,12 @@ export async function saveQuoteFull(pool, quoteId, body, userId, { snapshotPrevi
   if (body.customer_id !== undefined) set('customer_id', body.customer_id);
   if (body.lead_id !== undefined) set('lead_id', body.lead_id);
   if (body.assigned_to !== undefined) set('assigned_to', body.assigned_to);
-  if (body.service_type !== undefined) set('service_type', body.service_type);
+  if (Array.isArray(body.items)) {
+    const summary = deriveQuoteServiceSummary(items);
+    set('service_type', summary);
+  } else if (body.service_type !== undefined) {
+    set('service_type', body.service_type);
+  }
   if (body.status !== undefined) set('status', body.status);
   if (body.expiration_date !== undefined) set('expiration_date', body.expiration_date);
   if (body.issue_date !== undefined) set('issue_date', body.issue_date);
@@ -196,7 +213,7 @@ export async function createQuoteFull(pool, body, userId) {
       case 'terms_conditions':
         return body.terms_conditions || null;
       case 'service_type':
-        return body.service_type || null;
+        return deriveQuoteServiceSummary(items) ?? body.service_type ?? null;
       case 'assigned_to':
         return body.assigned_to ?? null;
       case 'public_token':
@@ -249,6 +266,8 @@ export async function duplicateQuote(pool, quoteId, userId) {
       unit_type: it.unit_type,
       notes: it.notes,
       service_catalog_id: it.service_catalog_id,
+      service_type: it.service_type,
+      catalog_customer_notes: it.catalog_customer_notes,
       type: it.type,
     })),
   };

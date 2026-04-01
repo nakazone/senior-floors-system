@@ -38,6 +38,8 @@ const QUOTE_ITEM_INSERT_ORDER = [
   'quantity',
   'service_catalog_id',
   'unit_type',
+  'service_type',
+  'catalog_customer_notes',
   'sort_order',
 ];
 
@@ -92,6 +94,8 @@ export async function replaceQuoteItems(pool, quoteId, items) {
       quantity: it.quantity,
       service_catalog_id: it.service_catalog_id,
       unit_type: it.unit_type,
+      service_type: it.service_type,
+      catalog_customer_notes: it.catalog_customer_notes,
       sort_order: it.sort_order,
     };
     const vals = fields.map((f) => rowMap[f]);
@@ -123,8 +127,19 @@ function normalizeRow(raw, sortOrder) {
     quantity,
     service_catalog_id: raw.service_catalog_id != null ? parseInt(raw.service_catalog_id, 10) || null : null,
     unit_type: normalizeUnitType(raw.unit_type),
+    service_type: normalizeLineServiceType(raw.service_type),
+    catalog_customer_notes:
+      raw.catalog_customer_notes != null && String(raw.catalog_customer_notes).trim() !== ''
+        ? String(raw.catalog_customer_notes).trim().slice(0, 4000)
+        : null,
     sort_order: raw.sort_order != null ? parseInt(raw.sort_order, 10) : sortOrder,
   };
+}
+
+function normalizeLineServiceType(st) {
+  if (st == null || st === '') return null;
+  const s = String(st).trim().slice(0, 64);
+  return s || null;
 }
 
 function normalizeUnitType(u) {
@@ -150,14 +165,20 @@ export async function getCatalogItem(pool, id) {
 
 export async function insertCatalogItem(pool, row) {
   const [r] = await pool.execute(
-    `INSERT INTO quote_service_catalog (name, category, default_rate, unit_type, default_description, active)
-     VALUES (?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO quote_service_catalog (
+      name, category, default_rate, rate_builder, rate_customer, unit_type,
+      default_description, notes_builder, notes_customer, active
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       row.name,
       row.category,
       row.default_rate,
+      row.rate_builder,
+      row.rate_customer,
       normalizeUnitType(row.unit_type),
       row.default_description || null,
+      row.notes_builder || null,
+      row.notes_customer || null,
       row.active !== false ? 1 : 0,
     ]
   );
@@ -166,14 +187,19 @@ export async function insertCatalogItem(pool, row) {
 
 export async function updateCatalogItem(pool, id, row) {
   await pool.execute(
-    `UPDATE quote_service_catalog SET name = ?, category = ?, default_rate = ?, unit_type = ?,
-     default_description = ?, active = ? WHERE id = ?`,
+    `UPDATE quote_service_catalog SET name = ?, category = ?, default_rate = ?, rate_builder = ?,
+     rate_customer = ?, unit_type = ?, default_description = ?, notes_builder = ?, notes_customer = ?,
+     active = ? WHERE id = ?`,
     [
       row.name,
       row.category,
       row.default_rate,
+      row.rate_builder,
+      row.rate_customer,
       normalizeUnitType(row.unit_type),
       row.default_description || null,
+      row.notes_builder || null,
+      row.notes_customer || null,
       row.active !== false ? 1 : 0,
       id,
     ]
@@ -214,8 +240,9 @@ export async function insertTemplate(pool, { name, service_type, created_by, ite
     const rate = Number(raw.rate ?? raw.default_rate) || 0;
     await pool.execute(
       `INSERT INTO quote_template_items (
-        template_id, service_catalog_id, description, unit_type, quantity, rate, notes, sort_order
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        template_id, service_catalog_id, description, unit_type, quantity, rate, notes, sort_order,
+        service_type, catalog_customer_notes
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         tid,
         raw.service_catalog_id != null ? parseInt(raw.service_catalog_id, 10) || null : null,
@@ -225,6 +252,10 @@ export async function insertTemplate(pool, { name, service_type, created_by, ite
         rate,
         raw.notes || null,
         raw.sort_order != null ? raw.sort_order : o,
+        normalizeLineServiceType(raw.service_type),
+        raw.catalog_customer_notes != null && String(raw.catalog_customer_notes).trim() !== ''
+          ? String(raw.catalog_customer_notes).trim().slice(0, 4000)
+          : null,
       ]
     );
   }

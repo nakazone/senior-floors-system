@@ -24,6 +24,29 @@
     return m[u] || u || '—';
   }
 
+  function effectiveBuilder(r) {
+    return r.rate_builder != null ? r.rate_builder : r.default_rate;
+  }
+
+  function effectiveCustomer(r) {
+    return r.rate_customer != null ? r.rate_customer : r.default_rate;
+  }
+
+  function setCatalogTab(which) {
+    const builder = which === 'builder';
+    $('panelBuilder').classList.toggle('hidden', !builder);
+    $('panelCustomer').classList.toggle('hidden', builder);
+    document.querySelectorAll('.catalog-tab').forEach((btn) => {
+      const on = btn.getAttribute('data-catalog-tab') === which;
+      btn.classList.toggle('bg-slate-100', on);
+      btn.classList.toggle('text-slate-900', on);
+      btn.classList.toggle('border-slate-200', on);
+      btn.classList.toggle('border-b-0', on);
+      btn.classList.toggle('border-transparent', !on);
+      btn.classList.toggle('text-slate-600', !on);
+    });
+  }
+
   function openModal() {
     $('modal').classList.remove('hidden');
     $('modal').classList.add('flex');
@@ -52,7 +75,8 @@
         <td class="px-4 py-3 font-medium">${escapeHtml(r.name)}</td>
         <td class="px-4 py-3 text-slate-600">${escapeHtml(r.category)}</td>
         <td class="px-4 py-3 text-slate-600">${unitLabel(r.unit_type)}</td>
-        <td class="px-4 py-3 text-right font-mono">${money(r.default_rate)}</td>
+        <td class="px-4 py-3 text-right font-mono">${money(effectiveBuilder(r))}</td>
+        <td class="px-4 py-3 text-right font-mono">${money(effectiveCustomer(r))}</td>
         <td class="px-4 py-3">${active ? '<span class="text-green-700 font-medium">Sim</span>' : '<span class="text-slate-400">Não</span>'}</td>
         <td class="px-4 py-3 text-right space-x-2 whitespace-nowrap">
           <button type="button" class="text-sm font-medium text-blue-600 hover:underline" data-edit="${r.id}">Editar</button>
@@ -80,7 +104,6 @@
       .replace(/"/g, '&quot;');
   }
 
-  /** MySQL/JSON pode devolver id como string; comparações com número falham com === */
   function rowById(arr, id) {
     const n = Number(id);
     return arr.find((x) => Number(x.id) === n);
@@ -103,10 +126,14 @@
     $('fName').value = '';
     $('fCategory').value = 'Installation';
     $('fUnit').value = 'sq_ft';
-    $('fRate').value = '';
+    $('fRateBuilder').value = '';
+    $('fRateCustomer').value = '';
+    $('fNotesBuilder').value = '';
+    $('fNotesCustomer').value = '';
     $('fDesc').value = '';
     $('fActive').checked = true;
     $('fActiveWrap').classList.add('hidden');
+    setCatalogTab('builder');
   }
 
   function edit(id) {
@@ -117,10 +144,16 @@
     $('fName').value = row.name || '';
     $('fCategory').value = row.category || 'Installation';
     $('fUnit').value = row.unit_type || 'sq_ft';
-    $('fRate').value = row.default_rate ?? '';
+    const b = effectiveBuilder(row);
+    const c = effectiveCustomer(row);
+    $('fRateBuilder').value = b != null ? b : '';
+    $('fRateCustomer').value = c != null ? c : '';
+    $('fNotesBuilder').value = row.notes_builder || '';
+    $('fNotesCustomer').value = row.notes_customer || '';
     $('fDesc').value = row.default_description || '';
     $('fActive').checked = Number(row.active) === 1;
     $('fActiveWrap').classList.remove('hidden');
+    setCatalogTab('builder');
     openModal();
   }
 
@@ -133,14 +166,20 @@
   async function reactivate(id) {
     const row = rowById(rows, id);
     if (!row) return;
+    const b = Number(effectiveBuilder(row)) || 0;
+    const c = Number(effectiveCustomer(row)) || 0;
     await api('/api/quote-catalog/' + id, {
       method: 'PUT',
       body: JSON.stringify({
         name: row.name,
         category: row.category,
-        default_rate: row.default_rate,
+        rate_builder: b,
+        rate_customer: c,
+        default_rate: c,
         unit_type: row.unit_type,
         default_description: row.default_description,
+        notes_builder: row.notes_builder || null,
+        notes_customer: row.notes_customer || null,
         active: true,
       }),
     });
@@ -154,6 +193,10 @@
       $('authMsg').classList.remove('hidden');
       return;
     }
+
+    document.querySelectorAll('[data-catalog-tab]').forEach((btn) => {
+      btn.addEventListener('click', () => setCatalogTab(btn.getAttribute('data-catalog-tab')));
+    });
 
     $('showInactive').addEventListener('change', load);
     $('btnNew').addEventListener('click', () => {
@@ -169,12 +212,23 @@
       e.preventDefault();
       $('formError').classList.add('hidden');
       const id = $('editId').value.trim();
+      const rb = parseFloat($('fRateBuilder').value);
+      const rc = parseFloat($('fRateCustomer').value);
+      if (!Number.isFinite(rb) || rb < 0 || !Number.isFinite(rc) || rc < 0) {
+        $('formError').textContent = 'Preços Builder e Customer devem ser números ≥ 0.';
+        $('formError').classList.remove('hidden');
+        return;
+      }
       const body = {
         name: $('fName').value.trim(),
         category: $('fCategory').value,
         unit_type: $('fUnit').value,
-        default_rate: parseFloat($('fRate').value),
+        rate_builder: rb,
+        rate_customer: rc,
+        default_rate: rc,
         default_description: $('fDesc').value.trim() || null,
+        notes_builder: $('fNotesBuilder').value.trim() || null,
+        notes_customer: $('fNotesCustomer').value.trim() || null,
         active: $('fActive').checked,
       };
       try {

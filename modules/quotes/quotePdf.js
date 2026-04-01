@@ -56,6 +56,7 @@ export async function buildQuotePdfBuffer(opts) {
   const pdf = await PDFDocument.create();
   const font = await pdf.embedFont(StandardFonts.Helvetica);
   const fontBold = await pdf.embedFont(StandardFonts.HelveticaBold);
+  const fontItalic = await pdf.embedFont(StandardFonts.HelveticaOblique);
 
   const pageW = 612;
   const pageH = 792;
@@ -124,7 +125,14 @@ export async function buildQuotePdfBuffer(opts) {
   }
 
   y -= 16;
-  page.drawText(`Service: ${quote.service_type || 'Flooring'}`, { x: margin, y, size: 9, font });
+  const typesFromLines = [
+    ...new Set((items || []).map((it) => String(it.service_type || '').trim()).filter(Boolean)),
+  ].sort();
+  const serviceHeader =
+    typesFromLines.length > 0
+      ? typesFromLines.join(' · ')
+      : quote.service_type || 'Flooring';
+  page.drawText(`Service types: ${serviceHeader}`, { x: margin, y, size: 9, font });
   y -= 20;
 
   const colDesc = margin;
@@ -180,6 +188,22 @@ export async function buildQuotePdfBuffer(opts) {
       }
       page.drawText(line, { x: colDesc, y: dy, size: 9, font, color: textColor });
       dy -= lineH;
+    }
+    const catalogNotes = String(it.catalog_customer_notes || '').trim();
+    const lineComment = String(it.notes || '').trim();
+    const detailParts = [];
+    if (catalogNotes) detailParts.push(catalogNotes);
+    if (lineComment) detailParts.push(`Comment: ${lineComment}`);
+    if (detailParts.length) {
+      const detailText = detailParts.join(' — ');
+      for (const line of wrap(detailText, colQty - colDesc - 8, 8)) {
+        if (dy < 80) {
+          page = pdf.addPage([pageW, pageH]);
+          dy = pageH - margin;
+        }
+        page.drawText(line, { x: colDesc, y: dy, size: 8, font: fontItalic, color: rgb(0.35, 0.37, 0.42) });
+        dy -= lineH - 2;
+      }
     }
     y = Math.min(dy, rowStartY - lineH) - 8;
   }

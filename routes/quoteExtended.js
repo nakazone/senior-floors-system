@@ -141,25 +141,48 @@ export async function getQuoteCatalog(req, res) {
   }
 }
 
+function parseNonNegRate(v) {
+  const n = parseFloat(String(v ?? '').replace(',', '.'));
+  return Number.isFinite(n) && n >= 0 ? n : null;
+}
+
 function normalizeCatalogBody(body) {
   const name = body.name != null ? String(body.name).trim() : '';
   const category = body.category != null ? String(body.category).trim() : '';
   if (!name) return { error: 'Nome do serviço é obrigatório.' };
   if (!category) return { error: 'Categoria é obrigatória.' };
-  const defaultRate = parseFloat(String(body.default_rate ?? body.defaultRate ?? '').replace(',', '.'));
-  if (!Number.isFinite(defaultRate) || defaultRate < 0) {
-    return { error: 'Preço / taxa padrão inválido (use um número ≥ 0).' };
+  let rateBuilder = parseNonNegRate(body.rate_builder ?? body.rateBuilder);
+  let rateCustomer = parseNonNegRate(body.rate_customer ?? body.rateCustomer);
+  const legacyDefault = parseNonNegRate(body.default_rate ?? body.defaultRate);
+  if (rateBuilder == null && rateCustomer == null && legacyDefault != null) {
+    rateBuilder = legacyDefault;
+    rateCustomer = legacyDefault;
   }
+  if (rateBuilder == null || rateCustomer == null) {
+    return {
+      error:
+        'Preços Builder e Customer são obrigatórios (números ≥ 0). Pode enviar só default_rate para preencher os dois.',
+    };
+  }
+  const default_rate = rateCustomer;
+  const notesBuilder =
+    body.notes_builder != null ? String(body.notes_builder).trim().slice(0, 4000) || null : null;
+  const notesCustomer =
+    body.notes_customer != null ? String(body.notes_customer).trim().slice(0, 4000) || null : null;
   return {
     row: {
       name: name.slice(0, 255),
       category: category.slice(0, 64),
-      default_rate: defaultRate,
+      default_rate,
+      rate_builder: rateBuilder,
+      rate_customer: rateCustomer,
       unit_type: body.unit_type || body.unitType || 'sq_ft',
       default_description:
         body.default_description != null
           ? String(body.default_description).trim().slice(0, 4000) || null
           : null,
+      notes_builder: notesBuilder,
+      notes_customer: notesCustomer,
       active: body.active !== false && body.active !== 0 && body.active !== '0',
     },
   };
@@ -181,6 +204,12 @@ export async function postQuoteCatalog(req, res) {
       return res.status(503).json({
         success: false,
         error: 'Migração pendente: npm run migrate:quotes-module (quote_service_catalog).',
+      });
+    }
+    if (mysqlText(e).includes('rate_builder') || mysqlText(e).includes('rate_customer')) {
+      return res.status(503).json({
+        success: false,
+        error: 'Migração pendente: npm run migrate:quote-enhancements-v2 (preços Builder/Customer).',
       });
     }
     res.status(500).json({ success: false, error: e.message });
@@ -205,6 +234,12 @@ export async function putQuoteCatalog(req, res) {
       return res.status(503).json({
         success: false,
         error: 'Migração pendente: npm run migrate:quotes-module (quote_service_catalog).',
+      });
+    }
+    if (mysqlText(e).includes('rate_builder') || mysqlText(e).includes('rate_customer')) {
+      return res.status(503).json({
+        success: false,
+        error: 'Migração pendente: npm run migrate:quote-enhancements-v2 (preços Builder/Customer).',
       });
     }
     res.status(500).json({ success: false, error: e.message });
@@ -278,16 +313,23 @@ export async function postQuoteTemplate(req, res) {
   try {
     const pool = await getDBConnection();
     if (!pool) return res.status(503).json({ success: false, error: 'Database not available' });
+    const items = Array.isArray(req.body.items) ? req.body.items : [];
     const tid = await repo.insertTemplate(pool, {
       name: req.body.name,
-      service_type: req.body.service_type,
+      service_type: business.deriveQuoteServiceSummary(items) ?? req.body.service_type ?? null,
       created_by: req.session.userId,
-      items: req.body.items,
+      items,
     });
     const tpl = await repo.getTemplateWithItems(pool, tid);
     res.status(201).json({ success: true, data: tpl });
   } catch (e) {
     console.error('postQuoteTemplate:', e);
+    if (mysqlText(e).includes('service_type') && mysqlText(e).toLowerCase().includes('unknown column')) {
+      return res.status(503).json({
+        success: false,
+        error: 'Migração pendente: npm run migrate:quote-enhancements-v2',
+      });
+    }
     res.status(500).json({ success: false, error: e.message });
   }
 }
@@ -321,13 +363,15 @@ export async function postQuoteFromTemplate(req, res) {
       unit_type: t.unit_type,
       notes: t.notes,
       service_catalog_id: t.service_catalog_id,
+      service_type: t.service_type,
+      catalog_customer_notes: t.catalog_customer_notes,
     }));
     const created = await business.createQuoteFull(
       pool,
       {
         customer_id: req.body.customer_id,
         lead_id: req.body.lead_id,
-        service_type: tpl.service_type,
+        service_type: business.deriveQuoteServiceSummary(items) ?? tpl.service_type,
         items,
         status: 'draft',
         notes: req.body.notes,

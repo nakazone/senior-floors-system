@@ -34,11 +34,12 @@
           <select id="customerId" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"></select>
         </div>
         <div>
-          <label class="block text-xs font-semibold text-slate-500 mb-1">Service type</label>
-          <select id="serviceType" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
-            <option value="Installation">Installation</option>
-            <option value="Sand & Finishing">Sand &amp; Finishing</option>
-          </select>
+          <label class="block text-xs font-semibold text-slate-500 mb-1">Catalog pricing (lines added from catalog)</label>
+          <div class="flex flex-wrap gap-4 text-sm pt-1">
+            <label class="inline-flex items-center gap-2 cursor-pointer"><input type="radio" name="pricingCatalog" value="customer" checked class="rounded border-slate-300" /> Customer rate</label>
+            <label class="inline-flex items-center gap-2 cursor-pointer"><input type="radio" name="pricingCatalog" value="builder" class="rounded border-slate-300" /> Builder rate</label>
+          </div>
+          <p class="text-xs text-slate-500 mt-1">Each line has its own service type (Installation vs Sand &amp; Finishing).</p>
         </div>
         <div>
           <label class="block text-xs font-semibold text-slate-500 mb-1">Status</label>
@@ -73,11 +74,13 @@
         <table class="w-full text-sm" id="itemsTable">
           <thead>
             <tr class="text-left text-xs text-slate-500 border-b">
-              <th class="pb-2 pr-2">Description</th>
+              <th class="pb-2 pr-2 w-36">Service</th>
+              <th class="pb-2 pr-2 min-w-[140px]">Description</th>
               <th class="pb-2 pr-2 w-28">Unit</th>
               <th class="pb-2 pr-2 w-24">Qty</th>
               <th class="pb-2 pr-2 w-28">Rate</th>
               <th class="pb-2 pr-2 w-28">Amount</th>
+              <th class="pb-2 pr-2 w-28 text-center">Note</th>
               <th class="pb-2 w-10"></th>
             </tr>
           </thead>
