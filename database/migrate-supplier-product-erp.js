@@ -121,7 +121,7 @@ async function main() {
     ['product_id', '`product_id` INT NULL DEFAULT NULL'],
     ['cost_price', '`cost_price` DECIMAL(12,4) NULL DEFAULT NULL'],
     ['markup_percentage', '`markup_percentage` DECIMAL(8,4) NULL DEFAULT NULL'],
-    ['sell_price', '`sell_price` DECIMAL(12,4) NULL DEFAULT NULL COMMENT 'snapshot sell unit price''],
+    ['sell_price', "`sell_price` DECIMAL(12,4) NULL DEFAULT NULL COMMENT 'snapshot sell unit price'"],
   ];
   for (const [name, ddl] of qiCols) {
     if (!(await columnExists(conn, 'quote_items', name))) {
