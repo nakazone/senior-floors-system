@@ -29,18 +29,14 @@
     view: 'steps',
     client: { name: '', email: '', phone: '', address: '' },
     measureMode: 'total',
-    totalSqft: 850,
-    rooms: [
-      { name: 'Living room', sqft: 300 },
-      { name: 'Bedroom', sqft: 200 },
-      { name: 'Kitchen', sqft: 150 },
-    ],
+    totalSqft: 0,
+    rooms: [],
     service: 'installation',
     materialSource: 'we',
     productSearch: '',
     product: null,
-    productQty: 850,
-    addons: { baseboards: true, stairs: false, removal: true, furniture: false },
+    productQty: 0,
+    addons: { baseboards: false, stairs: false, removal: false, furniture: false },
     addonQty: { baseboards: null, stairs: 0, removal: null, furniture: 1 },
     customLines: [],
     photos: [],
@@ -338,8 +334,6 @@
       <div class="flex justify-between"><span class="text-slate-600">Add-ons</span><span class="font-semibold tabular-nums">${money(addTotal)}</span></div>
     `;
     $('summaryTotal').textContent = money(b.total);
-    const mo = Math.round((b.total / 36) * 100) / 100;
-    $('summaryMonthly').textContent = `${money(mo)}/mo`;
   }
 
   function gbbTotals() {
