@@ -13,6 +13,7 @@
     "migrate:lead-address": "node database/add-lead-address-column.js",
     "migrate:quotes-module": "node database/migrate-quotes-module-complete.js",
     "migrate:quote-enhancements-v2": "node database/migrate-quote-enhancements-v2.js",
+    "migrate:supplier-product-erp": "node database/migrate-supplier-product-erp.js",
     "google-calendar:token": "node scripts/google-oauth-token.mjs"
   },
   "engines": {

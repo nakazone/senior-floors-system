@@ -6,6 +6,8 @@
   let catalog = [];
   let templates = [];
   /** @type {Array<Record<string, unknown>>} */
+  let erpProducts = [];
+  /** @type {Array<Record<string, unknown>>} */
   let items = [];
 
   const money = (n) =>
@@ -24,6 +26,7 @@
 
   function emptyLine() {
     return {
+      item_type: 'service',
       description: '',
       unit_type: 'sq_ft',
       quantity: 1,
@@ -32,7 +35,44 @@
       notes: null,
       catalog_customer_notes: null,
       service_catalog_id: null,
+      product_id: null,
+      cost_price: null,
+      markup_percentage: null,
+      sell_price: null,
     };
+  }
+
+  function sellFromCostMarkup(cost, mPct) {
+    const c = Number(cost) || 0;
+    const m = Math.max(0, Number(mPct) || 0);
+    return Math.round(c * (1 + m / 100) * 10000) / 10000;
+  }
+
+  function localProfitSummary() {
+    let totalCost = 0;
+    let totalRevenue = 0;
+    for (const it of items) {
+      const q = Number(it.quantity) || 0;
+      const sell = Number(it.rate) || 0;
+      const cost = Number(it.cost_price);
+      totalRevenue += Math.round(q * sell * 100) / 100;
+      if (it.item_type === 'product' && Number.isFinite(cost) && cost >= 0) {
+        totalCost += Math.round(q * cost * 100) / 100;
+      }
+    }
+    const gp = Math.round((totalRevenue - totalCost) * 100) / 100;
+    const mp = totalRevenue > 0 ? Math.round((gp / totalRevenue) * 10000) / 100 : null;
+    return { totalCost, totalRevenue, grossProfit: gp, marginPct: mp };
+  }
+
+  function updateProfitPanel() {
+    const p = localProfitSummary();
+    const elC = $('dispCost');
+    if (!elC) return;
+    elC.textContent = money(p.totalCost);
+    $('dispRevenue').textContent = money(p.totalRevenue);
+    $('dispProfit').textContent = money(p.grossProfit);
+    $('dispMarginPct').textContent = p.marginPct != null ? `${p.marginPct}%` : '—';
   }
 
   function catalogPricingSource() {
@@ -65,6 +105,7 @@
     const total = Math.max(0, Math.round((sub - disc + tax) * 100) / 100);
     $('dispSubtotal').textContent = money(sub);
     $('dispTotal').textContent = money(total);
+    updateProfitPanel();
     return { sub, total, disc, tax };
   }
 
@@ -87,6 +128,12 @@
         const idx = parseInt(this.getAttribute('data-i'), 10);
         const k = this.getAttribute('data-k');
         items[idx][k] = k === 'description' ? this.value : parseFloat(this.value) || 0;
+        if (k === 'rate' && items[idx].item_type === 'product') {
+          const c = Number(items[idx].cost_price);
+          const r = Number(items[idx].rate) || 0;
+          items[idx].sell_price = r;
+          if (c > 0) items[idx].markup_percentage = Math.round(((r - c) / c) * 10000) / 100;
+        }
         recalc();
         const tr = this.closest('tr');
         if (tr) updateRowAmount(tr, idx);
@@ -134,13 +181,19 @@
       const amt = lineAmount(Number(it.quantity) || 0, Number(it.rate) || 0);
       const hasNote = !!(it.notes && String(it.notes).trim());
       const st = it.service_type || 'Installation';
-      tr.innerHTML = `
-        <td class="py-2 pr-2 align-top">
-          <select data-k="service_type" data-i="${idx}" class="w-full border rounded px-1 py-1 text-xs">
+      const isProduct = it.item_type === 'product';
+      const kindCell = isProduct
+        ? '<span class="text-xs font-semibold text-violet-700">Product</span>'
+        : '<span class="text-xs font-semibold text-slate-600">Service</span>';
+      const serviceCell = isProduct
+        ? '<span class="text-xs text-slate-400 pt-2 inline-block">—</span>'
+        : `<select data-k="service_type" data-i="${idx}" class="w-full border rounded px-1 py-1 text-xs">
             <option value="Installation">Installation</option>
             <option value="Sand & Finishing">Sand &amp; Finishing</option>
-          </select>
-        </td>
+          </select>`;
+      tr.innerHTML = `
+        <td class="py-2 pr-2 align-top">${kindCell}</td>
+        <td class="py-2 pr-2 align-top">${serviceCell}</td>
         <td class="py-2 pr-2"><input data-k="description" data-i="${idx}" type="text" class="w-full border rounded px-2 py-1 text-sm" value="${escapeAttr(it.description || '')}" /></td>
         <td class="py-2 pr-2">
           <select data-k="unit_type" data-i="${idx}" class="w-full border rounded px-1 py-1 text-xs">
@@ -148,6 +201,8 @@
             <option value="linear_ft">Linear Ft</option>
             <option value="inches">Inches</option>
             <option value="fixed">Fixed</option>
+            <option value="box">Box</option>
+            <option value="piece">Piece</option>
           </select>
         </td>
         <td class="py-2 pr-2"><input data-k="quantity" data-i="${idx}" type="number" step="0.01" class="w-full border rounded px-2 py-1 text-sm" value="${it.quantity ?? 1}" /></td>
@@ -213,14 +268,19 @@
     $('discountValue').value = q.discount_value ?? 0;
     $('taxTotal').value = q.tax_total ?? 0;
     items = (q.items || []).map((it) => ({
+      item_type: it.item_type || 'service',
       description: it.description,
       unit_type: it.unit_type || 'sq_ft',
       quantity: it.quantity,
       rate: it.rate,
       notes: it.notes,
-      service_type: it.service_type || 'Installation',
+      service_type: it.item_type === 'product' ? null : it.service_type || 'Installation',
       catalog_customer_notes: it.catalog_customer_notes || null,
       service_catalog_id: normalizeCatalogId(it.service_catalog_id),
+      product_id: it.product_id != null ? Number(it.product_id) : null,
+      cost_price: it.cost_price != null ? Number(it.cost_price) : null,
+      markup_percentage: it.markup_percentage != null ? Number(it.markup_percentage) : null,
+      sell_price: it.sell_price != null ? Number(it.sell_price) : null,
     }));
     if (!items.length) items = [emptyLine()];
     $('quoteMeta').textContent = `Quote ${q.quote_number || '#' + q.id} · total ${money(q.total_amount)}`;
@@ -244,15 +304,19 @@
       tax_total: tax,
       subtotal: sub,
       items: items.map((it) => ({
+        item_type: it.item_type || 'service',
         description: it.description,
         unit_type: it.unit_type || 'sq_ft',
         quantity: Number(it.quantity) || 0,
         rate: Number(it.rate) || 0,
         notes: it.notes || null,
-        service_type: it.service_type || null,
+        service_type: it.item_type === 'product' ? null : it.service_type || null,
         catalog_customer_notes: it.catalog_customer_notes || null,
         service_catalog_id: normalizeCatalogId(it.service_catalog_id),
-        type: 'service',
+        product_id: it.product_id != null ? Number(it.product_id) : null,
+        cost_price: it.cost_price != null ? Number(it.cost_price) : null,
+        markup_percentage: it.markup_percentage != null ? Number(it.markup_percentage) : null,
+        sell_price: it.sell_price != null ? Number(it.sell_price) : Number(it.rate) || null,
       })),
     };
   }
@@ -301,6 +365,13 @@
     catalog = catRes.data || [];
     templates = tplRes.data || [];
 
+    try {
+      const pr = await api('/api/erp/products?limit=500').catch(() => ({ data: [] }));
+      erpProducts = pr.data || [];
+    } catch {
+      erpProducts = [];
+    }
+
     const cs = $('customerId');
     cs.innerHTML = '<option value="">— Select client —</option>';
     customers.forEach((c) => {
@@ -333,10 +404,147 @@
       renderItems();
     }
 
-    $('btnAddLine').addEventListener('click', () => {
+    const modal = $('addItemModal');
+    const modalProductSection = $('modalProductSection');
+    const modalConfirmProduct = $('modalConfirmProduct');
+    const modalError = $('modalError');
+    const modalHint = $('modalProductHint');
+    let modalPreview = null;
+
+    function openAddItemModal() {
+      modalError.classList.add('hidden');
+      modalHint.classList.add('hidden');
+      modalProductSection.classList.add('hidden');
+      modalConfirmProduct.classList.add('hidden');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+    function closeAddItemModal() {
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+
+    function fillProductSelect() {
+      const sel = $('modalProductSelect');
+      sel.innerHTML = '<option value="">— Select product —</option>';
+      erpProducts.forEach((p) => {
+        const lab = `${escapeAttr(p.supplier_name || '')}: ${escapeAttr(p.name)} (${escapeAttr(p.category)})`;
+        sel.innerHTML += `<option value="${p.id}">${lab}</option>`;
+      });
+    }
+
+    async function loadProductPreview(pid) {
+      const r = await api('/api/erp/products/preview/' + pid);
+      modalPreview = r.data;
+      const pr = r.data.product;
+      $('modalDispCost').textContent = money(pr.cost_price);
+      $('modalDispDefMargin').textContent = `${r.data.default_markup_percentage}%`;
+      $('modalMarkup').value = String(r.data.default_markup_percentage);
+      $('modalSell').value = String(r.data.suggested_sell_price);
+      modalHint.textContent = (r.data.warnings || []).join(' ') || '';
+      modalHint.classList.toggle('hidden', !modalHint.textContent);
+    }
+
+    $('modalBtnService').addEventListener('click', () => {
       items.push(emptyLine());
+      closeAddItemModal();
       renderItems();
     });
+
+    $('modalBtnProduct').addEventListener('click', () => {
+      modalProductSection.classList.remove('hidden');
+      modalConfirmProduct.classList.remove('hidden');
+      fillProductSelect();
+      modalPreview = null;
+      $('modalDispCost').textContent = '—';
+      $('modalDispDefMargin').textContent = '—';
+      $('modalMarkup').value = '';
+      $('modalSell').value = '';
+      $('modalQty').value = '1';
+    });
+
+    $('modalProductSelect').addEventListener('change', async () => {
+      const pid = parseInt($('modalProductSelect').value, 10);
+      modalError.classList.add('hidden');
+      if (!pid) {
+        modalPreview = null;
+        return;
+      }
+      try {
+        await loadProductPreview(pid);
+      } catch (e) {
+        modalError.textContent = e.message;
+        modalError.classList.remove('hidden');
+      }
+    });
+
+    $('modalMarkup').addEventListener('input', () => {
+      if (!modalPreview) return;
+      const cost = modalPreview.product.cost_price;
+      const m = parseFloat($('modalMarkup').value) || 0;
+      $('modalSell').value = String(sellFromCostMarkup(cost, m));
+    });
+
+    $('modalSell').addEventListener('input', () => {
+      if (!modalPreview) return;
+      const cost = Number(modalPreview.product.cost_price);
+      const sell = parseFloat($('modalSell').value);
+      if (cost > 0 && Number.isFinite(sell)) {
+        const m = ((sell - cost) / cost) * 100;
+        $('modalMarkup').value = String(Math.round(m * 100) / 100);
+      }
+    });
+
+    $('modalConfirmProduct').addEventListener('click', () => {
+      modalError.classList.add('hidden');
+      const pid = parseInt($('modalProductSelect').value, 10);
+      if (!pid || !modalPreview) {
+        modalError.textContent = 'Select a product.';
+        modalError.classList.remove('hidden');
+        return;
+      }
+      const m = parseFloat($('modalMarkup').value);
+      if (!Number.isFinite(m) || m < 0) {
+        modalError.textContent = 'Margin must be ≥ 0.';
+        modalError.classList.remove('hidden');
+        return;
+      }
+      if (m < 15) {
+        if (!window.confirm('Margin is below 15%. Add this line anyway?')) return;
+      }
+      const sell = parseFloat($('modalSell').value);
+      if (!Number.isFinite(sell) || sell < 0) {
+        modalError.textContent = 'Invalid sell price.';
+        modalError.classList.remove('hidden');
+        return;
+      }
+      const qty = parseFloat($('modalQty').value) || 1;
+      const pr = modalPreview.product;
+      items.push({
+        item_type: 'product',
+        product_id: pr.id,
+        description: pr.name,
+        unit_type: pr.unit_type || 'sq_ft',
+        quantity: qty,
+        rate: sell,
+        cost_price: pr.cost_price,
+        markup_percentage: m,
+        sell_price: sell,
+        service_type: null,
+        notes: null,
+        catalog_customer_notes: null,
+        service_catalog_id: null,
+      });
+      closeAddItemModal();
+      renderItems();
+    });
+
+    $('modalCancel').addEventListener('click', closeAddItemModal);
+    $('addItemModal').addEventListener('click', (e) => {
+      if (e.target.id === 'addItemModal') closeAddItemModal();
+    });
+
+    $('btnAddLine').addEventListener('click', openAddItemModal);
     $('discountType').addEventListener('change', () => recalc());
     $('discountValue').addEventListener('input', () => recalc());
     $('taxTotal').addEventListener('input', () => recalc());
@@ -353,6 +561,7 @@
         const lineSt =
           category === 'Sand & Finishing' || String(category).includes('Sand') ? 'Sand & Finishing' : 'Installation';
         items.push({
+          item_type: 'service',
           description: row.default_description || row.name,
           unit_type: row.unit_type || 'sq_ft',
           quantity: 1,
@@ -361,6 +570,10 @@
           notes: null,
           catalog_customer_notes: catNotes || null,
           service_catalog_id: normalizeCatalogId(row.id),
+          product_id: null,
+          cost_price: null,
+          markup_percentage: null,
+          sell_price: null,
         });
         $('catalogPick').value = '';
         renderItems();
@@ -373,14 +586,19 @@
       const r = await api(`/api/quote-templates/${tid}`);
       const t = r.data;
       items = (t.items || []).map((x) => ({
+        item_type: x.item_type || 'service',
         description: x.description,
         unit_type: x.unit_type || 'sq_ft',
         quantity: Number(x.quantity) || 1,
         rate: Number(x.rate) || 0,
         notes: x.notes,
-        service_type: x.service_type || 'Installation',
+        service_type: x.item_type === 'product' ? null : x.service_type || 'Installation',
         catalog_customer_notes: x.catalog_customer_notes || null,
         service_catalog_id: normalizeCatalogId(x.service_catalog_id),
+        product_id: x.product_id != null ? Number(x.product_id) : null,
+        cost_price: x.cost_price != null ? Number(x.cost_price) : null,
+        markup_percentage: x.markup_percentage != null ? Number(x.markup_percentage) : null,
+        sell_price: x.sell_price != null ? Number(x.sell_price) : null,
       }));
       if (!items.length) items = [emptyLine()];
       renderItems();
@@ -421,6 +639,7 @@
       const body = {
         name,
         items: items.map((it) => ({
+          item_type: it.item_type || 'service',
           description: it.description,
           unit_type: it.unit_type,
           quantity: it.quantity,
@@ -429,6 +648,10 @@
           service_type: it.service_type,
           catalog_customer_notes: it.catalog_customer_notes,
           service_catalog_id: normalizeCatalogId(it.service_catalog_id),
+          product_id: it.product_id,
+          cost_price: it.cost_price,
+          markup_percentage: it.markup_percentage,
+          sell_price: it.sell_price,
         })),
       };
       try {

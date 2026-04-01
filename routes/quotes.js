@@ -4,6 +4,7 @@
 import fs from 'fs';
 import { getDBConnection, resetDbPool, isTransientMysqlError } from '../config/db.js';
 import { mapItemRow } from '../modules/quotes/quoteBusiness.js';
+import { summarizeQuoteProfit } from '../modules/pricing/marginPricing.js';
 import { setLeadPipelineBySlug } from '../lib/pipelineAutomation.js';
 import { QUOTE_PDF_SUBDIR, resolvedPdfAbsolutePath } from '../lib/quotePdfUpload.js';
 
@@ -155,7 +156,12 @@ export async function getQuote(req, res) {
       req.params.id,
     ]);
 
-    const data = { ...quote, items: items.map(mapItemRow) };
+    const mappedItems = items.map(mapItemRow);
+    const data = {
+      ...quote,
+      items: mappedItems,
+      profit_summary: summarizeQuoteProfit(mappedItems),
+    };
     if (quote.pdf_path || hasStoredPdf) {
       data.invoice_pdf_url = `/api/quotes/${quote.id}/invoice-pdf`;
     }

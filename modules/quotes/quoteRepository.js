@@ -40,6 +40,11 @@ const QUOTE_ITEM_INSERT_ORDER = [
   'unit_type',
   'service_type',
   'catalog_customer_notes',
+  'item_type',
+  'product_id',
+  'cost_price',
+  'markup_percentage',
+  'sell_price',
   'sort_order',
 ];
 
@@ -96,6 +101,11 @@ export async function replaceQuoteItems(pool, quoteId, items) {
       unit_type: it.unit_type,
       service_type: it.service_type,
       catalog_customer_notes: it.catalog_customer_notes,
+      item_type: it.item_type,
+      product_id: it.product_id,
+      cost_price: it.cost_price,
+      markup_percentage: it.markup_percentage,
+      sell_price: it.sell_price,
       sort_order: it.sort_order,
     };
     const vals = fields.map((f) => rowMap[f]);
@@ -109,29 +119,52 @@ export async function replaceQuoteItems(pool, quoteId, items) {
 
 function normalizeRow(raw, sortOrder) {
   const quantity = Number(raw.quantity) || 0;
-  const rate = Number(raw.rate ?? raw.unit_price) || 0;
+  const rate = Number(raw.rate ?? raw.unit_price ?? raw.sell_price) || 0;
   const total =
     raw.total_price != null && raw.total_price !== ''
       ? Number(raw.total_price)
       : Math.round(quantity * rate * 100) / 100;
   const desc = raw.description || raw.name || '';
+  const isProduct = String(raw.item_type || '').toLowerCase() === 'product';
+  const lineType = isProduct
+    ? 'material'
+    : raw.type && ['material', 'labor', 'service'].includes(raw.type)
+      ? raw.type
+      : 'service';
+  const costNum =
+    raw.cost_price != null && raw.cost_price !== '' ? Number(raw.cost_price) : null;
+  const markupNum =
+    raw.markup_percentage != null && raw.markup_percentage !== ''
+      ? Number(raw.markup_percentage)
+      : null;
   return {
     floor_type: String(raw.floor_type || 'General').slice(0, 100),
     area_sqft: quantity,
     unit_price: rate,
     total_price: total,
     notes: raw.notes || null,
-    type: raw.type && ['material', 'labor', 'service'].includes(raw.type) ? raw.type : 'service',
+    type: lineType,
     name: raw.name ? String(raw.name).slice(0, 255) : null,
     description: desc ? String(desc) : null,
     quantity,
     service_catalog_id: raw.service_catalog_id != null ? parseInt(raw.service_catalog_id, 10) || null : null,
     unit_type: normalizeUnitType(raw.unit_type),
-    service_type: normalizeLineServiceType(raw.service_type),
+    service_type: isProduct ? null : normalizeLineServiceType(raw.service_type),
     catalog_customer_notes:
       raw.catalog_customer_notes != null && String(raw.catalog_customer_notes).trim() !== ''
         ? String(raw.catalog_customer_notes).trim().slice(0, 4000)
         : null,
+    item_type: isProduct ? 'product' : 'service',
+    product_id: isProduct
+      ? (() => {
+          const p = parseInt(raw.product_id, 10);
+          return Number.isFinite(p) && p > 0 ? p : null;
+        })()
+      : null,
+    cost_price: isProduct && costNum != null && Number.isFinite(costNum) ? costNum : null,
+    markup_percentage:
+      isProduct && markupNum != null && Number.isFinite(markupNum) ? markupNum : null,
+    sell_price: isProduct ? rate : null,
     sort_order: raw.sort_order != null ? parseInt(raw.sort_order, 10) : sortOrder,
   };
 }
@@ -144,7 +177,7 @@ function normalizeLineServiceType(st) {
 
 function normalizeUnitType(u) {
   const v = String(u || 'sq_ft').toLowerCase().replace(/\s/g, '_');
-  const allowed = ['sq_ft', 'linear_ft', 'inches', 'fixed'];
+  const allowed = ['sq_ft', 'linear_ft', 'inches', 'fixed', 'box', 'piece'];
   if (allowed.includes(v)) return v;
   if (v === 'sqft') return 'sq_ft';
   return 'sq_ft';
@@ -238,11 +271,26 @@ export async function insertTemplate(pool, { name, service_type, created_by, ite
     o += 1;
     const q = Number(raw.quantity) || 1;
     const rate = Number(raw.rate ?? raw.default_rate) || 0;
+    const isP = String(raw.item_type || '').toLowerCase() === 'product';
+    const pid =
+      isP && raw.product_id != null
+        ? (() => {
+            const p = parseInt(raw.product_id, 10);
+            return Number.isFinite(p) && p > 0 ? p : null;
+          })()
+        : null;
+    const costP =
+      isP && raw.cost_price != null && raw.cost_price !== '' ? Number(raw.cost_price) : null;
+    const markP =
+      isP && raw.markup_percentage != null && raw.markup_percentage !== ''
+        ? Number(raw.markup_percentage)
+        : null;
+    const sellP = isP ? rate : null;
     await pool.execute(
       `INSERT INTO quote_template_items (
         template_id, service_catalog_id, description, unit_type, quantity, rate, notes, sort_order,
-        service_type, catalog_customer_notes
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        service_type, catalog_customer_notes, item_type, product_id, cost_price, markup_percentage, sell_price
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         tid,
         raw.service_catalog_id != null ? parseInt(raw.service_catalog_id, 10) || null : null,
@@ -252,10 +300,15 @@ export async function insertTemplate(pool, { name, service_type, created_by, ite
         rate,
         raw.notes || null,
         raw.sort_order != null ? raw.sort_order : o,
-        normalizeLineServiceType(raw.service_type),
+        isP ? null : normalizeLineServiceType(raw.service_type),
         raw.catalog_customer_notes != null && String(raw.catalog_customer_notes).trim() !== ''
           ? String(raw.catalog_customer_notes).trim().slice(0, 4000)
           : null,
+        isP ? 'product' : 'service',
+        pid,
+        costP,
+        markP,
+        sellP,
       ]
     );
   }

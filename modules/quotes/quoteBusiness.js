@@ -2,6 +2,7 @@ import * as calc from './calculations.js';
 import * as repo from './quoteRepository.js';
 import { buildQuotePdfBuffer } from './quotePdf.js';
 import { sendQuoteEmail } from './quoteMail.js';
+import { summarizeQuoteProfit } from '../pricing/marginPricing.js';
 
 /** Resumo no quote (PDF / listagem): tipos únicos por linha, ex. "Installation · Sand & Finishing". */
 export function deriveQuoteServiceSummary(items) {
@@ -32,6 +33,11 @@ export function mapItemRow(dbRow) {
     notes: dbRow.notes || null,
     service_type: dbRow.service_type || null,
     catalog_customer_notes: dbRow.catalog_customer_notes || null,
+    item_type: dbRow.item_type || 'service',
+    product_id: dbRow.product_id ?? null,
+    cost_price: dbRow.cost_price != null ? Number(dbRow.cost_price) : null,
+    markup_percentage: dbRow.markup_percentage != null ? Number(dbRow.markup_percentage) : null,
+    sell_price: dbRow.sell_price != null ? Number(dbRow.sell_price) : null,
     type: dbRow.type || 'service',
     floor_type: dbRow.floor_type,
     sort_order: dbRow.sort_order ?? 0,
@@ -54,9 +60,11 @@ export async function loadQuoteContext(pool, quoteId) {
     `SELECT * FROM quote_items WHERE quote_id = ? ORDER BY ${ob}`,
     [quoteId]
   );
+  const mapped = items.map(mapItemRow);
   return {
     quote: q,
-    items: items.map(mapItemRow),
+    items: mapped,
+    profit_summary: summarizeQuoteProfit(mapped),
   };
 }
 
@@ -268,6 +276,11 @@ export async function duplicateQuote(pool, quoteId, userId) {
       service_catalog_id: it.service_catalog_id,
       service_type: it.service_type,
       catalog_customer_notes: it.catalog_customer_notes,
+      item_type: it.item_type,
+      product_id: it.product_id,
+      cost_price: it.cost_price,
+      markup_percentage: it.markup_percentage,
+      sell_price: it.sell_price,
       type: it.type,
     })),
   };

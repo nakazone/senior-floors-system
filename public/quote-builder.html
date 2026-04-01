@@ -20,6 +20,8 @@
       <div class="flex flex-wrap gap-2">
         <a href="dashboard.html?page=quotes" class="px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-sm">← Quotes list</a>
         <a href="quote-catalog.html" class="px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-sm">Catálogo</a>
+        <a href="suppliers.html" class="px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-sm">Suppliers</a>
+        <a href="products-erp.html" class="px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-sm">Products</a>
       </div>
     </div>
   </header>
@@ -68,12 +70,13 @@
     <section class="bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-4">
       <div class="flex justify-between items-center flex-wrap gap-2">
         <h2 class="text-sm font-bold text-slate-800">Line items</h2>
-        <button type="button" id="btnAddLine" class="px-3 py-1.5 rounded-lg bg-[#d6b598] text-[#1a2036] text-sm font-semibold">+ Add line</button>
+        <button type="button" id="btnAddLine" class="px-3 py-1.5 rounded-lg bg-[#d6b598] text-[#1a2036] text-sm font-semibold">+ Add item</button>
       </div>
       <div class="overflow-x-auto">
         <table class="w-full text-sm" id="itemsTable">
           <thead>
             <tr class="text-left text-xs text-slate-500 border-b">
+              <th class="pb-2 pr-2 w-16">Kind</th>
               <th class="pb-2 pr-2 w-36">Service</th>
               <th class="pb-2 pr-2 min-w-[140px]">Description</th>
               <th class="pb-2 pr-2 w-28">Unit</th>
@@ -96,6 +99,13 @@
     <section class="bg-white rounded-xl border border-slate-200 shadow-sm p-6 grid md:grid-cols-2 gap-6">
       <div class="space-y-3">
         <h2 class="text-sm font-bold text-slate-800">Totals</h2>
+        <div class="rounded-lg border border-emerald-200 bg-emerald-50/80 px-3 py-2 space-y-1 text-xs" id="profitPanel">
+          <div class="font-semibold text-emerald-900">Profit (materials)</div>
+          <div class="flex justify-between text-emerald-800"><span>Cost (qty × cost)</span><span id="dispCost">$0.00</span></div>
+          <div class="flex justify-between text-emerald-800"><span>Revenue (lines)</span><span id="dispRevenue">$0.00</span></div>
+          <div class="flex justify-between font-semibold text-emerald-900"><span>Gross profit</span><span id="dispProfit">$0.00</span></div>
+          <div class="flex justify-between text-emerald-800"><span>Margin on revenue</span><span id="dispMarginPct">—</span></div>
+        </div>
         <div class="flex justify-between text-sm"><span>Subtotal</span><span id="dispSubtotal">$0.00</span></div>
         <div class="flex gap-2 items-center">
           <select id="discountType" class="border rounded-lg px-2 py-1 text-sm">
@@ -129,6 +139,37 @@
     </section>
   </main>
 
-  <script src="quote-builder.js?v=quotes-v2-1"></script>
+  <!-- Add item: service vs product -->
+  <div id="addItemModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-black/50" aria-modal="true">
+    <div class="bg-white rounded-xl shadow-xl max-w-md w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+      <h2 class="text-lg font-bold text-slate-900">Add item</h2>
+      <div class="flex gap-2">
+        <button type="button" id="modalBtnService" class="flex-1 py-2 rounded-lg border-2 border-[#1a2036] bg-[#1a2036] text-white text-sm font-semibold">Service line</button>
+        <button type="button" id="modalBtnProduct" class="flex-1 py-2 rounded-lg border-2 border-slate-200 text-sm font-medium hover:bg-slate-50">Product</button>
+      </div>
+      <div id="modalProductSection" class="hidden space-y-3">
+        <label class="block text-xs font-semibold text-slate-500">Product</label>
+        <select id="modalProductSelect" class="w-full border rounded-lg px-3 py-2 text-sm"></select>
+        <p id="modalProductHint" class="text-xs text-amber-700 hidden"></p>
+        <div class="grid grid-cols-2 gap-2 text-xs">
+          <div><span class="text-slate-500">Cost</span><div id="modalDispCost" class="font-mono font-medium">—</div></div>
+          <div><span class="text-slate-500">Default margin %</span><div id="modalDispDefMargin" class="font-mono font-medium">—</div></div>
+        </div>
+        <label class="block text-xs font-semibold text-slate-500">Markup %</label>
+        <input type="number" id="modalMarkup" step="0.01" min="0" class="w-full border rounded-lg px-3 py-2 text-sm" />
+        <label class="block text-xs font-semibold text-slate-500">Sell price (unit)</label>
+        <input type="number" id="modalSell" step="0.01" min="0" class="w-full border rounded-lg px-3 py-2 text-sm" />
+        <label class="block text-xs font-semibold text-slate-500">Quantity</label>
+        <input type="number" id="modalQty" step="0.01" min="0.01" value="1" class="w-full border rounded-lg px-3 py-2 text-sm" />
+      </div>
+      <p id="modalError" class="text-red-600 text-sm hidden"></p>
+      <div class="flex justify-end gap-2 pt-2">
+        <button type="button" id="modalCancel" class="px-4 py-2 rounded-lg border text-sm">Cancel</button>
+        <button type="button" id="modalConfirmProduct" class="hidden px-4 py-2 rounded-lg bg-[#d6b598] text-[#1a2036] text-sm font-bold">Add product line</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="quote-builder.js?v=quotes-erp-1"></script>
 </body>
 </html>

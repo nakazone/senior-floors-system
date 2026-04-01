@@ -13,6 +13,17 @@ function sanitizeQuote(q) {
   return out;
 }
 
+function sanitizePublicItems(items) {
+  return (items || []).map((it) => {
+    const o = { ...it };
+    delete o.cost_price;
+    delete o.markup_percentage;
+    delete o.product_id;
+    delete o.item_type;
+    return o;
+  });
+}
+
 export async function getPublicQuote(req, res) {
   try {
     const token = String(req.params.token || '').trim();
@@ -29,7 +40,7 @@ export async function getPublicQuote(req, res) {
       success: true,
       data: {
         quote: sanitizeQuote(ctx.quote),
-        items: ctx.items,
+        items: sanitizePublicItems(ctx.items),
       },
     });
   } catch (e) {
@@ -52,7 +63,7 @@ export async function postApproveQuote(req, res) {
       success: true,
       data: {
         quote: sanitizeQuote(ctx.quote),
-        items: ctx.items,
+        items: sanitizePublicItems(ctx.items),
       },
     });
   } catch (e) {

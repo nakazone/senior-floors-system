@@ -26,6 +26,7 @@ import {
   streamQuoteInvoicePdf,
 } from './routes/quotes.js';
 import * as quoteExt from './routes/quoteExtended.js';
+import * as erpMaterials from './routes/erpMaterials.js';
 import * as publicQuote from './routes/publicQuote.js';
 import { quotePdfUploadMiddleware } from './lib/quotePdfUpload.js';
 import { listProjects, getProject, createProject, updateProject } from './routes/projects.js';
@@ -256,6 +257,18 @@ app.get('/api/quote-templates', requireAuth, requirePermission('quotes.view'), q
 app.get('/api/quote-templates/:id', requireAuth, requirePermission('quotes.view'), quoteExt.getQuoteTemplate);
 app.post('/api/quote-templates', requireAuth, requirePermission('quotes.edit'), quoteExt.postQuoteTemplate);
 app.delete('/api/quote-templates/:id', requireAuth, requirePermission('quotes.edit'), quoteExt.deleteQuoteTemplate);
+
+app.get('/api/erp/category-margins', requireAuth, requirePermission('quotes.view'), erpMaterials.getCategoryMargins);
+app.put('/api/erp/category-margins', requireAuth, requirePermission('quotes.edit'), erpMaterials.putCategoryMargin);
+app.get('/api/erp/suppliers', requireAuth, requirePermission('quotes.view'), erpMaterials.listSuppliersApi);
+app.post('/api/erp/suppliers', requireAuth, requirePermission('quotes.edit'), erpMaterials.postSupplier);
+app.put('/api/erp/suppliers/:id', requireAuth, requirePermission('quotes.edit'), erpMaterials.putSupplier);
+app.delete('/api/erp/suppliers/:id', requireAuth, requirePermission('quotes.edit'), erpMaterials.deleteSupplier);
+app.get('/api/erp/products/preview/:id', requireAuth, requirePermission('quotes.view'), erpMaterials.getProductPricingPreview);
+app.get('/api/erp/products', requireAuth, requirePermission('quotes.view'), erpMaterials.listProductsApi);
+app.post('/api/erp/products', requireAuth, requirePermission('quotes.edit'), erpMaterials.postProduct);
+app.put('/api/erp/products/:id', requireAuth, requirePermission('quotes.edit'), erpMaterials.putProduct);
+app.delete('/api/erp/products/:id', requireAuth, requirePermission('quotes.edit'), erpMaterials.deleteProduct);
 app.get('/api/quotes/:id/invoice-pdf', requireAuth, streamQuoteInvoicePdf);
 app.put('/api/quotes/:id/full', requireAuth, requirePermission('quotes.edit'), quoteExt.putQuoteSaveFull);
 app.post('/api/quotes/:id/duplicate', requireAuth, requirePermission('quotes.create'), quoteExt.postQuoteDuplicate);
