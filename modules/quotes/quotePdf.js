@@ -104,7 +104,8 @@ export async function buildQuotePdfBuffer(opts) {
   const pageW = 612;
   const pageH = 792;
   let page = pdf.addPage([pageW, pageH]);
-  let y = pageH - 40;
+  /** Cursor (PDF y, bottom-up): first header row baseline / band top. */
+  let y = pageH - 48;
   const margin = 48;
   const contentW = pageW - 2 * margin;
   const lineH = 13;
@@ -138,21 +139,35 @@ export async function buildQuotePdfBuffer(opts) {
     y = pageH - margin;
   };
 
+  /** Baseline so the text line is vertically centered inside [barBottom, barTop] (Helvetica). */
+  const baselineCenteredInBar = (barBottom, barH, fontSize) => {
+    const ascent = fontSize * 0.76;
+    const descent = fontSize * 0.235;
+    return barBottom + barH / 2 - (ascent - descent) / 2;
+  };
+
   const drawTableHeader = () => {
     ensureSpace(100);
+    const fs = 8;
+    const barPad = 5;
+    const th = fontBold.heightAtSize(fs);
+    const barH = th + 2 * barPad;
+    const barTop = y;
+    const barBottom = barTop - barH;
+    const baselineY = baselineCenteredInBar(barBottom, barH, fs);
     page.drawRectangle({
       x: margin,
-      y: y - 18,
+      y: barBottom,
       width: contentW,
-      height: 20,
+      height: barH,
       color: PAL.primary,
       opacity: 0.06,
     });
-    page.drawText('Description', { x: colDesc + 4, y: y - 2, size: 8, font: fontBold, color: PAL.primary });
-    page.drawText('Qty', { x: colQty, y: y - 2, size: 8, font: fontBold, color: PAL.primary });
-    page.drawText('Rate', { x: colRate, y: y - 2, size: 8, font: fontBold, color: PAL.primary });
-    page.drawText('Amount', { x: colAmt, y: y - 2, size: 8, font: fontBold, color: PAL.primary });
-    y -= 26;
+    page.drawText('Description', { x: colDesc + 4, y: baselineY, size: fs, font: fontBold, color: PAL.primary });
+    page.drawText('Qty', { x: colQty, y: baselineY, size: fs, font: fontBold, color: PAL.primary });
+    page.drawText('Rate', { x: colRate, y: baselineY, size: fs, font: fontBold, color: PAL.primary });
+    page.drawText('Amount', { x: colAmt, y: baselineY, size: fs, font: fontBold, color: PAL.primary });
+    y = barBottom - 4;
     page.drawLine({
       start: { x: margin, y },
       end: { x: pageW - margin, y },
@@ -164,86 +179,106 @@ export async function buildQuotePdfBuffer(opts) {
 
   const drawSectionTitle = (label) => {
     ensureSpace(72);
+    const fs = 9;
+    const barPad = 6;
+    const th = fontBold.heightAtSize(fs);
+    const barH = th + 2 * barPad;
+    const barTop = y;
+    const barBottom = barTop - barH;
+    const baselineY = baselineCenteredInBar(barBottom, barH, fs);
     page.drawRectangle({
       x: margin,
-      y: y - 16,
+      y: barBottom,
       width: contentW,
-      height: 18,
+      height: barH,
       color: PAL.secondary,
       opacity: 0.22,
     });
     page.drawRectangle({
       x: margin,
-      y: y - 16,
+      y: barBottom,
       width: 3,
-      height: 18,
+      height: barH,
       color: PAL.primary,
     });
     page.drawText(label.toUpperCase(), {
       x: margin + 10,
-      y: y - 3,
-      size: 9,
+      y: baselineY,
+      size: fs,
       font: fontBold,
       color: PAL.primary,
     });
-    y -= 26;
+    y = barBottom - 8;
   };
 
-  // Top brand bar
+  const accentBarH = 5;
+  const gapBelowAccent = 14;
   page.drawRectangle({
     x: 0,
-    y: pageH - 5,
+    y: pageH - accentBarH,
     width: pageW,
-    height: 5,
+    height: accentBarH,
     color: PAL.secondary,
   });
 
+  const contentTopY = pageH - accentBarH - gapBelowAccent;
+
   const logo = await tryEmbedLogo(pdf);
+  const lw = logo ? 68 : 0;
+  const lh = logo ? (logo.height / logo.width) * lw : 0;
+  const logoBottomY = contentTopY - lh;
+  const logoMidY = lh > 0 ? logoBottomY + lh / 2 : contentTopY;
+
   if (logo) {
-    const lw = 68;
-    const lh = (logo.height / logo.width) * lw;
-    page.drawImage(logo, { x: margin, y: y - lh, width: lw, height: lh });
-    y -= lh + 10;
+    page.drawImage(logo, { x: margin, y: logoBottomY, width: lw, height: lh });
   }
 
+  const nameSize = 17;
+  const textX = margin + (logo ? lw + 16 : 0);
+  const nameBaselineY = lh > 0 ? logoMidY - nameSize * 0.12 : contentTopY - 4;
+
   page.drawText(COMPANY.name, {
-    x: margin,
-    y,
-    size: 17,
+    x: textX,
+    y: nameBaselineY,
+    size: nameSize,
     font: fontBold,
     color: PAL.primary,
   });
-  y -= lineH + 2;
-  page.drawText(COMPANY.tagline, { x: margin, y, size: 8.5, font, color: PAL.primaryMuted });
-  y -= lineH;
+  const tagY = nameBaselineY - 20;
+  page.drawText(COMPANY.tagline, { x: textX, y: tagY, size: 8.5, font, color: PAL.primaryMuted });
+  const contactY = tagY - 15;
   page.drawText(`${COMPANY.phone} · ${COMPANY.email}`, {
-    x: margin,
-    y,
+    x: textX,
+    y: contactY,
     size: 8.5,
     font,
     color: PAL.primaryMuted,
   });
-  y -= 22;
+
+  const textBlockLowY = contactY - 3;
+  const headerLowY = lh > 0 ? Math.min(logoBottomY, textBlockLowY) : textBlockLowY;
 
   const rightW = 178;
   const rightX = pageW - margin - rightW;
-  const quoteBoxTop = pageH - 42;
+  const panelH = 82;
+  const panelTopY = contentTopY + 2;
+  const panelBottomY = panelTopY - panelH;
   page.drawRectangle({
     x: rightX - 6,
-    y: quoteBoxTop - 76,
+    y: panelBottomY,
     width: rightW + 12,
-    height: 82,
+    height: panelH,
     color: PAL.panelBg,
   });
   page.drawRectangle({
     x: rightX - 6,
-    y: quoteBoxTop - 76,
+    y: panelBottomY,
     width: 3,
-    height: 82,
+    height: panelH,
     color: PAL.secondaryDark,
   });
 
-  let ry = quoteBoxTop - 14;
+  let ry = panelTopY - 16;
   page.drawText('QUOTE', { x: rightX, y: ry, size: 11, font: fontBold, color: PAL.primary });
   ry -= lineH;
   page.drawText(quote.quote_number || `Quote #${quote.id}`, {
@@ -270,7 +305,8 @@ export async function buildQuotePdfBuffer(opts) {
   }
   page.drawText(`Status: ${quote.status || 'draft'}`, { x: rightX, y: ry, size: 8, font, color: PAL.lineMuted });
 
-  y = Math.min(y, ry - 8) - 8;
+  const quoteContentLowY = ry - 4;
+  y = Math.min(headerLowY - 10, panelBottomY - 8, quoteContentLowY) - 12;
 
   page.drawText('Bill to', { x: margin, y, size: 9, font: fontBold, color: PAL.secondaryDark });
   y -= lineH;
@@ -379,21 +415,28 @@ export async function buildQuotePdfBuffer(opts) {
   const drawRow = (label, val, { bold = false, accent = false } = {}) => {
     ensureSpace(72);
     if (accent) {
+      const fs = 10;
+      const barPad = 5;
+      const barH = fontBold.heightAtSize(fs) + 2 * barPad;
+      const barTop = y;
+      const barBottom = barTop - barH;
+      const baselineY = baselineCenteredInBar(barBottom, barH, fs);
       page.drawRectangle({
         x: totalsX - 8,
-        y: y - 4,
+        y: barBottom,
         width: pageW - margin - (totalsX - 8) + 8,
-        height: 16,
+        height: barH,
         color: PAL.primary,
         opacity: 1,
       });
-      page.drawText(label, { x: totalsX, y: y, size: 10, font: fontBold, color: PAL.white });
-      page.drawText(val, { x: valX, y: y, size: 10, font: fontBold, color: PAL.secondary });
+      page.drawText(label, { x: totalsX, y: baselineY, size: fs, font: fontBold, color: PAL.white });
+      page.drawText(val, { x: valX, y: baselineY, size: fs, font: fontBold, color: PAL.secondary });
+      y = barBottom - 6;
     } else {
       page.drawText(label, { x: totalsX, y, size: 9, font, color: PAL.lineMuted });
       page.drawText(val, { x: valX, y, size: 9, font: bold ? fontBold : font, color: textColor });
+      y -= lineH + 2;
     }
-    y -= lineH + (accent ? 4 : 2);
   };
 
   drawRow('Subtotal', money(sub));
