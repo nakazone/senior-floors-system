@@ -2,7 +2,12 @@
 (function () {
   const $ = (id) => document.getElementById(id);
   let quoteId = null;
-  let customers = [];
+  /** Lead vindo de `?lead_id=` (novo orçamento a partir do lead). */
+  let pendingLeadId = null;
+  /** `lead_id` do quote já gravado (edição). */
+  let loadedQuoteLeadId = null;
+  /** Lista de clientes CRM (`/api/customers` — builders e clientes finais convertidos). */
+  let clients = [];
   let catalog = [];
   let templates = [];
   /** @type {Array<Record<string, unknown>>} */
@@ -39,7 +44,107 @@
       cost_price: null,
       markup_percentage: null,
       sell_price: null,
+      estimateAuto: false,
     };
+  }
+
+  function isBlankLine(it) {
+    if (!it || it.estimateAuto || it.item_type === 'product') return false;
+    const d = String(it.description || '').trim();
+    const r = Number(it.rate) || 0;
+    return !d && r === 0;
+  }
+
+  function qbAdjustedSqftValue() {
+    const totalSqft = parseFloat(($('qbTotalSqft') && $('qbTotalSqft').value) || '0') || 0;
+    const wastePercent = parseFloat(($('qbWastePct') && $('qbWastePct').value) || '0') || 0;
+    return totalSqft * (1 + wastePercent / 100);
+  }
+
+  function updateQbAdjustedSqft() {
+    const el = $('qbAdjustedSqft');
+    if (el) el.value = qbAdjustedSqftValue().toFixed(2);
+  }
+
+  function qbResetWaste() {
+    const flooringType = ($('qbFlooringType') && $('qbFlooringType').value) || '';
+    const defaults = { hardwood: 10, engineered: 8, lvp: 5, laminate: 7, tile: 12 };
+    const w = defaults[flooringType] || 7;
+    const wp = $('qbWastePct');
+    if (wp) wp.value = String(w);
+    updateQbAdjustedSqft();
+    applyEstimateSmartRules();
+  }
+
+  /** Regras alinhadas a `estimate-builder.js` → `applySmartRules`. */
+  function applyEstimateSmartRules() {
+    updateQbAdjustedSqft();
+    const flooringType = ($('qbFlooringType') && $('qbFlooringType').value) || '';
+    const subfloorType = ($('qbSubfloorType') && $('qbSubfloorType').value) || '';
+    const levelCondition = ($('qbLevelCondition') && $('qbLevelCondition').value) || '';
+    const stairsCount = parseInt(($('qbStairsCount') && $('qbStairsCount').value) || '0', 10) || 0;
+    const totalSqft = parseFloat(($('qbTotalSqft') && $('qbTotalSqft').value) || '0') || 0;
+    const adjustedSqft = qbAdjustedSqftValue();
+
+    items = items.filter((it) => !it.estimateAuto);
+    if (items.length === 1 && isBlankLine(items[0])) items = [];
+
+    if (flooringType === 'hardwood' && subfloorType === 'concrete') {
+      items.push({
+        ...emptyLine(),
+        description: 'Moisture Barrier — Barreira de umidade para piso de madeira em concreto',
+        unit_type: 'sq_ft',
+        quantity: adjustedSqft,
+        rate: 0.5,
+        estimateAuto: true,
+      });
+    }
+    if (levelCondition === 'major' && totalSqft > 0) {
+      items.push({
+        ...emptyLine(),
+        description: 'Leveling Compound — Massa niveladora para piso irregular',
+        unit_type: 'sq_ft',
+        quantity: totalSqft,
+        rate: 1.25,
+        estimateAuto: true,
+      });
+    }
+    if (stairsCount > 0) {
+      items.push({
+        ...emptyLine(),
+        description: `Stair Installation — Instalação de ${stairsCount} degrau(s)`,
+        unit_type: 'fixed',
+        quantity: stairsCount,
+        rate: 150.0,
+        estimateAuto: true,
+      });
+    }
+
+    if (!items.length) items = [emptyLine()];
+    recalc();
+    renderItems();
+  }
+
+  function wireProjectEstimateRules() {
+    const onRuleField = () => {
+      updateQbAdjustedSqft();
+      applyEstimateSmartRules();
+    };
+    ['qbFlooringType', 'qbSubfloorType', 'qbLevelCondition'].forEach((id) => {
+      const el = $(id);
+      if (el) el.addEventListener('change', onRuleField);
+    });
+    ['qbStairsCount', 'qbTotalSqft', 'qbWastePct'].forEach((id) => {
+      const el = $(id);
+      if (!el) return;
+      el.addEventListener('input', onRuleField);
+      el.addEventListener('change', onRuleField);
+    });
+    const btnW = $('btnQbWasteAuto');
+    if (btnW) btnW.addEventListener('click', () => qbResetWaste());
+    const btnA = $('btnQbApplyRules');
+    if (btnA) btnA.addEventListener('click', () => applyEstimateSmartRules());
+    updateQbAdjustedSqft();
   }
 
   function sellFromCostMarkup(cost, mPct) {
@@ -73,6 +178,11 @@
     $('dispRevenue').textContent = money(p.totalRevenue);
     $('dispProfit').textContent = money(p.grossProfit);
     $('dispMarginPct').textContent = p.marginPct != null ? `${p.marginPct}%` : '—';
+    const bar = $('marginBarFill');
+    if (bar) {
+      const w = p.marginPct != null ? Math.min(100, Math.max(0, Number(p.marginPct))) : 0;
+      bar.style.width = `${w}%`;
+    }
   }
 
   function catalogPricingSource() {
@@ -172,6 +282,31 @@
     };
   }
 
+  function applyProjectSqftToAllSqFtLines() {
+    const input = $('quoteProjectSqft');
+    if (!input) return;
+    const raw = String(input.value || '').trim().replace(',', '.');
+    const sq = parseFloat(raw);
+    if (!Number.isFinite(sq) || sq < 0) {
+      alert('Indique uma quantidade válida de sq ft (≥ 0).');
+      return;
+    }
+    let n = 0;
+    for (const it of items) {
+      if (String(it.unit_type || 'sq_ft') === 'sq_ft') {
+        it.quantity = sq;
+        n += 1;
+      }
+    }
+    recalc();
+    renderItems();
+    if (n === 0) {
+      alert(
+        'Nenhuma linha com unidade Sq Ft. Defina a unidade «Sq Ft» nas linhas que devem usar a área do projeto.'
+      );
+    }
+  }
+
   function renderItems() {
     const tb = $('itemsBody');
     tb.innerHTML = '';
@@ -182,9 +317,12 @@
       const hasNote = !!(it.notes && String(it.notes).trim());
       const st = it.service_type || 'Installation';
       const isProduct = it.item_type === 'product';
+      const autoTag = it.estimateAuto
+        ? ' <span class="text-[10px] uppercase text-amber-800 font-bold">auto</span>'
+        : '';
       const kindCell = isProduct
         ? '<span class="text-xs font-semibold text-violet-700">Product</span>'
-        : '<span class="text-xs font-semibold text-slate-600">Service</span>';
+        : `<span class="text-xs font-semibold text-slate-600">Service</span>${autoTag}`;
       const serviceCell = isProduct
         ? '<span class="text-xs text-slate-400 pt-2 inline-block">—</span>'
         : `<select data-k="service_type" data-i="${idx}" class="w-full border rounded px-1 py-1 text-xs">
@@ -259,6 +397,8 @@
     const q = r.data;
     if (!q) return;
     quoteId = q.id;
+    loadedQuoteLeadId = q.lead_id != null && q.lead_id !== '' ? Number(q.lead_id) : null;
+    if (!Number.isFinite(loadedQuoteLeadId)) loadedQuoteLeadId = null;
     $('customerId').value = q.customer_id || '';
     $('status').value = q.status || 'draft';
     $('expirationDate').value = q.expiration_date ? String(q.expiration_date).slice(0, 10) : '';
@@ -281,9 +421,10 @@
       cost_price: it.cost_price != null ? Number(it.cost_price) : null,
       markup_percentage: it.markup_percentage != null ? Number(it.markup_percentage) : null,
       sell_price: it.sell_price != null ? Number(it.sell_price) : null,
+      estimateAuto: false,
     }));
     if (!items.length) items = [emptyLine()];
-    $('quoteMeta').textContent = `Quote ${q.quote_number || '#' + q.id} · total ${money(q.total_amount)}`;
+    $('quoteMeta').textContent = `Orçamento ${q.quote_number || '#' + q.id} · total ${money(q.total_amount)}`;
     setPublicLink(q.public_token);
     enableActions();
     renderItems();
@@ -293,7 +434,10 @@
     const { sub, tax } = recalc();
     const dt = $('discountType').value;
     const dv = parseFloat($('discountValue').value) || 0;
-    return {
+    let lead_id = null;
+    if (loadedQuoteLeadId != null && Number.isFinite(loadedQuoteLeadId)) lead_id = loadedQuoteLeadId;
+    else if (pendingLeadId != null && Number.isFinite(pendingLeadId)) lead_id = pendingLeadId;
+    const base = {
       customer_id: parseInt($('customerId').value, 10) || null,
       status: $('status').value,
       expiration_date: $('expirationDate').value || null,
@@ -319,12 +463,14 @@
         sell_price: it.sell_price != null ? Number(it.sell_price) : Number(it.rate) || null,
       })),
     };
+    if (lead_id != null) base.lead_id = lead_id;
+    return base;
   }
 
   async function saveQuote() {
     const cid = parseInt($('customerId').value, 10);
     if (!cid) {
-      alert('Select a client.');
+      alert('Selecione um cliente.');
       return;
     }
     const body = payload();
@@ -338,10 +484,15 @@
       } else {
         const r = await api('/api/quotes/full', { method: 'POST', body: JSON.stringify(body) });
         quoteId = r.data.quote.id;
-        history.replaceState({}, '', '?id=' + quoteId);
+        const lid = pendingLeadId != null && Number.isFinite(pendingLeadId) ? pendingLeadId : null;
+        history.replaceState(
+          {},
+          '',
+          lid ? `?id=${quoteId}&lead_id=${lid}` : `?id=${quoteId}`
+        );
         await loadQuote(quoteId);
       }
-      alert('Saved.');
+      alert('Guardado.');
       enableActions();
     } catch (e) {
       alert(e.message);
@@ -351,7 +502,7 @@
   async function init() {
     const sess = await fetch('/api/auth/session', { credentials: 'include' }).then((r) => r.json());
     if (!sess.authenticated) {
-      $('authMsg').textContent = 'Session required — log in on the CRM first.';
+      $('authMsg').textContent = 'É necessária sessão — inicie sessão no CRM primeiro.';
       $('authMsg').classList.remove('hidden');
       return;
     }
@@ -361,7 +512,7 @@
       api('/api/quote-catalog').catch(() => ({ data: [] })),
       api('/api/quote-templates').catch(() => ({ data: [] })),
     ]);
-    customers = custRes.data || [];
+    clients = custRes.data || [];
     catalog = catRes.data || [];
     templates = tplRes.data || [];
 
@@ -373,13 +524,13 @@
     }
 
     const cs = $('customerId');
-    cs.innerHTML = '<option value="">— Select client —</option>';
-    customers.forEach((c) => {
+    cs.innerHTML = '<option value="">— Selecionar cliente —</option>';
+    clients.forEach((c) => {
       cs.innerHTML += `<option value="${c.id}">${escapeAttr(c.name)} (${escapeAttr(c.email)})</option>`;
     });
 
     const cp = $('catalogPick');
-    cp.innerHTML = '<option value="">— Pick catalog line —</option>';
+    cp.innerHTML = '<option value="">— Linha do catálogo —</option>';
     catalog.forEach((row) => {
       const b = Number(row.rate_builder != null ? row.rate_builder : row.default_rate) || 0;
       const c = Number(row.rate_customer != null ? row.rate_customer : row.default_rate) || 0;
@@ -394,14 +545,39 @@
 
     const params = new URLSearchParams(location.search);
     const qid = params.get('id');
+    const leadParam = params.get('lead_id');
+    if (leadParam && !qid) {
+      const n = parseInt(leadParam, 10);
+      if (Number.isFinite(n)) pendingLeadId = n;
+    }
     if (qid) {
       await loadQuote(parseInt(qid, 10));
     } else {
       items = [emptyLine()];
-      $('quoteMeta').textContent = 'New quote';
+      loadedQuoteLeadId = null;
+      $('quoteMeta').textContent = 'Novo orçamento';
       setPublicLink('');
       enableActions();
       renderItems();
+    }
+
+    if (pendingLeadId != null && Number.isFinite(pendingLeadId)) {
+      try {
+        const lr = await fetch(`/api/leads/${pendingLeadId}`, { credentials: 'include' }).then((r) => r.json());
+        const hint = $('leadContextHint');
+        if (lr.success && lr.data && hint) {
+          const name = lr.data.name ? String(lr.data.name) : `Lead #${pendingLeadId}`;
+          hint.textContent = `Associado ao lead: ${name}. O orçamento ficará ligado a este lead ao guardar.`;
+          hint.classList.remove('hidden');
+        }
+        const em = lr.success && lr.data && lr.data.email ? String(lr.data.email).trim().toLowerCase() : '';
+        if (em) {
+          const match = clients.find((c) => String(c.email || '').trim().toLowerCase() === em);
+          if (match) $('customerId').value = String(match.id);
+        }
+      } catch (_) {
+        /* ignore */
+      }
     }
 
     const modal = $('addItemModal');
@@ -534,6 +710,7 @@
         notes: null,
         catalog_customer_notes: null,
         service_catalog_id: null,
+        estimateAuto: false,
       });
       closeAddItemModal();
       renderItems();
@@ -545,6 +722,17 @@
     });
 
     $('btnAddLine').addEventListener('click', openAddItemModal);
+    const btnSqft = $('btnApplySqftToLines');
+    if (btnSqft) btnSqft.addEventListener('click', () => applyProjectSqftToAllSqFtLines());
+    const sqftIn = $('quoteProjectSqft');
+    if (sqftIn) {
+      sqftIn.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          applyProjectSqftToAllSqFtLines();
+        }
+      });
+    }
     $('discountType').addEventListener('change', () => recalc());
     $('discountValue').addEventListener('input', () => recalc());
     $('taxTotal').addEventListener('input', () => recalc());
@@ -574,6 +762,7 @@
           cost_price: null,
           markup_percentage: null,
           sell_price: null,
+          estimateAuto: false,
         });
         $('catalogPick').value = '';
         renderItems();
@@ -599,6 +788,7 @@
         cost_price: x.cost_price != null ? Number(x.cost_price) : null,
         markup_percentage: x.markup_percentage != null ? Number(x.markup_percentage) : null,
         sell_price: x.sell_price != null ? Number(x.sell_price) : null,
+        estimateAuto: false,
       }));
       if (!items.length) items = [emptyLine()];
       renderItems();
@@ -632,6 +822,8 @@
         location.href = 'quote-builder.html?id=' + d.quote.id;
       }
     });
+
+    wireProjectEstimateRules();
 
     $('btnSaveTpl').addEventListener('click', async () => {
       const name = prompt('Template name?');

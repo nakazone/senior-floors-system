@@ -24,7 +24,7 @@ export async function getDashboardStats(req, res) {
       FROM leads
     `);
 
-    // Estatísticas de Customers
+    // Estatísticas de clients (tabela customers)
     const [customersStats] = await pool.query(`
       SELECT 
         COUNT(*) as total,

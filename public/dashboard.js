@@ -187,7 +187,7 @@ const MOBILE_PAGE_TITLES = {
     marketing: 'Marketing',
     leads: 'Leads',
     crm: 'CRM',
-    customers: 'Clientes',
+    customers: 'Clients',
     quotes: 'Orçamentos',
     projects: 'Projetos',
     schedule: 'Agenda',
@@ -456,7 +456,7 @@ function renderDashboardStats() {
             </div>
         </div>
         <div class="stat-card">
-            <h3>Customers</h3>
+            <h3>Clients</h3>
             <div class="stat-value">${stats.customers.total}</div>
             <div class="stat-details">
                 <span>Active: ${stats.customers.active}</span>
@@ -866,7 +866,7 @@ window.deleteLead = deleteLead;
 window.leadsSearchSubmit = leadsSearchSubmit;
 window.leadsSearchClear = leadsSearchClear;
 
-// Customers
+// Clients (/api/customers)
 let customersPage = 1;
 async function loadCustomers() {
     const tbody = document.getElementById('customersTableBody');
@@ -878,7 +878,7 @@ async function loadCustomers() {
         
         if (data.success && data.data) {
             if (data.data.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="9" class="text-center">No customers found</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="9" class="text-center">No clients found</td></tr>';
             } else {
                 tbody.innerHTML = data.data.map(c => `
                     <tr>
@@ -912,11 +912,11 @@ function changePageCustomers(delta) {
 }
 
 function viewCustomer(id) {
-    alert('View customer ' + id + ' - Feature coming soon!');
+    alert('View client ' + id + ' - Feature coming soon!');
 }
 
 function showNewCustomerModal() {
-    alert('New Customer form - Coming soon!');
+    alert('New client form - Coming soon!');
 }
 
 // Quotes (pagination: não usar nome "quotesPage" — colide com id DOM #quotesPage e quebrava showPage)
@@ -974,7 +974,7 @@ function viewQuote(id) {
 }
 
 function showNewQuoteModal() {
-    window.open('estimate-builder.html', '_blank', 'noopener');
+    window.open('quote-builder.html', '_blank', 'noopener');
 }
 
 function loadEstimateAnalytics() {

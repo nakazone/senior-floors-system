@@ -1262,7 +1262,12 @@ async function createVisit(payload, submitBtn) {
 }
 
 function showNewProposalModal() {
-    window.open('estimate-builder.html', '_blank', 'noopener');
+    if (!currentLeadId) return;
+    window.open(
+        'quote-builder.html?lead_id=' + encodeURIComponent(String(currentLeadId)),
+        '_blank',
+        'noopener'
+    );
 }
 
 async function createInteraction(interaction) {

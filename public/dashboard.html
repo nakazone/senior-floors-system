@@ -33,7 +33,7 @@
         <h2 class="mobile-more-sheet__title" id="mobileMoreSheetTitle">Mais opções</h2>
         <nav class="mobile-more-sheet__nav" aria-label="Secções adicionais">
             <button type="button" class="mobile-more-sheet__btn" data-page="marketing" data-crm-permission="reports.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">📈</span> Marketing</button>
-            <button type="button" class="mobile-more-sheet__btn" data-page="customers" data-crm-permission="customers.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">👥</span> Clientes</button>
+            <button type="button" class="mobile-more-sheet__btn" data-page="customers" data-crm-permission="customers.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">👥</span> Clients</button>
             <button type="button" class="mobile-more-sheet__btn" data-page="quotes" data-crm-permission="quotes.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">💰</span> Orçamentos</button>
             <button type="button" class="mobile-more-sheet__btn" data-page="projects" data-crm-permission="projects.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">🏗️</span> Projetos</button>
             <button type="button" class="mobile-more-sheet__btn" data-page="financeiro" data-crm-permission="contracts.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">💵</span> Financeiro</button>
@@ -93,7 +93,7 @@
                         <span class="nav-icon" aria-hidden="true">🎯</span> CRM
                     </a>
                     <a href="#" class="nav-item" data-page="customers" data-crm-permission="customers.view">
-                        <span class="nav-icon" aria-hidden="true">👥</span> Customers
+                        <span class="nav-icon" aria-hidden="true">👥</span> Clients
                     </a>
                     <a href="#" class="nav-item" data-page="quotes" data-crm-permission="quotes.view">
                         <span class="nav-icon" aria-hidden="true">💰</span> Quotes
@@ -514,11 +514,11 @@
                     </div>
                 </div>
                 
-                <!-- Customers Page -->
+                <!-- Clients (API: /api/customers — builders e clientes finais) -->
                 <div id="customersPage" class="page-content" style="display: none;">
                     <div class="page-header">
-                        <h2>Customers</h2>
-                        <button class="btn btn-primary" onclick="showNewCustomerModal()">+ New Customer</button>
+                        <h2>Clients</h2>
+                        <button class="btn btn-primary" onclick="showNewCustomerModal()">+ New client</button>
                     </div>
                     
                     <div class="table-container">
@@ -554,8 +554,8 @@
                     <div class="page-header">
                         <h2>Estimates</h2>
                         <div style="display: flex; gap: var(--spacing-sm); flex-wrap: wrap;">
-                            <button type="button" class="btn btn-primary" onclick="window.open('estimate-builder.html', '_blank')">+ New Estimate</button>
-                            <button type="button" class="btn btn-primary" onclick="window.open('quote-builder.html', '_blank')" data-crm-permission="quotes.edit">+ Quote builder</button>
+                            <button type="button" class="btn btn-primary" onclick="window.open('quote-builder.html', '_blank')" data-crm-permission="quotes.edit">+ Novo orçamento</button>
+                            <button type="button" class="btn btn-secondary" onclick="window.open('estimate-builder.html', '_blank')">+ Estimate (legado)</button>
                             <button type="button" class="btn btn-secondary" onclick="window.open('quote-catalog.html', '_blank')" data-crm-permission="quotes.edit">Catálogo de serviços</button>
                             <button type="button" class="btn btn-secondary" onclick="window.open('suppliers.html', '_blank')" data-crm-permission="quotes.view">Fornecedores</button>
                             <button type="button" class="btn btn-secondary" onclick="window.open('products-erp.html', '_blank')" data-crm-permission="quotes.view">Produtos (ERP)</button>
@@ -569,7 +569,7 @@
                             <thead>
                                 <tr>
                                     <th>Quote #</th>
-                                    <th>Customer</th>
+                                    <th>Client</th>
                                     <th>Amount</th>
                                     <th>Status</th>
                                     <th>PDF</th>
@@ -604,7 +604,7 @@
                                 <tr>
                                     <th>ID</th>
                                     <th>Name</th>
-                                    <th>Customer</th>
+                                    <th>Client</th>
                                     <th>Type</th>
                                     <th>Status</th>
                                     <th>Est. Cost</th>

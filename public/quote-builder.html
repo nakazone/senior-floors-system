@@ -1,175 +1,367 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Quote Builder — Senior Floors CRM</title>
+  <title>Quote — Senior Floors CRM</title>
   <link rel="icon" type="image/png" href="/assets/SeniorFloors.png" />
+  <link rel="stylesheet" href="styles.css" />
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" />
-  <style>body { font-family: Inter, system-ui, sans-serif; }</style>
+  <style>
+    .qb-dashboard-inner { font-family: Inter, system-ui, sans-serif; }
+    .estimate-builder {
+      display: grid;
+      grid-template-columns: 1fr 380px;
+      gap: var(--spacing-md);
+      padding: var(--spacing-md);
+    }
+    .builder-main {
+      background: var(--bg-white);
+      border-radius: 8px;
+      padding: var(--spacing-md);
+    }
+    .builder-sidebar {
+      background: var(--bg-white);
+      border-radius: 8px;
+      padding: var(--spacing-md);
+      position: sticky;
+      top: var(--spacing-md);
+      max-height: calc(100vh - var(--spacing-md) * 2);
+      overflow-y: auto;
+    }
+    .cost-breakdown {
+      background: var(--bg-light);
+      padding: var(--spacing-md);
+      border-radius: 8px;
+      margin-bottom: var(--spacing-md);
+    }
+    .cost-row {
+      display: flex;
+      justify-content: space-between;
+      padding: var(--spacing-xs) 0;
+      border-bottom: 1px solid var(--border-color);
+      font-size: 0.9rem;
+    }
+    .cost-row.total {
+      font-weight: 700;
+      font-size: 1.05rem;
+      border-top: 2px solid var(--primary-color);
+      margin-top: var(--spacing-xs);
+      padding-top: var(--spacing-sm);
+      border-bottom: none;
+    }
+    .margin-visualization {
+      margin-top: var(--spacing-md);
+      margin-bottom: var(--spacing-md);
+      padding: var(--spacing-md);
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border-radius: 8px;
+      font-size: 0.85rem;
+    }
+    .margin-bar {
+      height: 28px;
+      background: rgba(255, 255, 255, 0.3);
+      border-radius: 4px;
+      margin-top: var(--spacing-sm);
+      position: relative;
+      overflow: hidden;
+    }
+    .margin-fill {
+      height: 100%;
+      background: rgba(255, 255, 255, 0.85);
+      transition: width 0.25s ease;
+      max-width: 100%;
+    }
+    .qb-sidebar-notes textarea {
+      width: 100%;
+      padding: var(--spacing-xs);
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      font-size: 0.85rem;
+      resize: vertical;
+    }
+    @media (max-width: 1100px) {
+      .estimate-builder {
+        grid-template-columns: 1fr;
+      }
+      .builder-sidebar {
+        position: static;
+        max-height: none;
+      }
+    }
+  </style>
 </head>
-<body class="bg-slate-50 text-slate-900 min-h-screen">
-  <header class="bg-[#1a2036] text-white shadow">
-    <div class="max-w-6xl mx-auto px-4 py-4 flex flex-wrap items-center justify-between gap-3">
-      <div>
-        <h1 class="text-lg font-bold">Quote builder</h1>
-        <p class="text-xs text-white/70">Senior Floors · Installation &amp; sand / finish</p>
+<body class="qb-dashboard-inner">
+  <div class="dashboard-container">
+    <div class="dashboard-sidebar" id="dashboardSidebar">
+      <div class="sidebar-header">
+        <img src="/assets/SeniorFloors.png" alt="Senior Floors" class="logo-image" />
       </div>
-      <div class="flex flex-wrap gap-2">
-        <a href="dashboard.html?page=quotes" class="px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-sm">← Quotes list</a>
-        <a href="quote-catalog.html" class="px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-sm">Catálogo</a>
-        <a href="suppliers.html" class="px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-sm">Suppliers</a>
-        <a href="products-erp.html" class="px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-sm">Products</a>
-      </div>
+      <nav class="sidebar-nav">
+        <a href="dashboard.html" class="nav-item">Dashboard</a>
+        <a href="dashboard.html#leads" class="nav-item">Leads</a>
+        <a href="dashboard.html?page=quotes" class="nav-item">Quotes</a>
+        <a href="quote-builder.html" class="nav-item active">Quote</a>
+        <a href="quote-catalog.html" class="nav-item">Catálogo</a>
+        <a href="estimate-builder.html" class="nav-item">Estimate (legado)</a>
+      </nav>
     </div>
-  </header>
 
-  <main class="max-w-6xl mx-auto px-4 py-8 space-y-6" id="app">
-    <p id="authMsg" class="text-red-600 text-sm hidden"></p>
-
-    <section class="bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-4">
-      <div class="grid md:grid-cols-2 gap-4">
-        <div>
-          <label class="block text-xs font-semibold text-slate-500 mb-1">Client *</label>
-          <select id="customerId" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"></select>
-        </div>
-        <div>
-          <label class="block text-xs font-semibold text-slate-500 mb-1">Catalog pricing (lines added from catalog)</label>
-          <div class="flex flex-wrap gap-4 text-sm pt-1">
-            <label class="inline-flex items-center gap-2 cursor-pointer"><input type="radio" name="pricingCatalog" value="customer" checked class="rounded border-slate-300" /> Customer rate</label>
-            <label class="inline-flex items-center gap-2 cursor-pointer"><input type="radio" name="pricingCatalog" value="builder" class="rounded border-slate-300" /> Builder rate</label>
+    <div class="dashboard-content">
+      <div class="estimate-builder">
+        <div class="builder-main">
+          <div class="page-header">
+            <div>
+              <h1>Quote</h1>
+              <p class="text-sm text-slate-500 mt-1">Orçamentos para builders ou clientes finais — catálogo, ERP, regras do estimate e PDF.</p>
+            </div>
+            <div class="flex flex-wrap gap-2">
+              <a href="dashboard.html?page=quotes" class="btn btn-secondary btn-sm">← Lista Quotes</a>
+              <a href="suppliers.html" class="btn btn-secondary btn-sm">Suppliers</a>
+              <a href="products-erp.html" class="btn btn-secondary btn-sm">Products</a>
+            </div>
           </div>
-          <p class="text-xs text-slate-500 mt-1">Each line has its own service type (Installation vs Sand &amp; Finishing).</p>
-        </div>
-        <div>
-          <label class="block text-xs font-semibold text-slate-500 mb-1">Status</label>
-          <select id="status" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
-            <option value="draft">Draft</option>
-            <option value="sent">Sent</option>
-            <option value="viewed">Viewed</option>
-            <option value="approved">Approved</option>
-            <option value="rejected">Rejected</option>
-          </select>
-        </div>
-        <div>
-          <label class="block text-xs font-semibold text-slate-500 mb-1">Expiration</label>
-          <input type="date" id="expirationDate" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
-        </div>
-      </div>
-      <div>
-        <label class="block text-xs font-semibold text-slate-500 mb-1">Load template</label>
-        <div class="flex gap-2 flex-wrap">
-          <select id="templateSelect" class="flex-1 min-w-[200px] border border-slate-300 rounded-lg px-3 py-2 text-sm"></select>
-          <button type="button" id="btnApplyTemplate" class="px-4 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-sm font-medium">Apply</button>
-        </div>
-      </div>
-    </section>
 
-    <section class="bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-4">
-      <div class="flex justify-between items-center flex-wrap gap-2">
-        <h2 class="text-sm font-bold text-slate-800">Line items</h2>
-        <button type="button" id="btnAddLine" class="px-3 py-1.5 rounded-lg bg-[#d6b598] text-[#1a2036] text-sm font-semibold">+ Add item</button>
-      </div>
-      <div class="overflow-x-auto">
-        <table class="w-full text-sm" id="itemsTable">
-          <thead>
-            <tr class="text-left text-xs text-slate-500 border-b">
-              <th class="pb-2 pr-2 w-16">Kind</th>
-              <th class="pb-2 pr-2 w-36">Service</th>
-              <th class="pb-2 pr-2 min-w-[140px]">Description</th>
-              <th class="pb-2 pr-2 w-28">Unit</th>
-              <th class="pb-2 pr-2 w-24">Qty</th>
-              <th class="pb-2 pr-2 w-28">Rate</th>
-              <th class="pb-2 pr-2 w-28">Amount</th>
-              <th class="pb-2 pr-2 w-28 text-center">Note</th>
-              <th class="pb-2 w-10"></th>
-            </tr>
-          </thead>
-          <tbody id="itemsBody"></tbody>
-        </table>
-      </div>
-      <div>
-        <label class="block text-xs font-semibold text-slate-500 mb-1">Add from catalog</label>
-        <select id="catalogPick" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"></select>
-      </div>
-    </section>
+          <p id="authMsg" class="text-red-600 text-sm hidden mb-4"></p>
+          <p id="leadContextHint" class="text-sm text-slate-600 mb-4 hidden"></p>
 
-    <section class="bg-white rounded-xl border border-slate-200 shadow-sm p-6 grid md:grid-cols-2 gap-6">
-      <div class="space-y-3">
-        <h2 class="text-sm font-bold text-slate-800">Totals</h2>
-        <div class="rounded-lg border border-emerald-200 bg-emerald-50/80 px-3 py-2 space-y-1 text-xs" id="profitPanel">
-          <div class="font-semibold text-emerald-900">Profit (materials)</div>
-          <div class="flex justify-between text-emerald-800"><span>Cost (qty × cost)</span><span id="dispCost">$0.00</span></div>
-          <div class="flex justify-between text-emerald-800"><span>Revenue (lines)</span><span id="dispRevenue">$0.00</span></div>
-          <div class="flex justify-between font-semibold text-emerald-900"><span>Gross profit</span><span id="dispProfit">$0.00</span></div>
-          <div class="flex justify-between text-emerald-800"><span>Margin on revenue</span><span id="dispMarginPct">—</span></div>
-        </div>
-        <div class="flex justify-between text-sm"><span>Subtotal</span><span id="dispSubtotal">$0.00</span></div>
-        <div class="flex gap-2 items-center">
-          <select id="discountType" class="border rounded-lg px-2 py-1 text-sm">
-            <option value="percentage">Discount %</option>
-            <option value="fixed">Discount $</option>
-          </select>
-          <input type="number" id="discountValue" step="0.01" value="0" class="border rounded-lg px-2 py-1 text-sm w-28" />
-        </div>
-        <div class="flex justify-between text-sm"><span>Tax ($)</span>
-          <input type="number" id="taxTotal" step="0.01" value="0" class="border rounded-lg px-2 py-1 text-sm w-28 text-right" />
-        </div>
-        <div class="flex justify-between text-base font-bold border-t pt-2"><span>Total</span><span id="dispTotal">$0.00</span></div>
-      </div>
-      <div class="space-y-3">
-        <h2 class="text-sm font-bold text-slate-800">Notes &amp; terms</h2>
-        <textarea id="notes" rows="3" class="w-full border rounded-lg px-3 py-2 text-sm" placeholder="Client-facing notes"></textarea>
-        <textarea id="terms" rows="4" class="w-full border rounded-lg px-3 py-2 text-sm" placeholder="Terms & conditions"></textarea>
-      </div>
-    </section>
+          <section class="bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-4 mb-6">
+            <div class="grid md:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1">Cliente *</label>
+                <select id="customerId" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"></select>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1">Preço do catálogo (linhas do catálogo)</label>
+                <div class="flex flex-wrap gap-4 text-sm pt-1">
+                  <label class="inline-flex items-center gap-2 cursor-pointer"><input type="radio" name="pricingCatalog" value="customer" checked class="rounded border-slate-300" /> Taxa cliente final</label>
+                  <label class="inline-flex items-center gap-2 cursor-pointer"><input type="radio" name="pricingCatalog" value="builder" class="rounded border-slate-300" /> Taxa builder</label>
+                </div>
+                <p class="text-xs text-slate-500 mt-1">Cada linha tem tipo de serviço (Installation vs Sand &amp; Finishing).</p>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1">Status</label>
+                <select id="status" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
+                  <option value="draft">Draft</option>
+                  <option value="sent">Sent</option>
+                  <option value="viewed">Viewed</option>
+                  <option value="approved">Approved</option>
+                  <option value="rejected">Rejected</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1">Expiração</label>
+                <input type="date" id="expirationDate" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+              </div>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-500 mb-1">Carregar template</label>
+              <div class="flex gap-2 flex-wrap">
+                <select id="templateSelect" class="flex-1 min-w-[200px] border border-slate-300 rounded-lg px-3 py-2 text-sm"></select>
+                <button type="button" id="btnApplyTemplate" class="px-4 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-sm font-medium">Aplicar</button>
+              </div>
+            </div>
+          </section>
 
-    <section class="bg-slate-100 rounded-xl border border-slate-200 p-6 space-y-3">
-      <p class="text-xs text-slate-600" id="quoteMeta">New quote</p>
-      <p class="text-xs break-all hidden" id="publicLinkWrap"><span class="font-semibold">Public link:</span> <a id="publicLink" class="text-blue-600 underline" target="_blank" rel="noopener"></a></p>
-      <div class="flex flex-wrap gap-2">
-        <button type="button" id="btnSave" class="px-4 py-2 rounded-lg bg-[#1a2036] text-white text-sm font-semibold">Save draft</button>
-        <button type="button" id="btnPdf" class="px-4 py-2 rounded-lg bg-slate-200 text-sm font-semibold disabled:opacity-50" disabled>Generate PDF</button>
-        <button type="button" id="btnEmail" class="px-4 py-2 rounded-lg bg-slate-200 text-sm font-semibold disabled:opacity-50" disabled>Send email</button>
-        <button type="button" id="btnDup" class="px-4 py-2 rounded-lg bg-slate-200 text-sm font-semibold disabled:opacity-50" disabled>Duplicate</button>
-        <button type="button" id="btnSaveTpl" class="px-4 py-2 rounded-lg border border-slate-300 text-sm font-semibold">Save as template</button>
-      </div>
-    </section>
-  </main>
+          <details class="bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-4 mb-6" id="qbProjectDetails">
+            <summary class="text-sm font-bold text-slate-800 cursor-pointer">Contexto do projeto (regras do estimate)</summary>
+            <p class="text-xs text-slate-500 mt-2 max-w-3xl">
+              Mesmas regras do Estimate Builder: madeira em concreto → barreira de humidade; nível «major» → massa niveladora; escadas → mão-de-obra por degrau.
+              As linhas marcadas <strong>auto</strong> são recalculadas ao alterar estes campos.
+            </p>
+            <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
+              <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1">Tipo de projeto</label>
+                <select id="qbProjectType" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
+                  <option value="residential">Residencial</option>
+                  <option value="commercial">Comercial</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1">Tipo de serviço</label>
+                <select id="qbServiceType" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
+                  <option value="installation">Instalação</option>
+                  <option value="replacement">Substituição</option>
+                  <option value="repair">Reparo</option>
+                  <option value="refinish">Refinish</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1">Piso</label>
+                <select id="qbFlooringType" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
+                  <option value="">—</option>
+                  <option value="hardwood">Hardwood</option>
+                  <option value="engineered">Engineered</option>
+                  <option value="lvp">LVP</option>
+                  <option value="laminate">Laminate</option>
+                  <option value="tile">Tile</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1">Total sq ft</label>
+                <input type="number" id="qbTotalSqft" step="0.01" min="0" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" value="" />
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1">Desperdício %</label>
+                <div class="flex gap-2 items-center">
+                  <input type="number" id="qbWastePct" step="0.1" value="7" class="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+                  <button type="button" id="btnQbWasteAuto" class="btn btn-secondary btn-sm whitespace-nowrap">Auto</button>
+                </div>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1">Sq ft ajustado</label>
+                <input type="text" id="qbAdjustedSqft" readonly class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm bg-slate-50" value="0" />
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1">Subpiso</label>
+                <select id="qbSubfloorType" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
+                  <option value="">—</option>
+                  <option value="concrete">Concrete</option>
+                  <option value="plywood">Plywood</option>
+                  <option value="existing">Existing</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1">Nivelamento</label>
+                <select id="qbLevelCondition" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
+                  <option value="good">Bom</option>
+                  <option value="minor">Problemas menores</option>
+                  <option value="major">Problemas maiores</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1">Degraus (escadas)</label>
+                <input type="number" id="qbStairsCount" min="0" value="0" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1">Divisões</label>
+                <input type="number" id="qbRoomsCount" min="0" value="0" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+              </div>
+            </div>
+            <div class="mt-4">
+              <button type="button" id="btnQbApplyRules" class="btn btn-primary btn-sm">Aplicar regras agora</button>
+            </div>
+          </details>
 
-  <!-- Add item: service vs product -->
-  <div id="addItemModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-black/50" aria-modal="true">
-    <div class="bg-white rounded-xl shadow-xl max-w-md w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto">
-      <h2 class="text-lg font-bold text-slate-900">Add item</h2>
-      <div class="flex gap-2">
-        <button type="button" id="modalBtnService" class="flex-1 py-2 rounded-lg border-2 border-[#1a2036] bg-[#1a2036] text-white text-sm font-semibold">Service line</button>
-        <button type="button" id="modalBtnProduct" class="flex-1 py-2 rounded-lg border-2 border-slate-200 text-sm font-medium hover:bg-slate-50">Product</button>
-      </div>
-      <div id="modalProductSection" class="hidden space-y-3">
-        <label class="block text-xs font-semibold text-slate-500">Product</label>
-        <select id="modalProductSelect" class="w-full border rounded-lg px-3 py-2 text-sm"></select>
-        <p id="modalProductHint" class="text-xs text-amber-700 hidden"></p>
-        <div class="grid grid-cols-2 gap-2 text-xs">
-          <div><span class="text-slate-500">Cost</span><div id="modalDispCost" class="font-mono font-medium">—</div></div>
-          <div><span class="text-slate-500">Default margin %</span><div id="modalDispDefMargin" class="font-mono font-medium">—</div></div>
+          <section class="bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-4">
+            <div class="flex justify-between items-center flex-wrap gap-2">
+              <h2 class="text-sm font-bold text-slate-800">Linhas</h2>
+              <button type="button" id="btnAddLine" class="px-3 py-1.5 rounded-lg bg-[#d6b598] text-[#1a2036] text-sm font-semibold">+ Adicionar item</button>
+            </div>
+            <div class="flex flex-wrap items-end gap-3 p-3 rounded-lg border border-slate-200 bg-slate-50/80">
+              <div class="flex-1 min-w-[160px]">
+                <label for="quoteProjectSqft" class="block text-xs font-semibold text-slate-500 mb-1">Sq ft do projeto</label>
+                <input type="number" id="quoteProjectSqft" step="0.01" min="0" placeholder="ex. 1200" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+              </div>
+              <button type="button" id="btnApplySqftToLines" class="btn btn-primary btn-sm whitespace-nowrap">Aplicar qtd. nas linhas Sq Ft</button>
+            </div>
+            <p class="text-xs text-slate-500 -mt-2">Preenche o campo <strong>Qtd</strong> de todas as linhas cuja unidade é <strong>Sq Ft</strong> (serviços e produtos).</p>
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm" id="itemsTable">
+                <thead>
+                  <tr class="text-left text-xs text-slate-500 border-b">
+                    <th class="pb-2 pr-2 w-16">Tipo</th>
+                    <th class="pb-2 pr-2 w-36">Serviço</th>
+                    <th class="pb-2 pr-2 min-w-[140px]">Descrição</th>
+                    <th class="pb-2 pr-2 w-28">Unid.</th>
+                    <th class="pb-2 pr-2 w-24">Qtd</th>
+                    <th class="pb-2 pr-2 w-28">Taxa</th>
+                    <th class="pb-2 pr-2 w-28">Valor</th>
+                    <th class="pb-2 pr-2 w-28 text-center">Nota</th>
+                    <th class="pb-2 w-10"></th>
+                  </tr>
+                </thead>
+                <tbody id="itemsBody"></tbody>
+              </table>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-500 mb-1">Adicionar do catálogo</label>
+              <select id="catalogPick" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"></select>
+            </div>
+          </section>
         </div>
-        <label class="block text-xs font-semibold text-slate-500">Markup %</label>
-        <input type="number" id="modalMarkup" step="0.01" min="0" class="w-full border rounded-lg px-3 py-2 text-sm" />
-        <label class="block text-xs font-semibold text-slate-500">Sell price (unit)</label>
-        <input type="number" id="modalSell" step="0.01" min="0" class="w-full border rounded-lg px-3 py-2 text-sm" />
-        <label class="block text-xs font-semibold text-slate-500">Quantity</label>
-        <input type="number" id="modalQty" step="0.01" min="0.01" value="1" class="w-full border rounded-lg px-3 py-2 text-sm" />
-      </div>
-      <p id="modalError" class="text-red-600 text-sm hidden"></p>
-      <div class="flex justify-end gap-2 pt-2">
-        <button type="button" id="modalCancel" class="px-4 py-2 rounded-lg border text-sm">Cancel</button>
-        <button type="button" id="modalConfirmProduct" class="hidden px-4 py-2 rounded-lg bg-[#d6b598] text-[#1a2036] text-sm font-bold">Add product line</button>
+
+        <div class="builder-sidebar">
+          <h2 class="text-lg font-semibold mb-3" style="color: var(--text-dark);">Resumo &amp; totais</h2>
+
+          <div class="margin-visualization" id="profitPanel">
+            <div class="font-semibold mb-2 opacity-95">Lucro (materiais)</div>
+            <div class="flex justify-between" style="margin-bottom: 0.35rem"><span>Custo (qtd × custo)</span><span id="dispCost">$0.00</span></div>
+            <div class="flex justify-between" style="margin-bottom: 0.35rem"><span>Receita (linhas)</span><span id="dispRevenue">$0.00</span></div>
+            <div class="flex justify-between font-semibold" style="margin-bottom: 0.35rem"><span>Lucro bruto</span><span id="dispProfit">$0.00</span></div>
+            <div class="flex justify-between" style="margin-bottom: 0.5rem"><span>Margem</span><span id="dispMarginPct">—</span></div>
+            <div class="margin-bar"><div class="margin-fill" id="marginBarFill" style="width: 0%"></div></div>
+          </div>
+
+          <div class="cost-breakdown">
+            <div class="cost-row"><span>Subtotal</span><span id="dispSubtotal">$0.00</span></div>
+            <div class="cost-row" style="flex-wrap: wrap; gap: 0.5rem; border-bottom: none;">
+              <select id="discountType" class="border rounded px-2 py-1 text-sm flex-1 min-w-[120px]">
+                <option value="percentage">Desconto %</option>
+                <option value="fixed">Desconto $</option>
+              </select>
+              <input type="number" id="discountValue" step="0.01" value="0" class="border rounded px-2 py-1 text-sm w-24 text-right" />
+            </div>
+            <div class="cost-row">
+              <span>Imposto ($)</span>
+              <input type="number" id="taxTotal" step="0.01" value="0" class="border rounded px-2 py-1 text-sm w-28 text-right" />
+            </div>
+            <div class="cost-row total"><span>Total</span><span id="dispTotal">$0.00</span></div>
+          </div>
+
+          <div class="qb-sidebar-notes space-y-2 mb-4">
+            <h3 class="text-sm font-semibold" style="color: var(--text-dark);">Notas &amp; termos</h3>
+            <textarea id="notes" rows="3" placeholder="Notas para o cliente"></textarea>
+            <textarea id="terms" rows="4" placeholder="Termos e condições"></textarea>
+          </div>
+
+          <p class="text-xs text-slate-600 mb-1" id="quoteMeta">Novo orçamento</p>
+          <p class="text-xs break-all hidden mb-3" id="publicLinkWrap"><span class="font-semibold">Link público:</span> <a id="publicLink" class="text-blue-600 underline" target="_blank" rel="noopener"></a></p>
+          <div class="flex flex-col gap-2">
+            <button type="button" id="btnSave" class="btn btn-primary" style="width: 100%;">Guardar rascunho</button>
+            <button type="button" id="btnPdf" class="btn btn-secondary" style="width: 100%;" disabled>Gerar PDF</button>
+            <button type="button" id="btnEmail" class="btn btn-secondary" style="width: 100%;" disabled>Enviar email</button>
+            <button type="button" id="btnDup" class="btn btn-secondary" style="width: 100%;" disabled>Duplicar</button>
+            <button type="button" id="btnSaveTpl" class="btn btn-secondary" style="width: 100%;">Guardar como template</button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
 
-  <script src="quote-builder.js?v=quotes-erp-1"></script>
+  <div id="addItemModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-black/50" aria-modal="true">
+    <div class="bg-white rounded-xl shadow-xl max-w-md w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+      <h2 class="text-lg font-bold text-slate-900">Adicionar item</h2>
+      <div class="flex gap-2">
+        <button type="button" id="modalBtnService" class="flex-1 py-2 rounded-lg border-2 border-[#1a2036] bg-[#1a2036] text-white text-sm font-semibold">Linha serviço</button>
+        <button type="button" id="modalBtnProduct" class="flex-1 py-2 rounded-lg border-2 border-slate-200 text-sm font-medium hover:bg-slate-50">Produto</button>
+      </div>
+      <div id="modalProductSection" class="hidden space-y-3">
+        <label class="block text-xs font-semibold text-slate-500">Produto</label>
+        <select id="modalProductSelect" class="w-full border rounded-lg px-3 py-2 text-sm"></select>
+        <p id="modalProductHint" class="text-xs text-amber-700 hidden"></p>
+        <div class="grid grid-cols-2 gap-2 text-xs">
+          <div><span class="text-slate-500">Custo</span><div id="modalDispCost" class="font-mono font-medium">—</div></div>
+          <div><span class="text-slate-500">Margem % padrão</span><div id="modalDispDefMargin" class="font-mono font-medium">—</div></div>
+        </div>
+        <label class="block text-xs font-semibold text-slate-500">Markup %</label>
+        <input type="number" id="modalMarkup" step="0.01" min="0" class="w-full border rounded-lg px-3 py-2 text-sm" />
+        <label class="block text-xs font-semibold text-slate-500">Preço venda (unid.)</label>
+        <input type="number" id="modalSell" step="0.01" min="0" class="w-full border rounded-lg px-3 py-2 text-sm" />
+        <label class="block text-xs font-semibold text-slate-500">Quantidade</label>
+        <input type="number" id="modalQty" step="0.01" min="0.01" value="1" class="w-full border rounded-lg px-3 py-2 text-sm" />
+      </div>
+      <p id="modalError" class="text-red-600 text-sm hidden"></p>
+      <div class="flex justify-end gap-2 pt-2">
+        <button type="button" id="modalCancel" class="px-4 py-2 rounded-lg border text-sm">Cancelar</button>
+        <button type="button" id="modalConfirmProduct" class="hidden px-4 py-2 rounded-lg bg-[#d6b598] text-[#1a2036] text-sm font-bold">Adicionar produto</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="quote-builder.js?v=quotes-erp-4"></script>
 </body>
 </html>

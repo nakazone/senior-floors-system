@@ -1,5 +1,5 @@
 /**
- * Customers API - CRM Customers management
+ * Clients API — tabela `customers` (builders, clientes finais convertidos de leads).
  */
 import { getDBConnection } from '../config/db.js';
 
@@ -60,7 +60,7 @@ export async function getCustomer(req, res) {
 
     const [rows] = await pool.query('SELECT * FROM customers WHERE id = ?', [req.params.id]);
     if (rows.length === 0) {
-      return res.status(404).json({ success: false, error: 'Customer not found' });
+      return res.status(404).json({ success: false, error: 'Client not found' });
     }
 
     res.json({ success: true, data: rows[0] });
@@ -90,7 +90,7 @@ export async function createCustomer(req, res) {
        customer_type || 'residential', owner_id || null, notes || null]
     );
 
-    res.status(201).json({ success: true, data: { id: result.insertId }, message: 'Customer created' });
+    res.status(201).json({ success: true, data: { id: result.insertId }, message: 'Client created' });
   } catch (error) {
     console.error('Create customer error:', error);
     res.status(500).json({ success: false, error: error.message });
@@ -130,7 +130,7 @@ export async function updateCustomer(req, res) {
       values
     );
 
-    res.json({ success: true, message: 'Customer updated' });
+    res.json({ success: true, message: 'Client updated' });
   } catch (error) {
     console.error('Update customer error:', error);
     res.status(500).json({ success: false, error: error.message });

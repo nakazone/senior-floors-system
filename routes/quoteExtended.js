@@ -161,7 +161,7 @@ function normalizeCatalogBody(body) {
   if (rateBuilder == null || rateCustomer == null) {
     return {
       error:
-        'Preços Builder e Customer são obrigatórios (números ≥ 0). Pode enviar só default_rate para preencher os dois.',
+        'Preços Builder e cliente final são obrigatórios (números ≥ 0). Pode enviar só default_rate para preencher os dois.',
     };
   }
   const default_rate = rateCustomer;
@@ -209,7 +209,7 @@ export async function postQuoteCatalog(req, res) {
     if (mysqlText(e).includes('rate_builder') || mysqlText(e).includes('rate_customer')) {
       return res.status(503).json({
         success: false,
-        error: 'Migração pendente: npm run migrate:quote-enhancements-v2 (preços Builder/Customer).',
+        error: 'Migração pendente: npm run migrate:quote-enhancements-v2 (preços Builder / cliente final).',
       });
     }
     res.status(500).json({ success: false, error: e.message });
@@ -239,7 +239,7 @@ export async function putQuoteCatalog(req, res) {
     if (mysqlText(e).includes('rate_builder') || mysqlText(e).includes('rate_customer')) {
       return res.status(503).json({
         success: false,
-        error: 'Migração pendente: npm run migrate:quote-enhancements-v2 (preços Builder/Customer).',
+        error: 'Migração pendente: npm run migrate:quote-enhancements-v2 (preços Builder / cliente final).',
       });
     }
     res.status(500).json({ success: false, error: e.message });

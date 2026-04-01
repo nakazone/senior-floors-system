@@ -158,7 +158,7 @@
   }
 
   async function deactivate(id) {
-    if (!confirm('Desativar este item? Deixará de aparecer no Quote builder (pode reativar depois).')) return;
+    if (!confirm('Desativar este item? Deixará de aparecer no Quote (pode reativar depois).')) return;
     await api('/api/quote-catalog/' + id, { method: 'DELETE' });
     await load();
   }
@@ -215,7 +215,7 @@
       const rb = parseFloat($('fRateBuilder').value);
       const rc = parseFloat($('fRateCustomer').value);
       if (!Number.isFinite(rb) || rb < 0 || !Number.isFinite(rc) || rc < 0) {
-        $('formError').textContent = 'Preços Builder e Customer devem ser números ≥ 0.';
+        $('formError').textContent = 'Preços Builder e cliente final devem ser números ≥ 0.';
         $('formError').classList.remove('hidden');
         return;
       }
