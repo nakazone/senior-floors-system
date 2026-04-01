@@ -356,16 +356,31 @@ export async function postQuoteFromTemplate(req, res) {
     if (!templateId) return res.status(400).json({ success: false, error: 'template_id required' });
     const tpl = await repo.getTemplateWithItems(pool, templateId);
     if (!tpl) return res.status(404).json({ success: false, error: 'Template not found' });
-    const items = (tpl.items || []).map((t) => ({
-      description: t.description,
-      quantity: t.quantity,
-      rate: t.rate,
-      unit_type: t.unit_type,
-      notes: t.notes,
-      service_catalog_id: t.service_catalog_id,
-      service_type: t.service_type,
-      catalog_customer_notes: t.catalog_customer_notes,
-    }));
+    const items = (tpl.items || []).map((t) => {
+      let name = t.name != null && String(t.name).trim() ? String(t.name).trim() : '';
+      let description = String(t.description || '').trim();
+      if (!name && description) {
+        const ix = description.indexOf('\n');
+        if (ix >= 0) {
+          name = description.slice(0, ix).trim();
+          description = description.slice(ix + 1).trim();
+        } else {
+          name = description;
+          description = '';
+        }
+      }
+      return {
+        name: name || null,
+        description: description || null,
+        quantity: t.quantity,
+        rate: t.rate,
+        unit_type: t.unit_type,
+        notes: t.notes,
+        service_catalog_id: t.service_catalog_id,
+        service_type: t.service_type,
+        catalog_customer_notes: t.catalog_customer_notes,
+      };
+    });
     const created = await business.createQuoteFull(
       pool,
       {

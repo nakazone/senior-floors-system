@@ -83,6 +83,7 @@ import {
 } from './config/db.js';
 import { ensureQuoteInvoicePdfColumn } from './lib/ensureQuoteInvoicePdfColumn.js';
 import { ensureUserModuleColumns } from './lib/ensureUserModuleColumns.js';
+import { ensureCustomersResponsibleNameColumn } from './lib/ensureCustomersResponsibleNameColumn.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -459,6 +460,7 @@ async function start() {
       }
       await ensureQuoteInvoicePdfColumn(pool);
       await ensureUserModuleColumns(pool);
+      await ensureCustomersResponsibleNameColumn(pool);
     })().catch((e) => console.error('[db] Arranque pós-listen:', e));
   });
 }

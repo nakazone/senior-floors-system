@@ -19,11 +19,27 @@ export function mapItemRow(dbRow) {
   const quantity = Number(dbRow.quantity ?? dbRow.area_sqft) || 0;
   const rate = Number(dbRow.unit_price) || 0;
   const amount = Number(dbRow.total_price) || calc.lineAmount(quantity, rate);
+  let nameRaw = dbRow.name != null && String(dbRow.name).trim() !== '' ? String(dbRow.name).trim() : '';
+  let descRaw =
+    dbRow.description != null && String(dbRow.description).trim() !== ''
+      ? String(dbRow.description).trim()
+      : '';
+  if (!nameRaw && descRaw) {
+    const ix = descRaw.indexOf('\n');
+    if (ix >= 0) {
+      nameRaw = descRaw.slice(0, ix).trim();
+      descRaw = descRaw.slice(ix + 1).trim();
+    } else {
+      nameRaw = descRaw;
+      descRaw = '';
+    }
+  }
   return {
     id: dbRow.id,
     quote_id: dbRow.quote_id,
     service_catalog_id: dbRow.service_catalog_id ?? null,
-    description: dbRow.description || dbRow.name || dbRow.floor_type,
+    name: nameRaw || null,
+    description: descRaw || null,
     unit_type: dbRow.unit_type || 'sq_ft',
     quantity,
     rate,
@@ -42,6 +58,42 @@ export function mapItemRow(dbRow) {
     floor_type: dbRow.floor_type,
     sort_order: dbRow.sort_order ?? 0,
   };
+}
+
+function escapeHtmlEmail(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function moneyEmail(n) {
+  const x = Number(n) || 0;
+  return `$${x.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+/** Corpo HTML do e-mail: nome em destaque + descrição longa quando existir (PDF continua anexo). */
+function buildQuoteEmailHtml(quote, items, publicUrl) {
+  const qn = escapeHtmlEmail(quote.quote_number || quote.id || '');
+  const link =
+    publicUrl && /^https?:\/\//i.test(publicUrl)
+      ? `<p style="margin:16px 0;">View or approve online: <a href="${escapeHtmlEmail(publicUrl)}">${escapeHtmlEmail(publicUrl)}</a></p>`
+      : '';
+  const rows = (items || [])
+    .map((it) => {
+      const nm = String(it.name || '').trim();
+      const dc = String(it.description || '').trim();
+      const title = nm || dc || 'Item';
+      const sub =
+        nm && dc && dc !== nm
+          ? `<div style="margin-top:6px;color:#444;font-size:13px;line-height:1.45;">${escapeHtmlEmail(dc).replace(/\n/g, '<br/>')}</div>`
+          : '';
+      const amt = moneyEmail(it.amount ?? it.total_price);
+      return `<tr><td style="padding:10px 0;border-bottom:1px solid #e5e7eb;vertical-align:top;"><strong style="color:#111;">${escapeHtmlEmail(title)}</strong>${sub}</td><td style="padding:10px 0;border-bottom:1px solid #e5e7eb;text-align:right;white-space:nowrap;vertical-align:top;">${amt}</td></tr>`;
+    })
+    .join('');
+  return `<p>Hello,</p><p>Please find your quote <strong>#${qn}</strong> below. A detailed PDF is attached.</p><table role="presentation" style="width:100%;max-width:560px;border-collapse:collapse;margin:12px 0;">${rows}</table>${link}<p style="color:#64748b;font-size:13px;">— Senior Floors</p>`;
 }
 
 export async function loadQuoteContext(pool, quoteId) {
@@ -268,6 +320,7 @@ export async function duplicateQuote(pool, quoteId, userId) {
     tax_total: q.tax_total,
     subtotal: q.subtotal,
     items: ctx.items.map((it) => ({
+      name: it.name,
       description: it.description,
       quantity: it.quantity,
       rate: it.rate,
@@ -328,10 +381,12 @@ export async function mailQuote(pool, quoteId, EmailOpts = {}) {
   const publicUrl =
     token && base ? `${base.replace(/\/$/, '')}/quote-public.html?t=${encodeURIComponent(token)}` : '';
 
+  const useCustomHtml =
+    EmailOpts.html != null && String(EmailOpts.html).trim() !== '';
   const result = await sendQuoteEmail({
     to: email,
     subject: EmailOpts.subject || `Quote ${ctx.quote.quote_number || quoteId} — Senior Floors`,
-    html: EmailOpts.html,
+    html: useCustomHtml ? EmailOpts.html : buildQuoteEmailHtml(ctx.quote, ctx.items, publicUrl),
     pdfBuffer: pdfBuf,
     filename: `Senior-Floors-${ctx.quote.quote_number || quoteId}.pdf`,
     publicUrl,

@@ -15,6 +15,7 @@
     "migrate:quote-enhancements-v2": "node database/migrate-quote-enhancements-v2.js",
     "migrate:supplier-product-erp": "node database/migrate-supplier-product-erp.js",
     "migrate:customers-lead-id": "node database/migrate-customers-lead-id.js",
+    "migrate:customers-responsible-name": "node database/migrate-customers-responsible-name.js",
     "google-calendar:token": "node scripts/google-oauth-token.mjs"
   },
   "engines": {

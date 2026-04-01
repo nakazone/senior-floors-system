@@ -12,30 +12,68 @@
   <style>
     .qb-dashboard-inner { font-family: Inter, system-ui, sans-serif; }
     .estimate-builder {
-      display: grid;
-      grid-template-columns: 1fr 380px;
+      display: flex;
+      flex-direction: column;
       gap: var(--spacing-md);
       padding: var(--spacing-md);
+      align-items: stretch;
+      max-width: 1400px;
+      margin: 0 auto;
     }
     .builder-main {
       background: var(--bg-white);
       border-radius: 8px;
       padding: var(--spacing-md);
+      min-width: 0;
+      width: 100%;
     }
     .builder-sidebar {
       background: var(--bg-white);
       border-radius: 8px;
       padding: var(--spacing-md);
-      position: sticky;
-      top: var(--spacing-md);
-      max-height: calc(100vh - var(--spacing-md) * 2);
-      overflow-y: auto;
+      width: 100%;
+      border-top: 3px solid var(--secondary-color);
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-direction: column;
+      gap: var(--spacing-md);
+    }
+    .qb-below-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: var(--spacing-md);
+      align-items: start;
+    }
+    .builder-sidebar .margin-visualization {
+      margin-top: 0;
+      margin-bottom: 0;
+    }
+    .builder-sidebar .cost-breakdown {
+      margin-bottom: 0;
+    }
+    .qb-sidebar-footer {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      padding-top: 0.5rem;
+      border-top: 1px solid var(--border-color);
+    }
+    .qb-sidebar-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+    .qb-sidebar-actions .btn {
+      flex: 1 1 auto;
+      min-width: 140px;
     }
     .cost-breakdown {
-      background: var(--bg-light);
+      background: var(--bg-primary-light);
       padding: var(--spacing-md);
       border-radius: 8px;
       margin-bottom: var(--spacing-md);
+      border: 1px solid var(--border-color);
+      box-shadow: var(--shadow);
     }
     .cost-row {
       display: flex;
@@ -43,35 +81,54 @@
       padding: var(--spacing-xs) 0;
       border-bottom: 1px solid var(--border-color);
       font-size: 0.9rem;
+      color: var(--text-dark);
     }
     .cost-row.total {
       font-weight: 700;
       font-size: 1.05rem;
-      border-top: 2px solid var(--primary-color);
+      color: var(--primary-color);
+      border-top: 2px solid var(--secondary-color);
       margin-top: var(--spacing-xs);
       padding-top: var(--spacing-sm);
       border-bottom: none;
+    }
+    .cost-row.total span:last-child {
+      color: var(--primary-color);
+    }
+    .qb-resumo-title {
+      color: var(--text-dark);
+      border-bottom: 2px solid var(--secondary-color);
+      padding-bottom: 0.35rem;
+      margin-bottom: 1rem;
     }
     .margin-visualization {
       margin-top: var(--spacing-md);
       margin-bottom: var(--spacing-md);
       padding: var(--spacing-md);
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white;
+      background: linear-gradient(145deg, var(--primary-color) 0%, var(--primary-dark) 50%, #161b2e 100%);
+      color: rgba(247, 248, 252, 0.95);
       border-radius: 8px;
       font-size: 0.85rem;
+      border: 1px solid rgba(214, 181, 152, 0.4);
+      box-shadow: var(--shadow-primary);
+    }
+    .margin-visualization .qb-profit-heading {
+      color: var(--secondary-color);
+      font-weight: 600;
+      letter-spacing: 0.02em;
     }
     .margin-bar {
       height: 28px;
-      background: rgba(255, 255, 255, 0.3);
+      background: rgba(255, 255, 255, 0.12);
       border-radius: 4px;
       margin-top: var(--spacing-sm);
       position: relative;
       overflow: hidden;
+      border: 1px solid rgba(214, 181, 152, 0.25);
     }
     .margin-fill {
       height: 100%;
-      background: rgba(255, 255, 255, 0.85);
+      background: linear-gradient(90deg, var(--secondary-dark) 0%, var(--secondary-color) 55%, var(--secondary-hover) 100%);
       transition: width 0.25s ease;
       max-width: 100%;
     }
@@ -83,14 +140,87 @@
       font-size: 0.85rem;
       resize: vertical;
     }
-    @media (max-width: 1100px) {
-      .estimate-builder {
-        grid-template-columns: 1fr;
-      }
-      .builder-sidebar {
-        position: static;
-        max-height: none;
-      }
+    /* Tabela de linhas — descrição legível, scroll horizontal suave */
+    .qb-items-table-wrap {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      background: var(--bg-white);
+      box-shadow: var(--shadow);
+    }
+    .qb-items-table-wrap table {
+      table-layout: fixed;
+      width: 100%;
+      min-width: 1100px;
+      border-collapse: separate;
+      border-spacing: 0;
+    }
+    .qb-items-table-wrap thead th {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      background: var(--bg-primary-light);
+      color: var(--text-dark);
+      font-weight: 600;
+      padding: 0.65rem 0.5rem;
+      border-bottom: 2px solid var(--secondary-color);
+      white-space: nowrap;
+    }
+    .qb-items-table-wrap tbody td {
+      vertical-align: top;
+      padding: 0.5rem 0.45rem;
+    }
+    .qb-col-type { width: 4.5rem; }
+    .qb-col-name { width: 16%; min-width: 120px; }
+    .qb-col-desc-pdf { width: 22%; min-width: 160px; }
+    .qb-col-svc { width: 10.5rem; min-width: 9.5rem; }
+    .qb-col-unit { width: 6.25rem; }
+    .qb-col-qty { width: 5rem; }
+    .qb-col-rate { width: 5.5rem; }
+    .qb-col-amt { width: 6.25rem; }
+    .qb-col-note { width: 4.5rem; }
+    .qb-col-del { width: 2.25rem; }
+    .qb-line-desc {
+      width: 100%;
+      min-height: 3rem;
+      max-height: 7rem;
+      resize: vertical;
+      font-size: 0.875rem;
+      line-height: 1.4;
+      padding: 0.45rem 0.5rem;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      font-family: inherit;
+    }
+    .qb-line-desc:focus {
+      outline: 2px solid rgba(26, 32, 54, 0.2);
+      border-color: var(--primary-color);
+    }
+    .qb-line-name {
+      width: 100%;
+      font-size: 0.875rem;
+      line-height: 1.35;
+      padding: 0.45rem 0.5rem;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      font-family: inherit;
+    }
+    .qb-line-name:focus {
+      outline: 2px solid rgba(26, 32, 54, 0.2);
+      border-color: var(--primary-color);
+    }
+    .qb-select-compact {
+      width: 100%;
+      max-width: 100%;
+      font-size: 0.8125rem;
+      padding: 0.35rem 0.25rem;
+    }
+    .qb-num-input {
+      width: 100%;
+      min-width: 0;
+      font-size: 0.875rem;
+      padding: 0.4rem 0.35rem;
     }
   </style>
 </head>
@@ -106,7 +236,6 @@
         <a href="dashboard.html?page=quotes" class="nav-item">Quotes</a>
         <a href="quote-builder.html" class="nav-item active">Quote</a>
         <a href="quote-catalog.html" class="nav-item">Catálogo</a>
-        <a href="estimate-builder.html" class="nav-item">Estimate (legado)</a>
       </nav>
     </div>
 
@@ -259,19 +388,21 @@
               <button type="button" id="btnApplySqftToLines" class="btn btn-primary btn-sm whitespace-nowrap">Aplicar qtd. nas linhas Sq Ft</button>
             </div>
             <p class="text-xs text-slate-500 -mt-2">Preenche o campo <strong>Qtd</strong> de todas as linhas cuja unidade é <strong>Sq Ft</strong> (serviços e produtos).</p>
-            <div class="overflow-x-auto">
-              <table class="w-full text-sm" id="itemsTable">
+            <p class="text-xs text-slate-600 mb-1"><strong>Nome do serviço</strong> aparece no CRM e como título na linha do PDF. <strong>Descrição (PDF / email)</strong> é o texto longo só no PDF e na página pública do orçamento (podes redimensionar a caixa de descrição).</p>
+            <div class="qb-items-table-wrap" id="itemsTableWrap">
+              <table class="text-sm" id="itemsTable">
                 <thead>
-                  <tr class="text-left text-xs text-slate-500 border-b">
-                    <th class="pb-2 pr-2 w-16">Tipo</th>
-                    <th class="pb-2 pr-2 w-36">Serviço</th>
-                    <th class="pb-2 pr-2 min-w-[140px]">Descrição</th>
-                    <th class="pb-2 pr-2 w-28">Unid.</th>
-                    <th class="pb-2 pr-2 w-24">Qtd</th>
-                    <th class="pb-2 pr-2 w-28">Taxa</th>
-                    <th class="pb-2 pr-2 w-28">Valor</th>
-                    <th class="pb-2 pr-2 w-28 text-center">Nota</th>
-                    <th class="pb-2 w-10"></th>
+                  <tr class="text-left">
+                    <th class="qb-col-type">Tipo</th>
+                    <th class="qb-col-name">Nome do serviço</th>
+                    <th class="qb-col-desc-pdf">Descrição <span class="font-normal text-slate-500">(PDF / público)</span></th>
+                    <th class="qb-col-svc" title="Installation ou Sand &amp; Finishing">Trabalho</th>
+                    <th class="qb-col-unit">Unid.</th>
+                    <th class="qb-col-qty">Qtd</th>
+                    <th class="qb-col-rate">Taxa</th>
+                    <th class="qb-col-amt text-right">Valor</th>
+                    <th class="qb-col-note text-center">Nota</th>
+                    <th class="qb-col-del" aria-label="Remover"></th>
                   </tr>
                 </thead>
                 <tbody id="itemsBody"></tbody>
@@ -285,47 +416,51 @@
         </div>
 
         <div class="builder-sidebar">
-          <h2 class="text-lg font-semibold mb-3" style="color: var(--text-dark);">Resumo &amp; totais</h2>
+          <h2 class="text-lg font-semibold qb-resumo-title">Resumo &amp; totais</h2>
 
-          <div class="margin-visualization" id="profitPanel">
-            <div class="font-semibold mb-2 opacity-95">Lucro (materiais)</div>
-            <div class="flex justify-between" style="margin-bottom: 0.35rem"><span>Custo (qtd × custo)</span><span id="dispCost">$0.00</span></div>
-            <div class="flex justify-between" style="margin-bottom: 0.35rem"><span>Receita (linhas)</span><span id="dispRevenue">$0.00</span></div>
-            <div class="flex justify-between font-semibold" style="margin-bottom: 0.35rem"><span>Lucro bruto</span><span id="dispProfit">$0.00</span></div>
-            <div class="flex justify-between" style="margin-bottom: 0.5rem"><span>Margem</span><span id="dispMarginPct">—</span></div>
-            <div class="margin-bar"><div class="margin-fill" id="marginBarFill" style="width: 0%"></div></div>
+          <div class="qb-below-row">
+            <div class="margin-visualization" id="profitPanel">
+              <div class="qb-profit-heading mb-2">Lucro (materiais)</div>
+              <div class="flex justify-between" style="margin-bottom: 0.35rem"><span>Custo (qtd × custo)</span><span id="dispCost">$0.00</span></div>
+              <div class="flex justify-between" style="margin-bottom: 0.35rem"><span>Receita (linhas)</span><span id="dispRevenue">$0.00</span></div>
+              <div class="flex justify-between font-semibold" style="margin-bottom: 0.35rem"><span>Lucro bruto</span><span id="dispProfit">$0.00</span></div>
+              <div class="flex justify-between" style="margin-bottom: 0.5rem"><span>Margem</span><span id="dispMarginPct">—</span></div>
+              <div class="margin-bar"><div class="margin-fill" id="marginBarFill" style="width: 0%"></div></div>
+            </div>
+
+            <div class="cost-breakdown">
+              <div class="cost-row"><span>Subtotal</span><span id="dispSubtotal">$0.00</span></div>
+              <div class="cost-row" style="flex-wrap: wrap; gap: 0.5rem; border-bottom: none;">
+                <select id="discountType" class="border rounded px-2 py-1 text-sm flex-1 min-w-[120px]">
+                  <option value="percentage">Desconto %</option>
+                  <option value="fixed">Desconto $</option>
+                </select>
+                <input type="number" id="discountValue" step="0.01" value="0" class="border rounded px-2 py-1 text-sm w-24 text-right" />
+              </div>
+              <div class="cost-row">
+                <span>Imposto ($)</span>
+                <input type="number" id="taxTotal" step="0.01" value="0" class="border rounded px-2 py-1 text-sm w-28 text-right" />
+              </div>
+              <div class="cost-row total"><span>Total</span><span id="dispTotal">$0.00</span></div>
+            </div>
           </div>
 
-          <div class="cost-breakdown">
-            <div class="cost-row"><span>Subtotal</span><span id="dispSubtotal">$0.00</span></div>
-            <div class="cost-row" style="flex-wrap: wrap; gap: 0.5rem; border-bottom: none;">
-              <select id="discountType" class="border rounded px-2 py-1 text-sm flex-1 min-w-[120px]">
-                <option value="percentage">Desconto %</option>
-                <option value="fixed">Desconto $</option>
-              </select>
-              <input type="number" id="discountValue" step="0.01" value="0" class="border rounded px-2 py-1 text-sm w-24 text-right" />
-            </div>
-            <div class="cost-row">
-              <span>Imposto ($)</span>
-              <input type="number" id="taxTotal" step="0.01" value="0" class="border rounded px-2 py-1 text-sm w-28 text-right" />
-            </div>
-            <div class="cost-row total"><span>Total</span><span id="dispTotal">$0.00</span></div>
-          </div>
-
-          <div class="qb-sidebar-notes space-y-2 mb-4">
+          <div class="qb-sidebar-notes space-y-2">
             <h3 class="text-sm font-semibold" style="color: var(--text-dark);">Notas &amp; termos</h3>
             <textarea id="notes" rows="3" placeholder="Notas para o cliente"></textarea>
             <textarea id="terms" rows="4" placeholder="Termos e condições"></textarea>
           </div>
 
-          <p class="text-xs text-slate-600 mb-1" id="quoteMeta">Novo orçamento</p>
-          <p class="text-xs break-all hidden mb-3" id="publicLinkWrap"><span class="font-semibold">Link público:</span> <a id="publicLink" class="text-blue-600 underline" target="_blank" rel="noopener"></a></p>
-          <div class="flex flex-col gap-2">
-            <button type="button" id="btnSave" class="btn btn-primary" style="width: 100%;">Guardar rascunho</button>
-            <button type="button" id="btnPdf" class="btn btn-secondary" style="width: 100%;" disabled>Gerar PDF</button>
-            <button type="button" id="btnEmail" class="btn btn-secondary" style="width: 100%;" disabled>Enviar email</button>
-            <button type="button" id="btnDup" class="btn btn-secondary" style="width: 100%;" disabled>Duplicar</button>
-            <button type="button" id="btnSaveTpl" class="btn btn-secondary" style="width: 100%;">Guardar como template</button>
+          <div class="qb-sidebar-footer">
+            <p class="text-xs text-slate-600" id="quoteMeta">Novo orçamento</p>
+            <p class="text-xs break-all hidden" id="publicLinkWrap"><span class="font-semibold">Link público:</span> <a id="publicLink" class="text-blue-600 underline" target="_blank" rel="noopener"></a></p>
+            <div class="qb-sidebar-actions">
+              <button type="button" id="btnSave" class="btn btn-primary">Guardar rascunho</button>
+              <button type="button" id="btnPdf" class="btn btn-secondary" disabled>Gerar PDF</button>
+              <button type="button" id="btnEmail" class="btn btn-secondary" disabled>Enviar email</button>
+              <button type="button" id="btnDup" class="btn btn-secondary" disabled>Duplicar</button>
+              <button type="button" id="btnSaveTpl" class="btn btn-secondary">Guardar como template</button>
+            </div>
           </div>
         </div>
       </div>

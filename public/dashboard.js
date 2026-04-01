@@ -877,6 +877,25 @@ function escapeClientCell(s) {
         .replace(/"/g, '&quot;');
 }
 
+/** Até 10 dígitos → (XXX) XXX-XXXX */
+function formatUsPhoneMaskFromDigits(raw) {
+    const d = String(raw || '').replace(/\D/g, '').slice(0, 10);
+    if (d.length === 0) return '';
+    if (d.length <= 3) return `(${d}`;
+    if (d.length <= 6) return `(${d.slice(0, 3)}) ${d.slice(3)}`;
+    return `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}`;
+}
+
+function displayPhoneInClientForm(phone) {
+    if (phone == null || phone === '') return '';
+    const s = String(phone).trim();
+    if (s === '—' || s === '-' || /^n\/?a$/i.test(s)) return '';
+    let d = s.replace(/\D/g, '');
+    if (d.length === 11 && d.startsWith('1')) d = d.slice(1);
+    if (d.length === 10) return formatUsPhoneMaskFromDigits(d);
+    return s;
+}
+
 async function loadCustomers() {
     const tbody = document.getElementById('customersTableBody');
     tbody.innerHTML = '<tr><td colspan="10" class="text-center">Loading...</td></tr>';
@@ -894,10 +913,14 @@ async function loadCustomers() {
                         c.lead_id != null && c.lead_id !== ''
                             ? `<a href="lead-detail.html?id=${encodeURIComponent(c.lead_id)}">#${c.lead_id}</a>`
                             : '—';
+                    const nameCell =
+                        c.customer_type === 'builder' && c.responsible_name
+                            ? `${escapeClientCell(c.name) || '-'} · ${escapeClientCell(c.responsible_name)}`
+                            : escapeClientCell(c.name) || '-';
                     return `
                     <tr>
                         <td>${c.id}</td>
-                        <td>${escapeClientCell(c.name) || '-'}</td>
+                        <td>${nameCell}</td>
                         <td>${escapeClientCell(c.email) || '-'}</td>
                         <td>${escapeClientCell(c.phone) || '-'}</td>
                         <td>${escapeClientCell(c.city) || '-'}</td>
@@ -926,10 +949,40 @@ function changePageCustomers(delta) {
     loadCustomers();
 }
 
+function syncClientFormBuilderFields() {
+    const typeEl = document.getElementById('clientType');
+    const nonRow = document.getElementById('clientNonBuilderNameRow');
+    const bRow = document.getElementById('clientBuilderNameRow');
+    const nameInp = document.getElementById('clientName');
+    const compInp = document.getElementById('clientCompanyName');
+    const respInp = document.getElementById('clientResponsibleName');
+    if (!typeEl || !nonRow || !bRow) return;
+    const isBuilder = typeEl.value === 'builder';
+    nonRow.style.display = isBuilder ? 'none' : '';
+    bRow.style.display = isBuilder ? '' : 'none';
+    if (nameInp) {
+        nameInp.required = !isBuilder;
+        if (isBuilder) nameInp.removeAttribute('required');
+    }
+    if (compInp) compInp.required = isBuilder;
+    if (respInp) respInp.required = isBuilder;
+}
+
 function resetClientForm() {
     const ids = [
-        'clientFormId', 'clientFormLeadId', 'clientName', 'clientEmail', 'clientPhone',
-        'clientAddress', 'clientCity', 'clientState', 'clientZip', 'clientNotes', 'clientFormError',
+        'clientFormId',
+        'clientFormLeadId',
+        'clientName',
+        'clientCompanyName',
+        'clientResponsibleName',
+        'clientEmail',
+        'clientPhone',
+        'clientAddress',
+        'clientCity',
+        'clientState',
+        'clientZip',
+        'clientNotes',
+        'clientFormError',
     ];
     ids.forEach((id) => {
         const el = document.getElementById(id);
@@ -943,6 +996,7 @@ function resetClientForm() {
     if (typeEl) typeEl.value = 'residential';
     const st = document.getElementById('clientStatus');
     if (st) st.value = 'active';
+    syncClientFormBuilderFields();
 }
 
 function showNewCustomerModal() {
@@ -975,9 +1029,12 @@ async function viewCustomer(id) {
         };
         document.getElementById('clientFormId').value = String(c.id);
         set('clientFormLeadId', c.lead_id != null ? c.lead_id : '');
-        set('clientName', c.name);
+        const isB = (c.customer_type || 'residential') === 'builder';
+        set('clientName', isB ? '' : c.name);
+        set('clientCompanyName', isB ? c.name : '');
+        set('clientResponsibleName', isB && c.responsible_name != null ? c.responsible_name : '');
         set('clientEmail', c.email);
-        set('clientPhone', c.phone);
+        set('clientPhone', displayPhoneInClientForm(c.phone));
         set('clientAddress', c.address);
         set('clientCity', c.city);
         set('clientState', c.state);
@@ -985,6 +1042,7 @@ async function viewCustomer(id) {
         set('clientType', c.customer_type || 'residential');
         set('clientStatus', c.status || 'active');
         set('clientNotes', c.notes);
+        syncClientFormBuilderFields();
         const modal = document.getElementById('clientModal');
         if (modal) modal.style.display = 'flex';
     } catch (e) {
@@ -1003,17 +1061,42 @@ async function submitClientForm(ev) {
         errEl.style.display = 'none';
     }
     const id = document.getElementById('clientFormId').value.trim();
+    const ctype = document.getElementById('clientType').value;
+    let nameVal;
+    let responsibleVal = null;
+    if (ctype === 'builder') {
+        nameVal = document.getElementById('clientCompanyName').value.trim();
+        responsibleVal = document.getElementById('clientResponsibleName').value.trim();
+        if (nameVal.length < 2) {
+            if (errEl) {
+                errEl.textContent = 'Indique o nome da empresa (Builder).';
+                errEl.style.display = 'block';
+            }
+            return;
+        }
+        if (responsibleVal.length < 2) {
+            if (errEl) {
+                errEl.textContent = 'Indique o responsável (pessoa de contacto).';
+                errEl.style.display = 'block';
+            }
+            return;
+        }
+    } else {
+        nameVal = document.getElementById('clientName').value.trim();
+    }
     const body = {
-        name: document.getElementById('clientName').value.trim(),
+        name: nameVal,
         email: document.getElementById('clientEmail').value.trim(),
         phone: document.getElementById('clientPhone').value.trim(),
         address: document.getElementById('clientAddress').value.trim() || null,
         city: document.getElementById('clientCity').value.trim() || null,
         state: document.getElementById('clientState').value.trim() || null,
         zipcode: document.getElementById('clientZip').value.replace(/\D/g, '').slice(0, 10) || null,
-        customer_type: document.getElementById('clientType').value,
+        customer_type: ctype,
         notes: document.getElementById('clientNotes').value.trim() || null,
     };
+    if (ctype === 'builder') body.responsible_name = responsibleVal;
+    else body.responsible_name = null;
     const leadRaw = document.getElementById('clientFormLeadId').value.trim();
     if (leadRaw && !id) body.lead_id = parseInt(leadRaw, 10);
 
@@ -1748,4 +1831,13 @@ async function onCrmUserFormSubmit(e) {
 document.addEventListener('DOMContentLoaded', () => {
     const f = document.getElementById('crmUserForm');
     if (f) f.addEventListener('submit', onCrmUserFormSubmit);
+    const ct = document.getElementById('clientType');
+    if (ct) ct.addEventListener('change', syncClientFormBuilderFields);
+    const clientPhone = document.getElementById('clientPhone');
+    if (clientPhone) {
+        clientPhone.addEventListener('input', function () {
+            const next = formatUsPhoneMaskFromDigits(this.value);
+            if (this.value !== next) this.value = next;
+        });
+    }
 });

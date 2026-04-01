@@ -16,9 +16,8 @@ import { getMysqlConnectionConfig, getMysqlEnvDiagnostics } from '../config/db.j
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const envPath = path.resolve(__dirname, '..', '.env');
-if (!process.env.RAILWAY_PROJECT_ID && !process.env.RAILWAY_ENVIRONMENT) {
-  dotenv.config({ path: envPath, override: true });
-}
+// Merge: com `railway run`, DATABASE_PUBLIC_URL pode vir só do .env local (Railway não injeta).
+dotenv.config({ path: envPath });
 
 function parseMysqlUrl(url) {
   if (!url || typeof url !== 'string' || !url.trim()) return null;
@@ -50,23 +49,46 @@ function applyRailwayTcpProxyIfNeeded(cfg) {
   return { ...cfg, host: ph, port: parseInt(pp, 10) || cfg.port };
 }
 
-/** Em ambiente local: se só temos URL interna Railway, tentar DATABASE_PUBLIC_URL. */
+function isRailwayInternalHost(host) {
+  return String(host || '')
+    .trim()
+    .toLowerCase()
+    .endsWith('.railway.internal');
+}
+
+/** URLs públicas primeiro — getMysqlConnectionConfig() prefere DATABASE_URL / MYSQLHOST (internos). */
+function configFromExplicitPublicMysqlUrls() {
+  const candidates = [
+    process.env.DATABASE_PUBLIC_URL,
+    process.env.MYSQL_PUBLIC_URL,
+    process.env.MYSQL_URL_PUBLIC,
+  ];
+  for (const raw of candidates) {
+    const s = raw?.trim();
+    if (!s) continue;
+    const cfg = parseMysqlUrl(s);
+    if (!cfg?.host || !cfg?.database) continue;
+    if (isRailwayInternalHost(cfg.host)) continue;
+    return applyRailwayTcpProxyIfNeeded(cfg);
+  }
+  return null;
+}
+
 function resolveMigrateConfig() {
+  const fromPublic = configFromExplicitPublicMysqlUrls();
+  if (fromPublic) return fromPublic;
+
   let base = getMysqlConnectionConfig();
   base = applyRailwayTcpProxyIfNeeded(base);
   if (!base) return null;
 
-  const h = (base.host || '').trim().toLowerCase();
-  const runningInsideRailway =
-    Boolean(process.env.RAILWAY_PROJECT_ID) || Boolean(process.env.RAILWAY_ENVIRONMENT);
-
-  if (!runningInsideRailway && h.endsWith('.railway.internal')) {
+  if (isRailwayInternalHost(base.host)) {
     const pubRaw =
       process.env.DATABASE_PUBLIC_URL?.trim() ||
       process.env.MYSQL_PUBLIC_URL?.trim() ||
       process.env.MYSQL_URL_PUBLIC?.trim();
     const fromPub = parseMysqlUrl(pubRaw);
-    if (fromPub && fromPub.user && fromPub.database) {
+    if (fromPub?.host && fromPub?.database && !isRailwayInternalHost(fromPub.host)) {
       return applyRailwayTcpProxyIfNeeded(fromPub);
     }
   }

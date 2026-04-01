@@ -37,6 +37,7 @@ export async function ensureClientFromLead(pool, leadRow, opts = {}) {
 
   const cols = await customerTableColumns(pool);
   const hasLeadIdCol = cols.has('lead_id');
+  const hasResponsibleNameCol = cols.has('responsible_name');
 
   if (hasLeadIdCol) {
     const [existing] = await pool.query('SELECT id FROM customers WHERE lead_id = ? LIMIT 1', [leadId]);
@@ -94,31 +95,29 @@ export async function ensureClientFromLead(pool, leadRow, opts = {}) {
   };
 
   if (hasLeadIdCol) {
-    const [r] = await pool.execute(
-      `INSERT INTO customers (name, email, phone, address, city, state, zipcode, customer_type, owner_id, notes, status, lead_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?)`,
-      [
-        base.name,
-        base.email,
-        base.phone,
-        base.address,
-        base.city,
-        base.state,
-        base.zipcode,
-        base.customer_type,
-        base.owner_id,
-        base.notes,
-        leadId,
-      ]
+    const insCols = ['name'];
+    const insPh = ['?'];
+    const insVals = [base.name];
+    if (hasResponsibleNameCol) {
+      insCols.push('responsible_name');
+      insPh.push('?');
+      insVals.push(null);
+    }
+    insCols.push(
+      'email',
+      'phone',
+      'address',
+      'city',
+      'state',
+      'zipcode',
+      'customer_type',
+      'owner_id',
+      'notes',
+      'status',
+      'lead_id'
     );
-    return { created: true, customer_id: r.insertId };
-  }
-
-  const [r2] = await pool.execute(
-    `INSERT INTO customers (name, email, phone, address, city, state, zipcode, customer_type, owner_id, notes, status)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')`,
-    [
-      base.name,
+    insPh.push('?', '?', '?', '?', '?', '?', '?', '?', '?', '?', '?');
+    insVals.push(
       base.email,
       base.phone,
       base.address,
@@ -128,7 +127,41 @@ export async function ensureClientFromLead(pool, leadRow, opts = {}) {
       base.customer_type,
       base.owner_id,
       base.notes,
-    ]
+      'active',
+      leadId
+    );
+    const [r] = await pool.execute(
+      `INSERT INTO customers (${insCols.join(', ')}) VALUES (${insPh.join(', ')})`,
+      insVals
+    );
+    return { created: true, customer_id: r.insertId };
+  }
+
+  const insCols2 = ['name'];
+  const insPh2 = ['?'];
+  const insVals2 = [base.name];
+  if (hasResponsibleNameCol) {
+    insCols2.push('responsible_name');
+    insPh2.push('?');
+    insVals2.push(null);
+  }
+  insCols2.push('email', 'phone', 'address', 'city', 'state', 'zipcode', 'customer_type', 'owner_id', 'notes', 'status');
+  insPh2.push('?', '?', '?', '?', '?', '?', '?', '?', '?', '?');
+  insVals2.push(
+    base.email,
+    base.phone,
+    base.address,
+    base.city,
+    base.state,
+    base.zipcode,
+    base.customer_type,
+    base.owner_id,
+    base.notes,
+    'active'
+  );
+  const [r2] = await pool.execute(
+    `INSERT INTO customers (${insCols2.join(', ')}) VALUES (${insPh2.join(', ')})`,
+    insVals2
   );
   return { created: true, customer_id: r2.insertId };
 }

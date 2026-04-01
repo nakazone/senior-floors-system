@@ -4,6 +4,16 @@
 import { getDBConnection } from '../config/db.js';
 import { ensureClientFromLead } from '../modules/clients/leadToClient.js';
 
+/** @param {import('mysql2/promise').Pool} pool */
+async function getCustomersOptionalColumns(pool) {
+  const [rows] = await pool.query(
+    `SELECT COLUMN_NAME AS n FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'customers'
+     AND COLUMN_NAME IN ('lead_id', 'responsible_name')`
+  );
+  return new Set(rows.map((r) => r.n));
+}
+
 export async function listCustomers(req, res) {
   try {
     const pool = await getDBConnection();
@@ -17,6 +27,8 @@ export async function listCustomers(req, res) {
     const status = req.query.status || null;
     const search = req.query.search || null;
 
+    const opt = await getCustomersOptionalColumns(pool);
+
     let whereClause = '1=1';
     const params = [];
 
@@ -26,19 +38,22 @@ export async function listCustomers(req, res) {
     }
 
     if (search) {
-      whereClause += ' AND (name LIKE ? OR email LIKE ? OR phone LIKE ?)';
       const searchTerm = `%${search}%`;
-      params.push(searchTerm, searchTerm, searchTerm);
+      if (opt.has('responsible_name')) {
+        whereClause += ' AND (name LIKE ? OR email LIKE ? OR phone LIKE ? OR responsible_name LIKE ?)';
+        params.push(searchTerm, searchTerm, searchTerm, searchTerm);
+      } else {
+        whereClause += ' AND (name LIKE ? OR email LIKE ? OR phone LIKE ?)';
+        params.push(searchTerm, searchTerm, searchTerm);
+      }
     }
 
-    const [[{ lc }]] = await pool.query(
-      `SELECT COUNT(*) AS lc FROM information_schema.COLUMNS
-       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'customers' AND COLUMN_NAME = 'lead_id'`
-    );
-    const selectCols =
-      Number(lc) > 0
-        ? 'id, lead_id, name, email, phone, city, state, zipcode, customer_type, owner_id, status, created_at'
-        : 'id, name, email, phone, city, state, zipcode, customer_type, owner_id, status, created_at';
+    const selectParts = ['id'];
+    if (opt.has('lead_id')) selectParts.push('lead_id');
+    selectParts.push('name');
+    if (opt.has('responsible_name')) selectParts.push('responsible_name');
+    selectParts.push('email', 'phone', 'city', 'state', 'zipcode', 'customer_type', 'owner_id', 'status', 'created_at');
+    const selectCols = selectParts.join(', ');
 
     const [rows] = await pool.query(
       `SELECT ${selectCols} FROM customers WHERE ${whereClause} ORDER BY created_at DESC LIMIT ? OFFSET ?`,
@@ -83,23 +98,56 @@ export async function createCustomer(req, res) {
       return res.status(503).json({ success: false, error: 'Database not available' });
     }
 
-    const { name, email, phone, address, city, state, zipcode, customer_type, owner_id, notes, lead_id } =
-      req.body || {};
+    const opt = await getCustomersOptionalColumns(pool);
+
+    const {
+      name,
+      email,
+      phone,
+      address,
+      city,
+      state,
+      zipcode,
+      customer_type,
+      owner_id,
+      notes,
+      lead_id,
+      responsible_name,
+    } = req.body || {};
 
     if (!name || !email) {
       return res.status(400).json({ success: false, error: 'Nome e email são obrigatórios' });
     }
     const phoneVal = phone != null && String(phone).trim().length >= 3 ? String(phone).trim() : '—';
 
+    const ct = String(customer_type || 'residential').trim();
+    const nameTrim = String(name).trim().slice(0, 255);
+    let respOut = null;
+
+    if (ct === 'builder') {
+      const respRaw = responsible_name != null ? String(responsible_name).trim() : '';
+      if (nameTrim.length < 2) {
+        return res.status(400).json({ success: false, error: 'Para Builder, indique o nome da empresa.' });
+      }
+      if (respRaw.length < 2) {
+        return res.status(400).json({
+          success: false,
+          error: 'Para Builder, indique o responsável (pessoa de contacto).',
+        });
+      }
+      if (!opt.has('responsible_name')) {
+        return res.status(400).json({
+          success: false,
+          error: 'Base de dados desatualizada. Execute: npm run migrate:customers-responsible-name',
+        });
+      }
+      respOut = respRaw.slice(0, 255);
+    }
+
     const leadIdNum =
       lead_id != null && lead_id !== '' ? parseInt(String(lead_id), 10) : null;
     const leadOk = Number.isFinite(leadIdNum) && leadIdNum > 0 ? leadIdNum : null;
-
-    const [colRows] = await pool.query(
-      `SELECT COLUMN_NAME AS n FROM information_schema.COLUMNS
-       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'customers' AND COLUMN_NAME = 'lead_id'`
-    );
-    const hasLeadId = colRows.length > 0;
+    const hasLeadId = opt.has('lead_id');
 
     if (hasLeadId && leadOk) {
       const [dup] = await pool.query('SELECT id FROM customers WHERE lead_id = ? LIMIT 1', [leadOk]);
@@ -112,43 +160,50 @@ export async function createCustomer(req, res) {
       }
     }
 
-    if (hasLeadId && leadOk) {
-      const [result] = await pool.execute(
-        `INSERT INTO customers (name, email, phone, address, city, state, zipcode, customer_type, owner_id, notes, status, lead_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?)`,
-        [
-          String(name).trim().slice(0, 255),
-          String(email).trim().slice(0, 255),
-          phoneVal.slice(0, 50),
-          address != null ? String(address).trim().slice(0, 5000) || null : null,
-          city != null ? String(city).trim().slice(0, 100) || null : null,
-          state != null ? String(state).trim().slice(0, 50) || null : null,
-          zipcode != null ? String(zipcode).replace(/\D/g, '').slice(0, 10) || null : null,
-          customer_type || 'residential',
-          owner_id != null && owner_id !== '' ? parseInt(String(owner_id), 10) || null : null,
-          notes != null ? String(notes).trim().slice(0, 8000) || null : null,
-          leadOk,
-        ]
-      );
-      return res.status(201).json({ success: true, data: { id: result.insertId }, message: 'Client created' });
+    const cols = ['name'];
+    const placeholders = ['?'];
+    const vals = [nameTrim];
+
+    if (opt.has('responsible_name')) {
+      cols.push('responsible_name');
+      placeholders.push('?');
+      vals.push(respOut);
     }
 
-    const [result] = await pool.execute(
-      `INSERT INTO customers (name, email, phone, address, city, state, zipcode, customer_type, owner_id, notes, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')`,
-      [
-        String(name).trim().slice(0, 255),
-        String(email).trim().slice(0, 255),
-        phoneVal.slice(0, 50),
-        address != null ? String(address).trim().slice(0, 5000) || null : null,
-        city != null ? String(city).trim().slice(0, 100) || null : null,
-        state != null ? String(state).trim().slice(0, 50) || null : null,
-        zipcode != null ? String(zipcode).replace(/\D/g, '').slice(0, 10) || null : null,
-        customer_type || 'residential',
-        owner_id != null && owner_id !== '' ? parseInt(String(owner_id), 10) || null : null,
-        notes != null ? String(notes).trim().slice(0, 8000) || null : null,
-      ]
+    cols.push(
+      'email',
+      'phone',
+      'address',
+      'city',
+      'state',
+      'zipcode',
+      'customer_type',
+      'owner_id',
+      'notes',
+      'status'
     );
+    placeholders.push('?', '?', '?', '?', '?', '?', '?', '?', '?', '?');
+    vals.push(
+      String(email).trim().slice(0, 255),
+      phoneVal.slice(0, 50),
+      address != null ? String(address).trim().slice(0, 5000) || null : null,
+      city != null ? String(city).trim().slice(0, 100) || null : null,
+      state != null ? String(state).trim().slice(0, 50) || null : null,
+      zipcode != null ? String(zipcode).replace(/\D/g, '').slice(0, 10) || null : null,
+      ct,
+      owner_id != null && owner_id !== '' ? parseInt(String(owner_id), 10) || null : null,
+      notes != null ? String(notes).trim().slice(0, 8000) || null : null,
+      'active'
+    );
+
+    if (hasLeadId && leadOk) {
+      cols.push('lead_id');
+      placeholders.push('?');
+      vals.push(leadOk);
+    }
+
+    const sql = `INSERT INTO customers (${cols.join(', ')}) VALUES (${placeholders.join(', ')})`;
+    const [result] = await pool.execute(sql, vals);
 
     res.status(201).json({ success: true, data: { id: result.insertId }, message: 'Client created' });
   } catch (error) {
@@ -237,31 +292,115 @@ export async function updateCustomer(req, res) {
       return res.status(503).json({ success: false, error: 'Database not available' });
     }
 
-    const { name, email, phone, address, city, state, zipcode, customer_type, owner_id, status, notes } = req.body;
+    const opt = await getCustomersOptionalColumns(pool);
+    const [existingRows] = await pool.query(
+      'SELECT id, name, customer_type, responsible_name FROM customers WHERE id = ?',
+      [req.params.id]
+    );
+    if (!existingRows.length) {
+      return res.status(404).json({ success: false, error: 'Client not found' });
+    }
+    const row = existingRows[0];
+
+    const {
+      name,
+      email,
+      phone,
+      address,
+      city,
+      state,
+      zipcode,
+      customer_type,
+      owner_id,
+      status,
+      notes,
+      responsible_name,
+    } = req.body || {};
+
     const updates = [];
     const values = [];
 
-    if (name !== undefined) { updates.push('name = ?'); values.push(name); }
-    if (email !== undefined) { updates.push('email = ?'); values.push(email); }
-    if (phone !== undefined) { updates.push('phone = ?'); values.push(phone); }
-    if (address !== undefined) { updates.push('address = ?'); values.push(address); }
-    if (city !== undefined) { updates.push('city = ?'); values.push(city); }
-    if (state !== undefined) { updates.push('state = ?'); values.push(state); }
-    if (zipcode !== undefined) { updates.push('zipcode = ?'); values.push(zipcode); }
-    if (customer_type !== undefined) { updates.push('customer_type = ?'); values.push(customer_type); }
-    if (owner_id !== undefined) { updates.push('owner_id = ?'); values.push(owner_id); }
-    if (status !== undefined) { updates.push('status = ?'); values.push(status); }
-    if (notes !== undefined) { updates.push('notes = ?'); values.push(notes); }
+    if (name !== undefined) {
+      updates.push('name = ?');
+      values.push(String(name).trim().slice(0, 255));
+    }
+    if (email !== undefined) {
+      updates.push('email = ?');
+      values.push(email);
+    }
+    if (phone !== undefined) {
+      updates.push('phone = ?');
+      values.push(phone);
+    }
+    if (address !== undefined) {
+      updates.push('address = ?');
+      values.push(address);
+    }
+    if (city !== undefined) {
+      updates.push('city = ?');
+      values.push(city);
+    }
+    if (state !== undefined) {
+      updates.push('state = ?');
+      values.push(state);
+    }
+    if (zipcode !== undefined) {
+      updates.push('zipcode = ?');
+      values.push(zipcode);
+    }
+    if (customer_type !== undefined) {
+      updates.push('customer_type = ?');
+      values.push(customer_type);
+    }
+    if (owner_id !== undefined) {
+      updates.push('owner_id = ?');
+      values.push(owner_id);
+    }
+    if (status !== undefined) {
+      updates.push('status = ?');
+      values.push(status);
+    }
+    if (notes !== undefined) {
+      updates.push('notes = ?');
+      values.push(notes);
+    }
+
+    if (opt.has('responsible_name') && (customer_type !== undefined || responsible_name !== undefined)) {
+      const effType =
+        customer_type !== undefined
+          ? String(customer_type).trim()
+          : String(row.customer_type || 'residential').trim();
+      let effResp =
+        responsible_name !== undefined
+          ? responsible_name != null && String(responsible_name).trim()
+            ? String(responsible_name).trim().slice(0, 255)
+            : null
+          : row.responsible_name;
+      if (effType !== 'builder') effResp = null;
+      if (effType === 'builder') {
+        const effName =
+          name !== undefined
+            ? String(name).trim().slice(0, 255)
+            : String(row.name || '').trim().slice(0, 255);
+        if (effName.length < 2) {
+          return res.status(400).json({ success: false, error: 'Para Builder, indique o nome da empresa.' });
+        }
+        const rs = effResp != null ? String(effResp).trim() : '';
+        if (rs.length < 2) {
+          return res.status(400).json({ success: false, error: 'Para Builder, indique o responsável.' });
+        }
+        effResp = rs.slice(0, 255);
+      }
+      updates.push('responsible_name = ?');
+      values.push(effResp);
+    }
 
     if (updates.length === 0) {
       return res.status(400).json({ success: false, error: 'No fields to update' });
     }
 
     values.push(req.params.id);
-    await pool.execute(
-      `UPDATE customers SET ${updates.join(', ')} WHERE id = ?`,
-      values
-    );
+    await pool.execute(`UPDATE customers SET ${updates.join(', ')} WHERE id = ?`, values);
 
     res.json({ success: true, message: 'Client updated' });
   } catch (error) {

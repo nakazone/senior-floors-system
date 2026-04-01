@@ -526,10 +526,6 @@
                             <input type="hidden" id="clientFormLeadId" value="">
                             <div class="form-row">
                                 <div class="form-group">
-                                    <label for="clientName">Nome *</label>
-                                    <input type="text" id="clientName" required maxlength="255" autocomplete="name">
-                                </div>
-                                <div class="form-group">
                                     <label for="clientType">Tipo *</label>
                                     <select id="clientType" required>
                                         <option value="residential">Cliente final (residencial)</option>
@@ -540,6 +536,22 @@
                                     </select>
                                 </div>
                             </div>
+                            <div id="clientNonBuilderNameRow" class="form-row">
+                                <div class="form-group" style="flex: 1;">
+                                    <label for="clientName">Nome *</label>
+                                    <input type="text" id="clientName" required maxlength="255" autocomplete="name">
+                                </div>
+                            </div>
+                            <div id="clientBuilderNameRow" class="form-row" style="display: none;">
+                                <div class="form-group">
+                                    <label for="clientCompanyName">Empresa *</label>
+                                    <input type="text" id="clientCompanyName" maxlength="255" autocomplete="organization">
+                                </div>
+                                <div class="form-group">
+                                    <label for="clientResponsibleName">Responsável *</label>
+                                    <input type="text" id="clientResponsibleName" maxlength="255" autocomplete="name">
+                                </div>
+                            </div>
                             <div class="form-row">
                                 <div class="form-group">
                                     <label for="clientEmail">Email *</label>
@@ -547,7 +559,7 @@
                                 </div>
                                 <div class="form-group">
                                     <label for="clientPhone">Telefone</label>
-                                    <input type="tel" id="clientPhone" maxlength="50" autocomplete="tel" placeholder="Opcional no cadastro manual">
+                                    <input type="tel" id="clientPhone" maxlength="14" autocomplete="tel" inputmode="numeric" placeholder="(XXX) XXX-XXXX" title="Formato: (XXX) XXX-XXXX">
                                 </div>
                             </div>
                             <div class="form-group">
@@ -633,7 +645,6 @@
                         <h2>Estimates</h2>
                         <div style="display: flex; gap: var(--spacing-sm); flex-wrap: wrap;">
                             <button type="button" class="btn btn-primary" onclick="window.open('quote-builder.html', '_blank')" data-crm-permission="quotes.edit">+ Novo orçamento</button>
-                            <button type="button" class="btn btn-secondary" onclick="window.open('estimate-builder.html', '_blank')">+ Estimate (legado)</button>
                             <button type="button" class="btn btn-secondary" onclick="window.open('quote-catalog.html', '_blank')" data-crm-permission="quotes.edit">Catálogo de serviços</button>
                             <button type="button" class="btn btn-secondary" onclick="window.open('suppliers.html', '_blank')" data-crm-permission="quotes.view">Fornecedores</button>
                             <button type="button" class="btn btn-secondary" onclick="window.open('products-erp.html', '_blank')" data-crm-permission="quotes.view">Produtos (ERP)</button>

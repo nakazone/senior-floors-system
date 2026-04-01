@@ -124,7 +124,25 @@ function normalizeRow(raw, sortOrder) {
     raw.total_price != null && raw.total_price !== ''
       ? Number(raw.total_price)
       : Math.round(quantity * rate * 100) / 100;
-  const desc = raw.description || raw.name || '';
+  let name =
+    raw.name != null && String(raw.name).trim() !== '' ? String(raw.name).trim().slice(0, 255) : null;
+  let description =
+    raw.description != null && String(raw.description).trim() !== ''
+      ? String(raw.description).trim()
+      : null;
+  if (name && description && name === description.trim()) {
+    description = null;
+  }
+  if (!name && description) {
+    const parts = description.split(/\n/);
+    const first = parts[0].trim().slice(0, 255);
+    name = first || description.slice(0, 255);
+    const rest = parts.slice(1).join('\n').trim();
+    description = rest || null;
+  }
+  if (name && description && name === description.trim()) {
+    description = null;
+  }
   const isProduct = String(raw.item_type || '').toLowerCase() === 'product';
   const lineType = isProduct
     ? 'material'
@@ -144,8 +162,8 @@ function normalizeRow(raw, sortOrder) {
     total_price: total,
     notes: raw.notes || null,
     type: lineType,
-    name: raw.name ? String(raw.name).slice(0, 255) : null,
-    description: desc ? String(desc) : null,
+    name,
+    description,
     quantity,
     service_catalog_id: raw.service_catalog_id != null ? parseInt(raw.service_catalog_id, 10) || null : null,
     unit_type: normalizeUnitType(raw.unit_type),
@@ -286,6 +304,9 @@ export async function insertTemplate(pool, { name, service_type, created_by, ite
         ? Number(raw.markup_percentage)
         : null;
     const sellP = isP ? rate : null;
+    const tn = raw.name != null ? String(raw.name).trim() : '';
+    const td = raw.description != null ? String(raw.description).trim() : '';
+    const packedTemplateDesc = tn && td ? `${tn.slice(0, 500)}\n${td}` : tn || td || '';
     await pool.execute(
       `INSERT INTO quote_template_items (
         template_id, service_catalog_id, description, unit_type, quantity, rate, notes, sort_order,
@@ -294,7 +315,7 @@ export async function insertTemplate(pool, { name, service_type, created_by, ite
       [
         tid,
         raw.service_catalog_id != null ? parseInt(raw.service_catalog_id, 10) || null : null,
-        raw.description || '',
+        packedTemplateDesc,
         normalizeUnitType(raw.unit_type),
         q,
         rate,

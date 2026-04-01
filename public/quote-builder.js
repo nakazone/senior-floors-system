@@ -29,9 +29,27 @@
     return Number.isFinite(n) ? n : null;
   }
 
+  /** Template DB guarda nome+descrição no campo `description` (primeira linha = nome). */
+  function unpackTemplateLine(x) {
+    let name = x.name != null ? String(x.name).trim() : '';
+    let description = x.description != null ? String(x.description).trim() : '';
+    if (!name && description) {
+      const ix = description.indexOf('\n');
+      if (ix >= 0) {
+        name = description.slice(0, ix).trim();
+        description = description.slice(ix + 1).trim();
+      } else {
+        name = description;
+        description = '';
+      }
+    }
+    return { name, description };
+  }
+
   function emptyLine() {
     return {
       item_type: 'service',
+      name: '',
       description: '',
       unit_type: 'sq_ft',
       quantity: 1,
@@ -50,9 +68,10 @@
 
   function isBlankLine(it) {
     if (!it || it.estimateAuto || it.item_type === 'product') return false;
+    const n = String(it.name || '').trim();
     const d = String(it.description || '').trim();
     const r = Number(it.rate) || 0;
-    return !d && r === 0;
+    return !n && !d && r === 0;
   }
 
   function qbAdjustedSqftValue() {
@@ -92,7 +111,8 @@
     if (flooringType === 'hardwood' && subfloorType === 'concrete') {
       items.push({
         ...emptyLine(),
-        description: 'Moisture Barrier — Barreira de umidade para piso de madeira em concreto',
+        name: 'Moisture Barrier',
+        description: 'Barreira de umidade para piso de madeira em concreto',
         unit_type: 'sq_ft',
         quantity: adjustedSqft,
         rate: 0.5,
@@ -102,7 +122,8 @@
     if (levelCondition === 'major' && totalSqft > 0) {
       items.push({
         ...emptyLine(),
-        description: 'Leveling Compound — Massa niveladora para piso irregular',
+        name: 'Leveling Compound',
+        description: 'Massa niveladora para piso irregular',
         unit_type: 'sq_ft',
         quantity: totalSqft,
         rate: 1.25,
@@ -112,7 +133,8 @@
     if (stairsCount > 0) {
       items.push({
         ...emptyLine(),
-        description: `Stair Installation — Instalação de ${stairsCount} degrau(s)`,
+        name: 'Stair Installation',
+        description: `Instalação de ${stairsCount} degrau(s)`,
         unit_type: 'fixed',
         quantity: stairsCount,
         rate: 150.0,
@@ -120,7 +142,6 @@
       });
     }
 
-    if (!items.length) items = [emptyLine()];
     recalc();
     renderItems();
   }
@@ -190,6 +211,33 @@
     return r && r.value === 'builder' ? 'builder' : 'customer';
   }
 
+  function setCatalogPricingMode(mode) {
+    const m = mode === 'builder' ? 'builder' : 'customer';
+    const el = document.querySelector(`input[name="pricingCatalog"][value="${m}"]`);
+    if (el) el.checked = true;
+  }
+
+  /** Alinha rádios Builder / Cliente final ao tipo do cliente CRM. */
+  function applyPricingFromCustomerId(cidStr) {
+    const cid = parseInt(String(cidStr || '').trim(), 10);
+    if (!Number.isFinite(cid) || cid <= 0) return;
+    const c = clients.find((x) => Number(x.id) === cid);
+    if (!c) return;
+    setCatalogPricingMode(c.customer_type === 'builder' ? 'builder' : 'customer');
+  }
+
+  /** Recalcula `rate` nas linhas vindas do catálogo conforme a taxa atual (builder vs cliente). */
+  function refreshRatesForCatalogLines() {
+    const src = catalogPricingSource();
+    for (const it of items) {
+      const catId = normalizeCatalogId(it.service_catalog_id);
+      if (catId == null) continue;
+      const row = catalog.find((r) => Number(r.id) === catId);
+      if (!row) continue;
+      it.rate = effectiveCatalogRate(row, src);
+    }
+  }
+
   function effectiveCatalogRate(row, source) {
     const b = Number(row.rate_builder != null ? row.rate_builder : row.default_rate) || 0;
     const c = Number(row.rate_customer != null ? row.rate_customer : row.default_rate) || 0;
@@ -233,11 +281,12 @@
   }
 
   function bindItemInputs(tb) {
-    tb.querySelectorAll('input[data-k]').forEach((el) => {
+    tb.querySelectorAll('input[data-k], textarea[data-k]').forEach((el) => {
       el.addEventListener('input', function () {
         const idx = parseInt(this.getAttribute('data-i'), 10);
         const k = this.getAttribute('data-k');
-        items[idx][k] = k === 'description' ? this.value : parseFloat(this.value) || 0;
+        items[idx][k] =
+          k === 'description' || k === 'name' ? this.value : parseFloat(this.value) || 0;
         if (k === 'rate' && items[idx].item_type === 'product') {
           const c = Number(items[idx].cost_price);
           const r = Number(items[idx].rate) || 0;
@@ -275,7 +324,6 @@
       if (del) {
         const idx = parseInt(del.getAttribute('data-del'), 10);
         items.splice(idx, 1);
-        if (!items.length) items = [emptyLine()];
         recalc();
         renderItems();
       }
@@ -310,9 +358,19 @@
   function renderItems() {
     const tb = $('itemsBody');
     tb.innerHTML = '';
+    if (!items.length) {
+      const tr = document.createElement('tr');
+      tr.innerHTML =
+        '<td colspan="10" class="py-10 px-4 text-center text-slate-500 text-sm leading-relaxed">' +
+        'Nenhuma linha neste orçamento.<br />' +
+        'Use <strong class="text-slate-700">+ Adicionar item</strong> ou escolha uma linha no <strong class="text-slate-700">catálogo</strong> abaixo.</td>';
+      tb.appendChild(tr);
+      recalc();
+      return;
+    }
     items.forEach((it, idx) => {
       const tr = document.createElement('tr');
-      tr.className = 'border-b border-slate-100';
+      tr.className = 'border-b border-slate-100 hover:bg-slate-50/60';
       const amt = lineAmount(Number(it.quantity) || 0, Number(it.rate) || 0);
       const hasNote = !!(it.notes && String(it.notes).trim());
       const st = it.service_type || 'Installation';
@@ -321,20 +379,21 @@
         ? ' <span class="text-[10px] uppercase text-amber-800 font-bold">auto</span>'
         : '';
       const kindCell = isProduct
-        ? '<span class="text-xs font-semibold text-violet-700">Product</span>'
-        : `<span class="text-xs font-semibold text-slate-600">Service</span>${autoTag}`;
+        ? '<span class="text-xs font-semibold text-violet-700 leading-snug block">Produto</span>'
+        : `<span class="text-xs font-semibold text-slate-700 leading-snug block">Serviço${autoTag}</span>`;
       const serviceCell = isProduct
-        ? '<span class="text-xs text-slate-400 pt-2 inline-block">—</span>'
-        : `<select data-k="service_type" data-i="${idx}" class="w-full border rounded px-1 py-1 text-xs">
+        ? '<span class="text-xs text-slate-400 pt-1 inline-block">—</span>'
+        : `<select data-k="service_type" data-i="${idx}" class="qb-select-compact border border-slate-300 rounded-md">
             <option value="Installation">Installation</option>
             <option value="Sand & Finishing">Sand &amp; Finishing</option>
           </select>`;
       tr.innerHTML = `
-        <td class="py-2 pr-2 align-top">${kindCell}</td>
-        <td class="py-2 pr-2 align-top">${serviceCell}</td>
-        <td class="py-2 pr-2"><input data-k="description" data-i="${idx}" type="text" class="w-full border rounded px-2 py-1 text-sm" value="${escapeAttr(it.description || '')}" /></td>
-        <td class="py-2 pr-2">
-          <select data-k="unit_type" data-i="${idx}" class="w-full border rounded px-1 py-1 text-xs">
+        <td class="align-top">${kindCell}</td>
+        <td class="align-top"><input type="text" data-k="name" data-i="${idx}" class="qb-line-name" spellcheck="true" /></td>
+        <td class="align-top"><textarea data-k="description" data-i="${idx}" class="qb-line-desc" rows="2" spellcheck="true"></textarea></td>
+        <td class="align-top">${serviceCell}</td>
+        <td class="align-top">
+          <select data-k="unit_type" data-i="${idx}" class="qb-select-compact border border-slate-300 rounded-md">
             <option value="sq_ft">Sq Ft</option>
             <option value="linear_ft">Linear Ft</option>
             <option value="inches">Inches</option>
@@ -343,14 +402,18 @@
             <option value="piece">Piece</option>
           </select>
         </td>
-        <td class="py-2 pr-2"><input data-k="quantity" data-i="${idx}" type="number" step="0.01" class="w-full border rounded px-2 py-1 text-sm" value="${it.quantity ?? 1}" /></td>
-        <td class="py-2 pr-2"><input data-k="rate" data-i="${idx}" type="number" step="0.01" class="w-full border rounded px-2 py-1 text-sm" value="${it.rate ?? 0}" /></td>
-        <td class="py-2 pr-2 text-right font-medium" data-amt>${money(amt)}</td>
-        <td class="py-2 pr-2 text-center">
-          <button type="button" data-comment="${idx}" class="text-xs font-medium px-2 py-1 rounded border border-slate-200 hover:bg-slate-50 ${hasNote ? 'text-[#1a2036] bg-amber-50 border-amber-200' : 'text-slate-600'}">Comment</button>
+        <td class="align-top"><input data-k="quantity" data-i="${idx}" type="number" step="0.01" class="qb-num-input border border-slate-300 rounded-md" value="${it.quantity ?? 1}" /></td>
+        <td class="align-top"><input data-k="rate" data-i="${idx}" type="number" step="0.01" class="qb-num-input border border-slate-300 rounded-md" value="${it.rate ?? 0}" /></td>
+        <td class="align-top text-right font-semibold text-slate-800 whitespace-nowrap pt-2" data-amt>${money(amt)}</td>
+        <td class="align-top text-center pt-1">
+          <button type="button" data-comment="${idx}" class="text-xs font-medium px-2 py-1.5 rounded-md border border-slate-200 hover:bg-slate-100 ${hasNote ? 'text-[#1a2036] bg-amber-50 border-amber-200' : 'text-slate-600'}">Nota</button>
         </td>
-        <td class="py-2 align-top"><button type="button" data-del="${idx}" class="text-red-600 text-xs">✕</button></td>`;
+        <td class="align-top pt-1"><button type="button" data-del="${idx}" class="text-red-600 text-sm font-medium px-1 hover:bg-red-50 rounded" title="Remover linha">✕</button></td>`;
       tb.appendChild(tr);
+      const nameIn = tr.querySelector('input[data-k="name"]');
+      if (nameIn) nameIn.value = it.name != null ? String(it.name) : '';
+      const descTa = tr.querySelector('textarea[data-k="description"]');
+      if (descTa) descTa.value = it.description != null ? String(it.description) : '';
       tr.querySelector(`select[data-k="unit_type"][data-i="${idx}"]`).value = it.unit_type || 'sq_ft';
       const stSel = tr.querySelector(`select[data-k="service_type"][data-i="${idx}"]`);
       if (stSel) {
@@ -409,7 +472,8 @@
     $('taxTotal').value = q.tax_total ?? 0;
     items = (q.items || []).map((it) => ({
       item_type: it.item_type || 'service',
-      description: it.description,
+      name: it.name != null ? String(it.name) : '',
+      description: it.description != null ? String(it.description) : '',
       unit_type: it.unit_type || 'sq_ft',
       quantity: it.quantity,
       rate: it.rate,
@@ -423,10 +487,10 @@
       sell_price: it.sell_price != null ? Number(it.sell_price) : null,
       estimateAuto: false,
     }));
-    if (!items.length) items = [emptyLine()];
     $('quoteMeta').textContent = `Orçamento ${q.quote_number || '#' + q.id} · total ${money(q.total_amount)}`;
     setPublicLink(q.public_token);
     enableActions();
+    applyPricingFromCustomerId($('customerId').value);
     renderItems();
   }
 
@@ -449,7 +513,8 @@
       subtotal: sub,
       items: items.map((it) => ({
         item_type: it.item_type || 'service',
-        description: it.description,
+        name: it.name != null && String(it.name).trim() ? String(it.name).trim() : null,
+        description: it.description != null && String(it.description).trim() ? String(it.description).trim() : null,
         unit_type: it.unit_type || 'sq_ft',
         quantity: Number(it.quantity) || 0,
         rate: Number(it.rate) || 0,
@@ -526,7 +591,11 @@
     const cs = $('customerId');
     cs.innerHTML = '<option value="">— Selecionar cliente —</option>';
     clients.forEach((c) => {
-      cs.innerHTML += `<option value="${c.id}">${escapeAttr(c.name)} (${escapeAttr(c.email)})</option>`;
+      const label =
+        c.customer_type === 'builder' && c.responsible_name
+          ? `${c.name} · ${c.responsible_name} (${c.email})`
+          : `${c.name} (${c.email})`;
+      cs.innerHTML += `<option value="${c.id}">${escapeAttr(label)}</option>`;
     });
 
     const cp = $('catalogPick');
@@ -553,7 +622,7 @@
     if (qid) {
       await loadQuote(parseInt(qid, 10));
     } else {
-      items = [emptyLine()];
+      items = [];
       loadedQuoteLeadId = null;
       $('quoteMeta').textContent = 'Novo orçamento';
       setPublicLink('');
@@ -573,7 +642,12 @@
         const em = lr.success && lr.data && lr.data.email ? String(lr.data.email).trim().toLowerCase() : '';
         if (em) {
           const match = clients.find((c) => String(c.email || '').trim().toLowerCase() === em);
-          if (match) $('customerId').value = String(match.id);
+          if (match) {
+            $('customerId').value = String(match.id);
+            applyPricingFromCustomerId(String(match.id));
+            refreshRatesForCatalogLines();
+            renderItems();
+          }
         }
       } catch (_) {
         /* ignore */
@@ -699,7 +773,8 @@
       items.push({
         item_type: 'product',
         product_id: pr.id,
-        description: pr.name,
+        name: pr.name || '',
+        description: '',
         unit_type: pr.unit_type || 'sq_ft',
         quantity: qty,
         rate: sell,
@@ -737,6 +812,18 @@
     $('discountValue').addEventListener('input', () => recalc());
     $('taxTotal').addEventListener('input', () => recalc());
 
+    document.querySelectorAll('input[name="pricingCatalog"]').forEach((el) => {
+      el.addEventListener('change', () => {
+        refreshRatesForCatalogLines();
+        renderItems();
+      });
+    });
+    $('customerId').addEventListener('change', () => {
+      applyPricingFromCustomerId($('customerId').value);
+      refreshRatesForCatalogLines();
+      renderItems();
+    });
+
     $('catalogPick').addEventListener('change', () => {
       const idc = parseInt($('catalogPick').value, 10);
       if (!idc) return;
@@ -750,7 +837,8 @@
           category === 'Sand & Finishing' || String(category).includes('Sand') ? 'Sand & Finishing' : 'Installation';
         items.push({
           item_type: 'service',
-          description: row.default_description || row.name,
+          name: row.name || '',
+          description: row.default_description != null ? String(row.default_description).trim() : '',
           unit_type: row.unit_type || 'sq_ft',
           quantity: 1,
           rate,
@@ -774,23 +862,26 @@
       if (!tid) return;
       const r = await api(`/api/quote-templates/${tid}`);
       const t = r.data;
-      items = (t.items || []).map((x) => ({
-        item_type: x.item_type || 'service',
-        description: x.description,
-        unit_type: x.unit_type || 'sq_ft',
-        quantity: Number(x.quantity) || 1,
-        rate: Number(x.rate) || 0,
-        notes: x.notes,
-        service_type: x.item_type === 'product' ? null : x.service_type || 'Installation',
-        catalog_customer_notes: x.catalog_customer_notes || null,
-        service_catalog_id: normalizeCatalogId(x.service_catalog_id),
-        product_id: x.product_id != null ? Number(x.product_id) : null,
-        cost_price: x.cost_price != null ? Number(x.cost_price) : null,
-        markup_percentage: x.markup_percentage != null ? Number(x.markup_percentage) : null,
-        sell_price: x.sell_price != null ? Number(x.sell_price) : null,
-        estimateAuto: false,
-      }));
-      if (!items.length) items = [emptyLine()];
+      items = (t.items || []).map((x) => {
+        const { name: tplName, description: tplDesc } = unpackTemplateLine(x);
+        return {
+          item_type: x.item_type || 'service',
+          name: tplName,
+          description: tplDesc,
+          unit_type: x.unit_type || 'sq_ft',
+          quantity: Number(x.quantity) || 1,
+          rate: Number(x.rate) || 0,
+          notes: x.notes,
+          service_type: x.item_type === 'product' ? null : x.service_type || 'Installation',
+          catalog_customer_notes: x.catalog_customer_notes || null,
+          service_catalog_id: normalizeCatalogId(x.service_catalog_id),
+          product_id: x.product_id != null ? Number(x.product_id) : null,
+          cost_price: x.cost_price != null ? Number(x.cost_price) : null,
+          markup_percentage: x.markup_percentage != null ? Number(x.markup_percentage) : null,
+          sell_price: x.sell_price != null ? Number(x.sell_price) : null,
+          estimateAuto: false,
+        };
+      });
       renderItems();
     });
 
@@ -832,7 +923,8 @@
         name,
         items: items.map((it) => ({
           item_type: it.item_type || 'service',
-          description: it.description,
+          name: it.name != null && String(it.name).trim() ? String(it.name).trim() : null,
+          description: it.description != null && String(it.description).trim() ? String(it.description).trim() : null,
           unit_type: it.unit_type,
           quantity: it.quantity,
           rate: it.rate,

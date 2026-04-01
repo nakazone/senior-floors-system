@@ -30,9 +30,16 @@
         const extra = [];
         if (cn) extra.push(`<div class="text-[11px] text-slate-500 mt-1">${escapeHtml(cn)}</div>`);
         if (ln) extra.push(`<div class="text-[11px] text-slate-600 mt-1 italic">Comment: ${escapeHtml(ln)}</div>`);
+        const nm = String(it.name || '').trim();
+        const dc = String(it.description || '').trim();
+        const title = nm || dc || String(it.floor_type || '') || 'Line item';
+        const sub =
+          nm && dc && dc !== nm
+            ? `<div class="text-[12px] text-slate-600 mt-1 whitespace-pre-wrap">${escapeHtml(dc)}</div>`
+            : '';
         return `
       <tr class="border-b border-slate-100 text-sm">
-        <td class="py-2 pr-2">${st}${escapeHtml(it.description || '')}${extra.join('')}</td>
+        <td class="py-2 pr-2">${st}<span class="font-medium text-slate-900">${escapeHtml(title)}</span>${sub}${extra.join('')}</td>
         <td class="py-2 text-right">${Number(it.quantity) || 0}</td>
         <td class="py-2 text-right">${money(it.rate)}</td>
         <td class="py-2 text-right font-medium">${money(it.amount)}</td>

@@ -168,13 +168,22 @@ export async function buildQuotePdfBuffer(opts) {
       page = pdf.addPage([pageW, pageH]);
       y = pageH - margin;
     }
-    const desc = it.description || it.name || it.floor_type || 'Line item';
+    const nameStr = String(it.name || '').trim();
+    const descStr = String(it.description || '').trim();
+    const headline =
+      nameStr || (descStr ? descStr.split(/\n/)[0] : '') || String(it.floor_type || '') || 'Line item';
+    let bodyStr = '';
+    if (nameStr && descStr && descStr !== nameStr) {
+      bodyStr = descStr;
+    } else if (!nameStr && descStr && descStr.includes('\n')) {
+      bodyStr = descStr.split(/\n/).slice(1).join('\n').trim();
+    }
     const qty = Number(it.quantity) || Number(it.area_sqft) || 0;
     const rate = Number(it.unit_price) || 0;
     const amt = Number(it.total_price) || qty * rate;
     const ut = it.unit_type ? String(it.unit_type).replace(/_/g, ' ') : 'sq ft';
 
-    const descLines = wrap(desc, colQty - colDesc - 8, 9);
+    const descLines = wrap(headline, colQty - colDesc - 8, 9);
     const rowStartY = y;
     page.drawText(`${qty} ${ut}`, { x: colQty, y: rowStartY, size: 9, font, color: textColor });
     page.drawText(money(rate), { x: colRate, y: rowStartY, size: 9, font, color: textColor });
@@ -186,8 +195,18 @@ export async function buildQuotePdfBuffer(opts) {
         page = pdf.addPage([pageW, pageH]);
         dy = pageH - margin;
       }
-      page.drawText(line, { x: colDesc, y: dy, size: 9, font, color: textColor });
+      page.drawText(line, { x: colDesc, y: dy, size: 9, font: fontBold, color: textColor });
       dy -= lineH;
+    }
+    if (bodyStr) {
+      for (const line of wrap(bodyStr, colQty - colDesc - 8, 8)) {
+        if (dy < 80) {
+          page = pdf.addPage([pageW, pageH]);
+          dy = pageH - margin;
+        }
+        page.drawText(line, { x: colDesc, y: dy, size: 8, font: fontItalic, color: rgb(0.35, 0.37, 0.42) });
+        dy -= lineH - 2;
+      }
     }
     const catalogNotes = String(it.catalog_customer_notes || '').trim();
     const lineComment = String(it.notes || '').trim();
