@@ -7,20 +7,13 @@
   <link rel="icon" type="image/png" href="/assets/SeniorFloors.png" />
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="crm-shared-nav.css" />
   <style>body { font-family: Inter, system-ui, sans-serif; }</style>
 </head>
 <body class="bg-slate-50 text-slate-900 min-h-screen">
-  <header class="bg-[#1a2036] text-white shadow">
-    <div class="max-w-5xl mx-auto px-4 py-4 flex flex-wrap justify-between gap-3">
-      <h1 class="text-lg font-bold">Suppliers</h1>
-      <div class="flex flex-wrap gap-2">
-        <a href="quote-builder.html" class="px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-sm">Quote</a>
-        <a href="products-erp.html" class="px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-sm">Products</a>
-        <a href="dashboard.html?page=quotes" class="px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-sm">Dashboard</a>
-      </div>
-    </div>
-  </header>
+  <div id="crmSharedNavRoot"></div>
   <main class="max-w-5xl mx-auto px-4 py-8 space-y-4">
+    <h1 class="text-xl font-bold text-slate-900 border-b border-slate-200 pb-3">Suppliers</h1>
     <p id="authMsg" class="text-red-600 text-sm hidden"></p>
     <div class="flex justify-between items-center flex-wrap gap-2">
       <label class="inline-flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" id="showInactive" class="rounded" /> Show inactive</label>
@@ -60,6 +53,7 @@
       </div>
     </div>
   </div>
+  <script src="crm-shared-nav.js"></script>
   <script src="suppliers.js?v=1"></script>
 </body>
 </html>

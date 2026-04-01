@@ -34,11 +34,13 @@ window.addEventListener('DOMContentLoaded', () => {
             window.location.href = '/login.html';
         });
 
-    // Logout
-    document.getElementById('logoutBtn').addEventListener('click', async () => {
-        await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
-        window.location.href = '/login.html';
-    });
+    const logoutBtn = document.getElementById('logoutBtn');
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', async () => {
+            await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+            window.location.href = '/login.html';
+        });
+    }
 
     // Tab switching
     document.querySelectorAll('.tab').forEach(tab => {
@@ -1348,11 +1350,8 @@ async function createVisit(payload, submitBtn) {
 
 function showNewProposalModal() {
     if (!currentLeadId) return;
-    window.open(
-        'quote-builder.html?lead_id=' + encodeURIComponent(String(currentLeadId)),
-        '_blank',
-        'noopener'
-    );
+    window.location.href =
+        'quote-builder.html?lead_id=' + encodeURIComponent(String(currentLeadId));
 }
 
 async function createInteraction(interaction) {

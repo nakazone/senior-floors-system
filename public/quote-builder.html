@@ -6,6 +6,7 @@
   <title>Quote — Senior Floors CRM</title>
   <link rel="icon" type="image/png" href="/assets/SeniorFloors.png" />
   <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="crm-shared-nav.css" />
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" />
@@ -307,23 +308,56 @@
       font-size: 0.875rem;
       padding: 0.4rem 0.35rem;
     }
+    .qb-accordion {
+      margin-bottom: var(--spacing-md);
+    }
+    .qb-accordion > summary {
+      list-style: none;
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: #1e293b;
+      cursor: pointer;
+      padding: 0.15rem 0;
+      user-select: none;
+    }
+    .qb-accordion > summary::-webkit-details-marker {
+      display: none;
+    }
+    .qb-accordion > summary::after {
+      content: '▾';
+      float: right;
+      color: #64748b;
+      font-size: 0.85rem;
+    }
+    .qb-accordion:not([open]) > summary::after {
+      transform: rotate(-90deg);
+      display: inline-block;
+    }
+    .qb-sticky-actions {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 9990;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 0.5rem;
+      padding: 0.65rem max(0.75rem, env(safe-area-inset-right)) calc(0.65rem + env(safe-area-inset-bottom))
+        max(0.75rem, env(safe-area-inset-left));
+      background: rgba(255, 255, 255, 0.96);
+      border-top: 1px solid var(--border-color);
+      box-shadow: 0 -8px 32px rgba(26, 32, 54, 0.08);
+    }
+    body.qb-dashboard-inner {
+      padding-bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px));
+    }
   </style>
+  <link rel="stylesheet" href="crm-toast.css" />
 </head>
-<body class="qb-dashboard-inner">
+<body class="qb-dashboard-inner crm-standalone-page">
+  <div id="crmSharedNavRoot"></div>
   <div class="dashboard-container">
-    <div class="dashboard-sidebar" id="dashboardSidebar">
-      <div class="sidebar-header">
-        <img src="/assets/SeniorFloors.png" alt="Senior Floors" class="logo-image" />
-      </div>
-      <nav class="sidebar-nav">
-        <a href="dashboard.html" class="nav-item">Dashboard</a>
-        <a href="dashboard.html#leads" class="nav-item">Leads</a>
-        <a href="dashboard.html?page=quotes" class="nav-item">Quotes</a>
-        <a href="quote-builder.html" class="nav-item active">Quote</a>
-        <a href="quote-catalog.html" class="nav-item">Catálogo</a>
-      </nav>
-    </div>
-
     <div class="dashboard-content">
       <div class="estimate-builder">
         <div class="builder-main">
@@ -342,51 +376,55 @@
           <p id="authMsg" class="text-red-600 text-sm hidden mb-4"></p>
           <p id="leadContextHint" class="text-sm text-slate-600 mb-4 hidden"></p>
 
-          <section class="bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-4 mb-6">
-            <div class="grid md:grid-cols-2 gap-4">
-              <div>
-                <label class="block text-xs font-semibold text-slate-500 mb-1">Cliente *</label>
-                <select id="customerId" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"></select>
-              </div>
-              <div>
-                <label class="block text-xs font-semibold text-slate-500 mb-1">Preço do catálogo (linhas do catálogo)</label>
-                <div class="flex flex-wrap gap-4 text-sm pt-1">
-                  <label class="inline-flex items-center gap-2 cursor-pointer"><input type="radio" name="pricingCatalog" value="customer" checked class="rounded border-slate-300" /> Taxa cliente final</label>
-                  <label class="inline-flex items-center gap-2 cursor-pointer"><input type="radio" name="pricingCatalog" value="builder" class="rounded border-slate-300" /> Taxa builder</label>
+          <details class="qb-accordion bg-white rounded-xl border border-slate-200 shadow-sm p-6" open>
+            <summary>Cliente, estado e template</summary>
+            <div class="space-y-4 mt-4">
+              <div class="grid md:grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-xs font-semibold text-slate-500 mb-1">Cliente *</label>
+                  <select id="customerId" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"></select>
                 </div>
-                <p class="text-xs text-slate-500 mt-1">Cada linha tem tipo de serviço (Installation vs Sand &amp; Finishing).</p>
+                <div>
+                  <label class="block text-xs font-semibold text-slate-500 mb-1">Preço do catálogo (linhas do catálogo)</label>
+                  <div class="flex flex-wrap gap-4 text-sm pt-1">
+                    <label class="inline-flex items-center gap-2 cursor-pointer"><input type="radio" name="pricingCatalog" value="customer" checked class="rounded border-slate-300" /> Taxa cliente final</label>
+                    <label class="inline-flex items-center gap-2 cursor-pointer"><input type="radio" name="pricingCatalog" value="builder" class="rounded border-slate-300" /> Taxa builder</label>
+                  </div>
+                  <p class="text-xs text-slate-500 mt-1">Cada linha tem tipo de serviço (Installation vs Sand &amp; Finishing).</p>
+                </div>
+                <div>
+                  <label class="block text-xs font-semibold text-slate-500 mb-1">Status</label>
+                  <select id="status" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
+                    <option value="draft">Draft</option>
+                    <option value="sent">Sent</option>
+                    <option value="viewed">Viewed</option>
+                    <option value="approved">Approved</option>
+                    <option value="rejected">Rejected</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-xs font-semibold text-slate-500 mb-1">Expiração</label>
+                  <input type="date" id="expirationDate" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+                </div>
               </div>
               <div>
-                <label class="block text-xs font-semibold text-slate-500 mb-1">Status</label>
-                <select id="status" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
-                  <option value="draft">Draft</option>
-                  <option value="sent">Sent</option>
-                  <option value="viewed">Viewed</option>
-                  <option value="approved">Approved</option>
-                  <option value="rejected">Rejected</option>
-                </select>
-              </div>
-              <div>
-                <label class="block text-xs font-semibold text-slate-500 mb-1">Expiração</label>
-                <input type="date" id="expirationDate" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+                <label class="block text-xs font-semibold text-slate-500 mb-1">Carregar template</label>
+                <div class="flex gap-2 flex-wrap">
+                  <select id="templateSelect" class="flex-1 min-w-[200px] border border-slate-300 rounded-lg px-3 py-2 text-sm"></select>
+                  <button type="button" id="btnApplyTemplate" class="px-4 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-sm font-medium">Aplicar</button>
+                </div>
               </div>
             </div>
-            <div>
-              <label class="block text-xs font-semibold text-slate-500 mb-1">Carregar template</label>
-              <div class="flex gap-2 flex-wrap">
-                <select id="templateSelect" class="flex-1 min-w-[200px] border border-slate-300 rounded-lg px-3 py-2 text-sm"></select>
-                <button type="button" id="btnApplyTemplate" class="px-4 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-sm font-medium">Aplicar</button>
-              </div>
-            </div>
-          </section>
+          </details>
 
-          <details class="bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-4 mb-6" id="qbProjectDetails">
-            <summary class="text-sm font-bold text-slate-800 cursor-pointer">Contexto do projeto (regras do estimate)</summary>
-            <p class="text-xs text-slate-500 mt-2 max-w-3xl">
+          <details class="qb-accordion bg-white rounded-xl border border-slate-200 shadow-sm p-6 mb-6" id="qbProjectDetails">
+            <summary>Contexto do projeto (regras do estimate)</summary>
+            <div class="space-y-4 mt-4">
+            <p class="text-xs text-slate-500 max-w-3xl">
               Mesmas regras do Estimate Builder: madeira em concreto → barreira de humidade; nível «major» → massa niveladora; escadas → mão-de-obra por degrau.
               As linhas marcadas <strong>auto</strong> são recalculadas ao alterar estes campos.
             </p>
-            <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
+            <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
               <div>
                 <label class="block text-xs font-semibold text-slate-500 mb-1">Tipo de projeto</label>
                 <select id="qbProjectType" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
@@ -457,6 +495,7 @@
             </div>
             <div class="mt-4">
               <button type="button" id="btnQbApplyRules" class="btn btn-primary btn-sm">Aplicar regras agora</button>
+            </div>
             </div>
           </details>
 
@@ -552,6 +591,13 @@
     </div>
   </div>
 
+  <nav class="qb-sticky-actions" id="qbStickyActions" aria-label="Ações do orçamento">
+    <button type="button" class="btn btn-primary btn-sm" data-qb-mirror="btnSave">Guardar</button>
+    <button type="button" class="btn btn-secondary btn-sm" data-qb-mirror="btnPdf">PDF</button>
+    <button type="button" class="btn btn-secondary btn-sm" data-qb-mirror="btnEmail">E-mail</button>
+    <button type="button" class="btn btn-secondary btn-sm" data-qb-mirror="btnDup">Duplicar</button>
+  </nav>
+
   <div id="addItemModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-black/50" aria-modal="true">
     <div class="bg-white rounded-xl shadow-xl max-w-md w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto">
       <h2 class="text-lg font-bold text-slate-900">Adicionar item</h2>
@@ -593,6 +639,8 @@
     </div>
   </div>
 
-  <script src="quote-builder.js?v=quotes-erp-6"></script>
+  <script src="crm-shared-nav.js"></script>
+  <script src="crm-toast.js"></script>
+  <script src="quote-builder.js?v=quotes-erp-7"></script>
 </body>
 </html>

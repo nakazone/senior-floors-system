@@ -10,6 +10,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="/assets/SeniorFloors.png">
     <link rel="icon" type="image/png" href="/assets/SeniorFloors.png">
     <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="crm-shared-nav.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
     <style>
         .analytics-container {
@@ -55,22 +56,9 @@
         }
     </style>
 </head>
-<body>
+<body class="crm-standalone-page">
+    <div id="crmSharedNavRoot"></div>
     <div class="dashboard-container">
-        <div class="dashboard-sidebar">
-            <div class="sidebar-header">
-                <img src="/assets/SeniorFloors.png" alt="Senior Floors" class="logo-image">
-            </div>
-            <nav class="sidebar-nav">
-                <a href="dashboard.html" class="nav-item">Dashboard</a>
-                <a href="dashboard.html#leads" class="nav-item">Leads</a>
-                <a href="dashboard.html#quotes" class="nav-item">Quotes</a>
-                <a href="estimate-builder.html" class="nav-item">Estimate Builder</a>
-                <a href="estimate-analytics.html" class="nav-item active">Analytics</a>
-                <a href="dashboard.html#projects" class="nav-item">Projects</a>
-            </nav>
-        </div>
-        
         <div class="dashboard-content">
             <div class="analytics-container">
                 <div class="page-header">
@@ -109,6 +97,7 @@
         </div>
     </div>
     
+    <script src="crm-shared-nav.js"></script>
     <script src="estimate-analytics.js"></script>
 </body>
 </html>

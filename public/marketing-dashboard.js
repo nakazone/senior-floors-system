@@ -213,7 +213,7 @@ async function submitAdSpend(e) {
 
 function exportMarketingLeadsCsv() {
   const qs = marketingQueryString();
-  window.open(`/api/marketing/export/leads?${qs}`, '_blank');
+  window.location.assign(`/api/marketing/export/leads?${qs}`);
 }
 
 /** Um único aviso na página Marketing (evita dezenas de toasts/notificações ao abrir o separador). */

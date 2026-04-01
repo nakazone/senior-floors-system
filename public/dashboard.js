@@ -61,6 +61,8 @@ function resolveLeadRowStageColor(lead) {
 function applyCrmNavPermissions(permissions, role) {
     const keys = new Set(permissions || []);
     const isAdmin = role === 'admin';
+    window.__crmPaletteRole = role || '';
+    window.__crmPalettePerms = Array.isArray(permissions) ? permissions.slice() : [];
     document.querySelectorAll('[data-crm-permission]').forEach((el) => {
         const need = el.getAttribute('data-crm-permission');
         if (!need) return;
@@ -401,7 +403,11 @@ function showPage(pageName) {
             }
         }
         else if (pageName === 'customers') { currentPage = 1; loadCustomers(); }
-        else if (pageName === 'quotes') { currentPage = 1; loadQuotes(); }
+        else if (pageName === 'quotes') {
+            currentPage = 1;
+            if (typeof updateQuotesFilterChipStyles === 'function') updateQuotesFilterChipStyles();
+            loadQuotes();
+        }
         else if (pageName === 'projects') { currentPage = 1; loadProjects(); }
         else if (pageName === 'schedule') { 
             currentPage = 1; 
@@ -1148,53 +1154,204 @@ window.submitClientForm = submitClientForm;
 
 // Quotes (pagination: não usar nome "quotesPage" — colide com id DOM #quotesPage e quebrava showPage)
 let quotesListPage = 1;
+let quotesListFilter = 'all';
+
+function updateQuotesFilterChipStyles() {
+    document.querySelectorAll('.quotes-filter-chip').forEach((b) => {
+        b.classList.toggle('quotes-filter-chip--active', b.getAttribute('data-quotes-filter') === quotesListFilter);
+    });
+}
+
+function setQuotesFilter(f) {
+    quotesListFilter = f && typeof f === 'string' ? f : 'all';
+    quotesListPage = 1;
+    updateQuotesFilterChipStyles();
+    loadQuotes();
+}
+window.setQuotesFilter = setQuotesFilter;
+
+function formatQuoteExpiryHtml(expirationDateStr, status) {
+    const st = String(status || '').toLowerCase();
+    if (st === 'expired') {
+        return '<div class="quotes-expiry quotes-expiry--overdue"><span class="quotes-expiry__rel">Expirado</span><span class="quotes-expiry__date">—</span></div>';
+    }
+    if (!expirationDateStr) {
+        return '<span class="quotes-cell-muted">—</span>';
+    }
+    const d = new Date(expirationDateStr);
+    if (Number.isNaN(d.getTime())) {
+        return '<span class="quotes-cell-muted">—</span>';
+    }
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    const exp = new Date(d);
+    exp.setHours(0, 0, 0, 0);
+    const diff = Math.round((exp - now) / 86400000);
+    let rel = '';
+    let cls = 'quotes-expiry';
+    if (diff < 0) {
+        rel = 'Expirado';
+        cls += ' quotes-expiry--overdue';
+    } else if (diff === 0) {
+        rel = 'Hoje';
+        cls += ' quotes-expiry--soon';
+    } else if (diff === 1) {
+        rel = 'Amanhã';
+        cls += ' quotes-expiry--soon';
+    } else if (diff <= 7) {
+        rel = 'Em ' + diff + ' dias';
+        cls += ' quotes-expiry--soon';
+    } else {
+        rel = 'Em ' + diff + ' dias';
+    }
+    const dateStr = d.toLocaleDateString();
+    return `<div class="${cls}"><span class="quotes-expiry__rel">${rel}</span><span class="quotes-expiry__date">${dateStr}</span></div>`;
+}
+
+function quoteStatusBadgeHtml(status) {
+    const raw = String(status || 'draft').toLowerCase();
+    const slug = raw.replace(/[^a-z0-9_-]/g, '') || 'draft';
+    const labels = {
+        draft: 'Rascunho',
+        sent: 'Enviado',
+        viewed: 'Visto',
+        approved: 'Aprovado',
+        rejected: 'Rejeitado',
+        expired: 'Expirado',
+    };
+    const label = labels[slug] || escapeHtmlCrm(status || 'draft');
+    return `<span class="badge-quote badge-quote--${slug}">${label}</span>`;
+}
+
+function crmToastSafe(msg, opts) {
+    if (window.crmToast && typeof window.crmToast.show === 'function') {
+        window.crmToast.show(msg, opts || {});
+    } else {
+        alert(msg);
+    }
+}
+
+async function duplicateQuoteFromList(id) {
+    const qid = parseInt(String(id), 10);
+    if (!Number.isFinite(qid) || qid <= 0) return;
+    try {
+        const r = await fetch(`/api/quotes/${qid}/duplicate`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: '{}',
+        });
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok || d.success === false) {
+            crmToastSafe(d.error || 'Não foi possível duplicar o orçamento.', { type: 'error' });
+            return;
+        }
+        const nid = d.data && d.data.quote && d.data.quote.id;
+        if (nid) {
+            window.location.href = 'quote-builder.html?id=' + encodeURIComponent(String(nid));
+        } else {
+            crmToastSafe('Duplicado, mas resposta inválida.', { type: 'error' });
+        }
+    } catch (e) {
+        crmToastSafe(e.message || 'Erro de rede ao duplicar.', { type: 'error' });
+    }
+}
+window.duplicateQuoteFromList = duplicateQuoteFromList;
+
+async function generateQuotePdfFromList(id) {
+    const qid = parseInt(String(id), 10);
+    if (!Number.isFinite(qid) || qid <= 0) return;
+    try {
+        const r = await fetch(`/api/quotes/${qid}/generate-pdf`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: '{}',
+        });
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok || d.success === false) {
+            crmToastSafe(d.error || 'Não foi possível gerar o PDF.', { type: 'error' });
+            return;
+        }
+        window.open(`/api/quotes/${qid}/invoice-pdf`, '_blank', 'noopener');
+        if (typeof loadQuotes === 'function') loadQuotes();
+    } catch (e) {
+        crmToastSafe(e.message || 'Erro de rede ao gerar PDF.', { type: 'error' });
+    }
+}
+window.generateQuotePdfFromList = generateQuotePdfFromList;
+
 async function loadQuotes() {
     const tbody = document.getElementById('quotesTableBody');
     if (!tbody) return;
     tbody.innerHTML = '<tr><td colspan="8" class="text-center">Loading...</td></tr>';
     const canDeleteQuote =
         crmUserRole === 'admin' || (Array.isArray(crmUserPermissions) && crmUserPermissions.includes('quotes.edit'));
+    const canDup = crmUserRole === 'admin' || (Array.isArray(crmUserPermissions) && crmUserPermissions.includes('quotes.create'));
+    const canGenPdf = crmUserRole === 'admin' || (Array.isArray(crmUserPermissions) && crmUserPermissions.includes('quotes.edit'));
+
+    let url = `/api/quotes?page=${quotesListPage}&limit=20`;
+    if (quotesListFilter === 'expiring7') {
+        url += '&expiring_within_days=7';
+    } else if (quotesListFilter !== 'all') {
+        url += '&status=' + encodeURIComponent(quotesListFilter);
+    }
 
     try {
-        const response = await fetch(`/api/quotes?page=${quotesListPage}&limit=20`, { credentials: 'include' });
+        const response = await fetch(url, { credentials: 'include' });
         const data = await response.json();
 
         if (data.success && data.data) {
             if (data.data.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="8" class="text-center">No quotes found</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="8" class="text-center">Nenhum orçamento encontrado</td></tr>';
             } else {
-                tbody.innerHTML = data.data.map(q => {
-                    const pdfCell =
-                        q.pdf_path || q.has_invoice_pdf
+                tbody.innerHTML = data.data
+                    .map((q) => {
+                        const hasPdf = !!(q.pdf_path || q.has_invoice_pdf);
+                        const pdfCell = hasPdf
                             ? `<a class="btn btn-sm" href="/api/quotes/${q.id}/invoice-pdf" target="_blank" rel="noopener">Ver PDF</a>`
-                            : '—';
-                    const deleteBtn = canDeleteQuote
-                        ? `<button type="button" class="btn btn-sm btn-danger" onclick="deleteQuote(${q.id})" title="Excluir orçamento">Excluir</button>`
-                        : '';
-                    return `
-                    <tr>
-                        <td>${q.quote_number || 'N/A'}</td>
-                        <td>${q.customer_name || q.lead_name || '-'}</td>
-                        <td>$${parseFloat(q.total_amount || 0).toLocaleString()}</td>
-                        <td><span class="badge badge-${q.status || 'draft'}">${q.status || 'draft'}</span></td>
+                            : canGenPdf
+                              ? `<button type="button" class="btn btn-sm btn-secondary" onclick="generateQuotePdfFromList(${q.id})">Gerar PDF</button>`
+                              : '<span class="quotes-cell-muted">—</span>';
+                        const deleteBtn = canDeleteQuote
+                            ? `<button type="button" class="btn btn-sm btn-danger" onclick="deleteQuote(${q.id})" title="Excluir orçamento">Excluir</button>`
+                            : '';
+                        const dupBtn = canDup
+                            ? `<button type="button" class="btn btn-sm btn-secondary" onclick="duplicateQuoteFromList(${q.id})" title="Duplicar">Duplicar</button>`
+                            : '';
+                        const clientLabel = escapeHtmlCrm(q.customer_name || q.lead_name || '—');
+                        const qnum = escapeHtmlCrm(q.quote_number != null ? String(q.quote_number) : 'N/A');
+                        const amt = parseFloat(q.total_amount || 0).toLocaleString(undefined, {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                        });
+                        return `
+                    <tr class="quotes-table-row">
+                        <td>${qnum}</td>
+                        <td>${clientLabel}</td>
+                        <td class="tabular-nums">$${amt}</td>
+                        <td>${quoteStatusBadgeHtml(q.status)}</td>
                         <td>${pdfCell}</td>
-                        <td>${q.created_at ? new Date(q.created_at).toLocaleDateString() : '-'}</td>
-                        <td>${q.expiration_date ? new Date(q.expiration_date).toLocaleDateString() : '-'}</td>
-                        <td style="display:flex;flex-wrap:wrap;gap:0.35rem;align-items:center;">
-                            <button type="button" class="btn btn-sm" onclick="viewQuote(${q.id})">View</button>
+                        <td>${q.created_at ? escapeHtmlCrm(new Date(q.created_at).toLocaleDateString()) : '—'}</td>
+                        <td>${formatQuoteExpiryHtml(q.expiration_date, q.status)}</td>
+                        <td class="quotes-actions-cell">
+                            <button type="button" class="btn btn-sm btn-primary" onclick="viewQuote(${q.id})">Abrir</button>
+                            ${dupBtn}
                             ${deleteBtn}
                         </td>
                     </tr>`;
-                }).join('');
+                    })
+                    .join('');
             }
-            
+
             const totalPages = Math.ceil(data.total / 20);
-            document.getElementById('pageInfoQuotes').textContent = `Page ${quotesListPage} of ${totalPages || 1}`;
+            document.getElementById('pageInfoQuotes').textContent = `Página ${quotesListPage} de ${totalPages || 1}`;
             document.getElementById('prevPageQuotes').disabled = quotesListPage <= 1;
             document.getElementById('nextPageQuotes').disabled = quotesListPage >= totalPages;
         }
     } catch (error) {
-        tbody.innerHTML = '<tr><td colspan="8" class="text-center">Error: ' + error.message + '</td></tr>';
+        tbody.innerHTML =
+            '<tr><td colspan="8" class="text-center">Erro: ' + escapeHtmlCrm(error.message) + '</td></tr>';
     }
 }
 
@@ -1207,7 +1364,7 @@ function changePageQuotes(delta) {
 function viewQuote(id) {
     const qid = parseInt(String(id), 10);
     if (!Number.isFinite(qid) || qid <= 0) return;
-    window.open(`quote-builder.html?id=${qid}`, '_blank', 'noopener');
+    window.location.href = `quote-builder.html?id=${qid}`;
 }
 
 async function deleteQuote(id) {
@@ -1220,17 +1377,18 @@ async function deleteQuote(id) {
         const r = await fetch(`/api/quotes/${qid}`, { method: 'DELETE', credentials: 'include' });
         const d = await r.json().catch(() => ({}));
         if (!r.ok || d.success === false) {
-            alert(d.error || 'Não foi possível excluir o orçamento.');
+            crmToastSafe(d.error || 'Não foi possível excluir o orçamento.', { type: 'error' });
             return;
         }
+        crmToastSafe('Orçamento excluído.', { type: 'success' });
         if (typeof loadQuotes === 'function') loadQuotes();
     } catch (e) {
-        alert('Erro de rede ao excluir o orçamento.');
+        crmToastSafe('Erro de rede ao excluir o orçamento.', { type: 'error' });
     }
 }
 
 function showNewQuoteModal() {
-    window.open('quote-builder.html', '_blank', 'noopener');
+    window.location.href = 'quote-builder.html';
 }
 
 function loadEstimateAnalytics() {
@@ -1301,12 +1459,13 @@ function openImportInvoicePdfModal() {
             if (json.success) {
                 if (typeof closeModal === 'function') closeModal('importInvoicePdfModal');
                 else if (modal) modal.style.display = 'none';
+                crmToastSafe('PDF importado com sucesso.', { type: 'success' });
                 loadQuotes();
             } else {
-                alert(json.error || 'Erro ao importar PDF');
+                crmToastSafe(json.error || 'Erro ao importar PDF', { type: 'error' });
             }
         } catch (err) {
-            alert('Erro de rede ao importar PDF');
+            crmToastSafe('Erro de rede ao importar PDF', { type: 'error' });
         } finally {
             submitBtn.disabled = false;
             submitBtn.textContent = prevText;

@@ -10,6 +10,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="/assets/SeniorFloors.png">
     <link rel="icon" type="image/png" href="/assets/SeniorFloors.png">
     <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="crm-shared-nav.css">
     <style>
         .estimate-builder {
             display: grid;
@@ -183,23 +184,9 @@
         }
     </style>
 </head>
-<body>
+<body class="crm-standalone-page">
+    <div id="crmSharedNavRoot"></div>
     <div class="dashboard-container">
-        <div class="dashboard-sidebar">
-            <div class="sidebar-header">
-                <img src="/assets/SeniorFloors.png" alt="Senior Floors" class="logo-image">
-            </div>
-            <nav class="sidebar-nav">
-                <a href="dashboard.html" class="nav-item">Dashboard</a>
-                <a href="dashboard.html#leads" class="nav-item">Leads</a>
-                <a href="dashboard.html?page=quotes" class="nav-item">Quotes</a>
-                <a href="quote-builder.html" class="nav-item">Quote (CRM)</a>
-                <a href="estimate-builder.html" class="nav-item active">Estimate Builder</a>
-                <a href="dashboard.html#projects" class="nav-item">Projects</a>
-                <a href="dashboard.html#users" class="nav-item">Users</a>
-            </nav>
-        </div>
-        
         <div class="dashboard-content">
             <div class="estimate-builder">
                 <div class="builder-main">
@@ -365,6 +352,7 @@
         </div>
     </div>
     
+    <script src="crm-shared-nav.js"></script>
     <script src="estimate-builder.js"></script>
 </body>
 </html>

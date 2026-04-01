@@ -1,19 +1,18 @@
 /**
- * On-Site Quote — mobile wizard (additional module).
- * Uses POST /api/customers + POST /api/quotes/full; ERP preview for products.
- *
- * Maps to intended React structure (this file is vanilla for CRM stack parity):
- * Stepper → renderStepper, syncPanels
- * ClientForm → step 1 + nominatimSuggest / Google Places
- * MeasurementInput → step 2 + effectiveSqft
- * ServiceSelector → step 3
- * ProductSelector → step 4 + searchProducts / selectProduct
- * AddOns → step 5 + ADDON_DEFS / applyGbbTier presets
- * QuoteSummary → step 6 + renderSummary
- * PricingBox → renderPricingBar (header total, live)
- * ActionFooter → footer buttons + persistQuote
+ * Quick Quote (on-site) — 2-step flow: build everything on one scroll, then review & save.
+ * POST /api/customers + POST /api/quotes/full; ERP preview for products.
  */
 (function () {
+  const OS_TOTAL_STEPS = 2;
+
+  function osToast(msg, type) {
+    if (window.crmToast && typeof window.crmToast.show === 'function') {
+      window.crmToast.show(msg, { type: type === 'error' ? 'error' : type === 'info' ? 'info' : 'success' });
+    } else {
+      alert(msg);
+    }
+  }
+
   const INSTALL_RATE = 4;
   const SAND_RATE = 3.5;
 
@@ -60,6 +59,17 @@
   function effectiveSqft() {
     if (state.measureMode === 'total') return Math.max(0, Number(state.totalSqft) || 0);
     return state.rooms.reduce((s, r) => s + (Math.max(0, Number(r.sqft) || 0)), 0);
+  }
+
+  function syncHeroSqftVisibility() {
+    const ed = $('heroSqftEditable');
+    const ro = $('heroSqftReadonly');
+    if (!ed || !ro) return;
+    const rooms = state.measureMode === 'rooms';
+    ed.classList.toggle('hidden', rooms);
+    ro.classList.toggle('hidden', !rooms);
+    const h = $('heroEffectiveSqft');
+    if (h) h.textContent = String(effectiveSqft());
   }
 
   function svcLabel() {
@@ -196,13 +206,18 @@
   function renderStepper() {
     const dots = $('stepperDots');
     dots.innerHTML = '';
-    for (let i = 1; i <= 6; i += 1) {
+    for (let i = 1; i <= OS_TOTAL_STEPS; i += 1) {
       const d = document.createElement('span');
       d.className = 'os-step-dot' + (i === state.step ? ' os-step-dot--on' : '');
-      d.title = `Step ${i}`;
+      d.title = i === 1 ? 'Build' : 'Save';
       dots.appendChild(d);
     }
-    $('stepLabel').textContent = state.view === 'gbb' ? 'Packages' : `Step ${state.step}/6`;
+    const lab = $('stepLabel');
+    if (lab) {
+      if (state.view === 'gbb') lab.textContent = 'Packages';
+      else if (state.step === 1) lab.textContent = 'Build';
+      else lab.textContent = 'Save';
+    }
   }
 
   function renderPricingBar() {
@@ -210,34 +225,32 @@
     $('pricingTotal').textContent = money(b.total);
   }
 
-  function showPanel(id) {
-    document.querySelectorAll('.step-panel').forEach((el) => {
-      if (el.id === 'panelGbb') return;
-      el.classList.add('hidden');
-    });
-    $(id).classList.remove('hidden');
-  }
-
   function syncPanels() {
+    const fab = $('fabAdd');
     if (state.view === 'gbb') {
       document.querySelectorAll('.step-panel').forEach((el) => el.classList.add('hidden'));
       $('panelGbb').classList.remove('hidden');
       $('footerNav').classList.add('hidden');
       $('footerFinal').classList.add('hidden');
+      if (fab) fab.classList.add('hidden');
       renderGbb();
       return;
     }
     $('panelGbb').classList.add('hidden');
-    for (let s = 1; s <= 6; s += 1) {
-      const p = $('panelStep' + s);
-      if (p) p.classList.toggle('hidden', s !== state.step);
-    }
-    const final = state.step === 6;
+    const b = $('osPanelBuild');
+    const r = $('osPanelReview');
+    if (b) b.classList.toggle('hidden', state.step !== 1);
+    if (r) r.classList.toggle('hidden', state.step !== 2);
+    const final = state.step === 2;
     $('footerNav').classList.toggle('hidden', final);
     $('footerFinal').classList.toggle('hidden', !final);
     $('btnBack').classList.toggle('hidden', state.step <= 1);
-    $('btnNext').textContent = state.step === 6 ? 'Done' : 'Next ➡️';
-    if (state.step < 6) $('btnNext').textContent = 'Next ➡️';
+    const nextBtn = $('btnNext');
+    if (nextBtn) {
+      nextBtn.classList.toggle('hidden', final);
+      if (!final) nextBtn.textContent = 'Review & save →';
+    }
+    if (fab) fab.classList.toggle('hidden', state.step !== 1);
   }
 
   function renderRooms() {
@@ -282,7 +295,10 @@
   }
 
   function renderRoomSum() {
-    $('roomSumDisplay').textContent = `${effectiveSqft()} sqft`;
+    const el = $('roomSumDisplay');
+    if (el) el.textContent = `${effectiveSqft()} sqft`;
+    const hero = $('heroEffectiveSqft');
+    if (hero) hero.textContent = String(effectiveSqft());
   }
 
   function renderAddonToggles() {
@@ -291,7 +307,8 @@
     host.innerHTML = '';
     ADDON_DEFS.forEach((d) => {
       const row = document.createElement('label');
-      row.className = 'flex items-center justify-between gap-2 py-2 border-b border-slate-100 cursor-pointer';
+      row.className =
+        'flex items-center justify-between gap-2 py-2.5 px-1 border-b border-slate-100 last:border-0 cursor-pointer';
       const checked = !!state.addons[d.id];
       const qtyVal =
         state.addonQty[d.id] != null && state.addonQty[d.id] !== ''
@@ -300,11 +317,11 @@
             ? d.defaultQty(sq)
             : d.defaultQty;
       row.innerHTML = `
-        <span class="flex items-center gap-2">
-          <input type="checkbox" data-addon="${d.id}" class="rounded border-slate-300 w-5 h-5" ${checked ? 'checked' : ''} />
-          <span><span class="font-semibold text-slate-800">${d.label}</span> <span class="text-xs text-slate-500">${d.sub}</span></span>
+        <span class="flex items-center gap-2 min-w-0">
+          <input type="checkbox" data-addon="${d.id}" class="rounded border-slate-300 w-5 h-5 shrink-0" ${checked ? 'checked' : ''} />
+          <span class="min-w-0"><span class="font-semibold text-slate-800 text-sm">${d.label}</span> <span class="text-[11px] text-slate-500">${d.sub}</span></span>
         </span>
-        <input type="number" min="0" step="1" data-addon-qty="${d.id}" class="w-20 rounded-lg border border-slate-200 px-2 py-1 text-xs tabular-nums ${checked ? '' : 'opacity-40'}" value="${qtyVal}" />
+        <input type="number" min="0" step="1" data-addon-qty="${d.id}" class="w-[4.5rem] rounded-lg border border-slate-200 px-1.5 py-1 text-xs tabular-nums shrink-0 ${checked ? '' : 'opacity-40'}" value="${qtyVal}" />
       `;
       host.appendChild(row);
     });
@@ -382,7 +399,7 @@
         applyGbbTier(btn.dataset.tier);
         state.gbbSendGateDone = true;
         state.view = 'steps';
-        state.step = 6;
+        state.step = 2;
         syncPanels();
         renderStepper();
         renderSummary();
@@ -537,6 +554,37 @@
   }
 
   function bind() {
+    const navToggle = $('btnToggleCrmNav');
+    const osTop = $('osTopFixed');
+    const mainScroll = $('mainScroll');
+    function applyOsCrmNavCollapse(collapsed) {
+      if (!osTop || !mainScroll) return;
+      osTop.classList.toggle('os-crm-nav-collapsed', collapsed);
+      mainScroll.classList.toggle('os-pt-compact', collapsed);
+      if (navToggle) {
+        navToggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+        navToggle.textContent = collapsed ? 'Menu' : 'Ocultar';
+        navToggle.setAttribute('title', collapsed ? 'Mostrar navegação CRM' : 'Ocultar navegação CRM');
+      }
+      try {
+        localStorage.setItem('osCrmNavCollapsed', collapsed ? '1' : '0');
+      } catch (_) {
+        /* ignore */
+      }
+    }
+    if (navToggle && osTop && mainScroll) {
+      let startCollapsed = false;
+      try {
+        startCollapsed = localStorage.getItem('osCrmNavCollapsed') === '1';
+      } catch (_) {
+        startCollapsed = false;
+      }
+      applyOsCrmNavCollapse(startCollapsed);
+      navToggle.addEventListener('click', () => {
+        applyOsCrmNavCollapse(!osTop.classList.contains('os-crm-nav-collapsed'));
+      });
+    }
+
     $('clientName').addEventListener('input', (e) => {
       state.client.name = e.target.value;
     });
@@ -553,7 +601,7 @@
 
     $('btnUseLocation').addEventListener('click', () => {
       if (!navigator.geolocation) {
-        alert('Geolocation not available');
+        osToast('Geolocation not available.', 'error');
         return;
       }
       navigator.geolocation.getCurrentPosition(
@@ -571,25 +619,26 @@
             $('clientAddress').value = state.client.address;
           }
         },
-        () => alert('Could not read location — check permissions.')
+        () => osToast('Could not read location — check permissions.', 'error')
       );
     });
 
     $('modeTotal').addEventListener('click', () => {
       state.measureMode = 'total';
-      $('modeTotal').className = 'flex-1 py-3 text-sm font-semibold bg-[#1a2036] text-white';
-      $('modeRooms').className = 'flex-1 py-3 text-sm font-semibold bg-white text-slate-700';
-      $('blockTotalSqft').classList.remove('hidden');
+      $('modeTotal').className = 'flex-1 py-2.5 text-xs font-bold bg-[#1a2036] text-white';
+      $('modeRooms').className = 'flex-1 py-2.5 text-xs font-bold bg-white text-slate-700';
       $('blockRooms').classList.add('hidden');
+      syncHeroSqftVisibility();
       renderPricingBar();
     });
     $('modeRooms').addEventListener('click', () => {
       state.measureMode = 'rooms';
-      $('modeRooms').className = 'flex-1 py-3 text-sm font-semibold bg-[#1a2036] text-white';
-      $('modeTotal').className = 'flex-1 py-3 text-sm font-semibold bg-white text-slate-700';
+      $('modeRooms').className = 'flex-1 py-2.5 text-xs font-bold bg-[#1a2036] text-white';
+      $('modeTotal').className = 'flex-1 py-2.5 text-xs font-bold bg-white text-slate-700';
       $('blockRooms').classList.remove('hidden');
-      $('blockTotalSqft').classList.add('hidden');
+      if (!state.rooms.length) state.rooms.push({ name: 'Room', sqft: 0 });
       renderRooms();
+      syncHeroSqftVisibility();
       renderPricingBar();
     });
     $('inputTotalSqft').addEventListener('input', (e) => {
@@ -664,19 +713,27 @@
     });
 
     $('btnNext').addEventListener('click', () => {
-      if (state.step < 6) {
-        if (state.step === 1 && !state.client.name.trim()) {
-          alert('Please enter client name.');
-          return;
-        }
-        state.step += 1;
-        if (state.step === 2 && state.measureMode === 'rooms') renderRooms();
-        if (state.step === 5) renderAddonToggles();
-        if (state.step === 6) renderSummary();
-        renderStepper();
-        syncPanels();
-        renderPricingBar();
+      if (state.step !== 1) return;
+      if (!state.client.name.trim()) {
+        osToast('Client name is required.', 'error');
+        return;
       }
+      const items = buildItemsForApi();
+      if (!items.length) {
+        osToast('Add square footage (or room totals) or a quick line from +.', 'error');
+        return;
+      }
+      if (computeBreakdown().total <= 0) {
+        osToast('Total is $0 — add sq ft, material, or a paying line.', 'error');
+        return;
+      }
+      state.step = 2;
+      renderSummary();
+      renderStepper();
+      syncPanels();
+      renderPricingBar();
+      const main = $('mainScroll');
+      if (main) main.scrollTop = 0;
     });
     $('btnBack').addEventListener('click', () => {
       if (state.step > 1) {
@@ -684,6 +741,8 @@
         renderStepper();
         syncPanels();
         renderPricingBar();
+        const main = $('mainScroll');
+        if (main) main.scrollTop = 0;
       }
     });
 
@@ -698,6 +757,7 @@
     });
     $('gbbBack').addEventListener('click', () => {
       state.view = 'steps';
+      state.step = 2;
       renderStepper();
       syncPanels();
     });
@@ -705,10 +765,10 @@
     async function finalize(status, msg) {
       try {
         await persistQuote(status);
-        alert(msg);
+        osToast(msg, 'success');
         if (state.quoteId) window.location.href = `quote-builder.html?id=${state.quoteId}`;
       } catch (e) {
-        alert(e.message || String(e));
+        osToast(e.message || String(e), 'error');
       }
     }
 
@@ -719,7 +779,7 @@
         syncPanels();
         return;
       }
-      finalize('sent', 'Quote saved and marked sent. Opening builder…');
+      finalize('sent', 'Saved. Opening full quote…');
     });
     function gateGbbThen(run) {
       if ($('chkGbb').checked && !state.gbbSendGateDone) {
@@ -732,10 +792,10 @@
     }
 
     $('btnApprove').addEventListener('click', () =>
-      gateGbbThen(() => finalize('approved', 'Quote approved. Opening builder…'))
+      gateGbbThen(() => finalize('approved', 'Approved. Opening quote…'))
     );
     $('btnDeposit').addEventListener('click', () =>
-      gateGbbThen(() => finalize('sent', 'Quote saved. Use builder or your POS to collect deposit. Opening…'))
+      gateGbbThen(() => finalize('sent', 'Saved. Collect deposit in builder or POS.'))
     );
 
     $('fabAdd').addEventListener('click', () => {
@@ -748,7 +808,7 @@
       const name = $('quickLineName').value.trim();
       const amount = Number($('quickLineAmt').value) || 0;
       if (!name || amount <= 0) {
-        alert('Description and amount required.');
+        osToast('Description and amount required.', 'error');
         return;
       }
       state.customLines.push({ name, amount });
@@ -784,7 +844,7 @@
   function startVoice() {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) {
-      alert('Speech recognition not supported in this browser.');
+      osToast('Speech recognition not supported in this browser.', 'info');
       return;
     }
     if (state.speechRec) {
@@ -833,7 +893,7 @@
     }
     renderPricingBar();
     renderSummary();
-    alert(`Heard: "${text}"`);
+    osToast(`Heard: "${text}"`, 'info');
   }
 
   async function searchProducts(q) {
@@ -885,7 +945,7 @@
       $('productQty').value = state.productQty;
       renderPricingBar();
     } catch (e) {
-      alert(e.message || String(e));
+      osToast(e.message || String(e), 'error');
     }
   }
 
@@ -897,6 +957,7 @@
     document.querySelector('.svc-card[data-svc="installation"]').classList.remove('border-slate-200');
     $('svcSelectedLabel').textContent = svcLabel();
     bind();
+    syncHeroSqftVisibility();
     renderStepper();
     renderAddonToggles();
     syncPanels();

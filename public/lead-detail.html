@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Lead Details - Senior Floors CRM</title>
     <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="crm-shared-nav.css">
     <style>
         .lead-detail-container {
             max-width: 1400px;
@@ -297,32 +298,9 @@
         }
     </style>
 </head>
-<body>
+<body class="crm-standalone-page">
+    <div id="crmSharedNavRoot"></div>
     <div class="dashboard-container">
-        <button class="mobile-menu-toggle" id="mobileMenuToggle">☰</button>
-        <div class="mobile-overlay" id="mobileOverlay"></div>
-        <aside class="dashboard-sidebar" id="dashboardSidebar">
-            <div class="sidebar-header">
-                <img src="assets/SeniorFloors.png" alt="Senior Floors" class="logo-image" onerror="this.style.display='none'">
-                <h1><span class="mobile-hidden">Senior Floors CRM</span><span class="mobile-only">CRM</span></h1>
-            </div>
-            <nav class="sidebar-nav">
-                <a href="dashboard.html" class="nav-item"><span>📊</span> Dashboard</a>
-                <a href="dashboard.html?page=leads" class="nav-item"><span>📋</span> Leads</a>
-                <a href="dashboard.html?page=crm" class="nav-item"><span>🎯</span> CRM</a>
-                <a href="dashboard.html?page=customers" class="nav-item"><span>👥</span> Clientes</a>
-                <a href="dashboard.html?page=quotes" class="nav-item"><span>💰</span> Quotes</a>
-                <a href="dashboard.html?page=projects" class="nav-item"><span>🏗️</span> Projects</a>
-                <a href="dashboard.html?page=schedule" class="nav-item"><span>📅</span> Schedule</a>
-                <a href="dashboard.html?page=financeiro" class="nav-item"><span>💵</span> Financeiro</a>
-                <a href="dashboard.html?page=activities" class="nav-item"><span>📝</span> Activities</a>
-                <a href="dashboard.html?page=users" class="nav-item"><span>👤</span> Users</a>
-            </nav>
-            <div class="sidebar-footer">
-                <button id="logoutBtn" class="btn">Logout</button>
-            </div>
-        </aside>
-
         <main class="dashboard-main">
             <div class="lead-detail-container">
                 <div class="lead-header">
@@ -826,6 +804,7 @@
         </div>
     </div>
 
+    <script src="crm-shared-nav.js"></script>
     <script src="lead-detail.js?v=20250331-clients"></script>
 </body>
 </html>

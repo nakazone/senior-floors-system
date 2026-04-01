@@ -58,24 +58,47 @@ async function listQuotesQuery_(pool, req) {
       : NaN;
   const leadId = Number.isFinite(leadIdParsed) ? leadIdParsed : null;
 
-  let whereClause = '1=1';
+  const expiringDaysRaw = req.query.expiring_within_days;
+  const expiringDays =
+    expiringDaysRaw !== undefined && expiringDaysRaw !== null && String(expiringDaysRaw).trim() !== ''
+      ? parseInt(String(expiringDaysRaw).trim(), 10)
+      : NaN;
+  const expiringWithin = Number.isFinite(expiringDays) && expiringDays > 0 && expiringDays <= 365 ? expiringDays : null;
+
   const params = [];
+  const plainParts = ['1=1'];
+  const joinParts = ['1=1'];
 
   if (status) {
-    whereClause += ' AND status = ?';
+    plainParts.push('status = ?');
+    joinParts.push('q.status = ?');
     params.push(status);
   }
+  if (expiringWithin != null) {
+    plainParts.push(
+      'expiration_date IS NOT NULL AND expiration_date >= CURDATE() AND expiration_date <= DATE_ADD(CURDATE(), INTERVAL ? DAY)'
+    );
+    joinParts.push(
+      'q.expiration_date IS NOT NULL AND q.expiration_date >= CURDATE() AND q.expiration_date <= DATE_ADD(CURDATE(), INTERVAL ? DAY)'
+    );
+    params.push(expiringWithin);
+  }
   if (customerId) {
-    whereClause += ' AND customer_id = ?';
+    plainParts.push('customer_id = ?');
+    joinParts.push('q.customer_id = ?');
     params.push(customerId);
   }
   if (leadId != null) {
-    whereClause += ' AND lead_id = ?';
+    plainParts.push('lead_id = ?');
+    joinParts.push('q.lead_id = ?');
     params.push(leadId);
   }
 
+  const whereClausePlain = plainParts.join(' AND ');
+  const whereClauseJoined = joinParts.join(' AND ');
+
   /** Página do lead só precisa de colunas de `quotes` — evita JOINs (menos pontos de falha e mais rápido). */
-  const simpleLeadList = leadId != null && !status && !customerId;
+  const simpleLeadList = leadId != null && !status && !customerId && expiringWithin == null;
 
   const { simple: quoteSelectSimple, joined: quoteSelectJoined } = await getQuoteListSelectParts(pool);
 
@@ -93,14 +116,14 @@ async function listQuotesQuery_(pool, req) {
        FROM quotes q
        LEFT JOIN customers c ON q.customer_id = c.id
        LEFT JOIN leads l ON q.lead_id = l.id
-       WHERE ${whereClause}
+       WHERE ${whereClauseJoined}
        ORDER BY q.created_at DESC 
        LIMIT ? OFFSET ?`,
       [...params, limit, offset]
     );
   }
 
-  const [[{ total }]] = await pool.query(`SELECT COUNT(*) as total FROM quotes WHERE ${whereClause}`, params);
+  const [[{ total }]] = await pool.query(`SELECT COUNT(*) as total FROM quotes WHERE ${whereClausePlain}`, params);
 
   return { rows, total, page, limit };
 }

@@ -7,24 +7,17 @@
   <link rel="icon" type="image/png" href="/assets/SeniorFloors.png" />
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="crm-shared-nav.css" />
   <style>body { font-family: Inter, system-ui, sans-serif; }</style>
 </head>
 <body class="bg-slate-50 text-slate-900 min-h-screen">
-  <header class="bg-[#1a2036] text-white shadow">
-    <div class="max-w-5xl mx-auto px-4 py-4 flex flex-wrap items-center justify-between gap-3">
-      <div>
-        <h1 class="text-lg font-bold">Catálogo de serviços</h1>
-        <p class="text-xs text-white/70">Linhas pré-definidas para Quote</p>
-      </div>
-      <div class="flex flex-wrap gap-2">
-        <a href="quote-builder.html" class="px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-sm">Quote</a>
-        <a href="onsite-quote.html" class="px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-sm">📱 On-site</a>
-        <a href="dashboard.html?page=quotes" class="px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-sm">Orçamentos</a>
-      </div>
-    </div>
-  </header>
+  <div id="crmSharedNavRoot"></div>
 
   <main class="max-w-5xl mx-auto px-4 py-8 space-y-6">
+    <div class="border-b border-slate-200 pb-4">
+      <h1 class="text-xl font-bold text-slate-900">Catálogo de serviços</h1>
+      <p class="text-sm text-slate-500 mt-1">Linhas pré-definidas para Quote</p>
+    </div>
     <p id="authMsg" class="text-red-600 text-sm hidden"></p>
     <p id="migrateMsg" class="text-amber-700 text-sm hidden"></p>
 
@@ -128,6 +121,7 @@
     </div>
   </div>
 
+  <script src="crm-shared-nav.js"></script>
   <script src="quote-catalog.js?v=2"></script>
 </body>
 </html>

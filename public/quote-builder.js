@@ -19,6 +19,14 @@
     '$' +
     (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+  function qbToast(msg, type) {
+    if (window.crmToast && typeof window.crmToast.show === 'function') {
+      window.crmToast.show(msg, { type: type === 'error' ? 'error' : type === 'info' ? 'info' : 'success' });
+    } else {
+      alert(msg);
+    }
+  }
+
   let qbNotifyTimer = null;
 
   function hideQuoteNotify() {
@@ -389,7 +397,7 @@
     const raw = String(input.value || '').trim().replace(',', '.');
     const sq = parseFloat(raw);
     if (!Number.isFinite(sq) || sq < 0) {
-      alert('Indique uma quantidade válida de sq ft (≥ 0).');
+      qbToast('Indique uma quantidade válida de sq ft (≥ 0).', 'error');
       return;
     }
     let n = 0;
@@ -402,8 +410,9 @@
     recalc();
     renderItems();
     if (n === 0) {
-      alert(
-        'Nenhuma linha com unidade Sq Ft. Defina a unidade «Sq Ft» nas linhas que devem usar a área do projeto.'
+      qbToast(
+        'Nenhuma linha com unidade Sq Ft. Defina a unidade «Sq Ft» nas linhas que devem usar a área do projeto.',
+        'info'
       );
     }
   }
@@ -588,7 +597,7 @@
   async function saveQuote() {
     const cid = parseInt($('customerId').value, 10);
     if (!cid) {
-      alert('Selecione um cliente.');
+      qbToast('Selecione um cliente.', 'error');
       return;
     }
     const body = payload();
@@ -610,10 +619,10 @@
         );
         await loadQuote(quoteId);
       }
-      alert('Guardado.');
+      qbToast('Guardado.', 'success');
       enableActions();
     } catch (e) {
-      alert(e.message);
+      qbToast(e.message || 'Erro ao guardar', 'error');
     }
   }
 
@@ -958,6 +967,13 @@
     });
 
     $('btnSave').addEventListener('click', saveQuote);
+    document.querySelectorAll('[data-qb-mirror]').forEach((b) => {
+      b.addEventListener('click', () => {
+        const id = b.getAttribute('data-qb-mirror');
+        const tgt = id ? $(id) : null;
+        if (tgt && !tgt.disabled) tgt.click();
+      });
+    });
     $('btnPdf').addEventListener('click', async () => {
       if (!quoteId) return;
       await api(`/api/quotes/${quoteId}/generate-pdf`, { method: 'POST', body: '{}' });
@@ -1043,9 +1059,9 @@
       };
       try {
         await api('/api/quote-templates', { method: 'POST', body: JSON.stringify(body) });
-        alert('Template saved.');
+        qbToast('Template guardado.', 'success');
       } catch (e) {
-        alert(e.message);
+        qbToast(e.message || 'Erro ao guardar template', 'error');
       }
     });
   }

@@ -11,6 +11,8 @@
     <link rel="apple-touch-icon" sizes="180x180" href="/assets/SeniorFloors.png">
     <link rel="icon" type="image/png" href="/assets/SeniorFloors.png">
     <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="crm-toast.css">
+    <link rel="stylesheet" href="crm-command-palette.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -644,18 +646,28 @@
                     <div class="page-header">
                         <h2>Estimates</h2>
                         <div style="display: flex; gap: var(--spacing-sm); flex-wrap: wrap;">
-                            <button type="button" class="btn btn-primary" onclick="window.open('quote-builder.html', '_blank')" data-crm-permission="quotes.edit">+ Novo orçamento</button>
-                            <button type="button" class="btn btn-secondary" onclick="window.open('onsite-quote.html', '_blank')" data-crm-permission="quotes.create" title="Mobile on-site wizard">📱 On-site quote</button>
-                            <button type="button" class="btn btn-secondary" onclick="window.open('quote-catalog.html', '_blank')" data-crm-permission="quotes.edit">Catálogo de serviços</button>
-                            <button type="button" class="btn btn-secondary" onclick="window.open('suppliers.html', '_blank')" data-crm-permission="quotes.view">Fornecedores</button>
-                            <button type="button" class="btn btn-secondary" onclick="window.open('products-erp.html', '_blank')" data-crm-permission="quotes.view">Produtos (ERP)</button>
+                            <button type="button" class="btn btn-primary btn-cta-primary" onclick="location.href='quote-builder.html'" data-crm-permission="quotes.edit">+ Novo orçamento</button>
+                            <button type="button" class="btn btn-secondary" onclick="location.href='onsite-quote.html'" data-crm-permission="quotes.create" title="2-step field quote">📱 Quick quote</button>
+                            <button type="button" class="btn btn-secondary" onclick="location.href='quote-catalog.html'" data-crm-permission="quotes.edit">Catálogo de serviços</button>
+                            <button type="button" class="btn btn-secondary" onclick="location.href='suppliers.html'" data-crm-permission="quotes.view">Fornecedores</button>
+                            <button type="button" class="btn btn-secondary" onclick="location.href='products-erp.html'" data-crm-permission="quotes.view">Produtos (ERP)</button>
                             <button type="button" class="btn btn-secondary" onclick="openImportInvoicePdfModal()">📄 Importar PDF (Invoice2Go)</button>
                             <button type="button" class="btn btn-secondary" onclick="loadEstimateAnalytics()">Analytics</button>
                         </div>
                     </div>
+
+                    <div class="quotes-filter-chips" role="toolbar" aria-label="Filtrar orçamentos">
+                        <button type="button" class="quotes-filter-chip quotes-filter-chip--active" data-quotes-filter="all" onclick="setQuotesFilter('all')">Todos</button>
+                        <button type="button" class="quotes-filter-chip" data-quotes-filter="draft" onclick="setQuotesFilter('draft')">Rascunho</button>
+                        <button type="button" class="quotes-filter-chip" data-quotes-filter="sent" onclick="setQuotesFilter('sent')">Enviado</button>
+                        <button type="button" class="quotes-filter-chip" data-quotes-filter="viewed" onclick="setQuotesFilter('viewed')">Visto</button>
+                        <button type="button" class="quotes-filter-chip" data-quotes-filter="approved" onclick="setQuotesFilter('approved')">Aprovado</button>
+                        <button type="button" class="quotes-filter-chip" data-quotes-filter="rejected" onclick="setQuotesFilter('rejected')">Rejeitado</button>
+                        <button type="button" class="quotes-filter-chip" data-quotes-filter="expiring7" onclick="setQuotesFilter('expiring7')">Expira ≤7 dias</button>
+                    </div>
                     
                     <div class="table-container">
-                        <table class="data-table">
+                        <table class="data-table quotes-data-table">
                             <thead>
                                 <tr>
                                     <th>Quote #</th>
@@ -1165,7 +1177,19 @@
     
     <div id="toastContainer" class="toast-container" aria-live="polite"></div>
     
+    <div id="crmCmdPalette" class="crm-cmd-palette" aria-hidden="true">
+        <div class="crm-cmd-palette__panel" role="dialog" aria-modal="true" aria-label="Comandos rápidos">
+            <div class="crm-cmd-palette__head">
+                <input type="search" id="crmCmdPaletteInput" class="crm-cmd-palette__input" placeholder="Ir para…" autocomplete="off" aria-label="Pesquisar" />
+                <kbd>Esc</kbd>
+            </div>
+            <div id="crmCmdPaletteList" class="crm-cmd-palette__list"></div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+    <script src="crm-toast.js"></script>
+    <script src="crm-command-palette.js"></script>
     <script src="notification-center.js"></script>
     <script src="marketing-dashboard.js"></script>
     <script src="dashboard.js"></script>
