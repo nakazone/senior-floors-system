@@ -1,6 +1,9 @@
 /**
  * Suppliers, products, category margins, quote line product fields.
- * Idempotent. npm run migrate:supplier-product-erp
+ * Idempotent.
+ * Local com MySQL: npm run migrate:supplier-product-erp
+ * Railway (portátil): railway run npm run migrate:supplier-product-erp
+ * — com Railway CLI não carrega .env (evita DB_HOST=localhost); usa TCP proxy para hosts Railway.
  */
 import dotenv from 'dotenv';
 import path from 'path';
@@ -14,7 +17,9 @@ const envInjectedByRailway =
   Boolean(process.env.RAILWAY_PROJECT_ID) ||
   Boolean(process.env.MYSQL_URL?.trim()) ||
   Boolean(process.env.MYSQLHOST?.trim());
-if (!envInjectedByRailway) dotenv.config({ path: envPath, override: true });
+if (!envInjectedByRailway) {
+  dotenv.config({ path: envPath, override: true });
+}
 
 function applyRailwayTcpProxyIfNeeded(cfg) {
   if (!cfg) return null;
@@ -54,10 +59,34 @@ async function tableExists(conn, name) {
 async function main() {
   const base = applyRailwayTcpProxyIfNeeded(getMysqlConnectionConfig());
   if (!base) {
-    console.error('Sem MySQL.', getMysqlEnvDiagnostics());
+    const d = getMysqlEnvDiagnostics();
+    console.error('Sem configuração MySQL válida.');
+    console.error('Diagnóstico:', d);
+    console.error('');
+    console.error('Opções:');
+    console.error('  1) senior-floors-system/.env com DB_HOST remoto (Railway MySQL) ou DATABASE_URL');
+    console.error('  2) railway link  →  railway run npm run migrate:supplier-product-erp');
     process.exit(1);
   }
-  const conn = await mysql.createConnection({ ...base, multipleStatements: true });
+  let conn;
+  try {
+    conn = await mysql.createConnection({ ...base, multipleStatements: true });
+  } catch (e) {
+    if (e.code === 'ECONNREFUSED' && (base.host === '127.0.0.1' || base.host === 'localhost')) {
+      console.error(
+        'MySQL recusou em ' + base.host + ':' + base.port + ' — não há servidor MySQL local.'
+      );
+      console.error('');
+      console.error('Use a base na Railway a partir da pasta senior-floors-system:');
+      console.error('  railway run npm run migrate:supplier-product-erp');
+      console.error('');
+      console.error(
+        'Ou no .env defina DATABASE_URL / DB_HOST com o host público do MySQL (e porta TCP proxy se aplicável).'
+      );
+      console.error('Se tiver export DB_HOST=localhost no shell: unset DB_HOST DATABASE_URL MYSQL_URL');
+    }
+    throw e;
+  }
 
   console.log('migrate-supplier-product-erp…');
 
