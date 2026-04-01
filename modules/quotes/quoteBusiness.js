@@ -73,27 +73,128 @@ function moneyEmail(n) {
   return `$${x.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-/** Corpo HTML do e-mail: nome em destaque + descrição longa quando existir (PDF continua anexo). */
+/** Mesma lógica de secções do PDF (Installation / Sand & Finishing / produtos). */
+function lineSectionEmail(it) {
+  if (String(it.item_type || '').toLowerCase() === 'product') return 'products';
+  const st = String(it.service_type || '').trim();
+  if (!st) return 'installation';
+  const lower = st.toLowerCase();
+  if (lower.includes('sand') || lower.includes('finishing')) return 'sand_finish';
+  return 'installation';
+}
+
+const EMAIL_SECTIONS = [
+  { key: 'installation', label: 'Installation' },
+  { key: 'sand_finish', label: 'Sand & Finishing' },
+  { key: 'products', label: 'Materials & products' },
+];
+
+function groupItemsForEmail(items) {
+  const list = Array.isArray(items) ? items : [];
+  const buckets = { installation: [], sand_finish: [], products: [] };
+  for (const it of list) {
+    const k = lineSectionEmail(it);
+    if (buckets[k]) buckets[k].push(it);
+    else buckets.installation.push(it);
+  }
+  return EMAIL_SECTIONS.filter((d) => buckets[d.key].length > 0).map((d) => ({
+    label: d.label,
+    items: buckets[d.key],
+  }));
+}
+
+/**
+ * HTML do e-mail: paleta e estrutura alinhadas ao PDF; total em destaque.
+ */
 function buildQuoteEmailHtml(quote, items, publicUrl) {
+  const navy = '#1a2036';
+  const sand = '#d6b598';
+  const sandDark = '#c4a588';
+  const muted = '#4a5568';
+  const clientName = escapeHtmlEmail(quote.customer_name || 'Client');
   const qn = escapeHtmlEmail(quote.quote_number || quote.id || '');
-  const link =
-    publicUrl && /^https?:\/\//i.test(publicUrl)
-      ? `<p style="margin:16px 0;">View or approve online: <a href="${escapeHtmlEmail(publicUrl)}">${escapeHtmlEmail(publicUrl)}</a></p>`
-      : '';
-  const rows = (items || [])
-    .map((it) => {
+  const sub = Number(quote.subtotal) || 0;
+  const tax = Number(quote.tax_total) || 0;
+  const total = Number(quote.total_amount) || 0;
+  const totalStr = moneyEmail(total);
+  const discType = quote.discount_type === 'fixed' ? 'fixed' : 'percentage';
+  const discVal = Number(quote.discount_value) || 0;
+  const discAmt = calc.discountAmount(sub, discType, discVal);
+  const discLabel =
+    discType === 'fixed' ? 'Discount ($)' : `Discount (${discVal}%)`;
+
+  const sections = groupItemsForEmail(items);
+  let linesBody = '';
+  for (const sec of sections) {
+    linesBody += `<tr><td colspan="4" style="background-color:#efe8df;padding:10px 12px;font-size:11px;font-weight:bold;color:${navy};letter-spacing:0.04em;border-left:4px solid ${sandDark};">${escapeHtmlEmail(sec.label)}</td></tr>
+<tr style="background-color:rgba(26,32,54,0.06);font-size:10px;font-weight:bold;color:${navy};">
+<td style="padding:8px 12px;">Description</td>
+<td style="padding:8px 6px;text-align:right;width:72px;">Qty</td>
+<td style="padding:8px 6px;text-align:right;width:88px;">Rate</td>
+<td style="padding:8px 12px;text-align:right;width:100px;">Amount</td>
+</tr>`;
+    for (const it of sec.items) {
       const nm = String(it.name || '').trim();
       const dc = String(it.description || '').trim();
-      const title = nm || dc || 'Item';
-      const sub =
+      const title = escapeHtmlEmail(nm || dc || 'Item');
+      const subd =
         nm && dc && dc !== nm
-          ? `<div style="margin-top:6px;color:#444;font-size:13px;line-height:1.45;">${escapeHtmlEmail(dc).replace(/\n/g, '<br/>')}</div>`
+          ? `<div style="margin-top:4px;font-size:12px;color:${muted};line-height:1.45;">${escapeHtmlEmail(dc).replace(/\n/g, '<br/>')}</div>`
           : '';
+      const qty = Number(it.quantity) || 0;
+      const rate = Number(it.rate ?? it.unit_price) || 0;
       const amt = moneyEmail(it.amount ?? it.total_price);
-      return `<tr><td style="padding:10px 0;border-bottom:1px solid #e5e7eb;vertical-align:top;"><strong style="color:#111;">${escapeHtmlEmail(title)}</strong>${sub}</td><td style="padding:10px 0;border-bottom:1px solid #e5e7eb;text-align:right;white-space:nowrap;vertical-align:top;">${amt}</td></tr>`;
-    })
-    .join('');
-  return `<p>Hello,</p><p>Please find your quote <strong>#${qn}</strong> below. A detailed PDF is attached.</p><table role="presentation" style="width:100%;max-width:560px;border-collapse:collapse;margin:12px 0;">${rows}</table>${link}<p style="color:#64748b;font-size:13px;">— Senior Floors</p>`;
+      const ut = it.unit_type ? String(it.unit_type).replace(/_/g, ' ') : 'sq ft';
+      linesBody += `<tr>
+<td style="padding:12px;border-bottom:1px solid #e2e8f0;vertical-align:top;"><strong style="color:${navy};font-size:14px;">${title}</strong>${subd}</td>
+<td style="padding:12px 6px;border-bottom:1px solid #e2e8f0;text-align:right;font-size:13px;color:${navy};white-space:nowrap;">${qty} ${escapeHtmlEmail(ut)}</td>
+<td style="padding:12px 6px;border-bottom:1px solid #e2e8f0;text-align:right;font-size:13px;color:${navy};">${moneyEmail(rate)}</td>
+<td style="padding:12px 12px;border-bottom:1px solid #e2e8f0;text-align:right;font-size:13px;font-weight:bold;color:${navy};">${amt}</td>
+</tr>`;
+    }
+  }
+  if (!linesBody) {
+    linesBody = `<tr><td colspan="4" style="padding:16px;color:${muted};">No line items.</td></tr>`;
+  }
+
+  const link =
+    publicUrl && /^https?:\/\//i.test(publicUrl)
+      ? `<p style="margin:24px 0 0;font-size:14px;color:${navy};"><a href="${escapeHtmlEmail(publicUrl)}" style="color:${sandDark};font-weight:bold;">View or approve this quote online</a></p><p style="margin:4px 0 0;font-size:12px;color:${muted};word-break:break-all;">${escapeHtmlEmail(publicUrl)}</p>`
+      : '';
+
+  return `<!DOCTYPE html><html><body style="margin:0;padding:0;background-color:#f7f8fc;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f7f8fc;padding:24px 12px;">
+<tr><td align="center">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;border-collapse:collapse;background-color:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(26,32,54,0.08);font-family:Inter,Segoe UI,Arial,sans-serif;color:${navy};">
+<tr><td style="height:5px;background-color:${sand};line-height:5px;font-size:0;">&nbsp;</td></tr>
+<tr><td style="padding:24px 24px 8px;font-size:22px;font-weight:bold;letter-spacing:-0.02em;">Senior Floors</td></tr>
+<tr><td style="padding:0 24px 16px;font-size:13px;color:#2a3150;">Hardwood · LVP · Refinishing · Denver Metro</td></tr>
+<tr><td style="padding:0 24px 20px;border-bottom:1px solid #e2e8f0;">
+<p style="margin:0 0 6px;font-size:12px;color:${sandDark};font-weight:bold;text-transform:uppercase;letter-spacing:0.06em;">Quote</p>
+<p style="margin:0;font-size:18px;font-weight:bold;color:${navy};">#${qn}</p>
+<p style="margin:8px 0 0;font-size:14px;color:${navy};">Hello ${clientName},</p>
+<p style="margin:8px 0 0;font-size:14px;line-height:1.55;color:${muted};">Below is the same breakdown as in your attached PDF. Your <strong style="color:${navy};">quote total is ${totalStr}</strong>.</p>
+</td></tr>
+<tr><td style="padding:20px 24px 8px;">
+<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">${linesBody}</table>
+</td></tr>
+<tr><td style="padding:8px 24px 24px;">
+<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;font-size:14px;color:${muted};">
+<tr><td style="padding:6px 0;">Subtotal</td><td style="padding:6px 0;text-align:right;color:${navy};">${moneyEmail(sub)}</td></tr>
+<tr><td style="padding:6px 0;">Tax</td><td style="padding:6px 0;text-align:right;color:${navy};">${moneyEmail(tax)}</td></tr>
+<tr><td style="padding:6px 0;">${escapeHtmlEmail(discLabel)}</td><td style="padding:6px 0;text-align:right;color:${navy};">${moneyEmail(discAmt)}</td></tr>
+</table>
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-top:16px;border-collapse:collapse;background-color:${navy};border-radius:4px;">
+<tr>
+<td style="padding:14px 16px;font-size:12px;font-weight:bold;color:#ffffff;text-transform:uppercase;letter-spacing:0.05em;">Total</td>
+<td style="padding:14px 16px;text-align:right;font-size:22px;font-weight:bold;color:${sand};">${totalStr}</td>
+</tr>
+</table>
+${link}
+<p style="margin:24px 0 0;font-size:13px;color:${muted};">— Senior Floors · (720) 751-9813 · contact@senior-floors.com</p>
+</td></tr>
+</table>
+</td></tr></table></body></html>`;
 }
 
 export async function loadQuoteContext(pool, quoteId) {

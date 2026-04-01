@@ -894,22 +894,23 @@
     $('btnEmail').addEventListener('click', async () => {
       if (!quoteId) return;
       const cid = parseInt(String($('customerId') && $('customerId').value), 10);
-      const cust = Number.isFinite(cid) ? clients.find((c) => Number(c.id) === cid) : null;
-      const defaultTo = cust && cust.email ? String(cust.email).trim() : '';
-      const to = prompt('E-mail do destinatário:', defaultTo);
-      if (to == null) return;
-      const addr = String(to).trim();
-      if (!addr) {
-        alert('Indique um e-mail válido.');
+      if (!Number.isFinite(cid) || cid <= 0) {
+        alert('Selecione um cliente. O e-mail é o cadastrado no CRM.');
+        return;
+      }
+      const cust = clients.find((c) => Number(c.id) === cid);
+      const preview = cust && cust.email ? String(cust.email).trim() : '';
+      if (!preview) {
+        alert('Este cliente não tem e-mail no cadastro. Edite o cliente (CRM) e adicione o e-mail antes de enviar.');
         return;
       }
       try {
         const r = await api(`/api/quotes/${quoteId}/send-email`, {
           method: 'POST',
-          body: JSON.stringify({ to: addr }),
+          body: JSON.stringify({}),
         });
         const how = r.transport === 'smtp' ? 'SMTP' : r.transport === 'resend' ? 'Resend' : 'servidor';
-        alert(`E-mail enviado (${how}).`);
+        alert(`E-mail enviado para ${preview} (${how}).`);
       } catch (e) {
         alert(e.message || 'Falha ao enviar.');
       }
