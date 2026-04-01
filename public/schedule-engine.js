@@ -503,11 +503,16 @@ function changeScheduleWeek(delta) {
 }
 
 function viewSchedule(scheduleId) {
-    alert(`Schedule ID: ${scheduleId}\nFeature: View schedule details (to be implemented)`);
+    if (typeof crmNotify === 'function') {
+        crmNotify('Agenda #' + scheduleId + ' — detalhe em breve.', 'info');
+    } else {
+        alert(`Schedule ID: ${scheduleId}\nFeature: View schedule details (to be implemented)`);
+    }
 }
 
 function showNewScheduleModal() {
-    alert('Feature: New schedule modal (to be implemented)');
+    if (typeof crmNotify === 'function') crmNotify('Nova marcação — em breve.', 'info');
+    else alert('Feature: New schedule modal (to be implemented)');
 }
 
 if (typeof window !== 'undefined') {

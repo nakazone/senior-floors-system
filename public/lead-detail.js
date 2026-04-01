@@ -5,6 +5,11 @@
 let currentLeadId = null;
 let currentLead = null;
 
+function notifyLead(msg, type) {
+    if (typeof window.crmNotify === 'function') window.crmNotify(msg, type || 'info');
+    else alert(msg);
+}
+
 // Check authentication and get lead ID from URL
 window.addEventListener('DOMContentLoaded', () => {
     // Get lead ID from URL
@@ -12,7 +17,7 @@ window.addEventListener('DOMContentLoaded', () => {
     currentLeadId = parseInt(urlParams.get('id'));
 
     if (!currentLeadId) {
-        alert('Lead ID não encontrado na URL');
+        notifyLead('Lead ID não encontrado na URL', 'error');
         window.location.href = 'dashboard.html';
         return;
     }
@@ -83,12 +88,12 @@ async function loadLead() {
             loadProposals();
             loadLinkedClient();
         } else {
-            alert('Erro ao carregar lead: ' + (data.error || 'Desconhecido'));
+            notifyLead('Erro ao carregar lead: ' + (data.error || 'Desconhecido'), 'error');
             window.location.href = 'dashboard.html';
         }
     } catch (error) {
         console.error('Error loading lead:', error);
-        alert('Erro ao carregar lead');
+        notifyLead('Erro ao carregar lead', 'error');
     }
 }
 
@@ -209,19 +214,19 @@ async function saveLead() {
     const addressVal = addrEl ? addrEl.value.trim() : '';
 
     if (name.length < 2) {
-        alert('Full name deve ter pelo menos 2 caracteres.');
+        notifyLead('Full name deve ter pelo menos 2 caracteres.', 'error');
         return;
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-        alert('Email inválido.');
+        notifyLead('Email inválido.', 'error');
         return;
     }
     if (phone.length < 3) {
-        alert('Telefone inválido.');
+        notifyLead('Telefone inválido.', 'error');
         return;
     }
     if (!zipRaw || zipRaw.length < 5) {
-        alert('ZIP code deve ter pelo menos 5 dígitos.');
+        notifyLead('ZIP code deve ter pelo menos 5 dígitos.', 'error');
         return;
     }
 
@@ -248,19 +253,20 @@ async function saveLead() {
         const data = await response.json();
         if (data.success) {
             if (data.client_conversion && data.client_conversion.created && data.client_conversion.customer_id) {
-                alert(
+                notifyLead(
                     'Cliente CRM criado automaticamente (ID ' +
                         data.client_conversion.customer_id +
-                        '). Aparece em Dashboard → Clients quando o estágio é Fechado - Ganhou ou Produção.'
+                        '). Aparece em Dashboard → Clients quando o estágio é Fechado - Ganhou ou Produção.',
+                    'success'
                 );
             }
             loadLead();
         } else {
-            alert('Erro ao atualizar: ' + (data.error || 'Desconhecido'));
+            notifyLead('Erro ao atualizar: ' + (data.error || 'Desconhecido'), 'error');
         }
     } catch (error) {
         console.error('Error saving lead:', error);
-        alert('Erro ao salvar');
+        notifyLead('Erro ao salvar', 'error');
     }
 }
 
@@ -324,18 +330,18 @@ async function convertLeadToClient() {
         });
         const data = await res.json().catch(() => ({}));
         if (res.status === 403) {
-            alert('Sem permissão para criar clientes (customers.create).');
+            notifyLead('Sem permissão para criar clientes (customers.create).', 'error');
             return;
         }
         if (!data.success) {
-            alert(data.error || 'Não foi possível criar o cliente (HTTP ' + res.status + ').');
+            notifyLead(data.error || 'Não foi possível criar o cliente (HTTP ' + res.status + ').', 'error');
             return;
         }
         const cid = data.data && data.data.id;
-        alert(cid ? 'Cliente CRM #' + cid + ' criado ou já existia.' : 'Cliente atualizado.');
+        notifyLead(cid ? 'Cliente CRM #' + cid + ' criado ou já existia.' : 'Cliente atualizado.', 'success');
         loadLinkedClient();
     } catch (err) {
-        alert(err.message || 'Erro de rede');
+        notifyLead(err.message || 'Erro de rede', 'error');
     }
 }
 
@@ -514,23 +520,23 @@ async function saveQualification() {
     const urgency = document.getElementById('qualUrgency').value?.trim();
 
     if (!propertyType) {
-        alert('Selecione o Tipo de Propriedade.');
+        notifyLead('Selecione o Tipo de Propriedade.', 'error');
         return;
     }
     if (!serviceType) {
-        alert('Selecione o Tipo de Serviço.');
+        notifyLead('Selecione o Tipo de Serviço.', 'error');
         return;
     }
     if (!estimatedArea || parseFloat(estimatedArea) <= 0) {
-        alert('Informe a Área estimada (sqft).');
+        notifyLead('Informe a Área estimada (sqft).', 'error');
         return;
     }
     if (!estimatedBudget || parseFloat(estimatedBudget) <= 0) {
-        alert('Informe o Orçamento estimado.');
+        notifyLead('Informe o Orçamento estimado.', 'error');
         return;
     }
     if (!urgency) {
-        alert('Selecione a Urgência.');
+        notifyLead('Selecione a Urgência.', 'error');
         return;
     }
 
@@ -565,11 +571,11 @@ async function saveQualification() {
         if (data.success) {
             loadQualification();
         } else {
-            alert('Erro ao salvar: ' + (data.error || 'Desconhecido'));
+            notifyLead('Erro ao salvar: ' + (data.error || 'Desconhecido'), 'error');
         }
     } catch (error) {
         console.error('Error saving qualification:', error);
-        alert('Erro ao salvar');
+        notifyLead('Erro ao salvar', 'error');
     }
 }
 
@@ -703,8 +709,8 @@ function submitFollowupForm(e) {
         body: JSON.stringify({ title: title, description: description, due_date: due_date, priority: priority, assigned_to: assigned_to ? parseInt(assigned_to, 10) : null })
     }).then(r => r.json()).then(data => {
         if (data.success) loadFollowups();
-        else alert('Erro ao criar follow-up: ' + (data.error || 'Desconhecido'));
-    }).catch(() => alert('Erro ao criar follow-up'));
+        else notifyLead('Erro ao criar follow-up: ' + (data.error || 'Desconhecido'), 'error');
+    }).catch(() => notifyLead('Erro ao criar follow-up', 'error'));
     return false;
 }
 
@@ -993,12 +999,12 @@ async function deleteLeadQuote(quoteId) {
             /* ignore */
         }
         if (!res.ok) {
-            alert(data.error || data.message || 'Não foi possível excluir o quote (HTTP ' + res.status + ').');
+            notifyLead(data.error || data.message || 'Não foi possível excluir o quote (HTTP ' + res.status + ').', 'error');
             return;
         }
         loadProposals();
     } catch (e) {
-        alert(e.message || 'Erro de rede ao excluir o quote.');
+        notifyLead(e.message || 'Erro de rede ao excluir o quote.', 'error');
     }
 }
 
@@ -1052,10 +1058,10 @@ function setupLeadImportInvoicePdfForm() {
                 amountEl.removeAttribute('required');
                 await loadProposals();
             } else {
-                alert(json.error || 'Erro ao importar PDF');
+                notifyLead(json.error || 'Erro ao importar PDF', 'error');
             }
         } catch (err) {
-            alert('Erro de rede ao importar PDF');
+            notifyLead('Erro de rede ao importar PDF', 'error');
         } finally {
             submitBtn.textContent = prev;
             refreshSubmit();
@@ -1217,7 +1223,7 @@ async function showEditVisitModal(visitId) {
         const response = await fetch('/api/visits/' + visitId, { credentials: 'include' });
         const data = await response.json();
         if (!data.success || !data.data) {
-            alert('Não foi possível carregar a visita.');
+            notifyLead('Não foi possível carregar a visita.', 'error');
             return;
         }
         var v = data.data;
@@ -1236,7 +1242,7 @@ async function showEditVisitModal(visitId) {
         document.body.style.overflow = 'hidden';
     } catch (err) {
         console.error('Error loading visit:', err);
-        alert('Erro ao carregar visita.');
+        notifyLead('Erro ao carregar visita.', 'error');
     }
 }
 
@@ -1256,7 +1262,7 @@ function submitEditVisitForm(e) {
     var sellerId = document.getElementById('editVisitAssignedSelect').value || null;
     var status = document.getElementById('editVisitStatus').value || 'scheduled';
     if (!scheduledAt || !addressLine1 || !city) {
-        alert('Preencha data/hora, endereço (linha 1) e cidade.');
+        notifyLead('Preencha data/hora, endereço (linha 1) e cidade.', 'error');
         return false;
     }
     var btn = document.querySelector('#editVisitForm button[type="submit"]');
@@ -1285,12 +1291,12 @@ async function updateVisit(visitId, payload, submitBtn) {
             closeEditVisitModal();
             await loadVisits();
         } else {
-            alert('Erro ao salvar: ' + (data.error || 'Desconhecido'));
+            notifyLead('Erro ao salvar: ' + (data.error || 'Desconhecido'), 'error');
         }
     } catch (error) {
         if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Salvar alterações'; }
         console.error('Error updating visit:', error);
-        alert('Erro ao salvar visita.');
+        notifyLead('Erro ao salvar visita.', 'error');
     }
 }
 
@@ -1306,7 +1312,7 @@ function submitVisitForm(e) {
     const notes = document.getElementById('visitNotes').value.trim() || null;
     const sellerId = document.getElementById('visitAssignedSelect').value || null;
     if (!scheduledAt || !addressLine1 || !city) {
-        alert('Preencha data/hora, Address line 1 e City.');
+        notifyLead('Preencha data/hora, Address line 1 e City.', 'error');
         return false;
     }
     var btn = document.querySelector('#newVisitForm button[type="submit"]');
@@ -1339,12 +1345,12 @@ async function createVisit(payload, submitBtn) {
             await loadLead();
             switchTab('visits');
         } else {
-            alert('Erro ao agendar visita: ' + (data.error || 'Desconhecido'));
+            notifyLead('Erro ao agendar visita: ' + (data.error || 'Desconhecido'), 'error');
         }
     } catch (error) {
         if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Agendar visita'; }
         console.error('Error creating visit:', error);
-        alert('Erro ao agendar visita');
+        notifyLead('Erro ao agendar visita', 'error');
     }
 }
 
@@ -1368,10 +1374,10 @@ async function createInteraction(interaction) {
             await loadInteractions();
             switchTab('interactions');
         } else {
-            alert('Erro: ' + (data.error || 'Desconhecido'));
+            notifyLead('Erro: ' + (data.error || 'Desconhecido'), 'error');
         }
     } catch (error) {
         console.error('Error creating interaction:', error);
-        alert('Erro ao criar interação');
+        notifyLead('Erro ao criar interação', 'error');
     }
 }

@@ -2454,3 +2454,26 @@ input.score-auto {
 .dashboard-main .dashboard-content .btn:not(.quotes-filter-chip):active {
     transform: scale(0.98);
 }
+
+/* Tabelas CRM — hover e foco em todo o dashboard */
+.data-table tbody tr {
+    transition: background-color 0.12s ease;
+}
+
+.data-table tbody tr:hover {
+    background-color: rgba(26, 32, 54, 0.045);
+}
+
+.dashboard-app-body .btn:focus-visible,
+.dashboard-app-body .nav-item:focus-visible,
+.dashboard-app-body a.btn:focus-visible {
+    outline: 2px solid var(--secondary-color, #d6b598);
+    outline-offset: 2px;
+}
+
+.page-content input:focus-visible,
+.page-content select:focus-visible,
+.page-content textarea:focus-visible {
+    outline: 2px solid rgba(26, 32, 54, 0.25);
+    outline-offset: 1px;
+}

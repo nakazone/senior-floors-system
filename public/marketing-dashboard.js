@@ -203,7 +203,8 @@ async function submitAdSpend(e) {
   });
   const j = await r.json();
   if (!j.success) {
-    alert(j.error || 'Erro ao salvar');
+    if (typeof crmNotify === 'function') crmNotify(j.error || 'Erro ao salvar', 'error');
+    else alert(j.error || 'Erro ao salvar');
     return;
   }
   e.target.reset();

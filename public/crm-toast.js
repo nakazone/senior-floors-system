@@ -41,5 +41,18 @@
     });
   }
 
-  window.crmToast = { show };
+  /**
+   * Atalho global — usar em todo o CRM em vez de alert().
+   * @param {string} message
+   * @param {'success'|'error'|'info'} [type='info']
+   */
+  function notify(message, type) {
+    if (!message) return;
+    const t =
+      type === 'error' ? 'error' : type === 'success' ? 'success' : type === 'info' ? 'info' : 'info';
+    show(message, { type: t });
+  }
+
+  window.crmToast = { show, notify };
+  window.crmNotify = notify;
 })();

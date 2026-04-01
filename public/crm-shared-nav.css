@@ -138,3 +138,16 @@ body.crm-standalone-page .dashboard-main {
     margin-top: 0.25rem;
   }
 }
+
+/* —— UX global CRM (todas as páginas que carregam esta folha) —— */
+.crm-shared-nav__link:focus-visible,
+.crm-shared-nav__logout:focus-visible,
+.crm-shared-nav__brand:focus-visible {
+  outline: 2px solid #d6b598;
+  outline-offset: 2px;
+}
+
+/* Toques: feedback ligeiro em botões “tipo CRM” sem afetar inputs */
+button.crm-shared-nav__logout:active {
+  transform: scale(0.98);
+}

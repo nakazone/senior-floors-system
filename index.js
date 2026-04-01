@@ -76,6 +76,7 @@ import {
   googleCalendarOAuthCallback,
 } from './routes/googleCalendarIntegration.js';
 import { getProjectFinancial, updateProjectFinancial, listExpenses, createExpense, approveExpense, listPayrollEntries, createPayrollEntry, approvePayrollEntry, getFinancialDashboard } from './routes/financials.js';
+import * as constructionPayroll from './routes/constructionPayroll.js';
 import {
   getDBConnection,
   getMysqlConnectionTargetInfo,
@@ -361,6 +362,53 @@ app.get('/api/payroll', requireAuth, listPayrollEntries);
 app.post('/api/payroll', requireAuth, createPayrollEntry);
 app.put('/api/payroll/:id/approve', requireAuth, approvePayrollEntry);
 app.get('/api/financial/dashboard', requireAuth, getFinancialDashboard);
+
+// Construction payroll v2 (field employees + timesheets + periods)
+app.get(
+  '/api/construction-payroll/dashboard/summary',
+  requireAuth,
+  requirePermission('payroll.view'),
+  constructionPayroll.getPayrollDashboard
+);
+app.get('/api/construction-payroll/employees', requireAuth, requirePermission('payroll.view'), constructionPayroll.listEmployees);
+app.get('/api/construction-payroll/employees/:id', requireAuth, requirePermission('payroll.view'), constructionPayroll.getEmployee);
+app.post('/api/construction-payroll/employees', requireAuth, requirePermission('payroll.manage'), constructionPayroll.createEmployee);
+app.put('/api/construction-payroll/employees/:id', requireAuth, requirePermission('payroll.manage'), constructionPayroll.updateEmployee);
+
+app.get('/api/construction-payroll/periods', requireAuth, requirePermission('payroll.view'), constructionPayroll.listPeriods);
+app.post('/api/construction-payroll/periods', requireAuth, requirePermission('payroll.manage'), constructionPayroll.createPeriod);
+app.get('/api/construction-payroll/periods/:id/preview', requireAuth, requirePermission('payroll.view'), constructionPayroll.getPeriodPreview);
+app.post('/api/construction-payroll/periods/:id/close', requireAuth, requirePermission('payroll.manage'), constructionPayroll.closePeriod);
+app.get('/api/construction-payroll/periods/:periodId/timesheets', requireAuth, requirePermission('payroll.view'), constructionPayroll.listTimesheets);
+app.post(
+  '/api/construction-payroll/periods/:periodId/timesheets/bulk',
+  requireAuth,
+  requirePermission('payroll.manage'),
+  constructionPayroll.bulkTimesheets
+);
+app.put('/api/construction-payroll/timesheets/:id', requireAuth, requirePermission('payroll.manage'), constructionPayroll.updateTimesheet);
+app.delete('/api/construction-payroll/timesheets/:id', requireAuth, requirePermission('payroll.manage'), constructionPayroll.deleteTimesheet);
+app.get('/api/construction-payroll/periods/:id', requireAuth, requirePermission('payroll.view'), constructionPayroll.getPeriod);
+app.put('/api/construction-payroll/periods/:id', requireAuth, requirePermission('payroll.manage'), constructionPayroll.updatePeriod);
+
+app.get(
+  '/api/construction-payroll/reports/employee-earnings',
+  requireAuth,
+  requirePermission('payroll.view'),
+  constructionPayroll.reportEmployeeEarnings
+);
+app.get(
+  '/api/construction-payroll/reports/project-labor',
+  requireAuth,
+  requirePermission('payroll.view'),
+  constructionPayroll.reportProjectLabor
+);
+app.get(
+  '/api/construction-payroll/reports/total-expenses',
+  requireAuth,
+  requirePermission('payroll.view'),
+  constructionPayroll.reportTotalExpenses
+);
 
 // Permissions (matriz de módulos)
 app.get('/api/permissions', requireAuth, requirePermission('users.view'), listPermissionRegistry);

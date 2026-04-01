@@ -25,6 +25,7 @@
     { href: 'products-erp.html', label: 'Produtos ERP', perm: 'quotes.view' },
     { href: 'estimate-builder.html', label: 'Estimate', perm: 'quotes.view' },
     { href: 'estimate-analytics.html', label: 'Est. analytics', perm: 'quotes.view' },
+    { href: 'payroll-module.html', label: 'Payroll', perm: 'payroll.view' },
   ];
 
   function currentFile() {

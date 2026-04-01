@@ -396,7 +396,8 @@ async function createExpense(e) {
         
         const data = await response.json();
         if (data.success) {
-            alert('Expense created successfully!');
+            if (typeof crmNotify === 'function') crmNotify('Expense created successfully!', 'success');
+            else alert('Expense created successfully!');
             closeModal('newExpenseModal');
             form.reset();
             if (currentFinancialView === 'expenses') {
@@ -404,11 +405,13 @@ async function createExpense(e) {
             }
             loadFinancialDashboard();
         } else {
-            alert('Error creating expense: ' + (data.error || 'Unknown error'));
+            if (typeof crmNotify === 'function') crmNotify('Error creating expense: ' + (data.error || 'Unknown error'), 'error');
+            else alert('Error creating expense: ' + (data.error || 'Unknown error'));
         }
     } catch (error) {
         console.error('Error creating expense:', error);
-        alert('Error creating expense');
+        if (typeof crmNotify === 'function') crmNotify('Error creating expense', 'error');
+        else alert('Error creating expense');
     }
 }
 
@@ -424,15 +427,18 @@ async function approveExpense(expenseId) {
         
         const data = await response.json();
         if (data.success) {
-            alert('Expense approved!');
+            if (typeof crmNotify === 'function') crmNotify('Expense approved!', 'success');
+            else alert('Expense approved!');
             loadExpenses();
             loadFinancialDashboard();
         } else {
-            alert('Error approving expense: ' + (data.error || 'Unknown error'));
+            if (typeof crmNotify === 'function') crmNotify('Error approving expense: ' + (data.error || 'Unknown error'), 'error');
+            else alert('Error approving expense: ' + (data.error || 'Unknown error'));
         }
     } catch (error) {
         console.error('Error approving expense:', error);
-        alert('Error approving expense');
+        if (typeof crmNotify === 'function') crmNotify('Error approving expense', 'error');
+        else alert('Error approving expense');
     }
 }
 
@@ -463,7 +469,8 @@ async function createPayrollEntry(e) {
         
         const data = await response.json();
         if (data.success) {
-            alert('Payroll entry created successfully!');
+            if (typeof crmNotify === 'function') crmNotify('Payroll entry created successfully!', 'success');
+            else alert('Payroll entry created successfully!');
             closeModal('newPayrollModal');
             form.reset();
             if (currentFinancialView === 'payroll') {
@@ -471,11 +478,13 @@ async function createPayrollEntry(e) {
             }
             loadFinancialDashboard();
         } else {
-            alert('Error creating payroll entry: ' + (data.error || 'Unknown error'));
+            if (typeof crmNotify === 'function') crmNotify('Error creating payroll entry: ' + (data.error || 'Unknown error'), 'error');
+            else alert('Error creating payroll entry: ' + (data.error || 'Unknown error'));
         }
     } catch (error) {
         console.error('Error creating payroll entry:', error);
-        alert('Error creating payroll entry');
+        if (typeof crmNotify === 'function') crmNotify('Error creating payroll entry', 'error');
+        else alert('Error creating payroll entry');
     }
 }
 
@@ -491,15 +500,18 @@ async function approvePayrollEntry(entryId) {
         
         const data = await response.json();
         if (data.success) {
-            alert('Payroll entry approved!');
+            if (typeof crmNotify === 'function') crmNotify('Payroll entry approved!', 'success');
+            else alert('Payroll entry approved!');
             loadPayrollEntries();
             loadFinancialDashboard();
         } else {
-            alert('Error approving payroll entry: ' + (data.error || 'Unknown error'));
+            if (typeof crmNotify === 'function') crmNotify('Error approving payroll entry: ' + (data.error || 'Unknown error'), 'error');
+            else alert('Error approving payroll entry: ' + (data.error || 'Unknown error'));
         }
     } catch (error) {
         console.error('Error approving payroll entry:', error);
-        alert('Error approving payroll entry');
+        if (typeof crmNotify === 'function') crmNotify('Error approving payroll entry', 'error');
+        else alert('Error approving payroll entry');
     }
 }
 

@@ -56,7 +56,8 @@
             btn.textContent = 'Save';
           }, 1200);
         } catch (e) {
-          alert(e.message);
+          if (typeof crmNotify === 'function') crmNotify(e.message, 'error');
+          else alert(e.message);
         }
       });
     });

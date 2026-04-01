@@ -190,14 +190,17 @@ async function acceptEstimate() {
         const data = await response.json();
         
         if (data.success) {
-            alert('Estimate accepted! We will contact you soon.');
+            if (typeof crmNotify === 'function') crmNotify('Estimate accepted! We will contact you soon.', 'success');
+            else alert('Estimate accepted! We will contact you soon.');
             location.reload();
         } else {
-            alert('Error accepting estimate: ' + (data.error || 'Unknown error'));
+            if (typeof crmNotify === 'function') crmNotify('Error accepting estimate: ' + (data.error || 'Unknown error'), 'error');
+            else alert('Error accepting estimate: ' + (data.error || 'Unknown error'));
         }
     } catch (error) {
         console.error('Error accepting estimate:', error);
-        alert('Error accepting estimate');
+        if (typeof crmNotify === 'function') crmNotify('Error accepting estimate', 'error');
+        else alert('Error accepting estimate');
     }
 }
 
@@ -219,14 +222,17 @@ async function declineEstimate() {
         const data = await response.json();
         
         if (data.success) {
-            alert('Estimate declined. Thank you for your feedback.');
+            if (typeof crmNotify === 'function') crmNotify('Estimate declined. Thank you for your feedback.', 'info');
+            else alert('Estimate declined. Thank you for your feedback.');
             location.reload();
         } else {
-            alert('Error declining estimate: ' + (data.error || 'Unknown error'));
+            if (typeof crmNotify === 'function') crmNotify('Error declining estimate: ' + (data.error || 'Unknown error'), 'error');
+            else alert('Error declining estimate: ' + (data.error || 'Unknown error'));
         }
     } catch (error) {
         console.error('Error declining estimate:', error);
-        alert('Error declining estimate');
+        if (typeof crmNotify === 'function') crmNotify('Error declining estimate', 'error');
+        else alert('Error declining estimate');
     }
 }
 

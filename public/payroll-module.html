@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Construction payroll — Senior Floors CRM</title>
+  <link rel="icon" type="image/png" href="/assets/SeniorFloors.png" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="crm-shared-nav.css" />
+  <link rel="stylesheet" href="crm-toast.css" />
+  <style>
+    body { font-family: Inter, system-ui, sans-serif; }
+    .payroll-grid input, .payroll-grid select { min-width: 0; }
+    .payroll-grid thead th { position: sticky; top: 0; z-index: 1; background: #f8fafc; }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-900 min-h-screen">
+  <div id="crmSharedNavRoot"></div>
+
+  <main class="max-w-[1400px] mx-auto px-4 py-8 space-y-8">
+    <div class="flex flex-wrap items-start justify-between gap-4 border-b border-slate-200 pb-4">
+      <div>
+        <h1 class="text-xl font-bold text-slate-900">Construction payroll</h1>
+        <p class="text-sm text-slate-500 mt-1">Employees, periods, timesheet grid, and labor reports.</p>
+      </div>
+      <button type="button" id="btnReloadAll" class="px-4 py-2 rounded-lg bg-slate-100 text-sm font-medium">Refresh all</button>
+    </div>
+
+    <div id="migrateBanner" class="hidden rounded-xl border border-amber-300 bg-amber-50 text-amber-900 px-4 py-3 text-sm">
+      Payroll tables are not installed. Run <code class="bg-white/80 px-1 rounded">npm run migrate:construction-payroll</code> in <code class="bg-white/80 px-1 rounded">senior-floors-system</code>, then reload.
+    </div>
+    <p id="authMsg" class="text-red-600 text-sm hidden"></p>
+
+    <section class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div class="bg-white rounded-xl border shadow-sm p-4">
+        <p class="text-xs font-semibold text-slate-500 uppercase">Active employees</p>
+        <p id="dashActiveEmp" class="text-2xl font-bold text-slate-900 mt-1">—</p>
+      </div>
+      <div class="bg-white rounded-xl border shadow-sm p-4">
+        <p class="text-xs font-semibold text-slate-500 uppercase">Open periods</p>
+        <p id="dashOpenPeriods" class="text-2xl font-bold text-slate-900 mt-1">—</p>
+      </div>
+      <div class="bg-white rounded-xl border shadow-sm p-4">
+        <p class="text-xs font-semibold text-slate-500 uppercase">MTD payroll</p>
+        <p id="dashMtd" class="text-2xl font-bold text-[#1a2036] mt-1">—</p>
+      </div>
+      <div class="bg-white rounded-xl border shadow-sm p-4">
+        <p class="text-xs font-semibold text-slate-500 uppercase">Last closed period</p>
+        <p id="dashLastClosed" class="text-sm font-medium text-slate-800 mt-1 leading-snug">—</p>
+      </div>
+    </section>
+
+    <section class="bg-white rounded-xl border shadow-sm p-6 space-y-4">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <h2 class="text-sm font-bold text-slate-800">Employees</h2>
+        <button type="button" id="btnNewEmployee" class="hidden px-3 py-1.5 rounded-lg bg-[#1a2036] text-white text-sm font-semibold">+ Employee</button>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead class="bg-slate-50 text-left text-xs text-slate-500 uppercase">
+            <tr>
+              <th class="px-3 py-2">Name</th>
+              <th class="px-3 py-2">Role</th>
+              <th class="px-3 py-2">Type</th>
+              <th class="px-3 py-2 text-right">Daily</th>
+              <th class="px-3 py-2 text-right">Hourly</th>
+              <th class="px-3 py-2 text-right">OT</th>
+              <th class="px-3 py-2">Pay method</th>
+              <th class="px-3 py-2">Active</th>
+              <th class="px-3 py-2 text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="employeeTbody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="bg-white rounded-xl border shadow-sm p-6 space-y-4">
+      <div class="flex flex-wrap gap-4 items-end">
+        <div>
+          <label class="block text-xs font-semibold text-slate-500 mb-1">Payroll period</label>
+          <select id="periodSelect" class="border rounded-lg px-3 py-2 text-sm min-w-[240px]"></select>
+        </div>
+        <button type="button" id="btnNewPeriod" class="hidden px-3 py-2 rounded-lg bg-slate-100 text-sm font-medium">New period</button>
+        <button type="button" id="btnPreviewClose" class="hidden px-3 py-2 rounded-lg bg-amber-100 text-amber-950 text-sm font-medium">Preview &amp; close period</button>
+        <p id="periodMeta" class="text-xs text-slate-500 flex-1 min-w-[200px]"></p>
+      </div>
+
+      <p class="text-xs text-slate-500">
+        <strong>Daily</strong> uses Days + OT. <strong>Hourly</strong> uses Reg. hrs (or Days as hours if reg. is empty). <strong>Mixed</strong> = Days × daily + Reg. hrs × hourly + OT.
+      </p>
+      <div class="flex flex-wrap gap-2 items-center">
+        <span class="text-xs font-semibold text-slate-500">Period total:</span>
+        <span id="periodRunningTotal" class="text-sm font-bold text-slate-900">$0.00</span>
+        <span id="periodLockBadge" class="hidden text-xs font-bold px-2 py-0.5 rounded bg-slate-200 text-slate-700">Locked</span>
+      </div>
+
+      <div class="overflow-x-auto max-h-[480px] border rounded-lg payroll-grid">
+        <table class="w-full text-sm min-w-[1000px]">
+          <thead class="text-left text-xs text-slate-500 uppercase border-b">
+            <tr>
+              <th class="px-2 py-2 w-[120px]">Date</th>
+              <th class="px-2 py-2 min-w-[140px]">Employee</th>
+              <th class="px-2 py-2 min-w-[120px]">Project</th>
+              <th class="px-2 py-2 w-[72px]">Days</th>
+              <th class="px-2 py-2 w-[72px]">Reg. hrs</th>
+              <th class="px-2 py-2 w-[72px]">OT hrs</th>
+              <th class="px-2 py-2 min-w-[100px]">Notes</th>
+              <th class="px-2 py-2 w-[88px] text-right">Amount</th>
+              <th class="px-2 py-2 w-[140px]">Quick</th>
+            </tr>
+          </thead>
+          <tbody id="timesheetBody"></tbody>
+        </table>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <button type="button" id="btnAddTimesheetRow" class="hidden px-4 py-2 rounded-lg border border-slate-200 text-sm font-medium">Add row</button>
+        <button type="button" id="btnSaveTimesheet" class="hidden px-4 py-2 rounded-lg bg-[#d6b598] text-[#1a2036] text-sm font-bold">Save timesheet</button>
+        <button type="button" id="btnPreviewPayroll" class="px-4 py-2 rounded-lg bg-slate-100 text-sm font-medium">Preview payroll (this period)</button>
+      </div>
+    </section>
+
+    <section class="bg-white rounded-xl border shadow-sm p-6 space-y-4">
+      <h2 class="text-sm font-bold text-slate-800">Reports</h2>
+      <div class="flex flex-wrap gap-3 items-end">
+        <div>
+          <label class="block text-xs font-semibold text-slate-500 mb-1">From</label>
+          <input type="date" id="reportFrom" class="border rounded-lg px-3 py-2 text-sm" />
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-500 mb-1">To</label>
+          <input type="date" id="reportTo" class="border rounded-lg px-3 py-2 text-sm" />
+        </div>
+        <button type="button" id="btnReportEmployees" class="px-3 py-2 rounded-lg bg-slate-100 text-sm font-medium">Employee earnings</button>
+        <button type="button" id="btnReportProjects" class="px-3 py-2 rounded-lg bg-slate-100 text-sm font-medium">Project labor</button>
+        <button type="button" id="btnReportTotal" class="px-3 py-2 rounded-lg bg-slate-100 text-sm font-medium">Total expenses</button>
+      </div>
+      <div id="reportOut" class="overflow-x-auto text-sm"></div>
+    </section>
+  </main>
+
+  <!-- Employee modal -->
+  <div id="empModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-black/50">
+    <div class="bg-white rounded-xl shadow-xl max-w-lg w-full p-6 space-y-3 max-h-[90vh] overflow-y-auto">
+      <h2 id="empModalTitle" class="text-lg font-bold">Employee</h2>
+      <input type="hidden" id="empEditId" />
+      <div><label class="text-xs font-semibold text-slate-500">Name *</label><input id="empName" class="w-full border rounded-lg px-3 py-2 text-sm" /></div>
+      <div><label class="text-xs font-semibold text-slate-500">Role</label><input id="empRole" class="w-full border rounded-lg px-3 py-2 text-sm" /></div>
+      <div class="grid grid-cols-2 gap-3">
+        <div><label class="text-xs font-semibold text-slate-500">Phone</label><input id="empPhone" class="w-full border rounded-lg px-3 py-2 text-sm" /></div>
+        <div><label class="text-xs font-semibold text-slate-500">Email</label><input id="empEmail" type="email" class="w-full border rounded-lg px-3 py-2 text-sm" /></div>
+      </div>
+      <div>
+        <label class="text-xs font-semibold text-slate-500">Payment type</label>
+        <select id="empPayType" class="w-full border rounded-lg px-3 py-2 text-sm">
+          <option value="daily">Daily</option>
+          <option value="hourly">Hourly</option>
+          <option value="mixed">Mixed (days + hours)</option>
+        </select>
+      </div>
+      <div class="grid grid-cols-3 gap-3">
+        <div><label class="text-xs font-semibold text-slate-500">Daily rate</label><input id="empDaily" type="number" step="0.01" min="0" class="w-full border rounded-lg px-3 py-2 text-sm" /></div>
+        <div><label class="text-xs font-semibold text-slate-500">Hourly rate</label><input id="empHourly" type="number" step="0.01" min="0" class="w-full border rounded-lg px-3 py-2 text-sm" /></div>
+        <div><label class="text-xs font-semibold text-slate-500">Overtime rate</label><input id="empOt" type="number" step="0.01" min="0" class="w-full border rounded-lg px-3 py-2 text-sm" /></div>
+      </div>
+      <div><label class="text-xs font-semibold text-slate-500">Payment method</label><input id="empPayMethod" class="w-full border rounded-lg px-3 py-2 text-sm" placeholder="ACH, check, Zelle…" /></div>
+      <div id="empActiveWrap" class="hidden"><label class="inline-flex gap-2 text-sm"><input type="checkbox" id="empActive" checked /> Active</label></div>
+      <p id="empFormErr" class="text-red-600 text-sm hidden"></p>
+      <div class="flex justify-end gap-2">
+        <button type="button" id="empCancel" class="px-4 py-2 border rounded-lg text-sm">Cancel</button>
+        <button type="button" id="empSave" class="px-4 py-2 rounded-lg bg-[#1a2036] text-white text-sm font-bold">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Period modal -->
+  <div id="periodModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-black/50">
+    <div class="bg-white rounded-xl shadow-xl max-w-md w-full p-6 space-y-3">
+      <h2 class="text-lg font-bold">New payroll period</h2>
+      <div><label class="text-xs font-semibold text-slate-500">Name *</label><input id="perName" class="w-full border rounded-lg px-3 py-2 text-sm" placeholder="e.g. PP 2026-03-1" /></div>
+      <div>
+        <label class="text-xs font-semibold text-slate-500">Frequency</label>
+        <select id="perFreq" class="w-full border rounded-lg px-3 py-2 text-sm">
+          <option value="weekly">Weekly</option>
+          <option value="biweekly">Bi-weekly</option>
+          <option value="monthly">Monthly</option>
+        </select>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div><label class="text-xs font-semibold text-slate-500">Start</label><input type="date" id="perStart" class="w-full border rounded-lg px-3 py-2 text-sm" /></div>
+        <div><label class="text-xs font-semibold text-slate-500">End</label><input type="date" id="perEnd" class="w-full border rounded-lg px-3 py-2 text-sm" /></div>
+      </div>
+      <p id="perFormErr" class="text-red-600 text-sm hidden"></p>
+      <div class="flex justify-end gap-2">
+        <button type="button" id="perCancel" class="px-4 py-2 border rounded-lg text-sm">Cancel</button>
+        <button type="button" id="perSave" class="px-4 py-2 rounded-lg bg-[#1a2036] text-white text-sm font-bold">Create</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Preview modal (payroll summary / before close) -->
+  <div id="previewModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-black/50">
+    <div class="bg-white rounded-xl shadow-xl max-w-2xl w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+      <h2 id="previewTitle" class="text-lg font-bold">Payroll preview</h2>
+      <p id="previewSubtitle" class="text-sm text-slate-500"></p>
+      <div class="overflow-x-auto border rounded-lg">
+        <table class="w-full text-sm">
+          <thead class="bg-slate-50 text-left text-xs uppercase text-slate-500">
+            <tr>
+              <th class="px-3 py-2">Employee</th>
+              <th class="px-3 py-2 text-right">Lines</th>
+              <th class="px-3 py-2 text-right">Subtotal</th>
+            </tr>
+          </thead>
+          <tbody id="previewTbody"></tbody>
+          <tfoot>
+            <tr class="font-bold border-t">
+              <td class="px-3 py-2">Total</td>
+              <td class="px-3 py-2"></td>
+              <td class="px-3 py-2 text-right" id="previewGrand"></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      <div id="previewCloseActions" class="hidden flex justify-end gap-2">
+        <button type="button" id="previewCancelClose" class="px-4 py-2 border rounded-lg text-sm">Back</button>
+        <button type="button" id="previewConfirmClose" class="px-4 py-2 rounded-lg bg-amber-600 text-white text-sm font-bold">Confirm close period</button>
+      </div>
+      <div class="flex justify-end">
+        <button type="button" id="previewCloseOnly" class="px-4 py-2 border rounded-lg text-sm">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="crm-toast.js"></script>
+  <script src="crm-shared-nav.js"></script>
+  <script src="payroll-module.js?v=1"></script>
+</body>
+</html>

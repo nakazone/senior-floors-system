@@ -84,7 +84,8 @@
           load();
         } else {
           btn.disabled = false;
-          alert(jj.error || 'Could not approve.');
+          if (typeof crmNotify === 'function') crmNotify(jj.error || 'Could not approve.', 'error');
+          else alert(jj.error || 'Could not approve.');
         }
       });
     }

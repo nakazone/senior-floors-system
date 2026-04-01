@@ -37,7 +37,8 @@ async function loadProjectData(projectId) {
         }
     } catch (error) {
         console.error('Error loading project:', error);
-        alert('Error loading project data');
+        if (typeof crmNotify === 'function') crmNotify('Error loading project data', 'error');
+        else alert('Error loading project data');
     }
 }
 
@@ -218,7 +219,8 @@ function removeItem(index) {
 function editItem(index) {
     const item = estimateItems[index];
     if (item.is_auto_added) {
-        alert('Auto-added items cannot be edited. They will be regenerated when you change project settings.');
+        if (typeof crmNotify === 'function') crmNotify('Auto-added items cannot be edited. They will be regenerated when you change project settings.', 'info');
+        else alert('Auto-added items cannot be edited. They will be regenerated when you change project settings.');
         return;
     }
     
@@ -314,7 +316,8 @@ async function loadEstimate(estimateId) {
         }
     } catch (error) {
         console.error('Error loading estimate:', error);
-        alert('Error loading estimate');
+        if (typeof crmNotify === 'function') crmNotify('Error loading estimate', 'error');
+        else alert('Error loading estimate');
     }
 }
 
@@ -324,7 +327,8 @@ async function saveEstimate() {
     const estimateId = document.getElementById('estimateId').value;
     
     if (!projectId) {
-        alert('Please load or select a project first');
+        if (typeof crmNotify === 'function') crmNotify('Please load or select a project first', 'info');
+        else alert('Please load or select a project first');
         return;
     }
     
@@ -363,17 +367,20 @@ async function saveEstimate() {
         const data = await response.json();
         
         if (data.success) {
-            alert('Estimate saved successfully!');
+            if (typeof crmNotify === 'function') crmNotify('Estimate saved successfully!', 'success');
+            else alert('Estimate saved successfully!');
             if (!estimateId && data.data.id) {
                 document.getElementById('estimateId').value = data.data.id;
                 window.history.replaceState({}, '', `?estimate_id=${data.data.id}&project_id=${projectId}`);
             }
         } else {
-            alert('Error saving estimate: ' + (data.error || 'Unknown error'));
+            if (typeof crmNotify === 'function') crmNotify('Error saving estimate: ' + (data.error || 'Unknown error'), 'error');
+            else alert('Error saving estimate: ' + (data.error || 'Unknown error'));
         }
     } catch (error) {
         console.error('Error saving estimate:', error);
-        alert('Error saving estimate');
+        if (typeof crmNotify === 'function') crmNotify('Error saving estimate', 'error');
+        else alert('Error saving estimate');
     }
 }
 

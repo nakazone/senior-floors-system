@@ -476,12 +476,14 @@ async function updateLeadStage(leadId, stageId, stageSlug) {
         } else {
             // Revert on error
             loadKanbanBoard();
-            alert('Erro ao atualizar estágio: ' + (data.error || 'Desconhecido'));
+            if (typeof crmNotify === 'function') crmNotify('Erro ao atualizar estágio: ' + (data.error || 'Desconhecido'), 'error');
+            else alert('Erro ao atualizar estágio: ' + (data.error || 'Desconhecido'));
         }
     } catch (error) {
         console.error('Error updating lead stage:', error);
         loadKanbanBoard();
-        alert('Erro ao atualizar estágio');
+        if (typeof crmNotify === 'function') crmNotify('Erro ao atualizar estágio', 'error');
+        else alert('Erro ao atualizar estágio');
     }
 }
 
@@ -592,7 +594,8 @@ async function createLeadManual(e) {
         
         const data = await response.json();
         if (data.success) {
-            alert('Lead criado com sucesso!');
+            if (typeof crmNotify === 'function') crmNotify('Lead criado com sucesso!', 'success');
+            else alert('Lead criado com sucesso!');
             closeModal('newLeadModal');
             form.reset();
             if (currentView === 'kanban') {
@@ -601,11 +604,13 @@ async function createLeadManual(e) {
                 loadLeads();
             }
         } else {
-            alert('Erro ao criar lead: ' + (data.error || 'Desconhecido'));
+            if (typeof crmNotify === 'function') crmNotify('Erro ao criar lead: ' + (data.error || 'Desconhecido'), 'error');
+            else alert('Erro ao criar lead: ' + (data.error || 'Desconhecido'));
         }
     } catch (error) {
         console.error('Error creating lead:', error);
-        alert('Erro ao criar lead');
+        if (typeof crmNotify === 'function') crmNotify('Erro ao criar lead', 'error');
+        else alert('Erro ao criar lead');
     }
 }
 
@@ -635,7 +640,8 @@ async function assignLead(e) {
         
         const data = await response.json();
         if (data.success) {
-            alert('Lead designado com sucesso!');
+            if (typeof crmNotify === 'function') crmNotify('Lead designado com sucesso!', 'success');
+            else alert('Lead designado com sucesso!');
             closeModal('assignLeadModal');
             if (currentView === 'kanban') {
                 loadKanbanBoard();
@@ -643,11 +649,13 @@ async function assignLead(e) {
                 loadLeads();
             }
         } else {
-            alert('Erro ao designar lead: ' + (data.error || 'Desconhecido'));
+            if (typeof crmNotify === 'function') crmNotify('Erro ao designar lead: ' + (data.error || 'Desconhecido'), 'error');
+            else alert('Erro ao designar lead: ' + (data.error || 'Desconhecido'));
         }
     } catch (error) {
         console.error('Error assigning lead:', error);
-        alert('Erro ao designar lead');
+        if (typeof crmNotify === 'function') crmNotify('Erro ao designar lead', 'error');
+        else alert('Erro ao designar lead');
     }
 }
 
@@ -692,15 +700,18 @@ async function createFollowup(e) {
         
         const data = await response.json();
         if (data.success) {
-            alert('Follow-up criado com sucesso!');
+            if (typeof crmNotify === 'function') crmNotify('Follow-up criado com sucesso!', 'success');
+            else alert('Follow-up criado com sucesso!');
             closeModal('followupModal');
             form.reset();
         } else {
-            alert('Erro ao criar follow-up: ' + (data.error || 'Desconhecido'));
+            if (typeof crmNotify === 'function') crmNotify('Erro ao criar follow-up: ' + (data.error || 'Desconhecido'), 'error');
+            else alert('Erro ao criar follow-up: ' + (data.error || 'Desconhecido'));
         }
     } catch (error) {
         console.error('Error creating followup:', error);
-        alert('Erro ao criar follow-up');
+        if (typeof crmNotify === 'function') crmNotify('Erro ao criar follow-up', 'error');
+        else alert('Erro ao criar follow-up');
     }
 }
 

@@ -853,7 +853,8 @@ async function deleteLead(id) {
         const r = await fetch(`/api/leads/${id}`, { method: 'DELETE', credentials: 'include' });
         const d = await r.json().catch(() => ({}));
         if (!r.ok || !d.success) {
-            alert(d.error || 'Não foi possível excluir o lead.');
+            if (typeof crmNotify === 'function') crmNotify(d.error || 'Não foi possível excluir o lead.', 'error');
+            else alert(d.error || 'Não foi possível excluir o lead.');
             return;
         }
         if (currentPageName === 'leads' && typeof loadLeads === 'function') loadLeads();
@@ -862,7 +863,8 @@ async function deleteLead(id) {
             else if (typeof loadKanbanBoard === 'function') loadKanbanBoard();
         }
     } catch (e) {
-        alert('Erro de rede ao excluir.');
+        if (typeof crmNotify === 'function') crmNotify('Erro de rede ao excluir.', 'error');
+        else alert('Erro de rede ao excluir.');
     }
 }
 
@@ -1224,6 +1226,11 @@ function quoteStatusBadgeHtml(status) {
 }
 
 function crmToastSafe(msg, opts) {
+    const t = (opts && opts.type) || 'success';
+    if (typeof window.crmNotify === 'function') {
+        window.crmNotify(msg, t === 'error' ? 'error' : t === 'info' ? 'info' : 'success');
+        return;
+    }
     if (window.crmToast && typeof window.crmToast.show === 'function') {
         window.crmToast.show(msg, opts || {});
     } else {
@@ -1519,11 +1526,13 @@ function changePageProjects(delta) {
 }
 
 function viewProject(id) {
-    alert('View project ' + id + ' - Feature coming soon!');
+    if (typeof crmNotify === 'function') crmNotify('Ver projeto #' + id + ' — em breve.', 'info');
+    else alert('View project ' + id + ' - Feature coming soon!');
 }
 
 function showNewProjectModal() {
-    alert('New Project form - Coming soon!');
+    if (typeof crmNotify === 'function') crmNotify('Novo projeto — em breve.', 'info');
+    else alert('New Project form - Coming soon!');
 }
 
 // Visits/Schedule
@@ -1570,11 +1579,13 @@ function changePageVisits(delta) {
 }
 
 function viewVisit(id) {
-    alert('View visit ' + id + ' - Feature coming soon!');
+    if (typeof crmNotify === 'function') crmNotify('Ver visita #' + id + ' — em breve.', 'info');
+    else alert('View visit ' + id + ' - Feature coming soon!');
 }
 
 function showNewVisitModal() {
-    alert('New Visit form - Coming soon!');
+    if (typeof crmNotify === 'function') crmNotify('Nova visita — em breve.', 'info');
+    else alert('New Visit form - Coming soon!');
 }
 
 // Contracts/Financeiro
@@ -1622,11 +1633,13 @@ function changePageContracts(delta) {
 }
 
 function viewContract(id) {
-    alert('View contract ' + id + ' - Feature coming soon!');
+    if (typeof crmNotify === 'function') crmNotify('Ver contrato #' + id + ' — em breve.', 'info');
+    else alert('View contract ' + id + ' - Feature coming soon!');
 }
 
 function showNewContractModal() {
-    alert('New Contract form - Coming soon!');
+    if (typeof crmNotify === 'function') crmNotify('Novo contrato — em breve.', 'info');
+    else alert('New Contract form - Coming soon!');
 }
 
 // Activities
@@ -1672,11 +1685,13 @@ function changePageActivities(delta) {
 }
 
 function viewActivity(id) {
-    alert('View activity ' + id + ' - Feature coming soon!');
+    if (typeof crmNotify === 'function') crmNotify('Ver atividade #' + id + ' — em breve.', 'info');
+    else alert('View activity ' + id + ' - Feature coming soon!');
 }
 
 function showNewActivityModal() {
-    alert('New Activity form - Coming soon!');
+    if (typeof crmNotify === 'function') crmNotify('Nova atividade — em breve.', 'info');
+    else alert('New Activity form - Coming soon!');
 }
 
 // Users & permissões por módulo
@@ -1856,7 +1871,8 @@ async function openCrmUserModal(userId) {
             fetch(`/api/users/${userId}/permissions`, { credentials: 'include' }).then((r) => r.json()),
         ]);
         if (!ur.success || !ur.data) {
-            alert(ur.error || 'Erro ao carregar utilizador');
+            if (typeof crmNotify === 'function') crmNotify(ur.error || 'Erro ao carregar utilizador', 'error');
+            else alert(ur.error || 'Erro ao carregar utilizador');
             return;
         }
         const d = ur.data;
@@ -1900,12 +1916,14 @@ async function deactivateCrmUser(id) {
         const res = await fetch(`/api/users/${id}`, { method: 'DELETE', credentials: 'include' });
         const j = await res.json();
         if (!res.ok) {
-            alert(j.error || 'Falha ao desativar');
+            if (typeof crmNotify === 'function') crmNotify(j.error || 'Falha ao desativar', 'error');
+            else alert(j.error || 'Falha ao desativar');
             return;
         }
         loadUsers();
     } catch (e) {
-        alert(e.message || 'Erro de rede');
+        if (typeof crmNotify === 'function') crmNotify(e.message || 'Erro de rede', 'error');
+        else alert(e.message || 'Erro de rede');
     }
 }
 
