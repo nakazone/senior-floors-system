@@ -1,5 +1,9 @@
 -- Construction payroll v2: employees, periods, timesheet lines (Senior Floors CRM)
 -- Run via: node database/migrate-construction-payroll.js
+--
+-- Foreign keys are only between payroll tables. We do NOT reference users/projects here:
+-- hosts often differ (INT vs INT UNSIGNED, missing projects table, etc.) and that causes
+-- ER_CANNOT_ADD_FOREIGN. user_id, project_id, closed_by, created_by are validated in the API.
 
 SET NAMES utf8mb4;
 
@@ -14,14 +18,13 @@ CREATE TABLE IF NOT EXISTS `construction_payroll_employees` (
   `hourly_rate` decimal(12,2) NOT NULL DEFAULT 0.00,
   `overtime_rate` decimal(12,2) NOT NULL DEFAULT 0.00,
   `payment_method` varchar(64) DEFAULT NULL COMMENT 'check, ach, cash, zelle, etc.',
-  `user_id` int(11) DEFAULT NULL COMMENT 'optional link to CRM user',
+  `user_id` int(11) DEFAULT NULL COMMENT 'optional link to CRM users.id (no FK — type/host variance)',
   `is_active` tinyint(1) NOT NULL DEFAULT 1,
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `idx_active` (`is_active`),
-  KEY `idx_user_id` (`user_id`),
-  CONSTRAINT `fk_cpe_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
+  KEY `idx_user_id` (`user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `construction_payroll_periods` (
@@ -32,20 +35,20 @@ CREATE TABLE IF NOT EXISTS `construction_payroll_periods` (
   `end_date` date NOT NULL,
   `status` enum('open','closed') NOT NULL DEFAULT 'open',
   `closed_at` datetime DEFAULT NULL,
-  `closed_by` int(11) DEFAULT NULL,
+  `closed_by` int(11) DEFAULT NULL COMMENT 'users.id when closed (no FK)',
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `idx_dates` (`start_date`,`end_date`),
   KEY `idx_status` (`status`),
-  CONSTRAINT `fk_cpp_closed_by` FOREIGN KEY (`closed_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
+  KEY `idx_closed_by` (`closed_by`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `construction_payroll_timesheets` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `period_id` int(11) NOT NULL,
   `employee_id` int(11) NOT NULL,
-  `project_id` int(11) DEFAULT NULL,
+  `project_id` int(11) DEFAULT NULL COMMENT 'projects.id optional (no FK)',
   `project_id_norm` int(11) GENERATED ALWAYS AS (ifnull(`project_id`,0)) STORED,
   `work_date` date NOT NULL,
   `days_worked` decimal(5,2) NOT NULL DEFAULT 0.00 COMMENT '1 or 0.5 for daily; optional for hourly',
@@ -53,7 +56,7 @@ CREATE TABLE IF NOT EXISTS `construction_payroll_timesheets` (
   `overtime_hours` decimal(8,2) NOT NULL DEFAULT 0.00,
   `notes` text DEFAULT NULL,
   `calculated_amount` decimal(14,2) NOT NULL DEFAULT 0.00,
-  `created_by` int(11) DEFAULT NULL,
+  `created_by` int(11) DEFAULT NULL COMMENT 'users.id (no FK)',
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
@@ -62,8 +65,7 @@ CREATE TABLE IF NOT EXISTS `construction_payroll_timesheets` (
   KEY `idx_employee` (`employee_id`),
   KEY `idx_project` (`project_id`),
   KEY `idx_work_date` (`work_date`),
+  KEY `idx_created_by` (`created_by`),
   CONSTRAINT `fk_cpt_period` FOREIGN KEY (`period_id`) REFERENCES `construction_payroll_periods` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_cpt_employee` FOREIGN KEY (`employee_id`) REFERENCES `construction_payroll_employees` (`id`) ON DELETE RESTRICT,
-  CONSTRAINT `fk_cpt_project` FOREIGN KEY (`project_id`) REFERENCES `projects` (`id`) ON DELETE SET NULL,
-  CONSTRAINT `fk_cpt_created_by` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
+  CONSTRAINT `fk_cpt_employee` FOREIGN KEY (`employee_id`) REFERENCES `construction_payroll_employees` (`id`) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
