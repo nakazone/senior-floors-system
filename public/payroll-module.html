@@ -209,9 +209,18 @@
           <p id="periodMeta" class="text-xs text-slate-500 flex-1 min-w-[200px]"></p>
         </div>
 
-        <p class="text-xs text-slate-500">
-          <strong>Diária:</strong> dias + HE. <strong>Por hora:</strong> h. normais. <strong>Misto:</strong> dias + horas + HE. Botões <strong>±</strong> e <strong>+1h/+2h/+4h</strong> nas extras.
-        </p>
+        <div class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs text-slate-700 space-y-1.5">
+          <p class="font-semibold text-slate-800">Como lançar dias e horas extras</p>
+          <ol class="list-decimal list-inside space-y-1 text-slate-600">
+            <li>Escolha o <strong>período</strong> (se não existir, crie com «Novo período»).</li>
+            <li>Em cada linha: <strong>data</strong>, <strong>funcionário</strong>, opcionalmente <strong>projeto</strong>.</li>
+            <li>Preencha <strong>dias</strong> (ex.: 1 ou ½) e/ou <strong>h. normais</strong> e/ou <strong>horas extras</strong> — use os botões <strong>±</strong>, <strong>1d</strong>, <strong>½</strong>, <strong>+1h/+2h/+4h</strong> nas extras.</li>
+            <li>Clique <strong>Guardar quadro</strong> para gravar no servidor.</li>
+          </ol>
+          <p class="text-slate-500 pt-1 border-t border-slate-200">
+            <strong>Cálculo:</strong> tipo <em>diária</em> usa dias + HE; <em>por hora</em> usa h. normais (+ HE); <em>misto</em> combina dias, horas e HE. Defina valores de diária/hora/HE no cadastro do funcionário.
+          </p>
+        </div>
         <div class="flex flex-wrap gap-2 items-center">
           <span class="text-xs font-semibold text-slate-500">Total deste período:</span>
           <span id="periodRunningTotal" class="text-base font-bold text-slate-900">$0.00</span>
@@ -452,6 +461,6 @@
   </style>
   <script src="crm-toast.js"></script>
   <script src="crm-shared-nav.js"></script>
-  <script src="payroll-module.js?v=9"></script>
+  <script src="payroll-module.js?v=10"></script>
 </body>
 </html>

@@ -409,6 +409,10 @@ async function loadTimesheetsForPeriod() {
   else badge.classList.add('hidden');
 
   timesheetRows.forEach((row) => appendTimesheetRow(row));
+  const open = p?.status !== 'closed';
+  if (canManage && open && selectedPeriodId && timesheetRows.length === 0) {
+    appendTimesheetRow({ work_date: defaultWorkDate() });
+  }
   updatePeriodRunningTotalFromDom();
   refreshPeriodActions();
 }
@@ -428,22 +432,48 @@ function collectLinesFromGrid() {
     const days_worked = tr.querySelector('.ts-days').value;
     const regular_hours = tr.querySelector('.ts-reg').value;
     const overtime_hours = tr.querySelector('.ts-ot').value;
-    const notes = tr.querySelector('.ts-notes').value;
+    const notes = (tr.querySelector('.ts-notes').value || '').trim();
     const id = tr.dataset.lineId;
     if (!employee_id || !work_date) return;
+    const d = days_worked === '' ? 0 : Number(days_worked);
+    const r = regular_hours === '' ? 0 : Number(regular_hours);
+    const ot = overtime_hours === '' ? 0 : Number(overtime_hours);
+    /* Não gravar linha nova totalmente vazia (evita lixo na BD) */
+    if (!id && d === 0 && r === 0 && ot === 0 && !notes) return;
     const o = {
       employee_id: parseInt(employee_id, 10),
       project_id: projectSel ? parseInt(projectSel, 10) : null,
       work_date,
-      days_worked: days_worked === '' ? 0 : Number(days_worked),
-      regular_hours: regular_hours === '' ? 0 : Number(regular_hours),
-      overtime_hours: overtime_hours === '' ? 0 : Number(overtime_hours),
+      days_worked: d,
+      regular_hours: r,
+      overtime_hours: ot,
       notes: notes || null,
     };
     if (id) o.id = parseInt(id, 10);
     lines.push(o);
   });
   return lines;
+}
+
+/** Linhas com algum valor mas sem data ou funcionário — avisar antes de guardar */
+function timesheetGridValidationIssues() {
+  const issues = [];
+  let idx = 0;
+  document.querySelectorAll('#timesheetBody tr').forEach((tr) => {
+    idx += 1;
+    const work_date = tr.querySelector('.ts-date')?.value;
+    const employee_id = tr.querySelector('.ts-emp')?.value;
+    const d = Number(tr.querySelector('.ts-days')?.value) || 0;
+    const r = Number(tr.querySelector('.ts-reg')?.value) || 0;
+    const ot = Number(tr.querySelector('.ts-ot')?.value) || 0;
+    const notes = (tr.querySelector('.ts-notes')?.value || '').trim();
+    const hasNums = d > 0 || r > 0 || ot > 0;
+    if (hasNums || notes) {
+      if (!employee_id) issues.push(`Linha ${idx}: escolha o funcionário.`);
+      if (!work_date) issues.push(`Linha ${idx}: escolha a data do trabalho.`);
+    }
+  });
+  return issues;
 }
 
 function openEmployeeModal(editId) {
@@ -938,6 +968,11 @@ document.getElementById('btnAddTimesheetRow')?.addEventListener('click', () => {
 });
 document.getElementById('btnSaveTimesheet')?.addEventListener('click', async () => {
   if (!selectedPeriodId || !canManage) return;
+  const bad = timesheetGridValidationIssues();
+  if (bad.length) {
+    window.crmToast?.error?.(bad[0] + (bad.length > 1 ? ` (+${bad.length - 1})` : ''));
+    return;
+  }
   const lines = collectLinesFromGrid();
   try {
     await api('POST', `/periods/${selectedPeriodId}/timesheets/bulk`, { lines });
