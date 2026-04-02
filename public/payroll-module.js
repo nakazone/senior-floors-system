@@ -877,8 +877,9 @@ function initPayrollMobileNav() {
   const toggle = document.getElementById('mobileMenuToggle');
   if (!sidebar || !overlay || !toggle) return;
 
-  function isMobile() {
-    return window.innerWidth <= 768;
+  /** Mesmo breakpoint que o CSS (#payrollShellLayoutLock): gaveta até 1024px */
+  function isDrawerMode() {
+    return window.innerWidth <= 1024;
   }
 
   function setOpen(open) {
@@ -910,7 +911,7 @@ function initPayrollMobileNav() {
   function syncMobileHeaderAria() {
     const header = document.getElementById('mobileAppHeader');
     if (!header) return;
-    header.setAttribute('aria-hidden', isMobile() ? 'false' : 'true');
+    header.setAttribute('aria-hidden', isDrawerMode() ? 'false' : 'true');
   }
   syncMobileHeaderAria();
   window.addEventListener('resize', syncMobileHeaderAria);
