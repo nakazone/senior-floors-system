@@ -76,6 +76,7 @@ function setManageUi() {
     const el = document.getElementById(id);
     if (el) el.classList.toggle('hidden', !show);
   });
+  document.getElementById('quickEmpPanel')?.classList.toggle('hidden', !show);
   const hint = document.getElementById('empPermHint');
   if (hint) {
     const hasView = role === 'admin' || permissionKeys.includes('payroll.view');
@@ -134,7 +135,7 @@ async function loadDashboard() {
       ? `${lc.name} (${lc.end_date}) — ${money(lc.total)}`
       : '—';
   } catch (e) {
-    if (e.status === 403) showAuth('Access denied.');
+    if (e.status === 403) showAuth('Acesso negado.');
   }
 }
 
@@ -697,22 +698,39 @@ function initReportDates() {
   document.getElementById('reportTo').value = t.toISOString().slice(0, 10);
 }
 
-function renderReportTable(title, headers, rows) {
-  const out = document.getElementById('reportOut');
-  let html = `<h3 class="font-bold text-slate-800 mb-2">${escapeHtml(title)}</h3><table class="w-full text-sm border"><thead><tr>`;
+function buildReportTableFragment(title, headers, rows) {
+  let html = `<div class="rounded-xl border border-slate-200 overflow-hidden shadow-sm"><h3 class="font-bold text-slate-900 px-4 py-3 bg-slate-50 border-b text-sm">${escapeHtml(title)}</h3><div class="overflow-x-auto"><table class="w-full text-sm"><thead><tr>`;
   headers.forEach((h) => {
-    html += `<th class="px-2 py-2 text-left bg-slate-50 border-b">${escapeHtml(h)}</th>`;
+    html += `<th class="px-3 py-2 text-left text-xs uppercase text-slate-500 bg-white border-b border-slate-100">${escapeHtml(h)}</th>`;
   });
   html += '</tr></thead><tbody>';
   rows.forEach((cells) => {
-    html += '<tr class="border-t">';
+    html += '<tr class="border-t border-slate-100">';
     cells.forEach((c) => {
-      html += `<td class="px-2 py-2 border-t border-slate-100">${c}</td>`;
+      html += `<td class="px-3 py-2">${c}</td>`;
     });
     html += '</tr>';
   });
-  html += '</tbody></table>';
-  out.innerHTML = html;
+  html += '</tbody></table></div></div>';
+  return html;
+}
+
+function buildTotalReportFragment(d, from, to) {
+  const sheet = d.timesheet_total != null ? d.timesheet_total : d.total;
+  const reim = d.reimbursement_total != null ? d.reimbursement_total : 0;
+  const tot = d.total != null ? d.total : sheet + reim;
+  return `<div class="rounded-xl border-2 border-[#1a2036]/20 bg-[#1a2036] text-white overflow-hidden shadow-sm">
+    <h3 class="font-bold px-4 py-3 text-[#d6b598] text-xs uppercase tracking-wide">Resumo financeiro</h3>
+    <div class="px-4 pb-4">
+      <p class="text-2xl font-bold">${money(tot)}</p>
+      <p class="text-sm text-slate-300 mt-1">Folha: ${money(sheet)} · Reembolsos: ${money(reim)}</p>
+      <p class="text-xs text-slate-400 mt-2">${d.line_count} linhas no quadro · ${from} → ${to}</p>
+    </div>
+  </div>`;
+}
+
+function renderReportTable(title, headers, rows) {
+  document.getElementById('reportOut').innerHTML = buildReportTableFragment(title, headers, rows);
 }
 
 async function runReportEmployees() {
@@ -751,15 +769,105 @@ async function runReportTotal() {
   const to = document.getElementById('reportTo').value;
   if (!from || !to) return window.crmToast?.error?.('Defina as datas De / Até.');
   const j = await api('GET', `/reports/total-expenses?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
-  const d = j.data || {};
-  const sheet = d.timesheet_total != null ? d.timesheet_total : d.total;
-  const reim = d.reimbursement_total != null ? d.reimbursement_total : 0;
-  const tot = d.total != null ? d.total : sheet + reim;
-  document.getElementById('reportOut').innerHTML = `
-    <h3 class="font-bold text-slate-800 mb-2">Total (folha + reembolsos)</h3>
-    <p class="text-lg font-bold text-[#1a2036]">${money(tot)}</p>
-    <p class="text-sm text-slate-600">Folha: ${money(sheet)} · Reembolsos (períodos com fim no intervalo): ${money(reim)}</p>
-    <p class="text-sm text-slate-500">${d.line_count} linhas no quadro · ${from} → ${to}</p>`;
+  document.getElementById('reportOut').innerHTML = buildTotalReportFragment(j.data || {}, from, to);
+}
+
+async function runReportAll() {
+  const from = document.getElementById('reportFrom').value;
+  const to = document.getElementById('reportTo').value;
+  if (!from || !to) return window.crmToast?.error?.('Defina as datas De / Até.');
+  try {
+    const [jEmp, jProj, jTot] = await Promise.all([
+      api('GET', `/reports/employee-earnings?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
+      api('GET', `/reports/project-labor?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
+      api('GET', `/reports/total-expenses?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
+    ]);
+    const empRows = (jEmp.data || []).map((r) => [
+      escapeHtml(r.name),
+      escapeHtml(sectorLabel(r.sector)),
+      escapeHtml(r.role || '—'),
+      String(r.entries),
+      money(r.timesheet_earnings != null ? r.timesheet_earnings : r.total_earnings),
+      money(r.reimbursement_total != null ? r.reimbursement_total : 0),
+      money(r.total_earnings),
+    ]);
+    const projRows = (jProj.data || []).map((r) => [
+      r.project_id ? `#${r.project_id}` : '—',
+      escapeHtml(r.project_number || '—'),
+      String(r.entries),
+      money(r.labor_cost),
+    ]);
+    document.getElementById('reportOut').innerHTML = `
+      <p class="text-sm text-slate-600 font-medium">Período analisado: <strong>${from}</strong> → <strong>${to}</strong></p>
+      <div class="space-y-4 mt-3">
+        ${buildTotalReportFragment(jTot.data || {}, from, to)}
+        ${buildReportTableFragment('Por funcionário', ['Nome', 'Setor', 'Função', 'Linhas', 'Folha', 'Reemb.', 'Total'], empRows)}
+        ${buildReportTableFragment('Por projeto', ['ID', 'Número', 'Linhas', 'Custo'], projRows)}
+      </div>`;
+    window.crmToast?.success?.('Relatório completo gerado');
+  } catch (e) {
+    window.crmToast?.error?.(e.message);
+  }
+}
+
+async function quickSaveEmployee() {
+  const errEl = document.getElementById('empQuickErr');
+  errEl?.classList.add('hidden');
+  const name = document.getElementById('empQuickName')?.value.trim();
+  if (!name) {
+    if (errEl) {
+      errEl.textContent = 'Indique o nome do funcionário.';
+      errEl.classList.remove('hidden');
+    }
+    return;
+  }
+  const body = {
+    name,
+    sector: document.getElementById('empQuickSector')?.value || null,
+    payment_type: 'daily',
+    daily_rate: Number(document.getElementById('empQuickDaily')?.value) || 0,
+    hourly_rate: 0,
+    overtime_rate: 0,
+    role: null,
+    phone: null,
+    email: null,
+    payment_method: null,
+  };
+  try {
+    await api('POST', '/employees', body);
+    const qn = document.getElementById('empQuickName');
+    const qd = document.getElementById('empQuickDaily');
+    if (qn) qn.value = '';
+    if (qd) qd.value = '';
+    window.crmToast?.success?.('Funcionário adicionado — já pode lançar horas.');
+    await loadEmployees();
+    await loadTimesheetsForPeriod();
+    await loadDashboard();
+  } catch (e) {
+    if (errEl) {
+      errEl.textContent = e.message;
+      errEl.classList.remove('hidden');
+    }
+    window.crmToast?.error?.(e.message);
+  }
+}
+
+function initPayrollHubNav() {
+  const update = () => {
+    const hash = (window.location.hash || '#hub-resumo').replace('#', '');
+    document.querySelectorAll('.payroll-nav-btn').forEach((b) => {
+      const h = (b.getAttribute('href') || '').replace('#', '');
+      b.classList.toggle('payroll-nav-btn--active', h === hash);
+    });
+  };
+  window.addEventListener('hashchange', update);
+  document.querySelectorAll('.payroll-nav-btn').forEach((b) => {
+    b.addEventListener('click', () => setTimeout(update, 50));
+  });
+  if (!window.location.hash) {
+    window.history.replaceState(null, '', '#hub-resumo');
+  }
+  update();
 }
 
 async function reloadAll() {
@@ -809,18 +917,21 @@ document.getElementById('previewSaveAdjustments')?.addEventListener('click', asy
 });
 document.getElementById('previewConfirmClose')?.addEventListener('click', () => confirmClosePeriod());
 document.getElementById('btnNewEmployeeEmpty')?.addEventListener('click', () => openEmployeeModal(null));
+document.getElementById('btnReportAll')?.addEventListener('click', () => runReportAll());
 document.getElementById('btnReportEmployees')?.addEventListener('click', () => runReportEmployees().catch((e) => window.crmToast?.error?.(e.message)));
 document.getElementById('btnReportProjects')?.addEventListener('click', () => runReportProjects().catch((e) => window.crmToast?.error?.(e.message)));
 document.getElementById('btnReportTotal')?.addEventListener('click', () => runReportTotal().catch((e) => window.crmToast?.error?.(e.message)));
+document.getElementById('empQuickSave')?.addEventListener('click', () => quickSaveEmployee());
 
 (async function boot() {
   initReportDates();
+  initPayrollHubNav();
   const ok = await loadSession();
   if (!ok) return;
   try {
     await reloadAll();
   } catch (e) {
-    if (e.status === 403) showAuth('Access denied.');
+    if (e.status === 403) showAuth('Acesso negado.');
     else if (e.payload?.code === 'PAYROLL_SCHEMA_MISSING') {
       /* banner visible */
     } else window.crmToast?.error?.(e.message);
