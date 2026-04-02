@@ -79,7 +79,7 @@ function setManageUi() {
   document.getElementById('quickEmpPanel')?.classList.toggle('hidden', !show);
   const hint = document.getElementById('empPermHint');
   if (hint) {
-    const hasView = role === 'admin' || permissionKeys.includes('payroll.view');
+    const hasView = String(role || '').toLowerCase() === 'admin' || permissionKeys.includes('payroll.view');
     hint.classList.toggle('hidden', canManage || !hasView);
   }
   refreshPeriodActions();
@@ -112,8 +112,8 @@ async function loadSession() {
   }
   role = j.user?.role || '';
   permissionKeys = Array.isArray(j.user?.permissions) ? j.user.permissions : [];
-  const hasView = role === 'admin' || permissionKeys.includes('payroll.view');
-  canManage = role === 'admin' || permissionKeys.includes('payroll.manage');
+  const hasView = String(role || '').toLowerCase() === 'admin' || permissionKeys.includes('payroll.view');
+  canManage = String(role || '').toLowerCase() === 'admin' || permissionKeys.includes('payroll.manage');
   if (!hasView) {
     showAuth('Sem permissão payroll.view para ver esta página.');
     return false;

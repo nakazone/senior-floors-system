@@ -3,7 +3,7 @@
  */
 import bcrypt from 'bcryptjs';
 import { getDBConnection } from '../config/db.js';
-import { ROLE_DEFAULT_PERMISSION_KEYS } from '../lib/userPermissions.js';
+import { ROLE_DEFAULT_PERMISSION_KEYS, normalizeRoleForPermissions } from '../lib/userPermissions.js';
 
 /** Colunas seguras para listagem (sem password) — só as que existem na tabela */
 function buildUserSelectColumns(columnNames) {
@@ -42,7 +42,7 @@ async function replaceUserPermissions(pool, userId, permissionIds, grantedBy) {
 }
 
 async function seedDefaultPermissionsForRole(pool, userId, role, grantedBy) {
-  const keys = ROLE_DEFAULT_PERMISSION_KEYS[String(role || '').toLowerCase()];
+  const keys = ROLE_DEFAULT_PERMISSION_KEYS[normalizeRoleForPermissions(role)];
   if (!keys || !keys.length) return;
   const [rows] = await pool.query(
     `SELECT id FROM permissions WHERE permission_key IN (${keys.map(() => '?').join(',')})`,

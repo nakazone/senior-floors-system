@@ -56,7 +56,7 @@ export function requirePermission(permissionKey) {
     if (!req.session || !req.session.userId) {
       return res.status(401).json({ success: false, error: 'Authentication required' });
     }
-    if (req.session.userRole === 'admin') {
+    if (String(req.session.userRole || '').toLowerCase() === 'admin') {
       return next();
     }
     const keys = req.session.permissionKeys || [];
