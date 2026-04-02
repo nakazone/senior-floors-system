@@ -8,6 +8,27 @@
   flex-shrink: 0;
 }
 
+#crmSharedNavRoot[data-layout="sidebar"] {
+  position: static;
+  z-index: auto;
+}
+
+.crm-sidebar-nav-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  width: 100%;
+}
+
+.crm-sidebar-section-label {
+  margin: 0.65rem 0 0.25rem;
+  padding: 0.2rem var(--spacing-sm, 0.5rem) 0;
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: rgba(255, 255, 255, 0.45);
+}
+
 .crm-shared-nav {
   background: #1a2036;
   color: #fff;

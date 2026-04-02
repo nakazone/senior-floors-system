@@ -857,7 +857,8 @@ function initPayrollHubNav() {
     const hash = (window.location.hash || '#hub-resumo').replace('#', '');
     document.querySelectorAll('.payroll-nav-btn').forEach((b) => {
       const h = (b.getAttribute('href') || '').replace('#', '');
-      b.classList.toggle('payroll-nav-btn--active', h === hash);
+      const on = h === hash;
+      b.classList.toggle('active', on);
     });
   };
   window.addEventListener('hashchange', update);
@@ -868,6 +869,51 @@ function initPayrollHubNav() {
     window.history.replaceState(null, '', '#hub-resumo');
   }
   update();
+}
+
+function initPayrollMobileNav() {
+  const sidebar = document.getElementById('payrollSidebar');
+  const overlay = document.getElementById('mobileOverlay');
+  const toggle = document.getElementById('mobileMenuToggle');
+  if (!sidebar || !overlay || !toggle) return;
+
+  function isMobile() {
+    return window.innerWidth <= 768;
+  }
+
+  function setOpen(open) {
+    sidebar.classList.toggle('mobile-open', open);
+    overlay.classList.toggle('active', open);
+    toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+  }
+
+  toggle.addEventListener('click', () => {
+    setOpen(!sidebar.classList.contains('mobile-open'));
+  });
+  overlay.addEventListener('click', () => setOpen(false));
+  window.addEventListener('resize', () => {
+    if (!isMobile()) setOpen(false);
+  });
+
+  sidebar.addEventListener('click', (e) => {
+    const t = e.target.closest('a.nav-item');
+    if (t && isMobile()) setOpen(false);
+  });
+
+  document.getElementById('payrollSidebarLogout')?.addEventListener('click', async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+    } catch (_) {}
+    window.location.href = 'login.html';
+  });
+
+  function syncMobileHeaderAria() {
+    const header = document.getElementById('mobileAppHeader');
+    if (!header) return;
+    header.setAttribute('aria-hidden', isMobile() ? 'false' : 'true');
+  }
+  syncMobileHeaderAria();
+  window.addEventListener('resize', syncMobileHeaderAria);
 }
 
 async function reloadAll() {
@@ -925,6 +971,7 @@ document.getElementById('empQuickSave')?.addEventListener('click', () => quickSa
 
 (async function boot() {
   initReportDates();
+  initPayrollMobileNav();
   initPayrollHubNav();
   const ok = await loadSession();
   if (!ok) return;

@@ -70,6 +70,39 @@
     } catch (_) {}
 
     const keys = new Set(perms);
+    const file = currentFile();
+    const page = pageParam();
+
+    if (host.dataset.layout === 'sidebar') {
+      const stack = document.createElement('div');
+      stack.className = 'crm-sidebar-nav-stack';
+
+      MAIN_NAV.forEach((item) => {
+        if (!canSee(item.perm, role, keys)) return;
+        const a = document.createElement('a');
+        a.href = item.href;
+        a.className = 'nav-item' + (linkActive(item, file, page) ? ' active' : '');
+        a.textContent = item.label;
+        stack.appendChild(a);
+      });
+
+      const toolsLab = document.createElement('p');
+      toolsLab.className = 'crm-sidebar-section-label';
+      toolsLab.textContent = 'Ferramentas';
+      stack.appendChild(toolsLab);
+
+      TOOL_NAV.forEach((item) => {
+        if (!canSee(item.perm, role, keys)) return;
+        const a = document.createElement('a');
+        a.href = item.href;
+        a.className = 'nav-item' + (linkActive(item, file, page) ? ' active' : '');
+        a.textContent = item.label;
+        stack.appendChild(a);
+      });
+
+      host.appendChild(stack);
+      return;
+    }
 
     const nav = document.createElement('nav');
     nav.className = 'crm-shared-nav';
@@ -85,9 +118,6 @@
       '<img src="/assets/SeniorFloors.png" alt="" width="28" height="28" onerror="this.style.display=\'none\'" />';
     brand.appendChild(document.createTextNode(' CRM'));
     inner.appendChild(brand);
-
-    const file = currentFile();
-    const page = pageParam();
 
     MAIN_NAV.forEach((item) => {
       if (!canSee(item.perm, role, keys)) return;
