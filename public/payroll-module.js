@@ -77,10 +77,10 @@ function setManageUi() {
     if (el) el.classList.toggle('hidden', !show);
   });
   document.getElementById('quickEmpPanel')?.classList.toggle('hidden', !show);
-  const hint = document.getElementById('empPermHint');
-  if (hint) {
+  const readOnlyNote = document.getElementById('equipaReadOnlyNote');
+  if (readOnlyNote) {
     const hasView = String(role || '').toLowerCase() === 'admin' || permissionKeys.includes('payroll.view');
-    hint.classList.toggle('hidden', canManage || !hasView);
+    readOnlyNote.classList.toggle('hidden', canManage || !hasView);
   }
   refreshPeriodActions();
 }

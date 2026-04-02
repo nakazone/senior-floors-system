@@ -346,6 +346,11 @@ const dashboardSidebarEl = document.getElementById('dashboardSidebar');
 if (dashboardSidebarEl) {
     dashboardSidebarEl.querySelectorAll('.nav-item').forEach(item => {
         item.addEventListener('click', (e) => {
+            const href = (item.getAttribute('href') || '').trim();
+            /* Folha obra e outros links reais (.html) — não interceptar */
+            if (href && href !== '#' && !href.startsWith('#')) {
+                return;
+            }
             e.preventDefault();
             const page = item.dataset.page;
             if (page) showPage(page);

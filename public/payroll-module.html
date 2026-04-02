@@ -129,13 +129,15 @@
     <!-- 1 · Equipa -->
     <section id="hub-func" class="payroll-hub-section bg-white rounded-xl border shadow-sm overflow-hidden">
       <div class="bg-slate-50 border-b border-slate-200 px-4 py-3 flex flex-wrap items-center justify-between gap-2">
-        <h2 class="text-base font-bold text-slate-900">1 · Equipa</h2>
-        <button type="button" id="btnNewEmployee" class="hidden px-4 py-2 rounded-lg bg-[#1a2036] text-white text-sm font-bold">Formulário completo</button>
+        <div class="flex flex-col sm:flex-row sm:items-baseline sm:flex-wrap gap-1 sm:gap-3 min-w-0">
+          <h2 class="text-base font-bold text-slate-900">1 · Equipa</h2>
+          <p id="equipaReadOnlyNote" class="hidden text-xs text-slate-500 font-normal leading-snug">
+            Modo consulta: pode ver a equipa e valores. Para cadastrar ou editar, o administrador deve dar-lhe o papel <strong class="font-medium text-slate-600">Gestor de projeto</strong> ou a permissão <strong class="font-medium text-slate-600">payroll.manage</strong>.
+          </p>
+        </div>
+        <button type="button" id="btnNewEmployee" class="hidden px-4 py-2 rounded-lg bg-[#1a2036] text-white text-sm font-bold shrink-0">Formulário completo</button>
       </div>
       <div class="p-4 space-y-4">
-        <p id="empPermHint" class="hidden text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-          Para criar ou editar é necessária a permissão <strong>payroll.manage</strong>.
-        </p>
 
         <div id="quickEmpPanel" class="hidden rounded-xl border-2 border-[#d6b598]/50 bg-[#faf8f5] p-4 space-y-3">
           <p class="text-sm font-bold text-slate-800">Cadastro rápido <span class="font-normal text-slate-500">(por dia — pode editar depois)</span></p>
@@ -450,6 +452,6 @@
   </style>
   <script src="crm-toast.js"></script>
   <script src="crm-shared-nav.js"></script>
-  <script src="payroll-module.js?v=7"></script>
+  <script src="payroll-module.js?v=8"></script>
 </body>
 </html>
