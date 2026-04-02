@@ -205,6 +205,18 @@ export async function logout(req, res) {
 
 export async function checkSession(req, res) {
   if (req.session.userId) {
+    try {
+      const pool = await getDBConnection();
+      if (pool) {
+        req.session.permissionKeys = await resolvePermissionKeysForUser(
+          pool,
+          sessionSafeUserId(req.session.userId),
+          req.session.userRole
+        );
+      }
+    } catch (_) {
+      /* mantém permissionKeys já na sessão */
+    }
     res.json({
       success: true,
       authenticated: true,

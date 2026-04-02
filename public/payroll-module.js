@@ -463,7 +463,8 @@ function openEmployeeModal(editId) {
     document.getElementById('empHourly').value = e.hourly_rate ?? '';
     document.getElementById('empOt').value = e.overtime_rate ?? '';
     document.getElementById('empPayMethod').value = e.payment_method || '';
-    document.getElementById('empSector').value = e.sector || '';
+    const secEl = document.getElementById('empSector');
+    if (secEl) secEl.value = e.sector || '';
     document.getElementById('empActive').checked = !!e.is_active;
   } else {
     ['empName', 'empRole', 'empPhone', 'empEmail', 'empPayMethod'].forEach((id) => {
@@ -473,7 +474,8 @@ function openEmployeeModal(editId) {
     document.getElementById('empDaily').value = '0';
     document.getElementById('empHourly').value = '0';
     document.getElementById('empOt').value = '0';
-    document.getElementById('empSector').value = '';
+    const secElNew = document.getElementById('empSector');
+    if (secElNew) secElNew.value = '';
   }
   m.classList.remove('hidden');
   m.classList.add('flex');
@@ -499,7 +501,7 @@ async function saveEmployee() {
     hourly_rate: Number(document.getElementById('empHourly').value) || 0,
     overtime_rate: Number(document.getElementById('empOt').value) || 0,
     payment_method: document.getElementById('empPayMethod').value.trim() || null,
-    sector: document.getElementById('empSector').value || null,
+    sector: document.getElementById('empSector')?.value || null,
   };
   if (editId) {
     body.is_active = document.getElementById('empActive').checked;
@@ -521,8 +523,17 @@ async function saveEmployee() {
     await loadEmployees();
     await loadTimesheetsForPeriod();
   } catch (e) {
-    err.textContent = e.message;
+    let msg = e.message || 'Erro ao guardar.';
+    if (e.status === 403) {
+      msg =
+        'Sem permissão para criar/editar funcionários (payroll.manage). Atualize a página; se continuar, peça ao administrador para lhe conceder payroll.manage na matriz de permissões.';
+    }
+    if (e.status === 503 && e.payload?.code === 'PAYROLL_SCHEMA_MISSING') {
+      msg = 'Tabelas de folha não instaladas no servidor. Execute as migrações MySQL (construction-payroll + payroll-sector-reimbursement).';
+    }
+    err.textContent = msg;
     err.classList.remove('hidden');
+    window.crmToast?.error?.(msg);
   }
 }
 
