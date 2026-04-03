@@ -215,13 +215,25 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-/** Railway healthcheck: não passar pela loja de sessões MySQL (evita bloqueio se a BD ainda não responde). */
-function isRailwayLivenessProbe(req) {
-  return req.method === 'GET' && (req.path === '/api/health' || req.path === '/api/health/');
+/**
+ * Rotas de diagnóstico sem sessão MySQL — assim consegue abrir /api/health/db mesmo quando
+ * express-mysql-session falha (mesmo sintoma que o 503 "base de dados").
+ */
+function skipsMysqlSessionMiddleware(req) {
+  if (req.method !== 'GET') return false;
+  const p = req.path || '';
+  return (
+    p === '/api/health' ||
+    p === '/api/health/' ||
+    p === '/api/health/db' ||
+    p === '/api/health/db/' ||
+    p === '/api/health/email' ||
+    p === '/api/health/email/'
+  );
 }
 
 app.use((req, res, next) => {
-  if (isRailwayLivenessProbe(req)) return next();
+  if (skipsMysqlSessionMiddleware(req)) return next();
   return sessionMiddleware(req, res, next);
 });
 
@@ -240,7 +252,7 @@ app.use(
 
 function shouldSkipGeneralApiRateLimit(req) {
   if (!req.path.startsWith('/api')) return true;
-  if (req.method === 'GET' && req.path === '/api/health') return true;
+  if (req.method === 'GET' && skipsMysqlSessionMiddleware(req)) return true;
   if (req.method === 'POST' && req.path === '/api/auth/login') return true;
   if (
     req.method === 'POST' &&
