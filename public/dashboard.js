@@ -923,7 +923,8 @@ function renderSfMobileDashboardBlocks() {
         greetingEl.style.color = 'var(--sf-text-accent, #c8a96e)';
     }
 
-    const rm = formatDashboardCurrency(fin.revenue_month);
+    const openVal = formatDashboardCurrency(pl.proposals_open_value);
+    const closedVal = formatDashboardCurrency(pl.closed_won_value);
     const kpiGrid = document.getElementById('sfMobileKpiGrid');
     if (kpiGrid) {
         kpiGrid.innerHTML = `
@@ -932,12 +933,14 @@ function renderSfMobileDashboardBlocks() {
                 <div class="sf-kpi-card__label">Leads (período)</div>
             </div>
             <div class="sf-kpi-card touchable">
-                <div class="sf-kpi-card__value">${rm}</div>
-                <div class="sf-kpi-card__label">Receita mês</div>
+                <div class="sf-kpi-card__value">${openVal}</div>
+                <div class="sf-kpi-card__label">Em aberto</div>
+                <div class="sf-kpi-card__meta">${pl.proposals_open_count || 0} orç./prop.</div>
             </div>
             <div class="sf-kpi-card touchable">
-                <div class="sf-kpi-card__value">${pl.closed_won_count}</div>
-                <div class="sf-kpi-card__label">Fechamentos</div>
+                <div class="sf-kpi-card__value">${closedVal}</div>
+                <div class="sf-kpi-card__label">Fechado (valor)</div>
+                <div class="sf-kpi-card__meta">${pl.closed_won_count || 0} leads won · ${d.period === 'today' ? 'hoje' : d.period === 'week' ? '7 dias' : 'mês'}</div>
             </div>
             <div class="sf-kpi-card touchable">
                 <div class="sf-kpi-card__value">${formatDashboardPercent(conv.proposal_win_rate)}</div>

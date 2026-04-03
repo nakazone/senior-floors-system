@@ -7,6 +7,22 @@ import { isNoSuchTableError } from '../lib/mysqlSchemaErrors.js';
 
 const PERIODS = new Set(['today', 'week', 'month']);
 
+/** Valor monetário do quote: total_amount; se 0 ou ausente, subtotal + tax (fluxos legados / PDF). */
+function quoteEffectiveAmountExpr(alias = 'q') {
+  const a = alias;
+  return `(CASE WHEN ${a}.total_amount IS NOT NULL AND ${a}.total_amount > 0 THEN ${a}.total_amount
+           ELSE COALESCE(${a}.subtotal, 0) + COALESCE(${a}.tax_total, 0) END)`;
+}
+
+/** Número finito a partir de string/BigInt/Decimal do mysql2. */
+function toFiniteNumber(v) {
+  if (v == null) return 0;
+  if (typeof v === 'number' && Number.isFinite(v)) return v;
+  if (typeof v === 'bigint') return Number(v);
+  const n = parseFloat(String(v).replace(/,/g, ''));
+  return Number.isFinite(n) ? n : 0;
+}
+
 /** Condições SQL para coluna de timestamp `col` dentro do período */
 function periodPredicate(col, period) {
   if (period === 'today') {
@@ -126,7 +142,8 @@ export async function getDashboardStats(req, res) {
         pool,
         `SELECT
            (SELECT COUNT(*) FROM proposals pr WHERE pr.status = 'sent' AND ${pProposalsSent})
-         + (SELECT COUNT(*) FROM quotes q WHERE q.status IN ('sent', 'viewed') AND ${pQuotesSent})
+         + (SELECT COUNT(*) FROM quotes q
+              WHERE LOWER(TRIM(q.status)) IN ('sent', 'viewed') AND ${pQuotesSent})
          AS c`,
         [{ c: 0 }]
       ),
@@ -134,12 +151,13 @@ export async function getDashboardStats(req, res) {
         pool,
         `SELECT
            (SELECT COUNT(*) FROM proposals pr WHERE pr.status IN ('sent', 'draft', 'viewed', 'created'))
-         + (SELECT COUNT(*) FROM quotes q WHERE q.status IN ('sent', 'draft', 'viewed', 'created'))
+         + (SELECT COUNT(*) FROM quotes q
+              WHERE LOWER(TRIM(q.status)) IN ('sent', 'draft', 'viewed', 'created'))
          AS cnt,
            COALESCE((SELECT SUM(pr.total_value) FROM proposals pr
                      WHERE pr.status IN ('sent', 'draft', 'viewed', 'created')), 0)
-         + COALESCE((SELECT SUM(q.total_amount) FROM quotes q
-                     WHERE q.status IN ('sent', 'draft', 'viewed', 'created')), 0)
+         + COALESCE((SELECT SUM(${quoteEffectiveAmountExpr('q')}) FROM quotes q
+                     WHERE LOWER(TRIM(q.status)) IN ('sent', 'draft', 'viewed', 'created')), 0)
          AS val`,
         [{ cnt: 0, val: 0 }]
       ),
@@ -156,8 +174,8 @@ export async function getDashboardStats(req, res) {
         `SELECT
            COALESCE((SELECT SUM(pr.total_value) FROM proposals pr
                      WHERE pr.status = 'accepted' AND ${pProposalsAccepted}), 0)
-         + COALESCE((SELECT SUM(q.total_amount) FROM quotes q
-                     WHERE q.status IN ('approved', 'accepted') AND ${pQuotesApproved}), 0)
+         + COALESCE((SELECT SUM(${quoteEffectiveAmountExpr('q')}) FROM quotes q
+                     WHERE LOWER(TRIM(q.status)) IN ('approved', 'accepted') AND ${pQuotesApproved}), 0)
          AS s`,
         [{ s: 0 }]
       ),
@@ -220,8 +238,8 @@ export async function getDashboardStats(req, res) {
            SELECT pr.total_value AS v FROM proposals pr
            WHERE pr.status = 'accepted' AND ${pProposalsAccepted}
            UNION ALL
-           SELECT q.total_amount AS v FROM quotes q
-           WHERE q.status IN ('approved', 'accepted') AND ${pQuotesApproved}
+           SELECT ${quoteEffectiveAmountExpr('q')} AS v FROM quotes q
+           WHERE LOWER(TRIM(q.status)) IN ('approved', 'accepted') AND ${pQuotesApproved}
          ) u`,
         [{ a: 0 }]
       ),
@@ -242,14 +260,14 @@ export async function getDashboardStats(req, res) {
               INNER JOIN pipeline_stages ps2 ON ps2.id = l2.pipeline_stage_id
               WHERE ps2.slug = 'negotiation'
                 AND pr2.status IN ('draft', 'sent', 'viewed', 'created'))
-         + (SELECT COALESCE(SUM(q1.total_amount), 0) FROM quotes q1
-              WHERE q1.status IN ('approved', 'accepted'))
-         + (SELECT COALESCE(SUM(q2.total_amount), 0)
+         + (SELECT COALESCE(SUM(${quoteEffectiveAmountExpr('q1')}), 0) FROM quotes q1
+              WHERE LOWER(TRIM(q1.status)) IN ('approved', 'accepted'))
+         + (SELECT COALESCE(SUM(${quoteEffectiveAmountExpr('q2')}), 0)
               FROM quotes q2
               INNER JOIN leads lq ON lq.id = q2.lead_id
               INNER JOIN pipeline_stages psq ON psq.id = lq.pipeline_stage_id
               WHERE psq.slug = 'negotiation'
-                AND q2.status IN ('draft', 'sent', 'viewed', 'created')) AS s`,
+                AND LOWER(TRIM(q2.status)) IN ('draft', 'sent', 'viewed', 'created')) AS s`,
         [{ s: 0 }]
       ),
       safeQuery(
@@ -279,7 +297,7 @@ export async function getDashboardStats(req, res) {
            SELECT lead_id, MAX(v) AS tv FROM (
              SELECT lead_id, total_value AS v FROM proposals WHERE lead_id IS NOT NULL
              UNION ALL
-             SELECT lead_id, total_amount AS v FROM quotes WHERE lead_id IS NOT NULL
+             SELECT lead_id, ${quoteEffectiveAmountExpr('quotes')} AS v FROM quotes WHERE lead_id IS NOT NULL
            ) z GROUP BY lead_id
          ) px ON px.lead_id = l.id
          GROUP BY ps.id, ps.name, ps.slug, ps.order_num
@@ -359,10 +377,10 @@ export async function getDashboardStats(req, res) {
     const vt = Number(firstRow(visitsToday).c) || 0;
     const psent = Number(firstRow(proposalsSent).c) || 0;
     const po = firstRow(proposalsOpen);
-    const proposalsOpenCount = Number(po.cnt) || 0;
-    const proposalsOpenValue = parseFloat(po.val) || 0;
+    const proposalsOpenCount = toFiniteNumber(po.cnt);
+    const proposalsOpenValue = toFiniteNumber(po.val);
     const cwc = Number(firstRow(closedWon).c) || 0;
-    const cwv = parseFloat(firstRow(closedWonValue).s) || 0;
+    const cwv = toFiniteNumber(firstRow(closedWonValue).s);
     const clc = Number(firstRow(closedLost).c) || 0;
     const iprod = Number(firstRow(inProduction).c) || 0;
 
@@ -378,13 +396,13 @@ export async function getDashboardStats(req, res) {
     const denWin = Number(firstRow(propWinDen).c) || 0;
     const proposalWin = denWin > 0 ? Math.round((numAcc / denWin) * 1000) / 10 : 0;
 
-    const avgDealVal = parseFloat(firstRow(avgDeal).a) || 0;
+    const avgDealVal = toFiniteNumber(firstRow(avgDeal).a);
 
-    const revM = parseFloat(firstRow(revenueMonth).s) || 0;
-    const revP = parseFloat(firstRow(revenueProjected).s) || 0;
-    const expM = parseFloat(firstRow(expensesMonth).s) || 0;
+    const revM = toFiniteNumber(firstRow(revenueMonth).s);
+    const revP = toFiniteNumber(firstRow(revenueProjected).s);
+    const expM = toFiniteNumber(firstRow(expensesMonth).s);
     const profitM = Math.round((revM - expM) * 100) / 100;
-    const avgMarg = Math.round((parseFloat(firstRow(avgMargin).a) || 0) * 10) / 10;
+    const avgMarg = Math.round(toFiniteNumber(firstRow(avgMargin).a) * 10) / 10;
 
     const alerts = [];
     if (cp > 0) {
@@ -428,7 +446,7 @@ export async function getDashboardStats(req, res) {
       stage_name: row.stage_name,
       slug: row.slug,
       count: Number(row.cnt) || 0,
-      value: Math.round((parseFloat(row.stage_value) || 0) * 100) / 100,
+      value: Math.round(toFiniteNumber(row.stage_value) * 100) / 100,
     }));
 
     const now = Date.now();
