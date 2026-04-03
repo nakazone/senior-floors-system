@@ -14,6 +14,13 @@ function isRailwayInternalHost(host) {
   return typeof host === 'string' && /\.railway\.internal$/i.test(host.trim());
 }
 
+function isLocalMysqlHost(host) {
+  const h = String(host || '')
+    .trim()
+    .toLowerCase();
+  return h === '127.0.0.1' || h === 'localhost' || h === '::1';
+}
+
 /**
  * Variáveis que o Railway injeta no container em execução — não confiar em RAILWAY_PROJECT_ID /
  * RAILWAY_ENVIRONMENT no .env local (copiadas do painel e dão falso "estou na Railway").
@@ -39,13 +46,22 @@ function resolveMysqlConfigForMigrate() {
     if (pubUrl) {
       const pub = parseDatabaseUrl(pubUrl);
       if (pub && pub.user && pub.database && !isRailwayInternalHost(pub.host)) {
-        console.warn(
-          '[migrate] Host interno Railway; a usar DATABASE_PUBLIC_URL (ligação a partir desta máquina).'
-        );
-        let c = { ...pub };
-        const h = (c.host || '').trim();
-        if (h === 'localhost' || h === '::1') c = { ...c, host: '127.0.0.1' };
-        return { cfg: c };
+        if (isLocalMysqlHost(pub.host)) {
+          console.error(
+            '[migrate] DATABASE_PUBLIC_URL aponta para localhost — isso não liga à MySQL da Railway no seu Mac.'
+          );
+          console.error(
+            '  Railway → serviço MySQL → Connect → copie a URL "Public network" (host tipo *.proxy.rlwy.net, não localhost).'
+          );
+          if (!isLikelyInsideRailwayContainer()) {
+            return { cfg, internalOnly: true, internalHost: cfg.host };
+          }
+        } else {
+          console.warn(
+            '[migrate] Host interno Railway; a usar DATABASE_PUBLIC_URL (ligação a partir desta máquina).'
+          );
+          return { cfg: { ...pub } };
+        }
       }
     }
     if (!isLikelyInsideRailwayContainer()) {
@@ -108,9 +124,17 @@ async function main() {
   } catch (e) {
     if (e?.code === 'ECONNREFUSED') {
       console.error('[migrate] Ligação recusada em', `${cfg.host}:${cfg.port || 3306}`);
-      console.error('  • MySQL local a correr? (Docker / Homebrew) Ou use host remoto no .env.');
-      console.error('  • Se DB_HOST=localhost, o script já usa 127.0.0.1; confirme que o servidor escuta na porta 3306.');
-      console.error('  • Para migrar a BD da Railway a partir do Mac: railway run npm run migrate:marketing-complete');
+      if (isLocalMysqlHost(cfg.host)) {
+        console.error('  Está a apontar para MySQL na sua máquina, mas nada está a escutar na porta 3306.');
+        console.error('  Se a base de dados está na Railway:');
+        console.error('  • Não use DB_HOST=localhost nem DATABASE_PUBLIC_URL com host localhost.');
+        console.error('  • Use o hostname público do MySQL (ex. *.proxy.rlwy.net) em DATABASE_PUBLIC_URL ou DB_HOST.');
+        console.error('  • Ou corra: railway run -s senior-floors-system npm run migrate:marketing-complete');
+      } else {
+        console.error('  • Confirme firewall / IP permitido no painel MySQL e porta', cfg.port || 3306);
+        console.error('  • railway run -s senior-floors-system npm run migrate:marketing-complete');
+      }
+      process.exit(1);
     }
     if (e?.code === 'ENOTFOUND' && isRailwayInternalHost(cfg.host)) {
       printRailwayInternalHelp(cfg.host);
