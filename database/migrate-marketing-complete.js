@@ -14,33 +14,45 @@ function isRailwayInternalHost(host) {
   return typeof host === 'string' && /\.railway\.internal$/i.test(host.trim());
 }
 
-function isRailwayRuntime() {
-  return Boolean(process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_PROJECT_ID);
+/**
+ * Variáveis que o Railway injeta no container em execução — não confiar em RAILWAY_PROJECT_ID /
+ * RAILWAY_ENVIRONMENT no .env local (copiadas do painel e dão falso "estou na Railway").
+ */
+function isLikelyInsideRailwayContainer() {
+  return Boolean(
+    process.env.RAILWAY_REPLICA_ID ||
+      process.env.RAILWAY_DEPLOYMENT_ID ||
+      String(process.env.RAILWAY || '').toLowerCase() === 'true'
+  );
 }
 
 /**
- * No Mac: DATABASE_URL com mysql.railway.internal não resolve. Usar DATABASE_PUBLIC_URL se existir.
+ * Host *.railway.internal só resolve dentro da rede Railway.
+ * Fora do container: obrigatório DATABASE_PUBLIC_URL (URL pública) ou railway run.
  */
 function resolveMysqlConfigForMigrate() {
   let cfg = getMysqlConnectionConfig();
   if (!cfg) return { cfg: null };
-  if (isRailwayRuntime() || !isRailwayInternalHost(cfg.host)) {
-    return { cfg };
-  }
-  const pubUrl = process.env.DATABASE_PUBLIC_URL?.trim();
-  if (pubUrl) {
-    const pub = parseDatabaseUrl(pubUrl);
-    if (pub && pub.user && pub.database && !isRailwayInternalHost(pub.host)) {
-      console.warn(
-        '[migrate] Host interno Railway detetado; a usar DATABASE_PUBLIC_URL para ligação a partir desta máquina.'
-      );
-      let c = { ...pub };
-      const h = (c.host || '').trim();
-      if (h === 'localhost' || h === '::1') c = { ...c, host: '127.0.0.1' };
-      return { cfg: c };
+
+  if (isRailwayInternalHost(cfg.host)) {
+    const pubUrl = process.env.DATABASE_PUBLIC_URL?.trim();
+    if (pubUrl) {
+      const pub = parseDatabaseUrl(pubUrl);
+      if (pub && pub.user && pub.database && !isRailwayInternalHost(pub.host)) {
+        console.warn(
+          '[migrate] Host interno Railway; a usar DATABASE_PUBLIC_URL (ligação a partir desta máquina).'
+        );
+        let c = { ...pub };
+        const h = (c.host || '').trim();
+        if (h === 'localhost' || h === '::1') c = { ...c, host: '127.0.0.1' };
+        return { cfg: c };
+      }
+    }
+    if (!isLikelyInsideRailwayContainer()) {
+      return { cfg, internalOnly: true, internalHost: cfg.host };
     }
   }
-  return { cfg, internalOnly: true, internalHost: cfg.host };
+  return { cfg };
 }
 
 async function columnExists(conn, table, column) {
@@ -102,6 +114,7 @@ async function main() {
     }
     if (e?.code === 'ENOTFOUND' && isRailwayInternalHost(cfg.host)) {
       printRailwayInternalHelp(cfg.host);
+      process.exit(1);
     }
     throw e;
   }
