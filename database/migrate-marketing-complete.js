@@ -89,6 +89,38 @@ async function addColumn(conn, table, ddl) {
   await conn.query(`ALTER TABLE \`${table}\` ADD COLUMN ${ddl}`);
 }
 
+function envHasMysqlUrl() {
+  return Boolean(
+    process.env.DATABASE_URL?.trim() ||
+      process.env.DATABASE_PUBLIC_URL?.trim() ||
+      process.env.MYSQL_URL?.trim()
+  );
+}
+
+function envHasMysqlPluginHost() {
+  return Boolean(process.env.MYSQLHOST?.trim() || process.env.MYSQL_HOST?.trim());
+}
+
+/** Valores típicos do env.example — não são credenciais reais. */
+function looksLikeEnvExampleCredentials(cfg) {
+  const db = (cfg.database || '').toLowerCase();
+  const user = (cfg.user || '').toLowerCase();
+  if (db === 'your_db_name' || db === 'nome_do_banco') return true;
+  if (user === 'usuario_mysql' || user === 'seu_usuario') return true;
+  if (/\b(your_db|nome_do_banco|example)\b/i.test(cfg.database || '')) return true;
+  return false;
+}
+
+function printIncompleteMysqlEnvHelp() {
+  console.error(
+    '[migrate] O .env não tem ligação à MySQL na Railway: falta DATABASE_URL (ou MYSQLHOST) e DB_HOST=localhost com placeholders.'
+  );
+  console.error('  No painel Railway → serviço MySQL → tab Variables (ou Connect):');
+  console.error('  • Copie DATABASE_URL para o .env do senior-floors-system, ou');
+  console.error('  • Defina DB_HOST com o hostname público (*.up.railway.app / *.proxy.rlwy.net), DB_USER, DB_PASS, DB_NAME com os valores reais.');
+  console.error('  • Ou: railway run -s senior-floors-system npm run migrate:marketing-complete');
+}
+
 function printRailwayInternalHelp(host) {
   console.error('[migrate] Host', host || 'mysql.railway.internal', 'só existe na rede privada Railway — não resolve no seu computador (ENOTFOUND).');
   console.error('  Opções:');
@@ -115,6 +147,17 @@ async function main() {
     process.exit(1);
   }
 
+  if (
+    isLocalMysqlHost(cfg.host) &&
+    !envHasMysqlUrl() &&
+    !envHasMysqlPluginHost() &&
+    looksLikeEnvExampleCredentials(cfg)
+  ) {
+    printIncompleteMysqlEnvHelp();
+    console.error('  Diagnóstico:', JSON.stringify(getMysqlEnvDiagnostics(), null, 2));
+    process.exit(1);
+  }
+
   console.log(
     `[migrate] A ligar a ${cfg.host}:${cfg.port || 3306} (base=${cfg.database})`
   );
@@ -131,6 +174,9 @@ async function main() {
       if (isLocalMysqlHost(cfg.host)) {
         console.error('  Está a apontar para MySQL na sua máquina, mas nada está a escutar na porta 3306.');
         console.error('  Se a base de dados está na Railway:');
+        if (!envHasMysqlUrl()) {
+          console.error('  • Não há DATABASE_URL / DATABASE_PUBLIC_URL / MYSQL_URL no ambiente — copie-as do painel Railway (MySQL → Variables).');
+        }
         console.error('  • No .env: DB_HOST deve ser o host público (Railway → MySQL → Connect → Public network), não localhost.');
         console.error('  • Se DATABASE_URL no terminal (export) tiver localhost, prevalece sobre o .env — faça unset DATABASE_URL ou corrija.');
         console.error('  • DATABASE_PUBLIC_URL também não pode usar localhost para a BD na Railway.');
