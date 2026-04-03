@@ -166,16 +166,23 @@ export function getMysqlEnvDiagnostics() {
     hasExplicitDb &&
     explicitNotInternalRailway &&
     (urlLooksLocal || urlLooksInternalRailway);
+  const resolved = getMysqlConnectionConfig();
   return {
     urlSet: Boolean(url?.trim()),
     urlParsesOk: Boolean(fromUrl && fromUrl.user && fromUrl.database),
     urlHostLocal: urlLooksLocal,
     urlHostRailwayInternal: urlLooksInternalRailway,
+    urlParsedHost: fromUrl?.host ?? null,
     urlOvertakenByDbHost: overtakenByDbHost,
     dbHost: Boolean(process.env.DB_HOST?.trim()),
+    dbHostEnv: process.env.DB_HOST?.trim() || null,
     dbUser: Boolean(process.env.DB_USER?.trim()),
     dbName: Boolean(process.env.DB_NAME?.trim()),
     dbPassSet: process.env.DB_PASS !== undefined && process.env.DB_PASS !== null,
+    mysqlPluginHost: (process.env.MYSQLHOST || process.env.MYSQL_HOST)?.trim() || null,
+    resolvedHost: resolved?.host ?? null,
+    resolvedPort: resolved?.port ?? null,
+    resolvedDatabase: resolved?.database ?? null,
   };
 }
 

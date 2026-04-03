@@ -115,6 +115,10 @@ async function main() {
     process.exit(1);
   }
 
+  console.log(
+    `[migrate] A ligar a ${cfg.host}:${cfg.port || 3306} (base=${cfg.database})`
+  );
+
   let conn;
   try {
     conn = await mysql.createConnection({
@@ -127,12 +131,15 @@ async function main() {
       if (isLocalMysqlHost(cfg.host)) {
         console.error('  Está a apontar para MySQL na sua máquina, mas nada está a escutar na porta 3306.');
         console.error('  Se a base de dados está na Railway:');
-        console.error('  • Não use DB_HOST=localhost nem DATABASE_PUBLIC_URL com host localhost.');
-        console.error('  • Use o hostname público do MySQL (ex. *.proxy.rlwy.net) em DATABASE_PUBLIC_URL ou DB_HOST.');
-        console.error('  • Ou corra: railway run -s senior-floors-system npm run migrate:marketing-complete');
+        console.error('  • No .env: DB_HOST deve ser o host público (Railway → MySQL → Connect → Public network), não localhost.');
+        console.error('  • Se DATABASE_URL no terminal (export) tiver localhost, prevalece sobre o .env — faça unset DATABASE_URL ou corrija.');
+        console.error('  • DATABASE_PUBLIC_URL também não pode usar localhost para a BD na Railway.');
+        console.error('  • Ou: railway run -s senior-floors-system npm run migrate:marketing-complete');
+        console.error('  Diagnóstico:', JSON.stringify(getMysqlEnvDiagnostics(), null, 2));
       } else {
         console.error('  • Confirme firewall / IP permitido no painel MySQL e porta', cfg.port || 3306);
         console.error('  • railway run -s senior-floors-system npm run migrate:marketing-complete');
+        console.error('  Diagnóstico:', JSON.stringify(getMysqlEnvDiagnostics(), null, 2));
       }
       process.exit(1);
     }
