@@ -3,6 +3,20 @@
  */
 import { getDBConnection } from '../config/db.js';
 
+const DB_PING_MS = Math.min(
+  5000,
+  Math.max(500, parseInt(process.env.HEALTH_DB_PING_MS || '2000', 10) || 2000)
+);
+
+function withTimeout(promise, ms, label) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error(label || 'timeout')), ms)
+    ),
+  ]);
+}
+
 export async function getHealth(req, res) {
   const uptime = Math.round(process.uptime());
   const heapBytes = process.memoryUsage().heapUsed;
@@ -14,7 +28,7 @@ export async function getHealth(req, res) {
     if (!pool) {
       db = { error: true, message: 'Pool não disponível' };
     } else {
-      await pool.query('SELECT 1');
+      await withTimeout(pool.query('SELECT 1'), DB_PING_MS, 'db ping timeout');
       db = 'ok';
     }
   } catch (e) {

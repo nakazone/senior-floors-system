@@ -190,22 +190,20 @@ const isProduction = process.env.NODE_ENV === 'production' || !!process.env.RAIL
 // UI em outro domínio (ex.: Vercel) chamando API no Railway: defina SESSION_CROSS_SITE=1 (cookie SameSite=None; Secure)
 const crossSiteSession = process.env.SESSION_CROSS_SITE === '1' || process.env.SESSION_CROSS_SITE === 'true';
 
-app.use(
-  session({
-    store: sessionStore,
-    secret: process.env.SESSION_SECRET,
-    resave: false,
-    saveUninitialized: false,
-    name: 'seniorfloors.sid',
-    rolling: true,
-    cookie: {
-      secure: crossSiteSession || isProduction,
-      httpOnly: true,
-      sameSite: crossSiteSession ? 'none' : 'lax',
-      maxAge: 24 * 60 * 60 * 1000,
-    },
-  })
-);
+const sessionMiddleware = session({
+  store: sessionStore,
+  secret: process.env.SESSION_SECRET,
+  resave: false,
+  saveUninitialized: false,
+  name: 'seniorfloors.sid',
+  rolling: true,
+  cookie: {
+    secure: crossSiteSession || isProduction,
+    httpOnly: true,
+    sameSite: crossSiteSession ? 'none' : 'lax',
+    maxAge: 24 * 60 * 60 * 1000,
+  },
+});
 
 app.use(cors({
   origin: true,
@@ -215,6 +213,16 @@ app.use(cors({
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+/** Railway healthcheck: não passar pela loja de sessões MySQL (evita bloqueio se a BD ainda não responde). */
+function isRailwayLivenessProbe(req) {
+  return req.method === 'GET' && (req.path === '/api/health' || req.path === '/api/health/');
+}
+
+app.use((req, res, next) => {
+  if (isRailwayLivenessProbe(req)) return next();
+  return sessionMiddleware(req, res, next);
+});
 
 // Ficheiros HTML/JS sem cache agressivo (evita CRM antigo após deploy)
 app.use(
