@@ -91,6 +91,77 @@ async function tableExists(pool, name) {
   return t && t.length > 0;
 }
 
+function isUnknownColumnError(e) {
+  if (!e) return false;
+  const msg = String(e.sqlMessage || e.message || '');
+  return (
+    e.code === 'ER_BAD_FIELD_ERROR' ||
+    e.errno === 1054 ||
+    /unknown column/i.test(msg)
+  );
+}
+
+function isMissingTableError(e) {
+  if (!e) return false;
+  const msg = String(e.sqlMessage || e.message || '');
+  return e.code === 'ER_NO_SUCH_TABLE' || e.errno === 1146 || /doesn't exist/i.test(msg);
+}
+
+/** Resposta válida para o SPA quando o esquema de marketing ainda não foi migrado. */
+function emptyMarketingStatsPayload(period, start, end, setupMessage) {
+  return {
+    period,
+    date_range: { start, end },
+    summary: {
+      total_spend: 0,
+      total_impressions: 0,
+      total_clicks: 0,
+      total_leads: 0,
+      total_conversions: 0,
+      total_revenue_attributed: 0,
+      closed_won_count: 0,
+      closed_won_value: 0,
+    },
+    kpis: {
+      cpc: 0,
+      cpl: 0,
+      cpa: 0,
+      roas: 0,
+      ctr: 0,
+      conversion_rate: 0,
+      avg_order_value: 0,
+    },
+    by_platform: [],
+    by_campaign: [],
+    leads_by_source: [],
+    monthly_trend: [],
+    goals: {
+      exists: false,
+      budget_limit: null,
+      budget_used: 0,
+      budget_pct: 0,
+      goal_leads: null,
+      leads_current: 0,
+      leads_pct: 0,
+      goal_cpl_max: null,
+      cpl_current: 0,
+      cpl_status: 'ok',
+      goal_roas_min: null,
+      roas_current: 0,
+      roas_status: 'ok',
+      goal_cpa_max: null,
+      cpa_current: 0,
+      cpa_status: 'ok',
+    },
+    attribution: {
+      matched_leads_in_period: 0,
+      note: 'Execute as migrações de marketing na base de dados para ver atribuição e KPIs.',
+    },
+    setup_required: true,
+    setup_message: setupMessage,
+  };
+}
+
 function platformSourceMatchSql(alias = 'a') {
   const a = alias;
   return `(
@@ -679,6 +750,26 @@ router.get('/stats', async (req, res) => {
     });
   } catch (e) {
     console.error('GET /marketing/stats', e);
+    if (isMissingTableError(e)) {
+      return res.status(200).json(
+        emptyMarketingStatsPayload(
+          period,
+          start,
+          end,
+          'Faltam tabelas de marketing. Na Railway: railway run -s senior-floors-system npm run migrate:marketing-complete'
+        )
+      );
+    }
+    if (isUnknownColumnError(e)) {
+      return res.status(200).json(
+        emptyMarketingStatsPayload(
+          period,
+          start,
+          end,
+          'Faltam colunas em `leads` ou `ad_spend`. Corra: migrate:marketing-analytics e migrate:marketing-complete (npm run …).'
+        )
+      );
+    }
     res.status(500).json({ error: e.message || 'Internal error' });
   }
 });
@@ -741,6 +832,17 @@ router.get('/ad-spend', async (req, res) => {
     res.json({ success: true, data: rows, total: num(c), page, limit, period_spend });
   } catch (e) {
     console.error('listAdSpend', e);
+    if (isMissingTableError(e) || isUnknownColumnError(e)) {
+      return res.json({
+        success: true,
+        data: [],
+        total: 0,
+        page,
+        limit,
+        period_spend: 0,
+        setup_required: true,
+      });
+    }
     res.status(500).json({ success: false, error: e.message });
   }
 });

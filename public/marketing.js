@@ -113,17 +113,31 @@ async function checkAuth() {
 
 async function loadStats(period = state.period) {
   showSkeletons();
+  const banner = document.getElementById('mkSetupBanner');
+  if (banner) {
+    banner.hidden = true;
+    banner.textContent = '';
+  }
   try {
     const res = await fetch(`/api/marketing/stats?period=${encodeURIComponent(period)}`, { credentials: 'include' });
+    const data = await res.json().catch(() => ({}));
     if (res.status === 401) {
       window.location.href = 'login.html';
       return;
     }
     if (res.status === 403) {
-      showToast('Sem permissão (reports.view)', 'danger');
+      showToast('Sem permissão (reports.view). Peça a um admin acesso a relatórios.', 'danger');
       return;
     }
-    state.stats = await res.json();
+    if (!res.ok) {
+      showToast(data.error || data.message || `Erro ${res.status}`, 'danger');
+      return;
+    }
+    state.stats = data;
+    if (data.setup_required && data.setup_message && banner) {
+      banner.textContent = data.setup_message;
+      banner.hidden = false;
+    }
     renderGoalsBar(state.stats.goals);
     renderKPIs(state.stats);
     renderPlatformCards(state.stats.by_platform, state.stats.summary?.total_spend || 0);
@@ -139,7 +153,12 @@ async function loadStats(period = state.period) {
 async function loadAdSpend() {
   try {
     const res = await fetch('/api/marketing/ad-spend?limit=500', { credentials: 'include' });
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      state.campaigns = [];
+      applyFilters();
+      return;
+    }
     state.campaigns = data.data || [];
     applyFilters();
   } catch (_) {
