@@ -4,12 +4,15 @@
 
 /**
  * @param {{ payment_type: string, daily_rate?: unknown, hourly_rate?: unknown, overtime_rate?: unknown }} emp
- * @param {{ days_worked?: unknown, regular_hours?: unknown, overtime_hours?: unknown }} line
+ * @param {{ days_worked?: unknown, regular_hours?: unknown, overtime_hours?: unknown, daily_rate_override?: unknown }} line
  * @returns {number}
  */
 export function calcTimesheetLineAmount(emp, line) {
   const pt = String(emp.payment_type || 'daily').toLowerCase();
-  const dr = Number(emp.daily_rate) || 0;
+  const ovr = line.daily_rate_override;
+  const hasOvr = ovr !== undefined && ovr !== null && String(ovr).trim() !== '';
+  const drNum = hasOvr ? Number(ovr) : Number(emp.daily_rate) || 0;
+  const dr = Number.isFinite(drNum) && drNum >= 0 ? drNum : Number(emp.daily_rate) || 0;
   const hr = Number(emp.hourly_rate) || 0;
   const ort = Number(emp.overtime_rate) || 0;
   const days = Number(line.days_worked) || 0;

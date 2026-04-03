@@ -3,14 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <meta name="theme-color" content="#1a2036">
+    <meta name="theme-color" content="#0d0d14">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>Senior Floors - Dashboard</title>
+    <link rel="manifest" href="/manifest.json">
     <!-- Favicon (mesmo padrão do site Senior Floors) -->
     <link rel="icon" type="image/png" sizes="32x32" href="/assets/SeniorFloors.png">
     <link rel="icon" type="image/png" sizes="16x16" href="/assets/SeniorFloors.png">
     <link rel="apple-touch-icon" sizes="180x180" href="/assets/SeniorFloors.png">
     <link rel="icon" type="image/png" href="/assets/SeniorFloors.png">
     <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="design-system.css">
+    <link rel="stylesheet" href="mobile-design-system.css">
     <link rel="stylesheet" href="crm-toast.css">
     <link rel="stylesheet" href="crm-command-palette.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -33,37 +38,51 @@
     <div class="mobile-more-sheet" id="mobileMoreSheet" role="dialog" aria-modal="true" aria-labelledby="mobileMoreSheetTitle" hidden>
         <div class="mobile-more-sheet__handle" aria-hidden="true"></div>
         <h2 class="mobile-more-sheet__title" id="mobileMoreSheetTitle">Mais opções</h2>
-        <nav class="mobile-more-sheet__nav" aria-label="Secções adicionais">
+        <nav class="mobile-more-sheet__nav" aria-label="Mais módulos">
             <button type="button" class="mobile-more-sheet__btn" data-page="marketing" data-crm-permission="reports.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">📈</span> Marketing</button>
-            <button type="button" class="mobile-more-sheet__btn" data-page="customers" data-crm-permission="customers.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">👥</span> Clients</button>
-            <button type="button" class="mobile-more-sheet__btn" data-page="quotes" data-crm-permission="quotes.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">💰</span> Orçamentos</button>
+            <button type="button" class="mobile-more-sheet__btn" data-page="leads" data-crm-permission="leads.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">📋</span> Leads</button>
+            <button type="button" class="mobile-more-sheet__btn" data-page="crm" data-crm-permission="pipeline.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">🎯</span> CRM</button>
             <button type="button" class="mobile-more-sheet__btn" data-page="projects" data-crm-permission="projects.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">🏗️</span> Projetos</button>
+            <button type="button" class="mobile-more-sheet__btn" data-page="schedule" data-crm-permission="visits.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">📅</span> Agenda</button>
             <button type="button" class="mobile-more-sheet__btn" data-page="financeiro" data-crm-permission="contracts.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">💵</span> Financeiro</button>
             <a href="payroll-module.html" class="mobile-more-sheet__btn" data-crm-permission="payroll.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">👷</span> Folha obra</a>
             <button type="button" class="mobile-more-sheet__btn" data-page="activities" data-crm-permission="activities.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">📝</span> Atividades</button>
             <button type="button" class="mobile-more-sheet__btn" data-page="users" data-crm-permission="users.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">👤</span> Utilizadores</button>
+            <a href="change-password.html" class="mobile-more-sheet__btn">Definições da conta</a>
         </nav>
         <button type="button" class="mobile-more-sheet__btn mobile-more-sheet__btn--danger" id="mobileMoreLogout">Sair da conta</button>
     </div>
 
-    <nav class="mobile-tab-bar" id="mobileTabBar" aria-label="Navegação rápida">
-        <button type="button" class="mobile-tab-bar__item mobile-tab-bar__item--active" data-mobile-tab="dashboard" aria-current="page">
-            <span class="mobile-tab-bar__icon" aria-hidden="true">📊</span>
-            <span class="mobile-tab-bar__label">Início</span>
+    <div class="mobile-more-backdrop" id="sfFabBackdrop" hidden aria-hidden="true"></div>
+    <div class="mobile-more-sheet sf-fab-sheet" id="sfFabSheet" role="dialog" aria-modal="true" aria-labelledby="sfFabSheetTitle" hidden>
+        <div class="sf-fab-sheet__handle mobile-more-sheet__handle" aria-hidden="true"></div>
+        <h2 class="sf-fab-sheet__title" id="sfFabSheetTitle">Criar rápido</h2>
+        <nav class="mobile-more-sheet__nav" aria-label="Ações">
+            <button type="button" class="sf-fab-sheet__btn mobile-more-sheet__btn" id="sfFabNewQuote" data-crm-permission="quotes.edit">Novo orçamento</button>
+            <button type="button" class="sf-fab-sheet__btn mobile-more-sheet__btn" id="sfFabQuickQuote" data-crm-permission="quotes.create">Quick quote</button>
+            <button type="button" class="sf-fab-sheet__btn mobile-more-sheet__btn" id="sfFabNewClient" data-crm-permission="customers.create">Novo cliente</button>
+            <button type="button" class="sf-fab-sheet__btn mobile-more-sheet__btn" id="sfFabSchedule" data-crm-permission="visits.view">Ver agenda</button>
+            <button type="button" class="sf-fab-sheet__btn mobile-more-sheet__btn" id="sfFabFinance" data-crm-permission="contracts.view">Financeiro</button>
+        </nav>
+    </div>
+
+    <nav class="sf-bottom-nav mobile-tab-bar" id="mobileTabBar" aria-label="Navegação principal">
+        <button type="button" class="mobile-tab-bar__item mobile-tab-bar__item--active touchable" data-mobile-tab="dashboard" aria-current="page">
+            <span class="mobile-tab-bar__icon" aria-hidden="true">⌂</span>
+            <span class="mobile-tab-bar__label">Home</span>
         </button>
-        <button type="button" class="mobile-tab-bar__item" data-mobile-tab="leads">
-            <span class="mobile-tab-bar__icon" aria-hidden="true">📋</span>
-            <span class="mobile-tab-bar__label">Leads</span>
+        <button type="button" class="mobile-tab-bar__item touchable" data-mobile-tab="quotes">
+            <span class="mobile-tab-bar__icon" aria-hidden="true">📄</span>
+            <span class="mobile-tab-bar__label">Quotes</span>
         </button>
-        <button type="button" class="mobile-tab-bar__item" data-mobile-tab="crm">
-            <span class="mobile-tab-bar__icon" aria-hidden="true">🎯</span>
-            <span class="mobile-tab-bar__label">CRM</span>
+        <button type="button" class="mobile-tab-bar__item touchable" data-mobile-tab="customers">
+            <span class="mobile-tab-bar__icon" aria-hidden="true">👥</span>
+            <span class="mobile-tab-bar__label">Clients</span>
         </button>
-        <button type="button" class="mobile-tab-bar__item" data-mobile-tab="schedule">
-            <span class="mobile-tab-bar__icon" aria-hidden="true">📅</span>
-            <span class="mobile-tab-bar__label">Agenda</span>
-        </button>
-        <button type="button" class="mobile-tab-bar__item" data-mobile-tab="more" aria-label="Mais opções">
+        <div class="sf-bottom-nav__fab-slot" aria-hidden="true">
+            <button type="button" class="sf-fab touchable" id="sfMobileFab" aria-label="Criar">+</button>
+        </div>
+        <button type="button" class="mobile-tab-bar__item touchable" data-mobile-tab="more" aria-label="Mais módulos">
             <span class="mobile-tab-bar__icon" aria-hidden="true">⋯</span>
             <span class="mobile-tab-bar__label">Mais</span>
         </button>
@@ -75,54 +94,90 @@
         <!-- Fixed Sidebar -->
         <aside class="dashboard-sidebar" id="dashboardSidebar">
             <div class="sidebar-header">
-                <img src="/assets/SeniorFloors.png" alt="Senior Floors" class="logo-image" onerror="this.style.display='none'">
-                <h1>
-                    <span class="mobile-hidden">Senior Floors CRM</span>
-                    <span class="mobile-only">CRM</span>
-                </h1>
+                <img src="/assets/SeniorFloors.png" alt="" class="sidebar-brand-logo logo-image" width="48" height="48" onerror="this.style.display='none'">
+                <div class="sidebar-brand-text">
+                    <span class="sidebar-brand-text__name mobile-hidden">Senior Floors CRM</span>
+                    <span class="sidebar-brand-text__name mobile-only">CRM</span>
+                    <span class="sidebar-brand-text__tagline mobile-hidden">Senior Floors</span>
+                </div>
             </div>
             
-            <nav class="sidebar-nav">
+            <nav class="sidebar-nav" aria-label="Principal">
+                <div class="sidebar-nav-group">
                     <a href="#" class="nav-item active" data-page="dashboard">
-                        <span class="nav-icon" aria-hidden="true">📊</span> Dashboard
+                        <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>
+                        Dashboard
                     </a>
+                </div>
+                <div class="sidebar-nav-group">
+                    <p class="sidebar-nav-group-label">Comercial</p>
                     <a href="#" class="nav-item" data-page="marketing" data-crm-permission="reports.view">
-                        <span class="nav-icon" aria-hidden="true">📈</span> Marketing
+                        <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
+                        Marketing
                     </a>
                     <a href="#" class="nav-item" data-page="leads" data-crm-permission="leads.view">
-                        <span class="nav-icon" aria-hidden="true">📋</span> Leads
+                        <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><path d="M9 5a2 2 0 012-2h2a2 2 0 012 2v0a2 2 0 01-2 2H9a2 2 0 01-2-2v0z"/><path d="M9 12h6"/><path d="M9 16h6"/></svg>
+                        Leads
                     </a>
                     <a href="#" class="nav-item" data-page="crm" data-crm-permission="pipeline.view">
-                        <span class="nav-icon" aria-hidden="true">🎯</span> CRM
+                        <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+                        CRM
                     </a>
                     <a href="#" class="nav-item" data-page="customers" data-crm-permission="customers.view">
-                        <span class="nav-icon" aria-hidden="true">👥</span> Clients
+                        <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+                        Clients
                     </a>
+                </div>
+                <div class="sidebar-nav-group">
+                    <p class="sidebar-nav-group-label">Operações</p>
                     <a href="#" class="nav-item" data-page="quotes" data-crm-permission="quotes.view">
-                        <span class="nav-icon" aria-hidden="true">💰</span> Quotes
+                        <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>
+                        Quotes
                     </a>
                     <a href="#" class="nav-item" data-page="projects" data-crm-permission="projects.view">
-                        <span class="nav-icon" aria-hidden="true">🏗️</span> Projects
+                        <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M2 22h20"/><path d="M6 18V4a2 2 0 012-2h8a2 2 0 012 2v14"/><path d="M10 6h4"/><path d="M10 10h4"/><path d="M10 14h4"/></svg>
+                        Projects
                     </a>
                     <a href="#" class="nav-item" data-page="schedule" data-crm-permission="visits.view">
-                        <span class="nav-icon" aria-hidden="true">📅</span> Schedule
+                        <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/></svg>
+                        Schedule
                     </a>
+                </div>
+                <div class="sidebar-nav-group">
+                    <p class="sidebar-nav-group-label">Financeiro &amp; registo</p>
                     <a href="#" class="nav-item" data-page="financeiro" data-crm-permission="contracts.view">
-                        <span class="nav-icon" aria-hidden="true">💵</span> Financeiro
+                        <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
+                        Financeiro
                     </a>
                     <a href="payroll-module.html" class="nav-item" data-crm-permission="payroll.view">
-                        <span class="nav-icon" aria-hidden="true">👷</span> Folha obra
+                        <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+                        Folha obra
                     </a>
                     <a href="#" class="nav-item" data-page="activities" data-crm-permission="activities.view">
-                        <span class="nav-icon" aria-hidden="true">📝</span> Activities
+                        <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                        Activities
                     </a>
+                </div>
+                <div class="sidebar-nav-group">
+                    <p class="sidebar-nav-group-label">Sistema</p>
                     <a href="#" class="nav-item" data-page="users" data-crm-permission="users.view">
-                        <span class="nav-icon" aria-hidden="true">👤</span> Users
+                        <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                        Users
                     </a>
-                </nav>
+                </div>
+            </nav>
                 
             <div class="sidebar-footer">
-                <button id="logoutBtn" class="btn">Logout</button>
+                <div class="sidebar-user-bar">
+                    <div class="sidebar-user-bar__avatar" id="sidebarUserAvatar" aria-hidden="true">—</div>
+                    <div class="sidebar-user-bar__text">
+                        <span class="sidebar-user-bar__name" id="sidebarUserName">—</span>
+                        <span class="sidebar-user-bar__role" id="sidebarUserRole"></span>
+                    </div>
+                    <button type="button" id="logoutBtn" class="sidebar-logout-btn" title="Sair" aria-label="Terminar sessão">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+                    </button>
+                </div>
             </div>
         </aside>
         
@@ -138,16 +193,33 @@
                         <span id="urgentLeadsBannerText"></span>
                         <a href="#" onclick="showPage('leads'); return false;" id="urgentLeadsBannerLink">Ver leads</a>
                     </div>
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--spacing-md);">
-                        <h2 class="page-title">Dashboard</h2>
-                        <button class="btn btn-primary" onclick="loadDashboard()">Refresh</button>
+                    <header class="crm-page-header sf-desktop-dashboard-block">
+                        <div class="crm-page-header__titles">
+                            <h2 class="crm-page-header__title page-title" style="margin:0;">Dashboard</h2>
+                            <p class="crm-page-header__subtitle">Resumo e gráficos do CRM</p>
+                        </div>
+                        <div class="crm-page-header__actions">
+                            <button type="button" class="btn btn-secondary" onclick="loadDashboard()">Atualizar</button>
+                        </div>
+                    </header>
+
+                    <div id="sfMobileHomeBlock" class="sf-mobile-only">
+                        <div class="sf-hero">
+                            <p class="sf-caption" id="sfMobileGreeting">Bom dia</p>
+                            <div id="sfMobileKpiGrid" class="sf-kpi-grid"></div>
+                        </div>
+                        <div class="sf-quick-actions sf-mobile-only--flex" id="sfMobileQuickActions"></div>
+                        <p class="sf-title" style="margin:12px 0 8px;">Atividades pendentes</p>
+                        <div id="sfMobileActivityChips" class="sf-quick-actions sf-mobile-only--flex"></div>
+                        <p class="sf-title" style="margin:12px 0 8px;">Orçamentos recentes</p>
+                        <div id="sfMobileRecentQuotes" class="sf-quotes-card-list"></div>
                     </div>
                     
-                    <div id="dashboardStats" class="stats-grid">
+                    <div id="dashboardStats" class="stats-grid sf-desktop-dashboard-block">
                         <!-- Stats serão carregadas aqui -->
                     </div>
                     
-                    <div class="charts-container">
+                    <div class="charts-container sf-desktop-dashboard-block">
                         <div class="chart-card">
                             <h3>Leads por Status</h3>
                             <div class="chart-container">
@@ -161,20 +233,20 @@
                             </div>
                         </div>
                         <div class="chart-card">
-                            <h3>Receita Projetada</h3>
+                            <h3>Receita (contratos + orç. aprovados)</h3>
                             <div class="chart-container">
                                 <canvas id="revenueChart"></canvas>
                             </div>
                         </div>
                         <div class="chart-card">
-                            <h3>Performance por Vendedor</h3>
+                            <h3>Orçamentos ganhos por vendedor</h3>
                             <div class="chart-container">
                                 <canvas id="salesPerformanceChart"></canvas>
                             </div>
                         </div>
                     </div>
                     
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: var(--spacing-md); margin-top: var(--spacing-md);">
+                    <div class="sf-desktop-dashboard-block" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: var(--spacing-md); margin-top: var(--spacing-md);">
                         <div class="chart-card">
                             <h3>Leads Recentes</h3>
                             <div id="recentLeads" style="max-height: 400px; overflow-y: auto;"></div>
@@ -611,10 +683,15 @@
                 
                 <!-- Clients (API: /api/customers — builders e clientes finais) -->
                 <div id="customersPage" class="page-content" style="display: none;">
-                    <div class="page-header">
-                        <h2>Clients</h2>
-                        <button type="button" class="btn btn-primary" onclick="showNewCustomerModal()" data-crm-permission="customers.create">+ New client</button>
-                    </div>
+                    <header class="crm-page-header">
+                        <div class="crm-page-header__titles">
+                            <h2 class="crm-page-header__title">Clientes</h2>
+                            <p class="crm-page-header__subtitle">Builders e clientes finais</p>
+                        </div>
+                        <div class="crm-page-header__actions">
+                            <button type="button" class="btn btn-primary" onclick="showNewCustomerModal()" data-crm-permission="customers.create">+ Novo cliente</button>
+                        </div>
+                    </header>
                     
                     <div class="table-container">
                         <table class="data-table">
@@ -647,20 +724,41 @@
                 
                 <!-- Quotes Page -->
                 <div id="quotesPage" class="page-content" style="display: none;">
-                    <div class="page-header">
-                        <h2>Estimates</h2>
-                        <div style="display: flex; gap: var(--spacing-sm); flex-wrap: wrap;">
+                    <div id="quotesMobileShell" class="sf-mobile-only">
+                        <p class="sf-title" style="margin-bottom:4px;">Orçamentos</p>
+                        <p class="sf-caption" id="quotesMobileSubtitle" style="margin:0 0 10px;"> </p>
+                        <div class="sf-ptr-indicator" id="quotesPtrIndicator" aria-hidden="true">↓ Largar para atualizar</div>
+                        <div class="sf-quotes-toolbar">
+                            <input type="search" id="quotesMobileSearch" class="sf-quotes-search" placeholder="Buscar cliente ou quote…" autocomplete="off" />
+                        </div>
+                        <div class="sf-quotes-chips-scroll sf-mobile-only--flex" role="toolbar" aria-label="Filtros" style="flex-wrap:nowrap;overflow-x:auto;gap:8px;padding:4px 0 10px;-webkit-overflow-scrolling:touch;">
+                            <button type="button" class="quotes-filter-chip" data-quotes-filter="all" onclick="setQuotesFilter('all')">Todos</button>
+                            <button type="button" class="quotes-filter-chip" data-quotes-filter="draft" onclick="setQuotesFilter('draft')">Rascunho</button>
+                            <button type="button" class="quotes-filter-chip" data-quotes-filter="sent" onclick="setQuotesFilter('sent')">Enviado</button>
+                            <button type="button" class="quotes-filter-chip" data-quotes-filter="viewed" onclick="setQuotesFilter('viewed')">Visto</button>
+                            <button type="button" class="quotes-filter-chip" data-quotes-filter="approved" onclick="setQuotesFilter('approved')">Aprovado</button>
+                            <button type="button" class="quotes-filter-chip" data-quotes-filter="rejected" onclick="setQuotesFilter('rejected')">Rejeitado</button>
+                            <button type="button" class="quotes-filter-chip" data-quotes-filter="expiring7" onclick="setQuotesFilter('expiring7')">Expira ≤7d</button>
+                        </div>
+                        <div id="quotesMobileList" class="sf-quotes-card-list"></div>
+                    </div>
+                    <header class="crm-page-header sf-desktop-quotes-toolbar">
+                        <div class="crm-page-header__titles">
+                            <h2 class="crm-page-header__title">Orçamentos</h2>
+                            <p class="crm-page-header__subtitle" id="quotesListSubtitle">A carregar…</p>
+                        </div>
+                        <div class="crm-page-header__actions">
                             <button type="button" class="btn btn-primary btn-cta-primary" onclick="location.href='quote-builder.html'" data-crm-permission="quotes.edit">+ Novo orçamento</button>
-                            <button type="button" class="btn btn-secondary" onclick="location.href='onsite-quote.html'" data-crm-permission="quotes.create" title="2-step field quote">📱 Quick quote</button>
+                            <button type="button" class="btn btn-secondary" onclick="location.href='onsite-quote.html'" data-crm-permission="quotes.create" title="2-step field quote">Quick quote</button>
                             <button type="button" class="btn btn-secondary" onclick="location.href='quote-catalog.html'" data-crm-permission="quotes.edit">Catálogo de serviços</button>
                             <button type="button" class="btn btn-secondary" onclick="location.href='suppliers.html'" data-crm-permission="quotes.view">Fornecedores</button>
                             <button type="button" class="btn btn-secondary" onclick="location.href='products-erp.html'" data-crm-permission="quotes.view">Produtos (ERP)</button>
                             <button type="button" class="btn btn-secondary" onclick="openImportInvoicePdfModal()">📄 Importar PDF (Invoice2Go)</button>
                             <button type="button" class="btn btn-secondary" onclick="loadEstimateAnalytics()">Analytics</button>
                         </div>
-                    </div>
+                    </header>
 
-                    <div class="quotes-filter-chips" role="toolbar" aria-label="Filtrar orçamentos">
+                    <div class="quotes-filter-chips sf-desktop-quotes-toolbar" role="toolbar" aria-label="Filtrar orçamentos">
                         <button type="button" class="quotes-filter-chip quotes-filter-chip--active" data-quotes-filter="all" onclick="setQuotesFilter('all')">Todos</button>
                         <button type="button" class="quotes-filter-chip" data-quotes-filter="draft" onclick="setQuotesFilter('draft')">Rascunho</button>
                         <button type="button" class="quotes-filter-chip" data-quotes-filter="sent" onclick="setQuotesFilter('sent')">Enviado</button>
@@ -670,7 +768,7 @@
                         <button type="button" class="quotes-filter-chip" data-quotes-filter="expiring7" onclick="setQuotesFilter('expiring7')">Expira ≤7 dias</button>
                     </div>
                     
-                    <div class="table-container">
+                    <div class="table-container sf-desktop-quotes-toolbar">
                         <table class="data-table quotes-data-table">
                             <thead>
                                 <tr>
@@ -690,10 +788,13 @@
                         </table>
                     </div>
                     
-                    <div class="pagination">
+                    <div class="pagination sf-desktop-quotes-toolbar">
                         <button id="prevPageQuotes" class="btn btn-secondary" onclick="changePageQuotes(-1)">Previous</button>
                         <span id="pageInfoQuotes">Page 1</span>
                         <button id="nextPageQuotes" class="btn btn-secondary" onclick="changePageQuotes(1)">Next</button>
+                    </div>
+                    <div class="sf-mobile-only" style="text-align:center;padding:12px;">
+                        <button type="button" class="btn btn-secondary" id="quotesMobileLoadMore">Carregar mais</button>
                     </div>
                 </div>
                 

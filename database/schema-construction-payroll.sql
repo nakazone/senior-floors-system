@@ -53,6 +53,7 @@ CREATE TABLE IF NOT EXISTS `construction_payroll_timesheets` (
   `project_id_norm` int(11) GENERATED ALWAYS AS (ifnull(`project_id`,0)) STORED,
   `work_date` date NOT NULL,
   `days_worked` decimal(5,2) NOT NULL DEFAULT 0.00 COMMENT '1 or 0.5 for daily; optional for hourly',
+  `daily_rate_override` decimal(12,2) DEFAULT NULL COMMENT 'Diária só nesta linha; NULL = usar cadastro',
   `regular_hours` decimal(8,2) NOT NULL DEFAULT 0.00 COMMENT 'for hourly / mixed',
   `overtime_hours` decimal(8,2) NOT NULL DEFAULT 0.00,
   `notes` text DEFAULT NULL,

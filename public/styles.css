@@ -4,49 +4,30 @@
    Based on LP design system
    ============================================ */
 
-/* CSS Variables - Same as LP */
+/* Tokens: design-system.css (load first on each page). Fallback if missing: */
 :root {
-    /* Color Palette - Based on #1a2036 (Dark Navy Blue) */
-    --primary-color: #1a2036;
-    --primary-hover: #252b47;
-    --primary-light: #2a3150;
-    --primary-dark: #14192b;
-    --secondary-color: #d6b598;
-    --secondary-hover: #e0c4a8;
-    --secondary-dark: #c4a588;
-    --text-dark: #1a2036;
-    --text-light: #4a5568;
-    --text-muted: #718096;
-    --bg-light: #f7f8fc;
+    --primary-color: #1a1a2e;
+    --secondary-color: #c8a96e;
+    --text-dark: #1a1a1a;
+    --text-light: #6b6b6b;
+    --text-muted: #9b9b9b;
+    --bg-light: #f8f7f5;
     --bg-white: #ffffff;
-    --bg-primary-light: #f0f2f8;
-    --border-color: #e2e8f0;
-    --success-color: #48bb78;
-    --error-color: #f56565;
-    --warning-color: #ed8936;
-    --info-color: #4299e1;
-    --shadow: 0 2px 10px rgba(26, 32, 54, 0.1);
-    --shadow-lg: 0 4px 20px rgba(26, 32, 54, 0.15);
-    --shadow-primary: 0 4px 15px rgba(26, 32, 54, 0.2);
-    
-    /* Typography */
-    --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    --font-size-base: 16px;
-    --line-height-base: 1.6;
-    
-    /* Spacing */
+    --bg-primary-light: #f0efe9;
+    --border-color: #e5e3dd;
+    --font-family: 'Inter', system-ui, sans-serif;
+    --font-size-base: 14px;
+    --line-height-base: 1.55;
     --spacing-xs: 0.5rem;
     --spacing-sm: 1rem;
     --spacing-md: 2rem;
     --spacing-lg: 3rem;
     --spacing-xl: 4rem;
-    
-    /* Transitions */
-    --transition: all 0.3s ease;
-    
-    /* Mobile breakpoints */
+    --transition: all 0.2s ease;
     --mobile: 768px;
     --tablet: 1024px;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
 
 /* Mobile-only and mobile-hidden utilities */
@@ -76,7 +57,6 @@
 
 html {
     scroll-behavior: smooth;
-    font-size: 16px;
 }
 
 body {
@@ -142,28 +122,8 @@ body {
 }
 
 .sidebar-footer {
-    padding: var(--spacing-md);
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
-    background: var(--primary-color);
     margin-top: auto;
     flex-shrink: 0;
-}
-
-.sidebar-footer .user-name {
-    display: none;
-}
-
-.sidebar-footer .btn {
-    width: 100%;
-    background: var(--secondary-color);
-    color: var(--text-dark);
-    border: none;
-    font-weight: 600;
-}
-
-.sidebar-footer .btn:hover {
-    background: var(--secondary-hover);
-    color: var(--text-dark);
 }
 
 /* Main Layout */
@@ -171,7 +131,7 @@ body {
     flex: 1;
     display: flex;
     width: 100%;
-    margin-left: 240px; /* Space for fixed sidebar */
+    margin-left: var(--crm-sidebar-width, 264px);
     padding: var(--spacing-md);
 }
 
@@ -186,7 +146,7 @@ body {
 
 /* Sidebar - Fixed */
 .dashboard-sidebar {
-    width: 240px;
+    width: var(--crm-sidebar-width, 264px);
     background: var(--primary-color);
     box-shadow: var(--shadow-lg);
     padding: 0;
@@ -248,17 +208,10 @@ body {
     flex-shrink: 0;
 }
 
-.sidebar-header img {
+/* Logo size: design-system .sidebar-brand-logo */
+.sidebar-header img.logo-image:not(.sidebar-brand-logo) {
     height: 120px;
     width: auto;
-}
-
-.sidebar-header h1 {
-    font-size: 0.9rem;
-    font-weight: 500;
-    margin: 0;
-    color: rgba(255, 255, 255, 0.9);
-    letter-spacing: 0.5px;
 }
 
 .sidebar-nav {

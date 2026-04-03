@@ -30,10 +30,10 @@
 }
 
 .crm-shared-nav {
-  background: #1a2036;
+  background: var(--color-primary, #1a1a2e);
   color: #fff;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
-  border-bottom: 2px solid #d6b598;
+  box-shadow: var(--shadow-md, 0 2px 12px rgba(0, 0, 0, 0.15));
+  border-bottom: 2px solid var(--color-accent, #c8a96e);
 }
 
 .crm-shared-nav__inner {
@@ -110,9 +110,9 @@
 }
 
 .crm-shared-nav__link--active {
-  background: rgba(214, 181, 152, 0.25);
-  border-color: rgba(214, 181, 152, 0.5);
-  color: #fff;
+  background: rgba(200, 169, 110, 0.22);
+  border-color: rgba(200, 169, 110, 0.45);
+  color: var(--color-accent, #c8a96e);
 }
 
 .crm-shared-nav__logout {

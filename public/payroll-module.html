@@ -6,21 +6,44 @@
   <title>Folha de obra — tudo num só lugar | Senior Floors CRM</title>
   <link rel="icon" type="image/png" href="/assets/SeniorFloors.png" />
   <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="design-system.css" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="crm-shared-nav.css" />
   <link rel="stylesheet" href="crm-toast.css" />
   <style>
     body { font-family: Inter, system-ui, sans-serif; }
+    .payroll-grid {
+      -webkit-overflow-scrolling: touch;
+    }
     .payroll-grid input, .payroll-grid select { min-width: 0; }
     .payroll-grid thead th { position: sticky; top: 0; z-index: 1; background: #f8fafc; }
+    .payroll-grid td .flex { align-items: center; }
     .payroll-num-input { font-size: 1.05rem; min-height: 2.5rem; text-align: center; }
+    .ts-numbtn, .ts-short, .payroll-grid .ts-del {
+      flex-shrink: 0;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      cursor: pointer;
+    }
     .ts-numbtn {
       min-width: 2.25rem; height: 2.25rem; padding: 0 0.35rem;
       border: 1px solid #cbd5e1; border-radius: 0.375rem; background: #f8fafc;
       font-size: 1.1rem; font-weight: 600; line-height: 1; color: #1e293b;
     }
     .ts-numbtn:active { background: #e2e8f0; }
-    .ts-numbtn:disabled { opacity: 0.35; pointer-events: none; }
+    .ts-numbtn:disabled { opacity: 0.55; cursor: not-allowed; pointer-events: none; }
+    .ts-short:disabled { opacity: 0.55; cursor: not-allowed; }
+    .payroll-grid-scroll-hint {
+      display: none;
+      margin: 0;
+      font-size: 0.7rem;
+      color: #64748b;
+      text-align: center;
+      background: #f1f5f9;
+    }
+    @media (max-width: 1100px) {
+      .payroll-grid-scroll-hint { display: block; }
+    }
     .payroll-hub-section { scroll-margin-top: 1rem; }
     @media (max-width: 1024px) {
       .payroll-hub-section {
@@ -32,7 +55,35 @@
         padding-bottom: max(12px, env(safe-area-inset-bottom, 0px)) !important;
       }
     }
-    .payroll-inpage-label { margin-top: 0.35rem; }
+    .payroll-hub-tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+      margin-bottom: 1rem;
+      padding-bottom: 0.65rem;
+      border-bottom: 1px solid #e5e3dd;
+    }
+    .payroll-hub-tab {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.45rem 0.85rem;
+      font-size: 0.8125rem;
+      font-weight: 500;
+      color: #475569;
+      text-decoration: none;
+      border-radius: 6px;
+      border: 1px solid transparent;
+      transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+    }
+    .payroll-hub-tab:hover {
+      background: #f1f5f9;
+      color: #0f172a;
+    }
+    .payroll-hub-tab.active {
+      background: rgba(200, 169, 110, 0.15);
+      color: #1a1a2e;
+      border-color: rgba(200, 169, 110, 0.45);
+    }
     /* Crítico cedo: barra com hamburger visível em gaveta antes do JS / Tailwind */
     @media (max-width: 1024px) {
       body.payroll-sidebar-page #mobileAppHeader.mobile-app-header {
@@ -61,18 +112,15 @@
   <div class="dashboard-container">
     <aside class="dashboard-sidebar" id="payrollSidebar" aria-label="Menu lateral">
       <div class="sidebar-header">
-        <img src="/assets/SeniorFloors.png" alt="Senior Floors" class="logo-image" onerror="this.style.display='none'" />
-        <h1><span class="mobile-hidden">Senior Floors CRM</span><span class="mobile-only">CRM</span></h1>
-      </div>
-      <nav class="sidebar-nav" aria-label="Navegação CRM e secções da folha">
-        <div id="crmSharedNavRoot" data-layout="sidebar"></div>
-        <div class="payroll-inpage-nav">
-          <p class="crm-sidebar-section-label payroll-inpage-label">Nesta página</p>
-          <a href="#hub-resumo" class="nav-item payroll-nav-btn">Resumo</a>
-          <a href="#hub-func" class="nav-item payroll-nav-btn">1 · Equipa</a>
-          <a href="#hub-quadro" class="nav-item payroll-nav-btn">2 · Horas</a>
-          <a href="#hub-relatorios" class="nav-item payroll-nav-btn">3 · Pagamentos</a>
+        <img src="/assets/SeniorFloors.png" alt="" class="sidebar-brand-logo logo-image" width="48" height="48" onerror="this.style.display='none'" />
+        <div class="sidebar-brand-text">
+          <span class="sidebar-brand-text__name mobile-hidden">Senior Floors CRM</span>
+          <span class="sidebar-brand-text__name mobile-only">CRM</span>
+          <span class="sidebar-brand-text__tagline mobile-hidden">Senior Floors</span>
         </div>
+      </div>
+      <nav class="sidebar-nav" aria-label="Navegação CRM">
+        <div id="crmSharedNavRoot" data-layout="sidebar"></div>
       </nav>
       <div class="sidebar-footer">
         <button type="button" class="btn" id="payrollSidebarLogout">Sair da conta</button>
@@ -88,6 +136,13 @@
       </div>
       <button type="button" id="btnReloadAll" class="shrink-0 px-3 py-2 rounded-lg bg-slate-100 text-sm font-medium">Atualizar</button>
     </div>
+
+    <nav class="payroll-hub-tabs" aria-label="Secções desta página">
+      <a href="#hub-resumo" class="payroll-hub-tab payroll-nav-btn">Resumo</a>
+      <a href="#hub-func" class="payroll-hub-tab payroll-nav-btn">1 · Equipa</a>
+      <a href="#hub-quadro" class="payroll-hub-tab payroll-nav-btn">2 · Horas</a>
+      <a href="#hub-relatorios" class="payroll-hub-tab payroll-nav-btn">3 · Pagamentos</a>
+    </nav>
 
     <div id="migrateBanner" class="hidden rounded-xl border border-amber-300 bg-amber-50 text-amber-900 px-4 py-3 text-sm">
       Migração pendente no servidor. No projeto <code class="bg-white/80 px-1 rounded">senior-floors-system</code> execute
@@ -176,14 +231,14 @@
             <thead class="bg-slate-50 text-left text-xs text-slate-500 uppercase">
               <tr>
                 <th class="px-3 py-2">Nome</th>
-                <th class="px-3 py-2">Função</th>
                 <th class="px-3 py-2">Setor</th>
+                <th class="px-3 py-2 text-right" title="Soma de diárias no quadro do período selecionado">Diárias (período)</th>
+                <th class="px-3 py-2 text-right" title="Soma de horas extras no quadro do período selecionado">H. extras (período)</th>
                 <th class="px-3 py-2">Tipo</th>
                 <th class="px-3 py-2 text-right">Diária</th>
                 <th class="px-3 py-2 text-right">Hora</th>
                 <th class="px-3 py-2 text-right">HE</th>
                 <th class="px-3 py-2">Pagamento</th>
-                <th class="px-3 py-2">Ativo</th>
                 <th class="px-3 py-2 text-right">Ações</th>
               </tr>
             </thead>
@@ -205,7 +260,9 @@
             <select id="periodSelect" class="border rounded-lg px-3 py-2.5 text-sm min-w-[260px]"></select>
           </div>
           <button type="button" id="btnNewPeriod" class="hidden px-3 py-2.5 rounded-lg bg-slate-100 text-sm font-medium">Novo período</button>
+          <button type="button" id="btnDeletePeriod" class="hidden px-3 py-2.5 rounded-lg bg-red-50 text-red-800 text-sm font-medium border border-red-200">Apagar período</button>
           <button type="button" id="btnPreviewClose" class="hidden px-3 py-2.5 rounded-lg bg-amber-100 text-amber-950 text-sm font-semibold">Fechar período</button>
+          <button type="button" id="btnReopenPeriod" class="hidden px-3 py-2.5 rounded-lg bg-sky-100 text-sky-950 text-sm font-semibold border border-sky-200">Reabrir período</button>
           <p id="periodMeta" class="text-xs text-slate-500 flex-1 min-w-[200px]"></p>
         </div>
 
@@ -214,11 +271,15 @@
           <ol class="list-decimal list-inside space-y-1 text-slate-600">
             <li>Escolha o <strong>período</strong> (se não existir, crie com «Novo período»).</li>
             <li>Em cada linha: <strong>data</strong>, <strong>funcionário</strong>, opcionalmente <strong>projeto</strong>.</li>
-            <li>Preencha <strong>dias</strong> (ex.: 1 ou ½) e/ou <strong>h. normais</strong> e/ou <strong>horas extras</strong> — use os botões <strong>±</strong>, <strong>1d</strong>, <strong>½</strong>, <strong>+1h/+2h/+4h</strong> nas extras.</li>
+            <li>Opcional: em <strong>Diária linha</strong> indique um valor só para aquele dia (ex.: outra função com diária maior). <strong>Vazio</strong> usa a diária do cadastro. Não altera o cálculo para tipo <strong>por hora</strong>.</li>
+            <li>Preencha <strong>dias</strong> (ex.: 1 ou ½) e/ou <strong>h. normais</strong> e/ou <strong>horas extras</strong> — use os botões <strong>±</strong>, <strong>1d</strong>, <strong>½</strong>, <strong>+2h/+4h</strong> (normais) e <strong>+1h/+2h/+4h</strong> (extras). No telemóvel, <strong>deslize a tabela para a direita</strong> para ver essas colunas.</li>
             <li>Clique <strong>Guardar quadro</strong> para gravar no servidor.</li>
           </ol>
           <p class="text-slate-500 pt-1 border-t border-slate-200">
             <strong>Cálculo:</strong> tipo <em>diária</em> usa dias + HE; <em>por hora</em> usa h. normais (+ HE); <em>misto</em> combina dias, horas e HE. Defina valores de diária/hora/HE no cadastro do funcionário.
+          </p>
+          <p class="text-slate-500 pt-1 border-t border-slate-200 text-[11px]">
+            <strong>Permissões:</strong> com <code class="text-slate-600">payroll.view</code> pode lançar e guardar o quadro enquanto o período está <strong>aberto</strong>. Com período <strong>fechado</strong>, só quem tem <code class="text-slate-600">payroll.manage</code> pode alterar ou apagar linhas já guardadas e voltar a <strong>Guardar quadro</strong>; não é possível adicionar linhas novas. Criar funcionários, períodos ou fechar período continua a exigir <code class="text-slate-600">payroll.manage</code>.
           </p>
         </div>
         <div class="flex flex-wrap gap-2 items-center">
@@ -227,13 +288,18 @@
           <span id="periodLockBadge" class="hidden text-xs font-bold px-2 py-0.5 rounded bg-slate-200 text-slate-700">Fechado</span>
         </div>
 
-        <div class="overflow-x-auto max-h-[min(520px,55vh)] border rounded-lg payroll-grid">
+        <div class="rounded-lg border border-slate-200 overflow-hidden bg-white">
+          <p class="payroll-grid-scroll-hint border-b border-slate-200 px-2 py-1.5" aria-hidden="true">
+            ← Deslize para a direita: Diária (linha), Dias, Horas normais, Horas extras →
+          </p>
+          <div class="overflow-x-auto max-h-[min(640px,70vh)] payroll-grid">
           <table class="w-full text-sm min-w-[1000px]">
             <thead class="text-left text-xs text-slate-500 uppercase border-b">
               <tr>
                 <th class="px-2 py-2 w-[118px]">Data</th>
                 <th class="px-2 py-2 min-w-[130px]">Funcionário</th>
                 <th class="px-2 py-2 min-w-[110px]">Projeto</th>
+                <th class="px-2 py-2 min-w-[88px]" title="Diária só neste dia; vazio = cadastro">Diária linha</th>
                 <th class="px-2 py-2 min-w-[120px]">Dias</th>
                 <th class="px-2 py-2 min-w-[120px]">H. normais</th>
                 <th class="px-2 py-2 min-w-[140px]">Horas extras</th>
@@ -244,6 +310,7 @@
             </thead>
             <tbody id="timesheetBody"></tbody>
           </table>
+          </div>
         </div>
         <div class="flex flex-wrap gap-2">
           <button type="button" id="btnAddTimesheetRow" class="hidden px-4 py-2 rounded-lg border border-slate-200 text-sm font-medium">+ Linha</button>
@@ -257,7 +324,7 @@
     <section id="hub-relatorios" class="payroll-hub-section bg-white rounded-xl border shadow-sm overflow-hidden">
       <div class="bg-slate-50 border-b border-slate-200 px-4 py-3">
         <h2 class="text-base font-bold text-slate-900">3 · Relatórios de pagamento</h2>
-        <p class="text-xs text-slate-500 mt-1">Mesmo intervalo para tudo — um clique gera o pacote completo.</p>
+        <p class="text-xs text-slate-500 mt-1">Mesmo intervalo para tudo — um clique gera o pacote completo. Os totais usam a <strong>data do trabalho</strong> de cada linha (não o nome do período de folha).</p>
       </div>
       <div class="p-4 space-y-4">
         <div class="flex flex-wrap gap-3 items-end">
@@ -357,7 +424,7 @@
       <h2 id="previewTitle" class="text-lg font-bold">Pré-visualização da folha</h2>
       <p id="previewSubtitle" class="text-sm text-slate-500"></p>
       <p id="previewReimHint" class="hidden text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
-        Informe os <strong>reembolsos</strong> por funcionário antes de fechar. Total geral = folha + reembolsos.
+        Informe <strong>reembolsos</strong> e <strong>descontos</strong> por funcionário antes de fechar. Total por linha = folha + reembolso − desconto; total geral = folha + reembolsos − descontos.
       </p>
       <div class="overflow-x-auto border rounded-lg">
         <table class="w-full text-sm">
@@ -367,7 +434,8 @@
               <th class="px-3 py-2">Setor</th>
               <th class="px-3 py-2 text-right">Linhas</th>
               <th class="px-3 py-2 text-right">Folha</th>
-              <th class="px-3 py-2 text-right min-w-[120px]">Reembolso</th>
+              <th class="px-3 py-2 text-right min-w-[100px]">Reembolso</th>
+              <th class="px-3 py-2 text-right min-w-[100px]">Desconto</th>
               <th class="px-3 py-2 text-right">Total</th>
             </tr>
           </thead>
@@ -377,13 +445,14 @@
               <td class="px-3 py-2" colspan="3">Totais</td>
               <td class="px-3 py-2 text-right" id="previewGrandSheet">—</td>
               <td class="px-3 py-2 text-right" id="previewGrandReim">—</td>
+              <td class="px-3 py-2 text-right" id="previewGrandDisc">—</td>
               <td class="px-3 py-2 text-right text-[#1a2036]" id="previewGrandTotal">—</td>
             </tr>
           </tfoot>
         </table>
       </div>
       <div id="previewCloseActions" class="hidden flex flex-wrap justify-end gap-2">
-        <button type="button" id="previewSaveAdjustments" class="px-4 py-2 rounded-lg bg-slate-100 text-sm font-semibold">Guardar reembolsos</button>
+        <button type="button" id="previewSaveAdjustments" class="px-4 py-2 rounded-lg bg-slate-100 text-sm font-semibold">Guardar reembolsos e descontos</button>
         <button type="button" id="previewCancelClose" class="px-4 py-2 border rounded-lg text-sm">Voltar</button>
         <button type="button" id="previewConfirmClose" class="px-4 py-2 rounded-lg bg-amber-600 text-white text-sm font-bold">Fechar período</button>
       </div>
@@ -460,7 +529,7 @@
     }
   </style>
   <script src="crm-toast.js"></script>
-  <script src="crm-shared-nav.js"></script>
-  <script src="payroll-module.js?v=10"></script>
+  <script src="crm-shared-nav.js?v=2"></script>
+  <script src="payroll-module.js?v=27"></script>
 </body>
 </html>

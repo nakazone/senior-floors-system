@@ -8,6 +8,65 @@ function isMissingTable(err) {
   return err && (err.code === 'ER_NO_SUCH_TABLE' || String(err.message || '').includes('doesn\'t exist'));
 }
 
+function isMissingColumn(err, colName) {
+  return (
+    err &&
+    err.code === 'ER_BAD_FIELD_ERROR' &&
+    String(err.message || '').includes(String(colName || ''))
+  );
+}
+
+/** Relatórios: garantir from ≤ to e formato YYYY-MM-DD */
+function normalizeReportRange(from, to) {
+  const a = String(from || '').trim().slice(0, 10);
+  const b = String(to || '').trim().slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(a) || !/^\d{4}-\d{2}-\d{2}$/.test(b)) return null;
+  return a <= b ? [a, b] : [b, a];
+}
+
+/** Resposta JSON: DATE do MySQL vira Date/ISO e desvia o dia no <input type="date"> — fixar AAAA-MM-DD */
+function mysqlDateToYmd(v) {
+  if (v == null || v === '') return v;
+  if (typeof v === 'string') {
+    const m = v.match(/^(\d{4}-\d{2}-\d{2})/);
+    if (m) return m[1];
+  }
+  if (v instanceof Date && !Number.isNaN(v.getTime())) {
+    return v.toISOString().slice(0, 10);
+  }
+  return String(v).match(/^(\d{4}-\d{2}-\d{2})/)?.[1] || String(v).slice(0, 10);
+}
+
+function serializePeriodForClient(p) {
+  if (!p || typeof p !== 'object') return p;
+  return {
+    ...p,
+    start_date: mysqlDateToYmd(p.start_date),
+    end_date: mysqlDateToYmd(p.end_date),
+  };
+}
+
+function serializeTimesheetRowForClient(row) {
+  if (!row || typeof row !== 'object') return row;
+  const o = { ...row };
+  o.work_date = mysqlDateToYmd(row.work_date);
+  for (const k of ['days_worked', 'regular_hours', 'overtime_hours', 'calculated_amount']) {
+    const v = row[k];
+    if (v != null && v !== '') {
+      const n = Number(String(v).replace(',', '.'));
+      if (Number.isFinite(n)) o[k] = Math.round(n * 1e6) / 1e6;
+    }
+  }
+  const dro = row.daily_rate_override;
+  if (dro == null || dro === '') {
+    o.daily_rate_override = null;
+  } else {
+    const n = Number(String(dro).replace(',', '.'));
+    o.daily_rate_override = Number.isFinite(n) ? Math.round(n * 100) / 100 : null;
+  }
+  return o;
+}
+
 function sendDbError(res, err) {
   if (isMissingTable(err)) {
     return res.status(503).json({
@@ -40,9 +99,61 @@ async function assertPeriodWritable(pool, periodId) {
   return p;
 }
 
-function workDateInPeriod(workDate, start, end) {
-  const w = String(workDate);
-  return w >= String(start).slice(0, 10) && w <= String(end).slice(0, 10);
+function userHasPayrollManage(req) {
+  if (!req.session?.userId) return false;
+  if (String(req.session.userRole || '').toLowerCase() === 'admin') return true;
+  return Array.isArray(req.session.permissionKeys) && req.session.permissionKeys.includes('payroll.manage');
+}
+
+/** Quadro de horas: aberto = qualquer um com payroll.view; fechado = só payroll.manage pode alterar/apagar linhas. */
+async function assertPeriodAllowsTimesheetMutation(pool, periodId, req) {
+  const p = await loadPeriod(pool, periodId);
+  if (!p) {
+    const e = new Error('Período não encontrado');
+    e.statusCode = 404;
+    throw e;
+  }
+  if (p.status === 'closed' && !userHasPayrollManage(req)) {
+    const e = new Error(
+      'Período fechado — só quem tem gestão da folha (payroll.manage) pode alterar ou apagar registos.'
+    );
+    e.statusCode = 409;
+    throw e;
+  }
+  return p;
+}
+
+/** Extrai AAAA-MM-DD do input (date picker ou ISO). */
+function normalizeWorkDateYMD(raw) {
+  const s = String(raw ?? '').trim();
+  const m = s.match(/^(\d{4}-\d{2}-\d{2})/);
+  return m && /^\d{4}-\d{2}-\d{2}$/.test(m[1]) ? m[1] : '';
+}
+
+/**
+ * Validar intervalo no próprio MySQL — evita bugs de timezone / Date em JS com mysql2.
+ */
+async function assertWorkDateInPeriodDb(executor, periodId, workDateYmd) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(workDateYmd)) {
+    const e = new Error('Formato de data inválido (use AAAA-MM-DD).');
+    e.statusCode = 400;
+    throw e;
+  }
+  const [[row]] = await executor.query(
+    `SELECT (CAST(? AS DATE) BETWEEN start_date AND end_date) AS ok
+     FROM construction_payroll_periods WHERE id = ? LIMIT 1`,
+    [workDateYmd, periodId]
+  );
+  if (!row) {
+    const e = new Error('Período não encontrado');
+    e.statusCode = 404;
+    throw e;
+  }
+  if (Number(row.ok) !== 1) {
+    const e = new Error('Data fora do período');
+    e.statusCode = 400;
+    throw e;
+  }
 }
 
 async function loadEmployee(pool, id) {
@@ -267,13 +378,24 @@ export async function listPeriods(req, res) {
         `SELECT p.*,
           (SELECT COUNT(*) FROM construction_payroll_timesheets t WHERE t.period_id = p.id) AS line_count,
           (SELECT COALESCE(SUM(calculated_amount),0) FROM construction_payroll_timesheets t WHERE t.period_id = p.id) AS total_amount,
-          (SELECT COALESCE(SUM(a.reimbursement),0) FROM construction_payroll_period_adjustments a WHERE a.period_id = p.id) AS reimbursement_total
+          (SELECT COALESCE(SUM(a.reimbursement),0) FROM construction_payroll_period_adjustments a WHERE a.period_id = p.id) AS reimbursement_total,
+          (SELECT COALESCE(SUM(a.discount),0) FROM construction_payroll_period_adjustments a WHERE a.period_id = p.id) AS discount_total
          FROM construction_payroll_periods p
          ORDER BY p.start_date DESC, p.id DESC`
       );
       rows = r;
     } catch (e) {
-      if (isMissingTable(e) && String(e.message || '').includes('construction_payroll_period_adjustments')) {
+      if (isMissingColumn(e, 'discount')) {
+        const [r] = await pool.query(
+          `SELECT p.*,
+            (SELECT COUNT(*) FROM construction_payroll_timesheets t WHERE t.period_id = p.id) AS line_count,
+            (SELECT COALESCE(SUM(calculated_amount),0) FROM construction_payroll_timesheets t WHERE t.period_id = p.id) AS total_amount,
+            (SELECT COALESCE(SUM(a.reimbursement),0) FROM construction_payroll_period_adjustments a WHERE a.period_id = p.id) AS reimbursement_total
+           FROM construction_payroll_periods p
+           ORDER BY p.start_date DESC, p.id DESC`
+        );
+        rows = (r || []).map((x) => ({ ...x, discount_total: 0 }));
+      } else if (isMissingTable(e) && String(e.message || '').includes('construction_payroll_period_adjustments')) {
         const [r] = await pool.query(
           `SELECT p.*,
             (SELECT COUNT(*) FROM construction_payroll_timesheets t WHERE t.period_id = p.id) AS line_count,
@@ -281,12 +403,12 @@ export async function listPeriods(req, res) {
            FROM construction_payroll_periods p
            ORDER BY p.start_date DESC, p.id DESC`
         );
-        rows = (r || []).map((x) => ({ ...x, reimbursement_total: 0 }));
+        rows = (r || []).map((x) => ({ ...x, reimbursement_total: 0, discount_total: 0 }));
       } else {
         throw e;
       }
     }
-    return res.json({ success: true, data: rows });
+    return res.json({ success: true, data: (rows || []).map(serializePeriodForClient) });
   } catch (err) {
     return sendDbError(res, err);
   }
@@ -304,6 +426,7 @@ export async function getPeriod(req, res) {
       [id]
     );
     let reimbursement_total = 0;
+    let discount_total = 0;
     try {
       const [[r]] = await pool.query(
         'SELECT COALESCE(SUM(reimbursement),0) AS s FROM construction_payroll_period_adjustments WHERE period_id = ?',
@@ -313,9 +436,18 @@ export async function getPeriod(req, res) {
     } catch (_) {
       /* tabela opcional até migrate */
     }
+    try {
+      const [[r2]] = await pool.query(
+        'SELECT COALESCE(SUM(discount),0) AS s FROM construction_payroll_period_adjustments WHERE period_id = ?',
+        [id]
+      );
+      discount_total = Number(r2.s) || 0;
+    } catch (_) {
+      discount_total = 0;
+    }
     return res.json({
       success: true,
-      data: { ...p, ...agg, reimbursement_total },
+      data: { ...serializePeriodForClient(p), ...agg, reimbursement_total, discount_total },
     });
   } catch (err) {
     return sendDbError(res, err);
@@ -339,7 +471,7 @@ export async function createPeriod(req, res) {
       [name, frequency, start_date, end_date]
     );
     const p = await loadPeriod(pool, r.insertId);
-    return res.status(201).json({ success: true, data: p });
+    return res.status(201).json({ success: true, data: serializePeriodForClient(p) });
   } catch (err) {
     return sendDbError(res, err);
   }
@@ -371,9 +503,25 @@ export async function updatePeriod(req, res) {
         id,
       ]
     );
-    return res.json({ success: true, data: await loadPeriod(pool, id) });
+    return res.json({ success: true, data: serializePeriodForClient(await loadPeriod(pool, id)) });
   } catch (err) {
     if (err.statusCode) return res.status(err.statusCode).json({ success: false, error: err.message });
+    return sendDbError(res, err);
+  }
+}
+
+export async function deletePeriod(req, res) {
+  try {
+    const pool = await getDBConnection();
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isFinite(id)) {
+      return res.status(400).json({ success: false, error: 'ID inválido' });
+    }
+    const p = await loadPeriod(pool, id);
+    if (!p) return res.status(404).json({ success: false, error: 'Período não encontrado' });
+    await pool.execute('DELETE FROM construction_payroll_periods WHERE id = ?', [id]);
+    return res.json({ success: true });
+  } catch (err) {
     return sendDbError(res, err);
   }
 }
@@ -392,7 +540,26 @@ export async function closePeriod(req, res) {
       `UPDATE construction_payroll_periods SET status = 'closed', closed_at = NOW(), closed_by = ? WHERE id = ?`,
       [uid, id]
     );
-    return res.json({ success: true, data: await loadPeriod(pool, id) });
+    return res.json({ success: true, data: serializePeriodForClient(await loadPeriod(pool, id)) });
+  } catch (err) {
+    return sendDbError(res, err);
+  }
+}
+
+export async function reopenPeriod(req, res) {
+  try {
+    const pool = await getDBConnection();
+    const id = parseInt(req.params.id, 10);
+    const p = await loadPeriod(pool, id);
+    if (!p) return res.status(404).json({ success: false, error: 'Não encontrado' });
+    if (p.status !== 'closed') {
+      return res.status(409).json({ success: false, error: 'Só é possível reabrir um período fechado' });
+    }
+    await pool.execute(
+      `UPDATE construction_payroll_periods SET status = 'open', closed_at = NULL, closed_by = NULL WHERE id = ?`,
+      [id]
+    );
+    return res.json({ success: true, data: serializePeriodForClient(await loadPeriod(pool, id)) });
   } catch (err) {
     return sendDbError(res, err);
   }
@@ -441,12 +608,24 @@ export async function getPeriodPreview(req, res) {
     let adjRows = [];
     try {
       const [ar] = await pool.query(
-        'SELECT employee_id, reimbursement, notes FROM construction_payroll_period_adjustments WHERE period_id = ?',
+        'SELECT employee_id, reimbursement, discount, notes FROM construction_payroll_period_adjustments WHERE period_id = ?',
         [id]
       );
       adjRows = ar || [];
-    } catch (_) {
-      adjRows = [];
+    } catch (e) {
+      if (isMissingColumn(e, 'discount')) {
+        try {
+          const [ar] = await pool.query(
+            'SELECT employee_id, reimbursement, notes FROM construction_payroll_period_adjustments WHERE period_id = ?',
+            [id]
+          );
+          adjRows = (ar || []).map((x) => ({ ...x, discount: 0 }));
+        } catch (_) {
+          adjRows = [];
+        }
+      } else {
+        adjRows = [];
+      }
     }
 
     const adjMap = new Map(adjRows.map((r) => [r.employee_id, r]));
@@ -457,6 +636,7 @@ export async function getPeriodPreview(req, res) {
       seen.add(row.employee_id);
       const adj = adjMap.get(row.employee_id);
       const reim = adj ? Number(adj.reimbursement) || 0 : 0;
+      const disc = adj ? Number(adj.discount) || 0 : 0;
       const sub = Number(row.subtotal) || 0;
       by_employee.push({
         employee_id: row.employee_id,
@@ -466,8 +646,9 @@ export async function getPeriodPreview(req, res) {
         line_count: Number(row.line_count) || 0,
         subtotal: sub,
         reimbursement: reim,
+        discount: disc,
         reimbursement_notes: adj?.notes || null,
-        employee_total: Math.round((sub + reim) * 100) / 100,
+        employee_total: Math.round((sub + reim - disc) * 100) / 100,
       });
     }
 
@@ -476,6 +657,7 @@ export async function getPeriodPreview(req, res) {
       const emp = await loadEmployee(pool, adj.employee_id);
       if (!emp) continue;
       const reim = Number(adj.reimbursement) || 0;
+      const disc = Number(adj.discount) || 0;
       by_employee.push({
         employee_id: adj.employee_id,
         name: emp.name,
@@ -484,8 +666,9 @@ export async function getPeriodPreview(req, res) {
         line_count: 0,
         subtotal: 0,
         reimbursement: reim,
+        discount: disc,
         reimbursement_notes: adj.notes || null,
-        employee_total: Math.round(reim * 100) / 100,
+        employee_total: Math.round((reim - disc) * 100) / 100,
       });
     }
 
@@ -496,6 +679,7 @@ export async function getPeriodPreview(req, res) {
       [id]
     );
     let grandReim = 0;
+    let grandDisc = 0;
     try {
       const [[gr]] = await pool.query(
         'SELECT COALESCE(SUM(reimbursement),0) AS s FROM construction_payroll_period_adjustments WHERE period_id = ?',
@@ -503,17 +687,25 @@ export async function getPeriodPreview(req, res) {
       );
       grandReim = Number(gr.s) || 0;
     } catch (_) {}
+    try {
+      const [[gd]] = await pool.query(
+        'SELECT COALESCE(SUM(discount),0) AS s FROM construction_payroll_period_adjustments WHERE period_id = ?',
+        [id]
+      );
+      grandDisc = Number(gd.s) || 0;
+    } catch (_) {}
 
     const grand_timesheet = Number(grandTs.s) || 0;
-    const grand_total = Math.round((grand_timesheet + grandReim) * 100) / 100;
+    const grand_total = Math.round((grand_timesheet + grandReim - grandDisc) * 100) / 100;
 
     return res.json({
       success: true,
       data: {
-        period: p,
+        period: serializePeriodForClient(p),
         by_employee,
         grand_timesheet,
         grand_reimbursement: grandReim,
+        grand_discount: grandDisc,
         grand_total,
       },
     });
@@ -542,13 +734,26 @@ export async function putPeriodAdjustments(req, res) {
         const emp = await loadEmployee(conn, eid);
         if (!emp) continue;
         const amt = Math.round((Number(r.reimbursement) || 0) * 100) / 100;
+        const disc = Math.round((Number(r.discount) || 0) * 100) / 100;
         const notes = r.notes != null ? String(r.notes).slice(0, 500) : null;
-        if (amt === 0 && (!notes || notes === '')) continue;
-        await conn.execute(
-          `INSERT INTO construction_payroll_period_adjustments (period_id, employee_id, reimbursement, notes)
-           VALUES (?,?,?,?)`,
-          [periodId, eid, amt, notes]
-        );
+        if (amt === 0 && disc === 0 && (!notes || notes === '')) continue;
+        try {
+          await conn.execute(
+            `INSERT INTO construction_payroll_period_adjustments (period_id, employee_id, reimbursement, discount, notes)
+             VALUES (?,?,?,?,?)`,
+            [periodId, eid, amt, disc, notes]
+          );
+        } catch (insErr) {
+          if (isMissingColumn(insErr, 'discount')) {
+            await conn.execute(
+              `INSERT INTO construction_payroll_period_adjustments (period_id, employee_id, reimbursement, notes)
+               VALUES (?,?,?,?)`,
+              [periodId, eid, amt, notes]
+            );
+          } else {
+            throw insErr;
+          }
+        }
       }
       await conn.commit();
     } catch (e) {
@@ -586,42 +791,78 @@ export async function listTimesheets(req, res) {
       params.push(parseInt(req.query.project_id, 10));
     }
     q += ' ORDER BY t.work_date ASC, t.id ASC';
+    const qProjFallback = q.replace(
+      'pr.project_number, pr.status AS project_status',
+      "COALESCE(pr.name, CONCAT('#', pr.id)) AS project_number, pr.status AS project_status"
+    );
+    const stripSector = (sql) =>
+      sql.replace(
+        'e.payment_type AS employee_payment_type, e.sector AS employee_sector,',
+        'e.payment_type AS employee_payment_type,'
+      );
+
     let rows;
     try {
       const [r] = await pool.query(q, params);
       rows = r;
     } catch (e) {
-      if (e.code === 'ER_BAD_FIELD_ERROR' && String(e.message || '').includes('sector')) {
-        const q2 = q.replace('e.payment_type AS employee_payment_type, e.sector AS employee_sector,', 'e.payment_type AS employee_payment_type,');
-        const [r] = await pool.query(q2, params);
-        rows = (r || []).map((x) => ({ ...x, employee_sector: null }));
+      if (isMissingColumn(e, 'project_number')) {
+        try {
+          const [r] = await pool.query(qProjFallback, params);
+          rows = r;
+        } catch (e2) {
+          if (e2.code === 'ER_BAD_FIELD_ERROR' && String(e2.message || '').includes('sector')) {
+            const [r] = await pool.query(stripSector(qProjFallback), params);
+            rows = (r || []).map((x) => ({ ...x, employee_sector: null }));
+          } else {
+            throw e2;
+          }
+        }
+      } else if (e.code === 'ER_BAD_FIELD_ERROR' && String(e.message || '').includes('sector')) {
+        try {
+          const [r] = await pool.query(stripSector(q), params);
+          rows = (r || []).map((x) => ({ ...x, employee_sector: null }));
+        } catch (e3) {
+          if (isMissingColumn(e3, 'project_number')) {
+            const [r] = await pool.query(stripSector(qProjFallback), params);
+            rows = (r || []).map((x) => ({ ...x, employee_sector: null }));
+          } else {
+            throw e3;
+          }
+        }
       } else {
         throw e;
       }
     }
-    return res.json({ success: true, data: rows, period: p });
+    return res.json({
+      success: true,
+      data: (rows || []).map(serializeTimesheetRowForClient),
+      period: serializePeriodForClient(p),
+    });
   } catch (err) {
     return sendDbError(res, err);
   }
 }
 
-async function upsertOneLine(pool, period, line, userId) {
+async function upsertOneLine(executor, period, line, userId, options = {}) {
+  const { allowClosedLineUpdates = false } = options;
   const employeeId = parseInt(line.employee_id, 10);
-  const emp = await loadEmployee(pool, employeeId);
+  const emp = await loadEmployee(executor, employeeId);
   if (!emp || !emp.is_active) {
     const e = new Error('Funcionário inválido ou inativo');
     e.statusCode = 400;
     throw e;
   }
-  const workDate = line.work_date;
-  if (!workDate || !workDateInPeriod(workDate, period.start_date, period.end_date)) {
-    const e = new Error('Data fora do período');
+  const workDate = normalizeWorkDateYMD(line.work_date);
+  if (!workDate) {
+    const e = new Error('Data de trabalho em falta ou inválida');
     e.statusCode = 400;
     throw e;
   }
+  await assertWorkDateInPeriodDb(executor, period.id, workDate);
   let projectId = line.project_id != null && line.project_id !== '' ? parseInt(line.project_id, 10) : null;
   if (projectId) {
-    const [pr] = await pool.query('SELECT id FROM projects WHERE id = ?', [projectId]);
+    const [pr] = await executor.query('SELECT id FROM projects WHERE id = ?', [projectId]);
     if (!pr.length) {
       const e = new Error('Projeto não encontrado');
       e.statusCode = 400;
@@ -632,11 +873,37 @@ async function upsertOneLine(pool, period, line, userId) {
   const regular_hours = Number(line.regular_hours) || 0;
   const overtime_hours = Number(line.overtime_hours) || 0;
   const notes = line.notes != null ? String(line.notes) : null;
-  const calculated_amount = calcTimesheetLineAmount(emp, {
-    days_worked,
-    regular_hours,
-    overtime_hours,
-  });
+
+  let daily_rate_override_db = null;
+  const rawOvr = line.daily_rate_override;
+  if (rawOvr === undefined && line.id) {
+    const tidPre = parseInt(line.id, 10);
+    const [ex] = await executor.query(
+      'SELECT daily_rate_override FROM construction_payroll_timesheets WHERE id = ? AND period_id = ? LIMIT 1',
+      [tidPre, period.id]
+    );
+    const prev = ex[0]?.daily_rate_override;
+    if (prev != null && prev !== '') {
+      const n = Number(prev);
+      if (Number.isFinite(n) && n >= 0) daily_rate_override_db = Math.round(n * 100) / 100;
+    }
+  } else if (rawOvr === null || (typeof rawOvr === 'string' && rawOvr.trim() === '')) {
+    daily_rate_override_db = null;
+  } else if (rawOvr !== undefined) {
+    const s = String(rawOvr).trim();
+    if (s !== '') {
+      const n = Number(s.replace(',', '.'));
+      if (Number.isFinite(n) && n >= 0) {
+        daily_rate_override_db = Math.round(n * 100) / 100;
+      }
+    }
+  }
+
+  const calcLine = { days_worked, regular_hours, overtime_hours };
+  if (daily_rate_override_db != null) {
+    calcLine.daily_rate_override = daily_rate_override_db;
+  }
+  const calculated_amount = calcTimesheetLineAmount(emp, calcLine);
 
   const payload = [
     period.id,
@@ -644,6 +911,7 @@ async function upsertOneLine(pool, period, line, userId) {
     projectId,
     workDate,
     days_worked,
+    daily_rate_override_db,
     regular_hours,
     overtime_hours,
     notes,
@@ -653,7 +921,7 @@ async function upsertOneLine(pool, period, line, userId) {
 
   if (line.id) {
     const tid = parseInt(line.id, 10);
-    const [existing] = await pool.query(
+    const [existing] = await executor.query(
       'SELECT t.id, p.status FROM construction_payroll_timesheets t JOIN construction_payroll_periods p ON p.id = t.period_id WHERE t.id = ?',
       [tid]
     );
@@ -662,14 +930,14 @@ async function upsertOneLine(pool, period, line, userId) {
       e.statusCode = 404;
       throw e;
     }
-    if (existing[0].status === 'closed') {
+    if (existing[0].status === 'closed' && !allowClosedLineUpdates) {
       const e = new Error('Período fechado');
       e.statusCode = 409;
       throw e;
     }
-    await pool.execute(
+    await executor.execute(
       `UPDATE construction_payroll_timesheets SET
-        employee_id = ?, project_id = ?, work_date = ?, days_worked = ?, regular_hours = ?, overtime_hours = ?,
+        employee_id = ?, project_id = ?, work_date = ?, days_worked = ?, daily_rate_override = ?, regular_hours = ?, overtime_hours = ?,
         notes = ?, calculated_amount = ?
        WHERE id = ? AND period_id = ?`,
       [
@@ -677,6 +945,7 @@ async function upsertOneLine(pool, period, line, userId) {
         projectId,
         workDate,
         days_worked,
+        daily_rate_override_db,
         regular_hours,
         overtime_hours,
         notes,
@@ -685,51 +954,72 @@ async function upsertOneLine(pool, period, line, userId) {
         period.id,
       ]
     );
-    const [rows] = await pool.query(
+    const [rows] = await executor.query(
       `SELECT t.*, e.name AS employee_name FROM construction_payroll_timesheets t
        INNER JOIN construction_payroll_employees e ON e.id = t.employee_id WHERE t.id = ?`,
       [tid]
     );
-    return rows[0];
+    return serializeTimesheetRowForClient(rows[0]);
   }
 
-  const [ins] = await pool.execute(
+  if (period.status === 'closed') {
+    const e = new Error('Período fechado — não é possível adicionar linhas novas, só alterar as já existentes.');
+    e.statusCode = 409;
+    throw e;
+  }
+
+  const [ins] = await executor.execute(
     `INSERT INTO construction_payroll_timesheets
-     (period_id, employee_id, project_id, work_date, days_worked, regular_hours, overtime_hours, notes, calculated_amount, created_by)
-     VALUES (?,?,?,?,?,?,?,?,?,?)`,
+     (period_id, employee_id, project_id, work_date, days_worked, daily_rate_override, regular_hours, overtime_hours, notes, calculated_amount, created_by)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
     payload
   );
-  const [rows] = await pool.query(
+  const [rows] = await executor.query(
     `SELECT t.*, e.name AS employee_name FROM construction_payroll_timesheets t
      INNER JOIN construction_payroll_employees e ON e.id = t.employee_id WHERE t.id = ?`,
     [ins.insertId]
   );
-  return rows[0];
+  return serializeTimesheetRowForClient(rows[0]);
 }
 
 export async function bulkTimesheets(req, res) {
   try {
     const pool = await getDBConnection();
     const periodId = parseInt(req.params.periodId, 10);
-    const period = await assertPeriodWritable(pool, periodId);
+    const period = await assertPeriodAllowsTimesheetMutation(pool, periodId, req);
+    const allowClosedUpdates = period.status === 'closed';
     const lines = Array.isArray(req.body?.lines) ? req.body.lines : [];
     const uid = req.session.userId || null;
-    const out = [];
-    for (const line of lines) {
-      if (!line || typeof line !== 'object') continue;
-      if (!line.id && (!line.employee_id || !line.work_date)) continue;
-      try {
-        const row = await upsertOneLine(pool, period, line, uid);
-        out.push(row);
-      } catch (e) {
-        if (e.code === 'ER_DUP_ENTRY') {
-          e.statusCode = 409;
-          e.message = 'Já existe linha para este funcionário, projeto e data neste período';
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+      const out = [];
+      for (const line of lines) {
+        if (!line || typeof line !== 'object') continue;
+        const hasEmp = line.employee_id != null && String(line.employee_id).trim() !== '';
+        const hasDate = line.work_date != null && String(line.work_date).trim() !== '';
+        if (!line.id && (!hasEmp || !hasDate)) continue;
+        try {
+          const row = await upsertOneLine(conn, period, line, uid, {
+            allowClosedLineUpdates: allowClosedUpdates,
+          });
+          out.push(row);
+        } catch (e) {
+          if (e.code === 'ER_DUP_ENTRY') {
+            e.statusCode = 409;
+            e.message = 'Já existe linha para este funcionário, projeto e data neste período';
+          }
+          throw e;
         }
-        throw e;
       }
+      await conn.commit();
+      return res.json({ success: true, data: out });
+    } catch (err) {
+      await conn.rollback();
+      throw err;
+    } finally {
+      conn.release();
     }
-    return res.json({ success: true, data: out });
   } catch (err) {
     if (err.statusCode) return res.status(err.statusCode).json({ success: false, error: err.message });
     return sendDbError(res, err);
@@ -747,9 +1037,7 @@ export async function updateTimesheet(req, res) {
     );
     if (!existing.length) return res.status(404).json({ success: false, error: 'Não encontrado' });
     const row0 = existing[0];
-    if (row0.status === 'closed') {
-      return res.status(409).json({ success: false, error: 'Período fechado' });
-    }
+    await assertPeriodAllowsTimesheetMutation(pool, row0.period_id, req);
     const period = {
       id: row0.period_id,
       start_date: row0.start_date,
@@ -762,12 +1050,16 @@ export async function updateTimesheet(req, res) {
       project_id: b.project_id !== undefined ? b.project_id : row0.project_id,
       work_date: b.work_date != null ? b.work_date : row0.work_date,
       days_worked: b.days_worked != null ? b.days_worked : row0.days_worked,
+      daily_rate_override:
+        b.daily_rate_override !== undefined ? b.daily_rate_override : row0.daily_rate_override,
       regular_hours: b.regular_hours != null ? b.regular_hours : row0.regular_hours,
       overtime_hours: b.overtime_hours != null ? b.overtime_hours : row0.overtime_hours,
       notes: b.notes !== undefined ? b.notes : row0.notes,
     };
     const uid = req.session.userId || null;
-    const updated = await upsertOneLine(pool, period, merged, uid);
+    const updated = await upsertOneLine(pool, period, merged, uid, {
+      allowClosedLineUpdates: row0.status === 'closed',
+    });
     return res.json({ success: true, data: updated });
   } catch (err) {
     if (err.statusCode) return res.status(err.statusCode).json({ success: false, error: err.message });
@@ -780,14 +1072,12 @@ export async function deleteTimesheet(req, res) {
     const pool = await getDBConnection();
     const id = parseInt(req.params.id, 10);
     const [existing] = await pool.query(
-      `SELECT t.id, p.status FROM construction_payroll_timesheets t
+      `SELECT t.id, t.period_id, p.status FROM construction_payroll_timesheets t
        JOIN construction_payroll_periods p ON p.id = t.period_id WHERE t.id = ?`,
       [id]
     );
     if (!existing.length) return res.status(404).json({ success: false, error: 'Não encontrado' });
-    if (existing[0].status === 'closed') {
-      return res.status(409).json({ success: false, error: 'Período fechado' });
-    }
+    await assertPeriodAllowsTimesheetMutation(pool, existing[0].period_id, req);
     await pool.execute('DELETE FROM construction_payroll_timesheets WHERE id = ?', [id]);
     return res.json({ success: true });
   } catch (err) {
@@ -798,56 +1088,109 @@ export async function deleteTimesheet(req, res) {
 export async function reportEmployeeEarnings(req, res) {
   try {
     const pool = await getDBConnection();
-    const from = req.query.from;
-    const to = req.query.to;
-    if (!from || !to) {
-      return res.status(400).json({ success: false, error: 'Parâmetros from e to (YYYY-MM-DD) são obrigatórios' });
+    const norm = normalizeReportRange(req.query.from, req.query.to);
+    if (!norm) {
+      return res.status(400).json({
+        success: false,
+        error: 'Parâmetros from e to são obrigatórios (formato AAAA-MM-DD)',
+      });
     }
-    let rows;
-    try {
-      const [r] = await pool.query(
-        `SELECT e.id AS employee_id, e.name, e.role, e.sector,
+    const [from, to] = norm;
+    const adjReim = `COALESCE((
+            SELECT SUM(a.reimbursement) FROM construction_payroll_period_adjustments a
+            INNER JOIN construction_payroll_periods p ON p.id = a.period_id
+            WHERE a.employee_id = e.id AND p.end_date >= ? AND p.end_date <= ?
+          ), 0)`;
+    const adjDisc = `COALESCE((
+            SELECT SUM(a.discount) FROM construction_payroll_period_adjustments a
+            INNER JOIN construction_payroll_periods p ON p.id = a.period_id
+            WHERE a.employee_id = e.id AND p.end_date >= ? AND p.end_date <= ?
+          ), 0)`;
+    const sqlEmpDiscount = (sectorExpr) => `SELECT e.id AS employee_id,
+          MAX(e.name) AS name,
+          MAX(e.role) AS role,
+          ${sectorExpr}
           COUNT(t.id) AS entries,
           COALESCE(SUM(t.days_worked),0) AS total_days,
           COALESCE(SUM(t.regular_hours),0) AS total_regular_hours,
           COALESCE(SUM(t.overtime_hours),0) AS total_overtime_hours,
           COALESCE(SUM(t.calculated_amount),0) AS timesheet_earnings,
-          COALESCE((
-            SELECT SUM(a.reimbursement) FROM construction_payroll_period_adjustments a
-            INNER JOIN construction_payroll_periods p ON p.id = a.period_id
-            WHERE a.employee_id = e.id AND p.end_date >= ? AND p.end_date <= ?
-          ), 0) AS reimbursement_total,
-          COALESCE(SUM(t.calculated_amount),0) + COALESCE((
-            SELECT SUM(a.reimbursement) FROM construction_payroll_period_adjustments a
-            INNER JOIN construction_payroll_periods p ON p.id = a.period_id
-            WHERE a.employee_id = e.id AND p.end_date >= ? AND p.end_date <= ?
-          ), 0) AS total_earnings
+          ${adjReim} AS reimbursement_total,
+          ${adjDisc} AS discount_total,
+          COALESCE(SUM(t.calculated_amount),0) + ${adjReim} - ${adjDisc} AS total_earnings
          FROM construction_payroll_timesheets t
          INNER JOIN construction_payroll_employees e ON e.id = t.employee_id
          WHERE t.work_date >= ? AND t.work_date <= ?
-         GROUP BY e.id, e.name, e.role, e.sector
-         ORDER BY total_earnings DESC`,
-        [from, to, from, to, from, to]
-      );
+         GROUP BY e.id
+         ORDER BY total_earnings DESC`;
+    const sqlEmpReimOnly = (sectorExpr) => `SELECT e.id AS employee_id,
+          MAX(e.name) AS name,
+          MAX(e.role) AS role,
+          ${sectorExpr}
+          COUNT(t.id) AS entries,
+          COALESCE(SUM(t.days_worked),0) AS total_days,
+          COALESCE(SUM(t.regular_hours),0) AS total_regular_hours,
+          COALESCE(SUM(t.overtime_hours),0) AS total_overtime_hours,
+          COALESCE(SUM(t.calculated_amount),0) AS timesheet_earnings,
+          ${adjReim} AS reimbursement_total,
+          COALESCE(SUM(t.calculated_amount),0) + ${adjReim} AS total_earnings
+         FROM construction_payroll_timesheets t
+         INNER JOIN construction_payroll_employees e ON e.id = t.employee_id
+         WHERE t.work_date >= ? AND t.work_date <= ?
+         GROUP BY e.id
+         ORDER BY total_earnings DESC`;
+    const paramsDisc = [from, to, from, to, from, to, from, to, from, to];
+    const paramsReim = [from, to, from, to, from, to];
+
+    let rows;
+    try {
+      const [r] = await pool.query(sqlEmpDiscount('MAX(e.sector) AS sector,'), paramsDisc);
       rows = r;
     } catch (e) {
-      if (
+      if (isMissingColumn(e, 'discount')) {
+        try {
+          const [r] = await pool.query(sqlEmpReimOnly('MAX(e.sector) AS sector,'), paramsReim);
+          rows = (r || []).map((x) => ({ ...x, discount_total: 0 }));
+        } catch (e2) {
+          if (e2.code === 'ER_BAD_FIELD_ERROR' && String(e2.message || '').includes('sector')) {
+            const [r] = await pool.query(sqlEmpReimOnly('NULL AS sector,'), paramsReim);
+            rows = (r || []).map((x) => ({ ...x, discount_total: 0, sector: null }));
+          } else {
+            throw e2;
+          }
+        }
+      } else if (e.code === 'ER_BAD_FIELD_ERROR' && String(e.message || '').includes('sector')) {
+        try {
+          const [r] = await pool.query(sqlEmpDiscount('NULL AS sector,'), paramsDisc);
+          rows = (r || []).map((x) => ({ ...x, sector: null }));
+        } catch (e3) {
+          if (isMissingColumn(e3, 'discount')) {
+            const [r] = await pool.query(sqlEmpReimOnly('NULL AS sector,'), paramsReim);
+            rows = (r || []).map((x) => ({ ...x, discount_total: 0, sector: null }));
+          } else {
+            throw e3;
+          }
+        }
+      } else if (
         isMissingTable(e) ||
-        (e.code === 'ER_BAD_FIELD_ERROR' && String(e.message || '').includes('sector'))
+        String(e.message || '').includes('construction_payroll_period_adjustments')
       ) {
         const [r] = await pool.query(
-          `SELECT e.id AS employee_id, e.name, e.role,
+          `SELECT e.id AS employee_id,
+            MAX(e.name) AS name,
+            MAX(e.role) AS role,
             COUNT(t.id) AS entries,
             COALESCE(SUM(t.days_worked),0) AS total_days,
             COALESCE(SUM(t.regular_hours),0) AS total_regular_hours,
             COALESCE(SUM(t.overtime_hours),0) AS total_overtime_hours,
             COALESCE(SUM(t.calculated_amount),0) AS timesheet_earnings,
             0 AS reimbursement_total,
+            0 AS discount_total,
             COALESCE(SUM(t.calculated_amount),0) AS total_earnings
            FROM construction_payroll_timesheets t
            INNER JOIN construction_payroll_employees e ON e.id = t.employee_id
            WHERE t.work_date >= ? AND t.work_date <= ?
-           GROUP BY e.id, e.name, e.role
+           GROUP BY e.id
            ORDER BY total_earnings DESC`,
           [from, to]
         );
@@ -865,22 +1208,60 @@ export async function reportEmployeeEarnings(req, res) {
 export async function reportProjectLabor(req, res) {
   try {
     const pool = await getDBConnection();
-    const from = req.query.from;
-    const to = req.query.to;
-    if (!from || !to) {
-      return res.status(400).json({ success: false, error: 'Parâmetros from e to são obrigatórios' });
+    const norm = normalizeReportRange(req.query.from, req.query.to);
+    if (!norm) {
+      return res.status(400).json({
+        success: false,
+        error: 'Parâmetros from e to são obrigatórios (formato AAAA-MM-DD)',
+      });
     }
-    const [rows] = await pool.query(
-      `SELECT t.project_id, pr.project_number,
-        COUNT(t.id) AS entries,
-        COALESCE(SUM(t.calculated_amount),0) AS labor_cost
-       FROM construction_payroll_timesheets t
-       LEFT JOIN projects pr ON pr.id = t.project_id
-       WHERE t.work_date >= ? AND t.work_date <= ?
-       GROUP BY t.project_id, pr.project_number
-       ORDER BY labor_cost DESC`,
-      [from, to]
-    );
+    const [from, to] = norm;
+    let rows;
+    try {
+      const [r] = await pool.query(
+        `SELECT t.project_id,
+          MAX(pr.project_number) AS project_number,
+          COUNT(t.id) AS entries,
+          COALESCE(SUM(t.calculated_amount),0) AS labor_cost
+         FROM construction_payroll_timesheets t
+         LEFT JOIN projects pr ON pr.id = t.project_id
+         WHERE t.work_date >= ? AND t.work_date <= ?
+         GROUP BY t.project_id
+         ORDER BY labor_cost DESC`,
+        [from, to]
+      );
+      rows = r;
+    } catch (e) {
+      if (isMissingColumn(e, 'project_number')) {
+        const [r] = await pool.query(
+          `SELECT t.project_id,
+            MAX(COALESCE(pr.name, CONCAT('#', pr.id))) AS project_number,
+            COUNT(t.id) AS entries,
+            COALESCE(SUM(t.calculated_amount),0) AS labor_cost
+           FROM construction_payroll_timesheets t
+           LEFT JOIN projects pr ON pr.id = t.project_id
+           WHERE t.work_date >= ? AND t.work_date <= ?
+           GROUP BY t.project_id
+           ORDER BY labor_cost DESC`,
+          [from, to]
+        );
+        rows = r;
+      } else if (isMissingTable(e) && String(e.message || '').toLowerCase().includes('projects')) {
+        const [r] = await pool.query(
+          `SELECT t.project_id,
+            COUNT(t.id) AS entries,
+            COALESCE(SUM(t.calculated_amount),0) AS labor_cost
+           FROM construction_payroll_timesheets t
+           WHERE t.work_date >= ? AND t.work_date <= ?
+           GROUP BY t.project_id
+           ORDER BY labor_cost DESC`,
+          [from, to]
+        );
+        rows = (r || []).map((row) => ({ ...row, project_number: null }));
+      } else {
+        throw e;
+      }
+    }
     return res.json({ success: true, data: rows, range: { from, to } });
   } catch (err) {
     return sendDbError(res, err);
@@ -895,16 +1276,24 @@ export async function reportTotalExpenses(req, res) {
       const p = await loadPeriod(pool, pid);
       if (!p) return res.status(404).json({ success: false, error: 'Período não encontrado' });
       const [[agg]] = await pool.query(
-        'SELECT COALESCE(SUM(calculated_amount),0) AS total, COUNT(*) AS lines FROM construction_payroll_timesheets WHERE period_id = ?',
+        'SELECT COALESCE(SUM(calculated_amount),0) AS total, COUNT(*) AS ts_line_count FROM construction_payroll_timesheets WHERE period_id = ?',
         [pid]
       );
       let reim = 0;
+      let disc = 0;
       try {
         const [[r]] = await pool.query(
           'SELECT COALESCE(SUM(reimbursement),0) AS s FROM construction_payroll_period_adjustments WHERE period_id = ?',
           [pid]
         );
         reim = Number(r.s) || 0;
+      } catch (_) {}
+      try {
+        const [[r2]] = await pool.query(
+          'SELECT COALESCE(SUM(discount),0) AS s FROM construction_payroll_period_adjustments WHERE period_id = ?',
+          [pid]
+        );
+        disc = Number(r2.s) || 0;
       } catch (_) {}
       const labor = Number(agg.total) || 0;
       return res.json({
@@ -914,24 +1303,26 @@ export async function reportTotalExpenses(req, res) {
           period: p,
           timesheet_total: labor,
           reimbursement_total: reim,
-          total: Math.round((labor + reim) * 100) / 100,
-          line_count: Number(agg.lines) || 0,
+          discount_total: disc,
+          total: Math.round((labor + reim - disc) * 100) / 100,
+          line_count: Number(agg.ts_line_count) || 0,
         },
       });
     }
-    const from = req.query.from;
-    const to = req.query.to;
-    if (!from || !to) {
+    const norm = normalizeReportRange(req.query.from, req.query.to);
+    if (!norm) {
       return res.status(400).json({
         success: false,
-        error: 'Informe period_id ou from e to',
+        error: 'Informe period_id ou from e to (AAAA-MM-DD)',
       });
     }
+    const [from, to] = norm;
     const [[agg]] = await pool.query(
-      'SELECT COALESCE(SUM(calculated_amount),0) AS total, COUNT(*) AS lines FROM construction_payroll_timesheets WHERE work_date >= ? AND work_date <= ?',
+      'SELECT COALESCE(SUM(calculated_amount),0) AS total, COUNT(*) AS ts_line_count FROM construction_payroll_timesheets WHERE work_date >= ? AND work_date <= ?',
       [from, to]
     );
     let reimRange = 0;
+    let discRange = 0;
     try {
       const [[r]] = await pool.query(
         `SELECT COALESCE(SUM(a.reimbursement),0) AS s
@@ -942,6 +1333,16 @@ export async function reportTotalExpenses(req, res) {
       );
       reimRange = Number(r.s) || 0;
     } catch (_) {}
+    try {
+      const [[r2]] = await pool.query(
+        `SELECT COALESCE(SUM(a.discount),0) AS s
+         FROM construction_payroll_period_adjustments a
+         INNER JOIN construction_payroll_periods p ON p.id = a.period_id
+         WHERE p.end_date >= ? AND p.end_date <= ?`,
+        [from, to]
+      );
+      discRange = Number(r2.s) || 0;
+    } catch (_) {}
     const labor = Number(agg.total) || 0;
     return res.json({
       success: true,
@@ -949,8 +1350,9 @@ export async function reportTotalExpenses(req, res) {
         scope: 'range',
         timesheet_total: labor,
         reimbursement_total: reimRange,
-        total: Math.round((labor + reimRange) * 100) / 100,
-        line_count: Number(agg.lines) || 0,
+        discount_total: discRange,
+        total: Math.round((labor + reimRange - discRange) * 100) / 100,
+        line_count: Number(agg.ts_line_count) || 0,
         range: { from, to },
       },
     });

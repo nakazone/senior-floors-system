@@ -3,29 +3,31 @@
  * Respeita permissões via GET /api/auth/session.
  */
 (function () {
+  /** Mesma ordem e itens que o sidebar do dashboard.html (sem «Ferramentas» no lateral). */
   const MAIN_NAV = [
-    { href: 'dashboard.html', label: '📊 Dashboard', perm: null, page: '' },
-    { href: 'dashboard.html?page=marketing', label: '📈 Marketing', perm: 'reports.view', page: 'marketing' },
-    { href: 'dashboard.html?page=leads', label: '📋 Leads', perm: 'leads.view', page: 'leads' },
-    { href: 'dashboard.html?page=crm', label: '🎯 CRM', perm: 'pipeline.view', page: 'crm' },
-    { href: 'dashboard.html?page=customers', label: '👥 Clients', perm: 'customers.view', page: 'customers' },
-    { href: 'dashboard.html?page=quotes', label: '💰 Quotes', perm: 'quotes.view', page: 'quotes' },
-    { href: 'dashboard.html?page=projects', label: '🏗️ Projects', perm: 'projects.view', page: 'projects' },
-    { href: 'dashboard.html?page=schedule', label: '📅 Schedule', perm: 'visits.view', page: 'schedule' },
-    { href: 'dashboard.html?page=financeiro', label: '💵 Financeiro', perm: 'contracts.view', page: 'financeiro' },
-    { href: 'dashboard.html?page=activities', label: '📝 Activities', perm: 'activities.view', page: 'activities' },
-    { href: 'dashboard.html?page=users', label: '👤 Users', perm: 'users.view', page: 'users' },
+    { href: 'dashboard.html', label: 'Dashboard', perm: null, page: '' },
+    { href: 'dashboard.html?page=marketing', label: 'Marketing', perm: 'reports.view', page: 'marketing' },
+    { href: 'dashboard.html?page=leads', label: 'Leads', perm: 'leads.view', page: 'leads' },
+    { href: 'dashboard.html?page=crm', label: 'CRM', perm: 'pipeline.view', page: 'crm' },
+    { href: 'dashboard.html?page=customers', label: 'Clients', perm: 'customers.view', page: 'customers' },
+    { href: 'dashboard.html?page=quotes', label: 'Quotes', perm: 'quotes.view', page: 'quotes' },
+    { href: 'dashboard.html?page=projects', label: 'Projects', perm: 'projects.view', page: 'projects' },
+    { href: 'dashboard.html?page=schedule', label: 'Schedule', perm: 'visits.view', page: 'schedule' },
+    { href: 'dashboard.html?page=financeiro', label: 'Financeiro', perm: 'contracts.view', page: 'financeiro' },
+    { href: 'payroll-module.html', label: 'Folha obra', perm: 'payroll.view', page: '' },
+    { href: 'dashboard.html?page=activities', label: 'Activities', perm: 'activities.view', page: 'activities' },
+    { href: 'dashboard.html?page=users', label: 'Users', perm: 'users.view', page: 'users' },
   ];
 
+  /** Só na barra horizontal (páginas sem sidebar); não aparece no menu lateral fixo. */
   const TOOL_NAV = [
     { href: 'quote-builder.html', label: 'Novo orçamento', perm: 'quotes.edit' },
-    { href: 'onsite-quote.html', label: '📱 Quick quote', perm: 'quotes.create' },
+    { href: 'onsite-quote.html', label: 'Quick quote', perm: 'quotes.create' },
     { href: 'quote-catalog.html', label: 'Catálogo', perm: 'quotes.edit' },
     { href: 'suppliers.html', label: 'Fornecedores', perm: 'quotes.view' },
     { href: 'products-erp.html', label: 'Produtos ERP', perm: 'quotes.view' },
     { href: 'estimate-builder.html', label: 'Estimate', perm: 'quotes.view' },
     { href: 'estimate-analytics.html', label: 'Est. analytics', perm: 'quotes.view' },
-    { href: 'payroll-module.html', label: 'Folha obra', perm: 'payroll.view' },
   ];
 
   function currentFile() {
@@ -78,20 +80,6 @@
       stack.className = 'crm-sidebar-nav-stack';
 
       MAIN_NAV.forEach((item) => {
-        if (!canSee(item.perm, role, keys)) return;
-        const a = document.createElement('a');
-        a.href = item.href;
-        a.className = 'nav-item' + (linkActive(item, file, page) ? ' active' : '');
-        a.textContent = item.label;
-        stack.appendChild(a);
-      });
-
-      const toolsLab = document.createElement('p');
-      toolsLab.className = 'crm-sidebar-section-label';
-      toolsLab.textContent = 'Ferramentas';
-      stack.appendChild(toolsLab);
-
-      TOOL_NAV.forEach((item) => {
         if (!canSee(item.perm, role, keys)) return;
         const a = document.createElement('a');
         a.href = item.href;

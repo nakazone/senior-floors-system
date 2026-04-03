@@ -13,6 +13,12 @@ let newLeadPollTimer = null;
 let crmUserPermissions = [];
 let crmUserRole = '';
 
+/** Viewport mobile (coexiste com desktop ≥768px) — usar matchMedia, não user-agent */
+const sfMobileMq = window.matchMedia('(max-width: 768px)');
+
+/** Cache da página atual de orçamentos para pesquisa client-side no cartão mobile */
+let sfQuotesListCache = [];
+
 /** Slug → cor hex (lista de leads alinhada às colunas do Kanban) */
 let leadsPipelineSlugToColor = null;
 
@@ -96,7 +102,21 @@ fetch('/api/auth/session', { credentials: 'include' })
         }
         crmUserPermissions = Array.isArray(u.permissions) ? u.permissions : [];
         crmUserRole = u.role || '';
+        const disp = (u.name && String(u.name).trim()) || u.email || 'Utilizador';
+        const sn = document.getElementById('sidebarUserName');
+        const sr = document.getElementById('sidebarUserRole');
+        const sa = document.getElementById('sidebarUserAvatar');
+        if (sn) sn.textContent = disp;
+        if (sr) sr.textContent = crmUserRole ? String(crmUserRole) : '';
+        if (sa) {
+            const ch = disp.trim().charAt(0).toUpperCase();
+            sa.textContent = ch && /[A-Z0-9]/.test(ch) ? ch : '?';
+        }
         applyCrmNavPermissions(crmUserPermissions, crmUserRole);
+        if (typeof applySfMobileShell === 'function') applySfMobileShell();
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/sw.js').catch(() => {});
+        }
         loadDashboard();
         startNewLeadPolling();
         const pageParam = new URLSearchParams(window.location.search).get('page');
@@ -170,7 +190,7 @@ function startNewLeadPolling() {
 }
 
 // Logout
-document.getElementById('logoutBtn').addEventListener('click', async () => {
+document.getElementById('logoutBtn')?.addEventListener('click', async () => {
     await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
     window.location.href = '/login.html';
 });
@@ -189,7 +209,7 @@ const MOBILE_PAGE_TITLES = {
     marketing: 'Marketing',
     leads: 'Leads',
     crm: 'CRM',
-    customers: 'Clients',
+    customers: 'Clientes',
     quotes: 'Orçamentos',
     projects: 'Projetos',
     schedule: 'Agenda',
@@ -198,7 +218,17 @@ const MOBILE_PAGE_TITLES = {
     users: 'Utilizadores',
 };
 
-const MOBILE_MORE_PAGES = new Set(['marketing', 'customers', 'quotes', 'projects', 'financeiro', 'activities', 'users']);
+/** Módulos no drawer “Mais” (tabs principais Home/Quotes/Clients ficam na barra) */
+const MOBILE_MORE_PAGES = new Set([
+    'marketing',
+    'leads',
+    'crm',
+    'projects',
+    'schedule',
+    'financeiro',
+    'activities',
+    'users',
+]);
 
 function setMobileMenuOpen(open) {
     if (!dashboardSidebar || !mobileOverlay) return;
@@ -214,8 +244,9 @@ function syncMobileAppChrome(pageName) {
     }
     document.querySelectorAll('#mobileTabBar .mobile-tab-bar__item').forEach((btn) => {
         const tab = btn.dataset.mobileTab;
+        if (!tab) return;
         const inMore = MOBILE_MORE_PAGES.has(pageName);
-        const active = tab === pageName || (tab === 'more' && inMore);
+        const active = tab === 'more' ? inMore : tab === pageName;
         btn.classList.toggle('mobile-tab-bar__item--active', active);
         if (active) btn.setAttribute('aria-current', 'page');
         else btn.removeAttribute('aria-current');
@@ -247,6 +278,7 @@ function openMobileMoreSheet() {
     const backdrop = document.getElementById('mobileMoreBackdrop');
     const sheet = document.getElementById('mobileMoreSheet');
     if (!backdrop || !sheet) return;
+    closeSfFabSheet();
     backdrop.hidden = false;
     sheet.hidden = false;
     document.body.classList.add('mobile-more-open');
@@ -273,6 +305,24 @@ function updateMobileMenuVisibility() {
     updateMobileChromeVisibility();
 }
 
+function applySfMobileShell() {
+    document.body.classList.toggle('sf-mobile-shell', sfMobileMq.matches);
+    updateMobileMenuVisibility();
+    if (!sfMobileMq.matches) closeSfFabSheet();
+    else if (typeof currentPageName === 'string' && currentPageName === 'quotes' && typeof renderQuotesMobileFromCache === 'function') {
+        renderQuotesMobileFromCache();
+    }
+}
+
+sfMobileMq.addEventListener('change', () => applySfMobileShell());
+
+window.addEventListener('resize', () => {
+    applySfMobileShell();
+    if (!isMobile()) {
+        setMobileMenuOpen(false);
+    }
+});
+
 if (mobileMenuToggle && dashboardSidebar && mobileOverlay) {
     mobileMenuToggle.addEventListener('click', () => {
         const open = !dashboardSidebar.classList.contains('mobile-open');
@@ -283,8 +333,7 @@ if (mobileMenuToggle && dashboardSidebar && mobileOverlay) {
         setMobileMenuOpen(false);
     });
 
-    // Close mobile menu when clicking sidebar nav only (evita apanhar .nav-item noutras zonas)
-    dashboardSidebar.querySelectorAll('.nav-item').forEach(item => {
+    dashboardSidebar.querySelectorAll('.nav-item').forEach((item) => {
         item.addEventListener('click', () => {
             if (isMobile()) {
                 dashboardSidebar.classList.remove('mobile-open');
@@ -292,16 +341,8 @@ if (mobileMenuToggle && dashboardSidebar && mobileOverlay) {
             }
         });
     });
-    
-    // Update on resize
-    window.addEventListener('resize', () => {
-        updateMobileMenuVisibility();
-        if (!isMobile()) {
-            setMobileMenuOpen(false);
-        }
-    });
-    updateMobileMenuVisibility();
 }
+applySfMobileShell();
 
 const mobileTabBarEl = document.getElementById('mobileTabBar');
 if (mobileTabBarEl) {
@@ -309,10 +350,12 @@ if (mobileTabBarEl) {
         btn.addEventListener('click', () => {
             const t = btn.dataset.mobileTab;
             if (t === 'more') {
+                closeSfFabSheet();
                 openMobileMoreSheet();
                 return;
             }
             closeMobileMoreSheet();
+            closeSfFabSheet();
             showPage(t);
         });
     });
@@ -335,8 +378,65 @@ document.getElementById('mobileMoreLogout')?.addEventListener('click', () => {
     document.getElementById('logoutBtn')?.click();
 });
 
+function openSfFabSheet() {
+    const backdrop = document.getElementById('sfFabBackdrop');
+    const sheet = document.getElementById('sfFabSheet');
+    if (!backdrop || !sheet) return;
+    backdrop.hidden = false;
+    backdrop.setAttribute('aria-hidden', 'false');
+    sheet.hidden = false;
+    document.body.classList.add('sf-fab-open');
+}
+
+function closeSfFabSheet() {
+    const backdrop = document.getElementById('sfFabBackdrop');
+    const sheet = document.getElementById('sfFabSheet');
+    if (backdrop) {
+        backdrop.hidden = true;
+        backdrop.setAttribute('aria-hidden', 'true');
+    }
+    if (sheet) sheet.hidden = true;
+    document.body.classList.remove('sf-fab-open');
+}
+
+document.getElementById('sfFabBackdrop')?.addEventListener('click', () => closeSfFabSheet());
+
+document.getElementById('sfFabNewQuote')?.addEventListener('click', () => {
+    closeSfFabSheet();
+    window.location.href = 'quote-builder.html';
+});
+document.getElementById('sfFabQuickQuote')?.addEventListener('click', () => {
+    closeSfFabSheet();
+    window.location.href = 'onsite-quote.html';
+});
+document.getElementById('sfFabNewClient')?.addEventListener('click', () => {
+    closeSfFabSheet();
+    showPage('customers');
+    if (typeof showNewCustomerModal === 'function') showNewCustomerModal();
+});
+document.getElementById('sfFabSchedule')?.addEventListener('click', () => {
+    closeSfFabSheet();
+    showPage('schedule');
+});
+document.getElementById('sfFabFinance')?.addEventListener('click', () => {
+    closeSfFabSheet();
+    showPage('financeiro');
+});
+
+document.getElementById('sfMobileFab')?.addEventListener('click', () => {
+    closeMobileMoreSheet();
+    const sheet = document.getElementById('sfFabSheet');
+    if (sheet && !sheet.hidden) closeSfFabSheet();
+    else openSfFabSheet();
+});
+
 document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
+    const fabSheet = document.getElementById('sfFabSheet');
+    if (fabSheet && !fabSheet.hidden) {
+        closeSfFabSheet();
+        return;
+    }
     const sheet = document.getElementById('mobileMoreSheet');
     if (sheet && !sheet.hidden) closeMobileMoreSheet();
 });
@@ -457,6 +557,14 @@ function renderDashboardStats() {
     if (!dashboardStats) return;
     
     const stats = dashboardStats;
+    const ctr = stats.contracts || {};
+    const contractsOnly =
+        ctr.contracts_revenue != null ? Number(ctr.contracts_revenue) || 0 : Number(ctr.total_revenue) || 0;
+    const wonQuotesOrphan = Number(ctr.won_quotes_revenue) || 0;
+    const revenueTotal =
+        ctr.total_revenue != null ? Number(ctr.total_revenue) || 0 : contractsOnly + wonQuotesOrphan;
+    const revenueMonth = Number(ctr.this_month_revenue) || 0;
+
     const statsHtml = `
         <div class="stat-card">
             <h3>Leads</h3>
@@ -488,10 +596,12 @@ function renderDashboardStats() {
             </div>
         </div>
         <div class="stat-card">
-            <h3>Revenue</h3>
-            <div class="stat-value">$${parseFloat(stats.contracts.total_revenue || 0).toLocaleString()}</div>
+            <h3>Receita (CRM)</h3>
+            <div class="stat-value">$${revenueTotal.toLocaleString()}</div>
             <div class="stat-details">
-                <span>This Month: $${parseFloat(stats.contracts.this_month_revenue || 0).toLocaleString()}</span>
+                <span>Contratos: $${contractsOnly.toLocaleString()}</span>
+                <span>Ganhos s/ contrato (aprovado ou lead Fechado-Ganhou): $${wonQuotesOrphan.toLocaleString()}</span>
+                <span>Últ. 30 dias: $${revenueMonth.toLocaleString()}</span>
             </div>
         </div>
         <div class="stat-card">
@@ -566,6 +676,121 @@ function renderDashboardStats() {
         `).join('')
         : '<div class="empty-state"><div class="empty-state-icon">S</div><p>No upcoming visits</p></div>';
     document.getElementById('upcomingVisits').innerHTML = visitsHtml;
+
+    renderSfMobileDashboardBlocks();
+    loadSfMobileRecentQuotes();
+}
+
+function renderSfMobileDashboardBlocks() {
+    if (!dashboardStats) return;
+    const stats = dashboardStats;
+    const greetingEl = document.getElementById('sfMobileGreeting');
+    const nameEl = document.getElementById('sidebarUserName');
+    const name = nameEl ? String(nameEl.textContent || '').trim() : '';
+    const h = new Date().getHours();
+    let g = 'Bom dia';
+    if (h >= 12 && h < 18) g = 'Boa tarde';
+    else if (h >= 18) g = 'Boa noite';
+    if (greetingEl) {
+        greetingEl.textContent = name ? `${g}, ${name}` : g;
+        greetingEl.style.color = 'var(--sf-text-accent, #c8a96e)';
+    }
+
+    const ctr = stats.contracts || {};
+    const revenueMonth = Number(ctr.this_month_revenue) || 0;
+    const q = stats.quotes || {};
+    const openQuotes = (Number(q.draft) || 0) + (Number(q.sent) || 0);
+    const proj = stats.projects || {};
+    const activeProj = Number(proj.in_progress) || 0;
+    const leads = stats.leads || {};
+    const totalLeads = Number(leads.total) || 0;
+    const converted = Number(leads.converted) || 0;
+    const convPct = totalLeads > 0 ? ((converted / totalLeads) * 100).toFixed(1) + '%' : '—';
+
+    const rm = revenueMonth.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const kpiGrid = document.getElementById('sfMobileKpiGrid');
+    if (kpiGrid) {
+        kpiGrid.innerHTML = `
+            <div class="sf-kpi-card touchable">
+                <div class="sf-kpi-card__value">$${rm}</div>
+                <div class="sf-kpi-card__label">Faturamento mês</div>
+            </div>
+            <div class="sf-kpi-card touchable">
+                <div class="sf-kpi-card__value">${openQuotes}</div>
+                <div class="sf-kpi-card__label">Quotes em aberto</div>
+            </div>
+            <div class="sf-kpi-card touchable">
+                <div class="sf-kpi-card__value">${activeProj}</div>
+                <div class="sf-kpi-card__label">Projetos ativos</div>
+            </div>
+            <div class="sf-kpi-card touchable">
+                <div class="sf-kpi-card__value">${convPct}</div>
+                <div class="sf-kpi-card__label">Conversão leads</div>
+            </div>`;
+    }
+
+    const qa = document.getElementById('sfMobileQuickActions');
+    if (qa) {
+        qa.innerHTML = `
+            <button type="button" class="sf-quick-pill touchable" data-crm-permission="quotes.edit" onclick="location.href='quote-builder.html'"><span aria-hidden="true">📋</span> + Quote</button>
+            <button type="button" class="sf-quick-pill touchable" data-crm-permission="customers.create" onclick="showPage('customers'); showNewCustomerModal();"><span aria-hidden="true">👤</span> + Cliente</button>
+            <button type="button" class="sf-quick-pill touchable" data-crm-permission="visits.view" onclick="showPage('schedule')"><span aria-hidden="true">📅</span> Ver agenda</button>
+            <button type="button" class="sf-quick-pill touchable" data-crm-permission="contracts.view" onclick="showPage('financeiro')"><span aria-hidden="true">💰</span> Financeiro</button>`;
+        if (typeof applyCrmNavPermissions === 'function') {
+            applyCrmNavPermissions(crmUserPermissions, crmUserRole);
+        }
+    }
+
+    const act = document.getElementById('sfMobileActivityChips');
+    if (act) {
+        const chips = [];
+        (stats.new_leads_urgent || []).slice(0, 6).forEach((l) => {
+            const nm = escapeHtmlCrm(l.name || 'Lead');
+            chips.push(
+                `<button type="button" class="sf-quick-pill touchable" onclick="showPage('leads')"><span aria-hidden="true">⚡</span> ${nm}</button>`
+            );
+        });
+        (stats.upcoming_visits || []).slice(0, 6).forEach((v) => {
+            const label = escapeHtmlCrm(v.lead_name || v.customer_name || v.project_name || 'Visita');
+            chips.push(
+                `<button type="button" class="sf-quick-pill touchable" onclick="showPage('schedule')"><span aria-hidden="true">📍</span> ${label}</button>`
+            );
+        });
+        act.innerHTML =
+            chips.length > 0
+                ? chips.join('')
+                : '<span class="sf-caption" style="padding:8px 0;">Sem pendências urgentes na agenda</span>';
+    }
+}
+
+async function loadSfMobileRecentQuotes() {
+    const host = document.getElementById('sfMobileRecentQuotes');
+    if (!host) return;
+    host.innerHTML = sfQuotesMobileSkeleton(3);
+    try {
+        const r = await fetch('/api/quotes?page=1&limit=5', { credentials: 'include' });
+        const d = await r.json();
+        if (!d.success || !Array.isArray(d.data)) {
+            host.innerHTML = '<p class="sf-caption">Não foi possível carregar orçamentos recentes.</p>';
+            return;
+        }
+        if (d.data.length === 0) {
+            host.innerHTML = sfQuotesMobileEmptyHtml();
+            if (typeof applyCrmNavPermissions === 'function') {
+                applyCrmNavPermissions(crmUserPermissions, crmUserRole);
+            }
+            return;
+        }
+        const canDeleteQuote =
+            crmUserRole === 'admin' || (Array.isArray(crmUserPermissions) && crmUserPermissions.includes('quotes.edit'));
+        host.innerHTML = d.data.map((q) => quoteMobileCardHtml(q, { canDelete: canDeleteQuote })).join('');
+        bindSfQuoteCardInteractions(host);
+        if (typeof applyCrmNavPermissions === 'function') {
+            applyCrmNavPermissions(crmUserPermissions, crmUserRole);
+        }
+    } catch (e) {
+        host.innerHTML = '<p class="sf-caption">Erro ao carregar orçamentos recentes.</p>';
+    }
 }
 
 function renderCharts(stats) {
@@ -625,24 +850,32 @@ function renderCharts(stats) {
         });
     }
     
-    // Leads Monthly Chart
+    // Leads Monthly Chart (últimos 12 meses — dados reais da API)
     const leadsMonthlyCtx = document.getElementById('leadsMonthlyChart');
     if (leadsMonthlyCtx) {
-        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-        const currentMonth = new Date().getMonth();
-        const monthlyData = months.map((_, i) => {
-            if (i <= currentMonth) {
-                return Math.floor(Math.random() * 20) + 5;
-            }
-            return 0;
+        const monthShort = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+        const keys = [];
+        const now = new Date();
+        for (let i = 11; i >= 0; i--) {
+            const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+            keys.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+        }
+        const byYm = {};
+        (stats.leads_by_month || []).forEach((row) => {
+            if (row && row.ym) byYm[String(row.ym).slice(0, 7)] = parseInt(row.cnt, 10) || 0;
         });
-        
+        const monthlyData = keys.map((k) => byYm[k] || 0);
+        const labels = keys.map((k) => {
+            const [y, m] = k.split('-').map(Number);
+            return `${monthShort[m - 1]} ${y}`;
+        });
+
         chartInstances.leadsMonthly = new Chart(leadsMonthlyCtx, {
             type: 'line',
             data: {
-                labels: months,
+                labels,
                 datasets: [{
-                    label: 'Leads',
+                    label: 'Leads criados',
                     data: monthlyData,
                     borderColor: chartColors.primary,
                     backgroundColor: chartColors.primary + '20',
@@ -660,33 +893,35 @@ function renderCharts(stats) {
                 },
                 scales: {
                     y: {
-                        beginAtZero: true
+                        beginAtZero: true,
+                        ticks: { stepSize: 1 }
                     }
                 }
             }
         });
     }
     
-    // Revenue Chart
+    // Receita: contratos + orçamentos aprovados/aceites sem contrato; total e janela 30 dias
     const revenueCtx = document.getElementById('revenueChart');
     if (revenueCtx) {
+        const ctrChart = stats.contracts || {};
+        const cRev = ctrChart.contracts_revenue != null ? Number(ctrChart.contracts_revenue) || 0 : Number(ctrChart.total_revenue) || 0;
+        const wRev = Number(ctrChart.won_quotes_revenue) || 0;
+        const tRev =
+            ctrChart.total_revenue != null ? Number(ctrChart.total_revenue) || 0 : cRev + wRev;
+        const mRev = Number(ctrChart.this_month_revenue) || 0;
         chartInstances.revenue = new Chart(revenueCtx, {
             type: 'bar',
             data: {
-                labels: ['Quotes', 'Accepted', 'Contracts', 'This Month'],
+                labels: ['Contratos (fechado)', 'Orç. aprov./aceite (s/ contrato)', 'Receita total CRM', 'Últ. 30 dias'],
                 datasets: [{
-                    label: 'Revenue ($)',
-                    data: [
-                        parseFloat(stats.quotes.total_value || 0),
-                        parseFloat(stats.quotes.accepted_value || 0),
-                        parseFloat(stats.contracts.total_revenue || 0),
-                        parseFloat(stats.contracts.this_month_revenue || 0)
-                    ],
+                    label: 'Valor ($)',
+                    data: [cRev, wRev, tRev, mRev],
                     backgroundColor: [
-                        chartColors.info,
-                        chartColors.secondary,
                         chartColors.success,
-                        chartColors.primary
+                        chartColors.secondary,
+                        chartColors.primary,
+                        chartColors.info
                     ]
                 }]
             },
@@ -696,6 +931,14 @@ function renderCharts(stats) {
                 plugins: {
                     legend: {
                         display: false
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label(ctx) {
+                                const v = ctx.raw;
+                                return typeof v === 'number' ? '$' + v.toLocaleString() : String(v);
+                            }
+                        }
                     }
                 },
                 scales: {
@@ -712,21 +955,22 @@ function renderCharts(stats) {
         });
     }
     
-    // Sales Performance Chart
+    // Valor de orçamentos aprovados/aceites por vendedor (quotes.assigned_to)
     const salesPerformanceCtx = document.getElementById('salesPerformanceChart');
     if (salesPerformanceCtx) {
+        const reps = stats.sales_by_rep || [];
+        const repLabels = reps.length
+            ? reps.map((r) => String(r.rep_name || '—').slice(0, 22))
+            : ['Sem dados'];
+        const repAmounts = reps.length ? reps.map((r) => parseFloat(r.won_amount) || 0) : [0];
         chartInstances.salesPerformance = new Chart(salesPerformanceCtx, {
             type: 'bar',
             data: {
-                labels: ['Sales Rep 1', 'Sales Rep 2', 'Sales Rep 3'],
+                labels: repLabels,
                 datasets: [{
-                    label: 'Leads',
-                    data: [12, 8, 15],
+                    label: 'Orç. aprov./aceite ($)',
+                    data: repAmounts,
                     backgroundColor: chartColors.secondary
-                }, {
-                    label: 'Converted',
-                    data: [5, 3, 7],
-                    backgroundColor: chartColors.success
                 }]
             },
             options: {
@@ -735,11 +979,28 @@ function renderCharts(stats) {
                 plugins: {
                     legend: {
                         position: 'bottom'
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label(ctx) {
+                                const v = ctx.raw;
+                                const i = ctx.dataIndex;
+                                const row = reps[i];
+                                const n = row ? parseInt(row.won_count, 10) || 0 : 0;
+                                const money = typeof v === 'number' ? '$' + v.toLocaleString() : String(v);
+                                return reps.length ? `${money} (${n} orç.)` : money;
+                            }
+                        }
                     }
                 },
                 scales: {
                     y: {
-                        beginAtZero: true
+                        beginAtZero: true,
+                        ticks: {
+                            callback: function(value) {
+                                return '$' + value.toLocaleString();
+                            }
+                        }
                     }
                 }
             }
@@ -1177,6 +1438,252 @@ function setQuotesFilter(f) {
 }
 window.setQuotesFilter = setQuotesFilter;
 
+function quoteStatusSfBadgeHtml(status) {
+    const raw = String(status || 'draft').toLowerCase();
+    let slug = raw.replace(/[^a-z0-9_-]/g, '') || 'draft';
+    if (slug === 'accepted') slug = 'accepted';
+    const labels = {
+        draft: 'Rascunho',
+        sent: 'Enviado',
+        viewed: 'Visto',
+        approved: 'Aprovado',
+        accepted: 'Aceite',
+        rejected: 'Rejeitado',
+        declined: 'Recusado',
+        expired: 'Expirado',
+    };
+    const label = labels[slug] || escapeHtmlCrm(status || 'draft');
+    return `<span class="sf-quote-badge sf-quote-badge--${slug}">${label}</span>`;
+}
+
+function sfQuotesMobileSkeleton(count) {
+    const n = Math.max(1, Math.min(8, count | 0));
+    let html = '';
+    for (let i = 0; i < n; i++) {
+        html += '<div class="sf-quote-card"><div class="skeleton" style="height:72px;width:100%;border-radius:12px"></div></div>';
+    }
+    return html;
+}
+
+function sfQuotesMobileEmptyHtml() {
+    return `<div class="ds-empty-state" role="status">
+<h3 class="ds-empty-state__title">Nenhum orçamento ainda</h3>
+<p class="ds-empty-state__text">Crie o primeiro orçamento tocando no +</p>
+<button type="button" class="btn btn-primary touchable" data-crm-permission="quotes.edit" onclick="location.href='quote-builder.html'">+ Novo orçamento</button>
+</div>`;
+}
+
+function quoteMobileCardHtml(q, opts) {
+    const canDelete = opts && opts.canDelete;
+    const clientLabel = escapeHtmlCrm(q.customer_name || q.lead_name || '—');
+    const qnum = escapeHtmlCrm(q.quote_number != null ? String(q.quote_number) : 'N/A');
+    const amt = parseFloat(q.total_amount || 0).toLocaleString(undefined, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+    });
+    const id = Number(q.id);
+    const delBtn = canDelete
+        ? `<button type="button" class="sf-quote-card__action-btn sf-quote-card__action-btn--del touchable" onclick="event.stopPropagation(); deleteQuote(${id})">Apagar</button>`
+        : '';
+    const editBtn = `<button type="button" class="sf-quote-card__action-btn sf-quote-card__action-btn--edit touchable" onclick="event.stopPropagation(); viewQuote(${id})">Editar</button>`;
+    return `
+    <article class="sf-quote-card touchable" data-quote-id="${id}" role="button" tabindex="0">
+      <div class="sf-quote-card__inner">
+        <div class="sf-quote-card__row">
+          <div>
+            <div class="sf-quote-card__client">${clientLabel}</div>
+            <div class="sf-quote-card__meta">Quote #${qnum}</div>
+          </div>
+          <div class="sf-quote-card__amt">$${amt}</div>
+        </div>
+        ${quoteStatusSfBadgeHtml(q.status)}
+      </div>
+      <div class="sf-quote-card__actions">${editBtn}${delBtn}</div>
+    </article>`;
+}
+
+function getQuotesMobileFilteredRows() {
+    const input = document.getElementById('quotesMobileSearch');
+    const q = (input && input.value) || '';
+    const needle = String(q).trim().toLowerCase();
+    if (!needle) return sfQuotesListCache.slice();
+    return sfQuotesListCache.filter((row) => {
+        const c = String(row.customer_name || row.lead_name || '').toLowerCase();
+        const n = String(row.quote_number != null ? row.quote_number : '').toLowerCase();
+        return c.includes(needle) || n.includes(needle);
+    });
+}
+
+function bindSfQuoteCardInteractions(container) {
+    if (!container || container.dataset.sfSwipeBound === '1') return;
+    container.dataset.sfSwipeBound = '1';
+    let activeCard = null;
+    let startX = 0;
+
+    container.addEventListener(
+        'touchstart',
+        (e) => {
+            const card = e.target.closest('.sf-quote-card');
+            if (!card || e.target.closest('button')) return;
+            activeCard = card;
+            startX = e.touches[0].clientX;
+        },
+        { passive: true }
+    );
+
+    container.addEventListener(
+        'touchend',
+        (e) => {
+            if (!activeCard) return;
+            const card = activeCard;
+            activeCard = null;
+            const endX = e.changedTouches[0] ? e.changedTouches[0].clientX : startX;
+            const dx = endX - startX;
+            if (dx < -120) {
+                try {
+                    navigator.vibrate(20);
+                } catch (err) {}
+                card.classList.add('sf-quote-card--open');
+                return;
+            }
+            if (dx < -60) {
+                card.classList.add('sf-quote-card--open');
+                try {
+                    navigator.vibrate(8);
+                } catch (err) {}
+            } else if (dx > 30) {
+                card.classList.remove('sf-quote-card--open');
+            }
+        },
+        { passive: true }
+    );
+
+    container.addEventListener('click', (e) => {
+        const card = e.target.closest('.sf-quote-card');
+        if (!card) return;
+        if (e.target.closest('button')) return;
+        if (card.classList.contains('sf-quote-card--open')) {
+            card.classList.remove('sf-quote-card--open');
+            return;
+        }
+        const id = parseInt(String(card.dataset.quoteId || ''), 10);
+        if (Number.isFinite(id) && id > 0) viewQuote(id);
+    });
+}
+
+function renderQuotesMobileFromCache() {
+    const mobileList = document.getElementById('quotesMobileList');
+    if (!mobileList || !isMobile()) return;
+    const canDeleteQuote =
+        crmUserRole === 'admin' || (Array.isArray(crmUserPermissions) && crmUserPermissions.includes('quotes.edit'));
+    const rows = getQuotesMobileFilteredRows();
+    if (rows.length === 0) {
+        mobileList.innerHTML = sfQuotesMobileEmptyHtml();
+        if (typeof applyCrmNavPermissions === 'function') {
+            applyCrmNavPermissions(crmUserPermissions, crmUserRole);
+        }
+        return;
+    }
+    mobileList.innerHTML = rows.map((q) => quoteMobileCardHtml(q, { canDelete: canDeleteQuote })).join('');
+    bindSfQuoteCardInteractions(mobileList);
+}
+
+function updateQuotesMobileChrome(total, totalPages) {
+    const sub = document.getElementById('quotesMobileSubtitle');
+    const btn = document.getElementById('quotesMobileLoadMore');
+    if (sub) {
+        const t = typeof total === 'number' ? total : 0;
+        const tp = Math.max(1, totalPages | 0);
+        const p = quotesListPage;
+        sub.textContent =
+            t === 0
+                ? '0 orçamentos'
+                : t === 1
+                  ? '1 orçamento'
+                  : `${t} orçamentos · página ${p} de ${tp}`;
+    }
+    if (btn) {
+        const tp = Math.max(1, totalPages | 0);
+        btn.style.display = isMobile() && quotesListPage < tp ? 'inline-block' : 'none';
+    }
+}
+
+let sfQuotesPtrPulling = false;
+let sfQuotesPtrStartY = 0;
+let sfQuotesPtrArmed = false;
+
+function initQuotesMobileUx() {
+    const search = document.getElementById('quotesMobileSearch');
+    if (search && !search.dataset.sfBound) {
+        search.dataset.sfBound = '1';
+        let t;
+        search.addEventListener('input', () => {
+            clearTimeout(t);
+            t = setTimeout(() => renderQuotesMobileFromCache(), 140);
+        });
+    }
+
+    const main = document.querySelector('.dashboard-main');
+    const ind = document.getElementById('quotesPtrIndicator');
+    if (main && ind && !main.dataset.sfQuotesPtr) {
+        main.dataset.sfQuotesPtr = '1';
+        main.addEventListener(
+            'touchstart',
+            (e) => {
+                if (currentPageName !== 'quotes' || !isMobile()) return;
+                sfQuotesPtrPulling = true;
+                sfQuotesPtrStartY = e.touches[0].clientY;
+                sfQuotesPtrArmed = main.scrollTop <= 0;
+            },
+            { passive: true }
+        );
+        main.addEventListener(
+            'touchmove',
+            (e) => {
+                if (currentPageName !== 'quotes' || !isMobile() || !sfQuotesPtrPulling || !sfQuotesPtrArmed) return;
+                if (main.scrollTop > 0) {
+                    ind.classList.remove('sf-ptr-visible');
+                    return;
+                }
+                const dy = e.touches[0].clientY - sfQuotesPtrStartY;
+                if (dy > 48) {
+                    ind.classList.add('sf-ptr-visible');
+                    ind.textContent = dy > 88 ? '↓ Largar para atualizar' : '↓ Puxe para atualizar';
+                } else {
+                    ind.classList.remove('sf-ptr-visible');
+                }
+            },
+            { passive: true }
+        );
+        main.addEventListener(
+            'touchend',
+            () => {
+                if (currentPageName !== 'quotes' || !isMobile()) return;
+                const refresh = ind.classList.contains('sf-ptr-visible');
+                ind.classList.remove('sf-ptr-visible');
+                sfQuotesPtrPulling = false;
+                sfQuotesPtrArmed = false;
+                if (refresh && main.scrollTop <= 0) {
+                    quotesListPage = 1;
+                    try {
+                        navigator.vibrate(12);
+                    } catch (err) {}
+                    loadQuotes();
+                }
+            },
+            { passive: true }
+        );
+    }
+
+    const lm = document.getElementById('quotesMobileLoadMore');
+    if (lm && !lm.dataset.sfBound) {
+        lm.dataset.sfBound = '1';
+        lm.addEventListener('click', () => changePageQuotes(1));
+    }
+}
+
+initQuotesMobileUx();
+
 function formatQuoteExpiryHtml(expirationDateStr, status) {
     const st = String(status || '').toLowerCase();
     if (st === 'expired') {
@@ -1217,17 +1724,31 @@ function formatQuoteExpiryHtml(expirationDateStr, status) {
 
 function quoteStatusBadgeHtml(status) {
     const raw = String(status || 'draft').toLowerCase();
-    const slug = raw.replace(/[^a-z0-9_-]/g, '') || 'draft';
+    let slug = raw.replace(/[^a-z0-9_-]/g, '') || 'draft';
+    if (slug === 'accepted') slug = 'accepted';
     const labels = {
         draft: 'Rascunho',
         sent: 'Enviado',
         viewed: 'Visto',
         approved: 'Aprovado',
+        accepted: 'Aceite',
         rejected: 'Rejeitado',
+        declined: 'Recusado',
         expired: 'Expirado',
     };
     const label = labels[slug] || escapeHtmlCrm(status || 'draft');
     return `<span class="badge-quote badge-quote--${slug}">${label}</span>`;
+}
+
+function quotesListEmptyStateRowHtml() {
+    return `<tr class="ds-empty-row"><td colspan="8">
+<div class="ds-empty-state" role="status">
+<svg class="ds-empty-state__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+<path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/><path d="M9 15h6"/><path d="M9 11h6"/></svg>
+<h3 class="ds-empty-state__title">Nenhum orçamento encontrado</h3>
+<p class="ds-empty-state__text">Crie um orçamento ou altere os filtros acima para ver mais resultados.</p>
+<button type="button" class="btn btn-primary" data-crm-permission="quotes.edit" onclick="location.href='quote-builder.html'">+ Novo orçamento</button>
+</div></td></tr>`;
 }
 
 function crmToastSafe(msg, opts) {
@@ -1296,7 +1817,13 @@ window.generateQuotePdfFromList = generateQuotePdfFromList;
 async function loadQuotes() {
     const tbody = document.getElementById('quotesTableBody');
     if (!tbody) return;
-    tbody.innerHTML = '<tr><td colspan="8" class="text-center">Loading...</td></tr>';
+    const mobileList = document.getElementById('quotesMobileList');
+    const subEl = document.getElementById('quotesListSubtitle');
+    if (subEl) subEl.textContent = 'A carregar…';
+    tbody.innerHTML = '<tr><td colspan="8" class="text-center">A carregar…</td></tr>';
+    if (mobileList && isMobile()) {
+        mobileList.innerHTML = sfQuotesMobileSkeleton(5);
+    }
     const canDeleteQuote =
         crmUserRole === 'admin' || (Array.isArray(crmUserPermissions) && crmUserPermissions.includes('quotes.edit'));
     const canDup = crmUserRole === 'admin' || (Array.isArray(crmUserPermissions) && crmUserPermissions.includes('quotes.create'));
@@ -1314,9 +1841,26 @@ async function loadQuotes() {
         const data = await response.json();
 
         if (data.success && data.data) {
+            const total = typeof data.total === 'number' ? data.total : data.data.length;
+            if (subEl) {
+                subEl.textContent =
+                    total === 0
+                        ? '0 orçamentos'
+                        : total === 1
+                          ? '1 orçamento'
+                          : `${total} orçamentos`;
+            }
             if (data.data.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="8" class="text-center">Nenhum orçamento encontrado</td></tr>';
+                sfQuotesListCache = [];
+                tbody.innerHTML = quotesListEmptyStateRowHtml();
+                if (mobileList && isMobile()) {
+                    mobileList.innerHTML = sfQuotesMobileEmptyHtml();
+                }
+                if (typeof applyCrmNavPermissions === 'function') {
+                    applyCrmNavPermissions(crmUserPermissions, crmUserRole);
+                }
             } else {
+                sfQuotesListCache = data.data.slice();
                 tbody.innerHTML = data.data
                     .map((q) => {
                         const hasPdf = !!(q.pdf_path || q.has_invoice_pdf);
@@ -1347,23 +1891,46 @@ async function loadQuotes() {
                         <td>${q.created_at ? escapeHtmlCrm(new Date(q.created_at).toLocaleDateString()) : '—'}</td>
                         <td>${formatQuoteExpiryHtml(q.expiration_date, q.status)}</td>
                         <td class="quotes-actions-cell">
-                            <button type="button" class="btn btn-sm btn-primary" onclick="viewQuote(${q.id})">Abrir</button>
+                            <button type="button" class="btn btn-sm btn-secondary" onclick="viewQuote(${q.id})" title="Editar orçamento">Abrir</button>
                             ${dupBtn}
                             ${deleteBtn}
                         </td>
                     </tr>`;
                     })
                     .join('');
+                if (isMobile()) {
+                    renderQuotesMobileFromCache();
+                }
             }
 
-            const totalPages = Math.ceil(data.total / 20);
-            document.getElementById('pageInfoQuotes').textContent = `Página ${quotesListPage} de ${totalPages || 1}`;
-            document.getElementById('prevPageQuotes').disabled = quotesListPage <= 1;
-            document.getElementById('nextPageQuotes').disabled = quotesListPage >= totalPages;
+            const totalPages = Math.max(1, Math.ceil(total / 20));
+            const pageInfoEl = document.getElementById('pageInfoQuotes');
+            if (pageInfoEl) {
+                pageInfoEl.textContent = `Página ${quotesListPage} de ${totalPages || 1}`;
+            }
+            const prevQ = document.getElementById('prevPageQuotes');
+            const nextQ = document.getElementById('nextPageQuotes');
+            if (prevQ) prevQ.disabled = quotesListPage <= 1;
+            if (nextQ) nextQ.disabled = quotesListPage >= totalPages;
+            updateQuotesMobileChrome(total, totalPages);
+        } else {
+            if (subEl) subEl.textContent = 'Erro ao carregar';
+            tbody.innerHTML =
+                '<tr><td colspan="8" class="text-center">Resposta inválida do servidor</td></tr>';
+            sfQuotesListCache = [];
+            if (mobileList && isMobile()) {
+                mobileList.innerHTML =
+                    '<p class="sf-caption">Não foi possível carregar os orçamentos.</p>';
+            }
         }
     } catch (error) {
+        if (subEl) subEl.textContent = 'Erro ao carregar';
         tbody.innerHTML =
             '<tr><td colspan="8" class="text-center">Erro: ' + escapeHtmlCrm(error.message) + '</td></tr>';
+        if (mobileList && isMobile()) {
+            mobileList.innerHTML =
+                '<p class="sf-caption">Erro ao carregar. Tente puxar para atualizar.</p>';
+        }
     }
 }
 

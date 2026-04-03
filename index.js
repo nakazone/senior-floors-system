@@ -385,17 +385,19 @@ app.put(
   constructionPayroll.putPeriodAdjustments
 );
 app.post('/api/construction-payroll/periods/:id/close', requireAuth, requirePermission('payroll.manage'), constructionPayroll.closePeriod);
+app.post('/api/construction-payroll/periods/:id/reopen', requireAuth, requirePermission('payroll.manage'), constructionPayroll.reopenPeriod);
 app.get('/api/construction-payroll/periods/:periodId/timesheets', requireAuth, requirePermission('payroll.view'), constructionPayroll.listTimesheets);
 app.post(
   '/api/construction-payroll/periods/:periodId/timesheets/bulk',
   requireAuth,
-  requirePermission('payroll.manage'),
+  requirePermission('payroll.view'),
   constructionPayroll.bulkTimesheets
 );
-app.put('/api/construction-payroll/timesheets/:id', requireAuth, requirePermission('payroll.manage'), constructionPayroll.updateTimesheet);
-app.delete('/api/construction-payroll/timesheets/:id', requireAuth, requirePermission('payroll.manage'), constructionPayroll.deleteTimesheet);
+app.put('/api/construction-payroll/timesheets/:id', requireAuth, requirePermission('payroll.view'), constructionPayroll.updateTimesheet);
+app.delete('/api/construction-payroll/timesheets/:id', requireAuth, requirePermission('payroll.view'), constructionPayroll.deleteTimesheet);
 app.get('/api/construction-payroll/periods/:id', requireAuth, requirePermission('payroll.view'), constructionPayroll.getPeriod);
 app.put('/api/construction-payroll/periods/:id', requireAuth, requirePermission('payroll.manage'), constructionPayroll.updatePeriod);
+app.delete('/api/construction-payroll/periods/:id', requireAuth, requirePermission('payroll.manage'), constructionPayroll.deletePeriod);
 
 app.get(
   '/api/construction-payroll/reports/employee-earnings',

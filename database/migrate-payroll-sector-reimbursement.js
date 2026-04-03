@@ -84,6 +84,7 @@ CREATE TABLE construction_payroll_period_adjustments (
   period_id int(11) NOT NULL,
   employee_id int(11) NOT NULL,
   reimbursement decimal(12,2) NOT NULL DEFAULT 0.00,
+  discount decimal(12,2) NOT NULL DEFAULT 0.00,
   notes varchar(500) DEFAULT NULL,
   created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -97,6 +98,20 @@ CREATE TABLE construction_payroll_period_adjustments (
     console.log('  + tabela construction_payroll_period_adjustments');
   } else {
     console.log('  (skip) construction_payroll_period_adjustments já existe');
+  }
+
+  if (await tableExists(conn, 'construction_payroll_period_adjustments')) {
+    if (!(await columnExists(conn, 'construction_payroll_period_adjustments', 'discount'))) {
+      await conn.query(
+        `ALTER TABLE construction_payroll_period_adjustments
+         ADD COLUMN discount decimal(12,2) NOT NULL DEFAULT 0.00
+         COMMENT 'Desconto no fechamento (subtrai ao total do funcionário)'
+         AFTER reimbursement`
+      );
+      console.log('  + coluna discount em construction_payroll_period_adjustments');
+    } else {
+      console.log('  (skip) discount já existe');
+    }
   }
 
   await conn.end();
