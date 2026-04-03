@@ -3,6 +3,7 @@ import * as repo from './quoteRepository.js';
 import { buildQuotePdfBuffer } from './quotePdf.js';
 import { sendQuoteEmail } from './quoteMail.js';
 import { summarizeQuoteProfit } from '../pricing/marginPricing.js';
+import { ensureProjectForApprovedQuote } from './quoteProjectFromApproval.js';
 
 /** Resumo no quote (PDF / listagem): tipos únicos por linha, ex. "Installation · Sand & Finishing". */
 export function deriveQuoteServiceSummary(items) {
@@ -271,6 +272,13 @@ export async function saveQuoteFull(pool, quoteId, body, userId, { snapshotPrevi
     await pool.execute(`UPDATE quotes SET ${updates.join(', ')} WHERE id = ?`, vals);
   }
 
+  const prevSt = prev ? String(prev.quote?.status || '').toLowerCase() : null;
+  const newStFromBody = body.status !== undefined ? String(body.status).toLowerCase() : null;
+  const becameApproved =
+    newStFromBody &&
+    ['approved', 'accepted'].includes(newStFromBody) &&
+    (!prevSt || !['approved', 'accepted'].includes(prevSt));
+
   await repo.replaceQuoteItems(pool, quoteId, items);
 
   if (prev && userId) {
@@ -283,6 +291,14 @@ export async function saveQuoteFull(pool, quoteId, body, userId, { snapshotPrevi
       } else {
         throw e;
       }
+    }
+  }
+
+  if (becameApproved) {
+    try {
+      await ensureProjectForApprovedQuote(pool, quoteId);
+    } catch (e) {
+      console.error('[quotes] saveQuoteFull: project auto-create failed', e);
     }
   }
 
@@ -396,6 +412,15 @@ export async function createQuoteFull(pool, body, userId) {
 
   if (!cols.has('public_token')) {
     /* old schema */
+  }
+
+  const stNew = String(body.status || 'draft').toLowerCase();
+  if (['approved', 'accepted'].includes(stNew)) {
+    try {
+      await ensureProjectForApprovedQuote(pool, quoteId);
+    } catch (e) {
+      console.error('[quotes] createQuoteFull: project auto-create failed', e);
+    }
   }
 
   return { id: quoteId, quote_number: quoteNumber, public_token: token };
@@ -566,5 +591,10 @@ export async function approvePublicQuote(pool, token) {
     'UPDATE quotes SET status = ?, approved_at = COALESCE(approved_at, NOW()) WHERE id = ?',
     ['approved', id]
   );
+  try {
+    await ensureProjectForApprovedQuote(pool, id);
+  } catch (e) {
+    console.error('[quotes] approvePublicQuote: project auto-create failed', e);
+  }
   return getByPublicToken(pool, token);
 }

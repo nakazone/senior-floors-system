@@ -7,6 +7,7 @@ import { mapItemRow } from '../modules/quotes/quoteBusiness.js';
 import { summarizeQuoteProfit } from '../modules/pricing/marginPricing.js';
 import { setLeadPipelineBySlug } from '../lib/pipelineAutomation.js';
 import { QUOTE_PDF_SUBDIR, resolvedPdfAbsolutePath } from '../lib/quotePdfUpload.js';
+import { ensureProjectForApprovedQuote } from '../modules/quotes/quoteProjectFromApproval.js';
 
 /** Colunas de `quotes` para listagens sem trazer LONGBLOB; inclui has_invoice_pdf quando a coluna existe. */
 async function getQuoteListSelectParts(pool) {
@@ -298,6 +299,16 @@ export async function updateQuote(req, res) {
     const becameSent = ['sent', 'approved', 'accepted'].includes(newStatus) && !['sent', 'approved', 'accepted'].includes(prevStatus);
     if (becameSent && existing.lead_id) {
       await setLeadPipelineBySlug(existing.lead_id, 'proposal_sent');
+    }
+
+    const becameApproved =
+      ['approved', 'accepted'].includes(newStatus) && !['approved', 'accepted'].includes(prevStatus);
+    if (becameApproved) {
+      try {
+        await ensureProjectForApprovedQuote(pool, req.params.id);
+      } catch (e) {
+        console.error('[quotes] updateQuote: project auto-create failed', e);
+      }
     }
 
     res.json({ success: true, message: 'Quote updated' });
