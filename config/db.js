@@ -54,6 +54,11 @@ function isLocalMysqlHost(host) {
   return h === 'localhost' || h === '127.0.0.1' || h === '::1';
 }
 
+/** Host só resolvível na rede privada Railway — em scripts locais use host público ou DATABASE_PUBLIC_URL. */
+function isRailwayInternalHost(host) {
+  return typeof host === 'string' && /\.railway\.internal$/i.test(host.trim());
+}
+
 /** Variáveis do plugin MySQL no Railway (serviço Node referencia o MySQL). */
 function mysqlPluginConfigFromEnv() {
   const host = process.env.MYSQLHOST || process.env.MYSQL_HOST;
@@ -108,11 +113,22 @@ export function getMysqlConnectionConfig() {
     Boolean(process.env.DB_NAME?.trim());
 
   const urlLooksLocal = fromUrl && isLocalMysqlHost(fromUrl.host);
+  const urlLooksInternalRailway = fromUrl && isRailwayInternalHost(fromUrl.host);
+  const dbHostStr = process.env.DB_HOST?.trim() || '';
   const preferExplicitOverLocalUrl =
-    hasExplicitDb && urlLooksLocal && !isLocalMysqlHost(process.env.DB_HOST);
+    hasExplicitDb && urlLooksLocal && !isLocalMysqlHost(dbHostStr);
+  /** URL privada Railway + DB_HOST público no .env → usar DB_* (comum ao migrar no Mac). */
+  const preferExplicitOverInternalRailwayUrl =
+    hasExplicitDb && urlLooksInternalRailway && !isRailwayInternalHost(dbHostStr);
 
   let cfg = null;
-  if (fromUrl && fromUrl.user && fromUrl.database && !preferExplicitOverLocalUrl) {
+  if (
+    fromUrl &&
+    fromUrl.user &&
+    fromUrl.database &&
+    !preferExplicitOverLocalUrl &&
+    !preferExplicitOverInternalRailwayUrl
+  ) {
     cfg = { ...fromUrl };
   } else if (hasExplicitDb) {
     cfg = {
@@ -137,13 +153,25 @@ export function getMysqlEnvDiagnostics() {
     process.env.DATABASE_URL || process.env.DATABASE_PUBLIC_URL || process.env.MYSQL_URL;
   const fromUrl = parseDatabaseUrl(url);
   const urlLooksLocal = Boolean(fromUrl && isLocalMysqlHost(fromUrl.host));
+  const urlLooksInternalRailway = Boolean(fromUrl && isRailwayInternalHost(fromUrl.host));
   const explicitRemote =
     Boolean(process.env.DB_HOST?.trim()) && !isLocalMysqlHost(process.env.DB_HOST);
+  const explicitNotInternalRailway =
+    Boolean(process.env.DB_HOST?.trim()) && !isRailwayInternalHost(process.env.DB_HOST);
+  const hasExplicitDb =
+    Boolean(process.env.DB_HOST?.trim()) &&
+    Boolean(process.env.DB_USER?.trim()) &&
+    Boolean(process.env.DB_NAME?.trim());
+  const overtakenByDbHost =
+    hasExplicitDb &&
+    explicitNotInternalRailway &&
+    (urlLooksLocal || urlLooksInternalRailway);
   return {
     urlSet: Boolean(url?.trim()),
     urlParsesOk: Boolean(fromUrl && fromUrl.user && fromUrl.database),
     urlHostLocal: urlLooksLocal,
-    urlOvertakenByDbHost: urlLooksLocal && explicitRemote,
+    urlHostRailwayInternal: urlLooksInternalRailway,
+    urlOvertakenByDbHost: overtakenByDbHost,
     dbHost: Boolean(process.env.DB_HOST?.trim()),
     dbUser: Boolean(process.env.DB_USER?.trim()),
     dbName: Boolean(process.env.DB_NAME?.trim()),
