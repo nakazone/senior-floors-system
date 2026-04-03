@@ -287,12 +287,12 @@ export async function getDashboardStats(req, res) {
            AND pr.status NOT IN ('accepted', 'rejected')`,
         [{ c: 0 }]
       ),
+      // Sem coluna confirmed_at no schema legado: contamos visitas de hoje ainda "scheduled".
       safeQuery(
         pool,
         `SELECT COUNT(*) AS c FROM visits v
          WHERE DATE(v.scheduled_at) = CURDATE()
-           AND v.status = 'scheduled'
-           AND v.confirmed_at IS NULL`,
+           AND v.status = 'scheduled'`,
         [{ c: 0 }]
       ),
       safeQuery(
@@ -365,7 +365,7 @@ export async function getDashboardStats(req, res) {
       const n = Number(firstRow(visitsTodayUnconfirmed).c) || 0;
       alerts.push({
         type: 'info',
-        message: 'Visitas de hoje ainda sem confirmação',
+        message: 'Visitas agendadas para hoje (pendentes)',
         count: n,
         action_url: '/schedule',
       });
