@@ -208,46 +208,66 @@
                         <div id="sfMobileRecentQuotes" class="sf-quotes-card-list"></div>
                     </div>
 
-                    <div id="dashInsightsRoot" class="dash-insights sf-desktop-dashboard-block">
-                        <header class="dash-insights__header">
+                    <div id="dashInsightsRoot" class="dash-insights dash-insights--sf sf-desktop-dashboard-block">
+                        <header class="dash-insights__header sf-dash-topbar">
                             <div class="dash-insights__titles">
-                                <h2 class="page-title" style="margin:0;">Dashboard</h2>
-                                <p class="dash-insights__greet" id="dashGreetingLine">Bom dia</p>
+                                <p class="sf-page-eyebrow" id="dashPageEyebrow">Visão geral</p>
+                                <h2 class="page-title sf-page-title" style="margin:0;">Dashboard</h2>
+                                <p class="dash-insights__greet sf-dash-greet" id="dashGreetingLine">Bom dia</p>
                                 <p class="dash-insights__sub" id="dashSubtitleLine">Atualizado agora</p>
                             </div>
                             <div class="dash-insights__toolbar">
-                                <div class="dash-period-group" role="group" aria-label="Período">
-                                    <button type="button" data-dash-period="today">Hoje</button>
-                                    <button type="button" data-dash-period="week">Semana</button>
-                                    <button type="button" data-dash-period="month" class="dash-period--active">Mês</button>
+                                <div class="dash-period-group sf-period-pills" role="group" aria-label="Período">
+                                    <button type="button" class="sf-pill" data-dash-period="today">Hoje</button>
+                                    <button type="button" class="sf-pill" data-dash-period="week">Semana</button>
+                                    <button type="button" class="sf-pill active dash-period--active" data-dash-period="month">Mês</button>
                                 </div>
-                                <button type="button" class="btn btn-secondary dash-insights__refresh" id="dashRefreshBtn" onclick="loadDashboard(currentDashboardPeriod)" title="Atualizar">
+                                <button type="button" class="sf-btn-refresh dash-insights__refresh" id="dashRefreshBtn" onclick="loadDashboard(currentDashboardPeriod)" title="Atualizar">
                                     <span aria-hidden="true">↻</span> Atualizar
                                 </button>
                             </div>
                         </header>
 
-                        <div id="dashAlertsBar" class="dash-alerts"></div>
+                        <div id="dashAlertsBar" class="dash-alerts sf-dash-alerts"></div>
 
-                        <div id="dashKpiRow1" class="dash-kpi-grid"></div>
-                        <div id="dashKpiRow2" class="dash-kpi-grid"></div>
+                        <div id="dashKpiRow1" class="dash-kpi-grid sf-dash-kpi-row"></div>
+                        <div id="dashKpiRow2" class="dash-kpi-grid sf-dash-kpi-row sf-dash-kpi-row--4"></div>
 
-                        <div class="dash-panels">
-                            <div class="dash-panel">
-                                <h3>Funil do pipeline</h3>
+                        <div class="dash-panels sf-dash-panels">
+                            <div class="dash-panel sf-panel">
+                                <div class="sf-panel-header">
+                                    <div class="sf-panel-title-group">
+                                        <div class="sf-panel-dot" aria-hidden="true"></div>
+                                        <h3 class="sf-panel-title">Funil do pipeline</h3>
+                                    </div>
+                                    <a href="#" class="sf-panel-link" onclick="event.preventDefault(); showPage('crm');">Ver pipeline →</a>
+                                </div>
                                 <div id="dashFunnel"></div>
                             </div>
-                            <div class="dash-panel">
-                                <h3>Leads recentes</h3>
-                                <ul id="dashRecentLeads" class="dash-list"></ul>
-                                <h3 style="margin-top:1.25rem;">Visitas de hoje</h3>
-                                <ul id="dashVisitsToday" class="dash-list"></ul>
+                            <div class="dash-panel sf-panel">
+                                <div class="sf-panel-header">
+                                    <div class="sf-panel-title-group">
+                                        <div class="sf-panel-dot" aria-hidden="true"></div>
+                                        <h3 class="sf-panel-title">Leads recentes</h3>
+                                    </div>
+                                    <a href="#" class="sf-panel-link" onclick="event.preventDefault(); showPage('leads');">Ver todos →</a>
+                                </div>
+                                <ul id="dashRecentLeads" class="dash-list sf-dash-recent-list"></ul>
+                                <h3 class="sf-panel-subheading">Visitas de hoje</h3>
+                                <ul id="dashVisitsToday" class="dash-list sf-dash-recent-list"></ul>
                             </div>
                         </div>
 
-                        <section class="dash-insights__insights">
-                            <h3>📋 Ações recomendadas</h3>
-                            <div id="dashInsightCards" class="dash-insight-cards"></div>
+                        <section class="dash-insights__insights sf-dash-insights-section">
+                            <div class="sf-panel sf-panel--flat">
+                                <div class="sf-panel-header">
+                                    <div class="sf-panel-title-group">
+                                        <div class="sf-panel-dot" aria-hidden="true"></div>
+                                        <h3 class="sf-panel-title">Ações recomendadas</h3>
+                                    </div>
+                                </div>
+                                <div id="dashInsightCards" class="dash-insight-cards sf-dash-insight-cards"></div>
+                            </div>
                         </section>
                     </div>
                 </div>

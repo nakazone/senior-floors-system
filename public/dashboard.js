@@ -562,18 +562,44 @@ function showPage(pageName) {
 
 // Dashboard operacional (GET /api/dashboard/stats?period=)
 function formatDashboardCurrency(v) {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(v) || 0);
+    const n = parseFloat(v);
+    const x = Number.isFinite(n) ? n : 0;
+    return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: 'USD',
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+    }).format(x);
+}
+
+/** KPIs grandes: compacto acima de $1k */
+function formatDashboardCompact(v) {
+    const n = parseFloat(v);
+    const x = Number.isFinite(n) ? n : 0;
+    if (x >= 1000000) return '$' + (x / 1000000).toFixed(1) + 'M';
+    if (x >= 1000) return '$' + (x / 1000).toFixed(0) + 'k';
+    return formatDashboardCurrency(x);
 }
 
 function formatDashboardPercent(v) {
-    return `${(Number(v) || 0).toFixed(1)}%`;
+    const n = parseFloat(v);
+    const x = Number.isFinite(n) ? n : 0;
+    return `${x.toFixed(1)}%`;
+}
+
+function dashKpiProgPct(value, cap) {
+    const n = parseFloat(value);
+    const x = Number.isFinite(n) ? n : 0;
+    return Math.min(100, Math.max(0, cap > 0 ? (x / cap) * 100 : 0));
 }
 
 function setDashboardPeriod(p) {
     if (!['today', 'week', 'month'].includes(p)) return;
     currentDashboardPeriod = p;
     document.querySelectorAll('[data-dash-period]').forEach((btn) => {
-        btn.classList.toggle('dash-period--active', btn.getAttribute('data-dash-period') === p);
+        const on = btn.getAttribute('data-dash-period') === p;
+        btn.classList.toggle('dash-period--active', on);
+        btn.classList.toggle('active', on);
     });
     loadDashboard(p);
 }
@@ -620,7 +646,9 @@ async function loadDashboard(period) {
     const p = period && ['today', 'week', 'month'].includes(period) ? period : currentDashboardPeriod;
     currentDashboardPeriod = p;
     document.querySelectorAll('[data-dash-period]').forEach((btn) => {
-        btn.classList.toggle('dash-period--active', btn.getAttribute('data-dash-period') === p);
+        const on = btn.getAttribute('data-dash-period') === p;
+        btn.classList.toggle('dash-period--active', on);
+        btn.classList.toggle('active', on);
     });
 
     const errBanner = document.getElementById('dashErrorBanner');
@@ -670,10 +698,21 @@ function renderDashboardStats() {
     const greetLine = document.getElementById('dashGreetingLine');
     if (greetLine) greetLine.textContent = name ? `${greet}, ${name}` : greet;
 
+    const eyebrow = document.getElementById('dashPageEyebrow');
+    if (eyebrow) {
+        const pe =
+            d.period === 'today'
+                ? 'Visão geral · hoje'
+                : d.period === 'week'
+                  ? 'Visão geral · últimos 7 dias'
+                  : 'Visão geral · mês corrente';
+        eyebrow.textContent = pe;
+    }
+
     const subLine = document.getElementById('dashSubtitleLine');
     if (subLine) {
-        const longDate = new Intl.DateTimeFormat('en-US', { dateStyle: 'long' }).format(new Date());
-        subLine.textContent = `Atualizado agora • ${longDate}`;
+        const longDate = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'long' }).format(new Date());
+        subLine.textContent = `Atualizado agora · ${longDate}`;
     }
 
     const urgentCount = d.new_leads_urgent_count || 0;
@@ -699,128 +738,153 @@ function renderDashboardStats() {
                 const msg = escapeHtmlCrm(a.message || '');
                 const cnt = Number(a.count) || 0;
                 const url = escapeHtmlCrm(a.action_url || '#');
-                return `<a href="#" class="dash-alert dash-alert--${t}" onclick="event.preventDefault(); handleDashboardActionUrl('${url}');">
-                    <span class="dash-alert__icon" aria-hidden="true">${icons[t]}</span>
-                    <span class="dash-alert__text">${msg} <span class="dash-alert__count">(${cnt})</span></span>
+                return `<a href="#" class="sf-alert dash-alert dash-alert--${t}" onclick="event.preventDefault(); handleDashboardActionUrl('${url}');">
+                    <span class="sf-alert-pip" aria-hidden="true"></span>
+                    <span class="sf-alert-text">${icons[t]} ${msg} <strong>(${cnt})</strong></span>
+                    <span class="sf-alert-cta">Abrir →</span>
                 </a>`;
             })
             .join('');
     }
 
+    const openValNum = parseFloat(pl.proposals_open_value);
+    const openVal = Number.isFinite(openValNum) ? openValNum : 0;
+    const closedValNum = parseFloat(pl.closed_won_value);
+    const closedVal = Number.isFinite(closedValNum) ? closedValNum : 0;
+    const avgDealNum = parseFloat(conv.avg_deal_value);
+    const avgDeal = Number.isFinite(avgDealNum) ? avgDealNum : 0;
+    const revMonthNum = parseFloat(fin.revenue_month);
+    const revMonth = Number.isFinite(revMonthNum) ? revMonthNum : 0;
+
     const row1 = document.getElementById('dashKpiRow1');
     if (row1) {
-        const lt =
-            pl.leads_new_today > 0
-                ? `<span class="dash-kpi-card__sub dash-kpi-card__sub--pos">+${pl.leads_new_today} hoje</span>`
-                : '';
-        const vtSub =
-            pl.visits_today > 0
-                ? `<div class="dash-kpi-card__sub">${pl.visits_today} hoje</div>`
-                : '';
+        const badgeLeads = pl.leads_new_today > 0 ? `+${pl.leads_new_today} hoje` : 'no período';
+        const badgeVis = pl.visits_today > 0 ? `${pl.visits_today} hoje` : 'agendadas';
+        const badgeQuotes =
+            pl.proposals_open_count > 0 ? `${pl.proposals_open_count} em aberto` : 'enviadas';
         row1.innerHTML = `
-            <div class="dash-kpi-card dash-kpi-card--pipeline">
-                <span class="dash-kpi-card__icon" aria-hidden="true">📥</span>
-                <div class="dash-kpi-card__body">
-                    <div class="dash-kpi-card__value">${pl.leads_received}</div>
-                    <div class="dash-kpi-card__label">Leads recebidos</div>
-                    ${lt || '<div class="dash-kpi-card__sub">No período</div>'}
+            <div class="sf-card">
+                <div class="sf-card__head">
+                    <div class="sf-card-ic" aria-hidden="true"><span class="sf-card-ic-emoji">📥</span></div>
+                    <span class="sf-card-badge">${escapeHtmlCrm(badgeLeads)}</span>
                 </div>
+                <div class="sf-card-val">${pl.leads_received}</div>
+                <div class="sf-card-lbl">Leads recebidos</div>
+                <div class="sf-card-prog"><div class="sf-card-pf" style="width:${dashKpiProgPct(pl.leads_received, 50)}%"></div></div>
             </div>
-            <div class="dash-kpi-card dash-kpi-card--pipeline">
-                <span class="dash-kpi-card__icon" aria-hidden="true">🗓️</span>
-                <div class="dash-kpi-card__body">
-                    <div class="dash-kpi-card__value">${pl.visits_scheduled}</div>
-                    <div class="dash-kpi-card__label">Visitas agendadas</div>
-                    ${vtSub || '<div class="dash-kpi-card__sub">No período</div>'}
+            <div class="sf-card">
+                <div class="sf-card__head">
+                    <div class="sf-card-ic" aria-hidden="true"><span class="sf-card-ic-emoji">🗓️</span></div>
+                    <span class="sf-card-badge">${escapeHtmlCrm(badgeVis)}</span>
                 </div>
+                <div class="sf-card-val">${pl.visits_scheduled}</div>
+                <div class="sf-card-lbl">Visitas agendadas</div>
+                <div class="sf-card-prog"><div class="sf-card-pf" style="width:${dashKpiProgPct(pl.visits_scheduled, 20)}%"></div></div>
             </div>
-            <div class="dash-kpi-card dash-kpi-card--pipeline">
-                <span class="dash-kpi-card__icon" aria-hidden="true">📄</span>
-                <div class="dash-kpi-card__body">
-                    <div class="dash-kpi-card__value">${pl.proposals_sent}</div>
-                    <div class="dash-kpi-card__label">Propostas enviadas</div>
+            <div class="sf-card">
+                <div class="sf-card__head">
+                    <div class="sf-card-ic" aria-hidden="true"><span class="sf-card-ic-emoji">📄</span></div>
+                    <span class="sf-card-badge">${escapeHtmlCrm(badgeQuotes)}</span>
                 </div>
+                <div class="sf-card-val">${pl.proposals_sent}</div>
+                <div class="sf-card-lbl">Propostas / orçamentos enviados</div>
+                <div class="sf-card-prog"><div class="sf-card-pf" style="width:${dashKpiProgPct(pl.proposals_sent, 15)}%"></div></div>
             </div>
-            <div class="dash-kpi-card dash-kpi-card--money">
-                <span class="dash-kpi-card__icon" aria-hidden="true">💰</span>
-                <div class="dash-kpi-card__body">
-                    <div class="dash-kpi-card__value">${formatDashboardCurrency(pl.proposals_open_value)}</div>
-                    <div class="dash-kpi-card__label">Em aberto (valor)</div>
-                    <div class="dash-kpi-card__sub">${pl.proposals_open_count} orçamentos / propostas</div>
+            <div class="sf-card sf-warn">
+                <div class="sf-card__head">
+                    <div class="sf-card-ic" aria-hidden="true"><span class="sf-card-ic-emoji">💰</span></div>
+                    <span class="sf-card-badge sf-card-badge--muted">${pl.proposals_open_count} itens</span>
                 </div>
+                <div class="sf-card-val">${formatDashboardCompact(openVal)}</div>
+                <div class="sf-card-lbl">Valor em aberto</div>
+                <div class="sf-card-sub">${formatDashboardCurrency(openVal)}</div>
+                <div class="sf-card-prog"><div class="sf-card-pf" style="width:${dashKpiProgPct(openVal, 100000)}%"></div></div>
             </div>
-            <div class="dash-kpi-card dash-kpi-card--won">
-                <span class="dash-kpi-card__icon" aria-hidden="true">✅</span>
-                <div class="dash-kpi-card__body">
-                    <div class="dash-kpi-card__value">${pl.closed_won_count}</div>
-                    <div class="dash-kpi-card__label">Fechamentos</div>
-                    <div class="dash-kpi-card__sub dash-kpi-card__sub--pos">${formatDashboardCurrency(pl.closed_won_value)}</div>
+            <div class="sf-card sf-ok">
+                <div class="sf-card__head">
+                    <div class="sf-card-ic" aria-hidden="true"><span class="sf-card-ic-emoji">✅</span></div>
+                    <span class="sf-card-badge">${formatDashboardCompact(closedVal)}</span>
                 </div>
+                <div class="sf-card-val">${pl.closed_won_count}</div>
+                <div class="sf-card-lbl">Fechamentos (leads won)</div>
+                <div class="sf-card-sub">${formatDashboardCurrency(closedVal)} no período</div>
+                <div class="sf-card-prog"><div class="sf-card-pf" style="width:${dashKpiProgPct(pl.closed_won_count, 10)}%"></div></div>
             </div>
-            <div class="dash-kpi-card dash-kpi-card--prod">
-                <span class="dash-kpi-card__icon" aria-hidden="true">🔨</span>
-                <div class="dash-kpi-card__body">
-                    <div class="dash-kpi-card__value">${pl.in_production}</div>
-                    <div class="dash-kpi-card__label">Em produção</div>
-                    <div class="dash-kpi-card__sub">Projetos ativos</div>
+            <div class="sf-card">
+                <div class="sf-card__head">
+                    <div class="sf-card-ic" aria-hidden="true"><span class="sf-card-ic-emoji">🔨</span></div>
+                    <span class="sf-card-badge">ativos</span>
                 </div>
+                <div class="sf-card-val">${pl.in_production}</div>
+                <div class="sf-card-lbl">Em produção</div>
+                <div class="sf-card-prog"><div class="sf-card-pf" style="width:${dashKpiProgPct(pl.in_production, 8)}%"></div></div>
             </div>`;
     }
 
     const row2 = document.getElementById('dashKpiRow2');
     if (row2) {
-        const lv = Math.min(100, Math.max(0, conv.lead_to_visit_rate || 0));
-        const pw = Math.min(100, Math.max(0, conv.proposal_win_rate || 0));
+        const lv = Math.min(100, Math.max(0, parseFloat(conv.lead_to_visit_rate) || 0));
+        const pw = Math.min(100, Math.max(0, parseFloat(conv.proposal_win_rate) || 0));
         row2.innerHTML = `
-            <div class="dash-kpi-card dash-kpi-card--pipeline">
-                <div class="dash-kpi-card__body">
-                    <div class="dash-kpi-card__value">${formatDashboardPercent(conv.lead_to_visit_rate)}</div>
-                    <div class="dash-kpi-card__label">Taxa lead → visita</div>
-                    <div class="dash-progress"><div class="dash-progress__bar" style="width:${lv}%"></div></div>
+            <div class="sf-card">
+                <div class="sf-card__head">
+                    <div class="sf-card-ic" aria-hidden="true"><span class="sf-card-ic-emoji">📈</span></div>
+                    <span class="sf-card-badge">Lead → visita</span>
                 </div>
+                <div class="sf-card-val">${formatDashboardPercent(conv.lead_to_visit_rate)}</div>
+                <div class="sf-card-lbl">Taxa lead → visita</div>
+                <div class="sf-card-prog"><div class="sf-card-pf" style="width:${lv}%"></div></div>
             </div>
-            <div class="dash-kpi-card dash-kpi-card--pipeline">
-                <div class="dash-kpi-card__body">
-                    <div class="dash-kpi-card__value">${formatDashboardPercent(conv.proposal_win_rate)}</div>
-                    <div class="dash-kpi-card__label">Taxa proposta ganha</div>
-                    <div class="dash-kpi-card__sub">Visita → proposta: ${formatDashboardPercent(conv.visit_to_proposal_rate)}</div>
-                    <div class="dash-progress"><div class="dash-progress__bar" style="width:${pw}%"></div></div>
+            <div class="sf-card">
+                <div class="sf-card__head">
+                    <div class="sf-card-ic" aria-hidden="true"><span class="sf-card-ic-emoji">🎯</span></div>
+                    <span class="sf-card-badge">Propostas</span>
                 </div>
+                <div class="sf-card-val">${formatDashboardPercent(conv.proposal_win_rate)}</div>
+                <div class="sf-card-lbl">Taxa proposta ganha</div>
+                <div class="sf-card-sub">Visita → proposta: ${formatDashboardPercent(conv.visit_to_proposal_rate)}</div>
+                <div class="sf-card-prog"><div class="sf-card-pf" style="width:${pw}%"></div></div>
             </div>
-            <div class="dash-kpi-card dash-kpi-card--money">
-                <div class="dash-kpi-card__body">
-                    <div class="dash-kpi-card__value">${formatDashboardCurrency(fin.revenue_month)}</div>
-                    <div class="dash-kpi-card__label">Receita do mês</div>
-                    <div class="dash-kpi-card__sub">Project financials (MTD)</div>
+            <div class="sf-card sf-ok">
+                <div class="sf-card__head">
+                    <div class="sf-card-ic" aria-hidden="true"><span class="sf-card-ic-emoji">💵</span></div>
+                    <span class="sf-card-badge">MTD</span>
                 </div>
+                <div class="sf-card-val">${formatDashboardCompact(revMonth)}</div>
+                <div class="sf-card-lbl">Receita do mês</div>
+                <div class="sf-card-sub">Project financials</div>
+                <div class="sf-card-prog"><div class="sf-card-pf" style="width:${dashKpiProgPct(revMonth, 25000)}%"></div></div>
             </div>
-            <div class="dash-kpi-card dash-kpi-card--won">
-                <div class="dash-kpi-card__body">
-                    <div class="dash-kpi-card__value">${formatDashboardCurrency(fin.profit_month)}</div>
-                    <div class="dash-kpi-card__label">Lucro do mês</div>
-                    <div class="dash-kpi-card__sub">Avg margin ${formatDashboardPercent(fin.avg_margin)}</div>
+            <div class="sf-card">
+                <div class="sf-card__head">
+                    <div class="sf-card-ic" aria-hidden="true"><span class="sf-card-ic-emoji">🎫</span></div>
+                    <span class="sf-card-badge">${pl.closed_won_count} fech.</span>
                 </div>
+                <div class="sf-card-val">${formatDashboardCompact(avgDeal)}</div>
+                <div class="sf-card-lbl">Ticket médio</div>
+                <div class="sf-card-sub">${formatDashboardCurrency(avgDeal)}</div>
+                <div class="sf-card-prog"><div class="sf-card-pf" style="width:${dashKpiProgPct(avgDeal, 15000)}%"></div></div>
             </div>`;
     }
 
     const funnelEl = document.getElementById('dashFunnel');
     if (funnelEl && Array.isArray(d.pipeline_funnel)) {
         const maxC = Math.max(1, ...d.pipeline_funnel.map((x) => Number(x.count) || 0));
+        const colors = ['#1a2036', '#252b47', '#2a3150', '#c9a882', '#b8906a', '#8f5010', '#2d6e4a'];
         funnelEl.innerHTML = d.pipeline_funnel
-            .map((st) => {
+            .map((st, i) => {
                 const pct = ((Number(st.count) || 0) / maxC) * 100;
                 const cls = funnelRowClass(st.slug);
-                const sid = Number(st.stage_id) || 0;
                 const nm = escapeHtmlCrm(st.stage_name || '');
-                return `<div class="dash-funnel__row ${cls}" role="button" tabindex="0"
+                const bg = colors[i % colors.length];
+                return `<div class="dash-funnel__row sf-funnel-row ${cls}" role="button" tabindex="0"
                     onclick="showPage('crm')"
                     onkeydown="if(event.key==='Enter'){showPage('crm');}">
-                    <div class="dash-funnel__label">
-                        <span class="dash-funnel__name">${nm}</span>
-                        <span class="dash-funnel__count">${st.count}</span>
-                    </div>
-                    <div class="dash-funnel__bar-wrap">
-                        <div class="dash-funnel__bar" style="width:${pct}%"></div>
+                    <div class="sf-funnel-label">${nm}</div>
+                    <div class="sf-funnel-track">
+                        <div class="sf-funnel-bar" style="width:${pct}%;background:${bg}">
+                            <span>${st.count}</span>
+                        </div>
                     </div>
                 </div>`;
             })
@@ -830,18 +894,34 @@ function renderDashboardStats() {
     const recentEl = document.getElementById('dashRecentLeads');
     if (recentEl) {
         const list = Array.isArray(d.recent_leads) ? d.recent_leads : [];
+        const stageClsForSlug = (slug) => {
+            const s = String(slug || '');
+            if (s === 'closed_won') return 'sf-stage-won';
+            if (['proposal_created', 'proposal_sent', 'negotiation'].includes(s)) return 'sf-stage-prop';
+            if (['visit_scheduled', 'measurement_done'].includes(s)) return 'sf-stage-vis';
+            return 'sf-stage-new';
+        };
         recentEl.innerHTML =
             list.length === 0
-                ? '<li>Nenhum lead recente.</li>'
+                ? '<li class="sf-dash-list-empty">Nenhum lead recente.</li>'
                 : list
                       .map((l) => {
                           const badge = escapeHtmlCrm(l.pipeline_stage || '—');
-                          return `<li>
-                            <strong>${escapeHtmlCrm(l.name || '—')}</strong>
-                            <span class="dash-badge" style="background:#e0e7ff;color:#3730a3;">${badge}</span>
-                            <div style="color:var(--color-muted);font-size:0.8rem;margin-top:0.25rem;">
-                              ${escapeHtmlCrm(l.time_ago || '')} · ${escapeHtmlCrm(l.source || '')}
+                          const stCls = stageClsForSlug(l.slug);
+                          const initials = String(l.name || '—')
+                              .split(/\s+/)
+                              .filter(Boolean)
+                              .slice(0, 2)
+                              .map((w) => w[0])
+                              .join('')
+                              .toUpperCase();
+                          return `<li class="sf-dash-lead-row">
+                            <div class="sf-dash-lead-avatar" aria-hidden="true">${escapeHtmlCrm(initials)}</div>
+                            <div class="sf-dash-lead-main">
+                              <div class="sf-dash-lead-name">${escapeHtmlCrm(l.name || '—')}</div>
+                              <div class="sf-dash-lead-meta">${escapeHtmlCrm(l.time_ago || '')} · ${escapeHtmlCrm(l.source || '')}</div>
                             </div>
+                            <span class="sf-stage ${stCls}">${badge}</span>
                           </li>`;
                       })
                       .join('');
@@ -852,14 +932,18 @@ function renderDashboardStats() {
         const vlist = Array.isArray(d.visits_today_detail) ? d.visits_today_detail : [];
         visitsEl.innerHTML =
             vlist.length === 0
-                ? '<li>Nenhuma visita hoje 🎉</li>'
+                ? '<li class="sf-dash-list-empty">Nenhuma visita hoje 🎉</li>'
                 : vlist
                       .map((v) => {
                           const t = new Date(v.scheduled_at);
-                          const timeStr = t.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-                          return `<li><strong>${escapeHtmlCrm(v.client_name || '—')}</strong>
-                            <span style="color:var(--color-muted);"> · ${timeStr}</span>
-                            <span class="dash-badge" style="background:#f3f4f6;">${escapeHtmlCrm(v.status || '')}</span></li>`;
+                          const timeStr = t.toLocaleTimeString('pt-BR', { hour: 'numeric', minute: '2-digit' });
+                          return `<li class="sf-dash-lead-row">
+                            <div class="sf-dash-lead-main">
+                              <div class="sf-dash-lead-name">${escapeHtmlCrm(v.client_name || '—')}</div>
+                              <div class="sf-dash-lead-meta">${timeStr}</div>
+                            </div>
+                            <span class="sf-stage sf-stage-vis">${escapeHtmlCrm(v.status || '')}</span>
+                          </li>`;
                       })
                       .join('');
     }
@@ -868,36 +952,53 @@ function renderDashboardStats() {
     if (insightHost) {
         const cards = [];
         if (pl.contact_pending > 0) {
-            cards.push(`<div class="dash-insight-card dash-insight-card--yellow">
-                <p><strong>${pl.contact_pending}</strong> lead(s) aguardam primeiro contato há mais de 24h.</p>
-                <button type="button" class="btn btn-secondary btn-sm" onclick="showPage('leads')">Ver leads</button>
+            cards.push(`<div class="sf-dash-insight sf-dash-insight--warn">
+                <div class="sf-dash-insight__ic" aria-hidden="true">⚠</div>
+                <div class="sf-dash-insight__body">
+                  <p><strong>${pl.contact_pending}</strong> lead(s) aguardam primeiro contato há mais de 24h.</p>
+                  <button type="button" class="sf-dash-insight__btn" onclick="showPage('leads')">Ver leads →</button>
+                </div>
             </div>`);
         }
         if (pl.visits_today > 0) {
-            cards.push(`<div class="dash-insight-card dash-insight-card--blue">
-                <p>Você tem <strong>${pl.visits_today}</strong> visita(s) hoje.</p>
-                <button type="button" class="btn btn-secondary btn-sm" onclick="showPage('schedule')">Ver agenda</button>
+            cards.push(`<div class="sf-dash-insight sf-dash-insight--info">
+                <div class="sf-dash-insight__ic" aria-hidden="true">📅</div>
+                <div class="sf-dash-insight__body">
+                  <p><strong>${pl.visits_today}</strong> visita(s) hoje.</p>
+                  <button type="button" class="sf-dash-insight__btn" onclick="showPage('schedule')">Ver agenda →</button>
+                </div>
             </div>`);
         }
         if (pl.proposals_open_count > 5) {
-            cards.push(`<div class="dash-insight-card dash-insight-card--purple">
-                <p><strong>${pl.proposals_open_count}</strong> propostas em aberto precisam de follow-up.</p>
-                <button type="button" class="btn btn-secondary btn-sm" onclick="showPage('crm')">Ver pipeline</button>
+            cards.push(`<div class="sf-dash-insight sf-dash-insight--warn">
+                <div class="sf-dash-insight__ic" aria-hidden="true">📄</div>
+                <div class="sf-dash-insight__body">
+                  <p><strong>${pl.proposals_open_count}</strong> propostas em aberto precisam de follow-up.</p>
+                  <button type="button" class="sf-dash-insight__btn" onclick="showPage('crm')">Ver pipeline →</button>
+                </div>
             </div>`);
         }
-        if (pl.closed_won_count === 0) {
-            cards.push(`<div class="dash-insight-card dash-insight-card--gray">
-                <p>Nenhum fechamento ainda neste período. Foque nas <strong>${pl.proposals_sent}</strong> propostas enviadas.</p>
+        if (pl.closed_won_count === 0 && closedVal < 0.005) {
+            cards.push(`<div class="sf-dash-insight sf-dash-insight--muted">
+                <div class="sf-dash-insight__ic" aria-hidden="true">ℹ</div>
+                <div class="sf-dash-insight__body">
+                  <p>Nenhum fechamento no período (pipeline nem valor de quotes/estimates aceites). Envios: <strong>${pl.proposals_sent}</strong>.</p>
+                </div>
             </div>`);
         }
         if (fin.profit_month < 0) {
-            cards.push(`<div class="dash-insight-card dash-insight-card--red">
-                <p>⚠️ Margem negativa este mês. Revise os custos.</p>
-                <button type="button" class="btn btn-secondary btn-sm" onclick="showPage('financeiro')">Financeiro</button>
+            cards.push(`<div class="sf-dash-insight sf-dash-insight--bad">
+                <div class="sf-dash-insight__ic" aria-hidden="true">⚠</div>
+                <div class="sf-dash-insight__body">
+                  <p>Margem negativa este mês. Revise os custos.</p>
+                  <button type="button" class="sf-dash-insight__btn" onclick="showPage('financeiro')">Financeiro →</button>
+                </div>
             </div>`);
         }
         insightHost.innerHTML =
-            cards.length > 0 ? cards.join('') : '<p style="color:var(--color-muted);">Nenhuma ação sugerida no momento.</p>';
+            cards.length > 0
+                ? cards.join('')
+                : '<p class="sf-dash-list-empty">Nenhuma ação sugerida no momento.</p>';
     }
 
     renderSfMobileDashboardBlocks();
@@ -923,8 +1024,8 @@ function renderSfMobileDashboardBlocks() {
         greetingEl.style.color = 'var(--sf-text-accent, #c8a96e)';
     }
 
-    const openVal = formatDashboardCurrency(pl.proposals_open_value);
-    const closedVal = formatDashboardCurrency(pl.closed_won_value);
+    const openVal = formatDashboardCompact(pl.proposals_open_value);
+    const closedVal = formatDashboardCompact(pl.closed_won_value);
     const kpiGrid = document.getElementById('sfMobileKpiGrid');
     if (kpiGrid) {
         kpiGrid.innerHTML = `

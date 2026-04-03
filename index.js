@@ -53,7 +53,7 @@ import {
   updateUserPermissions,
 } from './routes/users.js';
 import { listPermissionRegistry } from './routes/permissions.js';
-import { getDashboardStats } from './routes/dashboard.js';
+import { getDashboardStats, getDashboardDebug } from './routes/dashboard.js';
 import marketingRouter from './routes/marketing.js';
 import { getQualification, createOrUpdateQualification } from './routes/qualification.js';
 import { listInteractions, createInteraction } from './routes/interactions.js';
@@ -343,6 +343,7 @@ app.post('/api/public/quotes/:token/approve', publicQuote.postApproveQuote);
 
 // Dashboard
 app.get('/api/dashboard/stats', requireAuth, getDashboardStats);
+app.get('/api/dashboard/debug', requireAuth, getDashboardDebug);
 
 // Marketing (router inclui requireAuth + reports.view)
 app.use('/api/marketing', marketingRouter);
@@ -628,6 +629,7 @@ async function start() {
     console.log('  Admin Panel: http://localhost:' + PORT);
     console.log('\n  API Endpoints:');
     console.log('  Dashboard: GET /api/dashboard/stats');
+    console.log('  Dashboard debug: GET /api/dashboard/debug (requer DASHBOARD_DEBUG=1)');
     console.log('  Leads: GET /api/leads, GET /api/leads/:id, PUT /api/leads/:id, DELETE /api/leads/:id');
     console.log('  Customers: GET /api/customers, POST /api/customers, PUT /api/customers/:id');
     console.log('  Quotes: GET /api/quotes, POST /api/quotes, PUT /api/quotes/:id');

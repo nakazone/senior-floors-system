@@ -14,6 +14,12 @@ function quoteEffectiveAmountExpr(alias = 'q') {
            ELSE COALESCE(${a}.subtotal, 0) + COALESCE(${a}.tax_total, 0) END)`;
 }
 
+/** Valor em estimates.final_price (ignora 0 / NULL em SUM). */
+function estimateMoneyExpr(alias = 'e') {
+  const a = alias;
+  return `(CASE WHEN ${a}.final_price IS NOT NULL AND ${a}.final_price > 0 THEN ${a}.final_price ELSE 0 END)`;
+}
+
 /** Número finito a partir de string/BigInt/Decimal do mysql2. */
 function toFiniteNumber(v) {
   if (v == null) return 0;
@@ -63,6 +69,8 @@ export async function getDashboardStats(req, res) {
   const pProposalsAccepted = periodPredicate('pr.accepted_at', period);
   const pQuotesApproved = periodPredicate('COALESCE(q.approved_at, q.updated_at)', period);
   const pQuotesSent = periodPredicate('COALESCE(q.sent_at, q.updated_at)', period);
+  const pEstimatesSent = periodPredicate('COALESCE(e.sent_at, e.updated_at)', period);
+  const pEstimatesAccepted = periodPredicate('COALESCE(e.accepted_at, e.updated_at)', period);
   const pLeadUpdated = periodPredicate('l.updated_at', period);
 
   try {
@@ -144,6 +152,8 @@ export async function getDashboardStats(req, res) {
            (SELECT COUNT(*) FROM proposals pr WHERE pr.status = 'sent' AND ${pProposalsSent})
          + (SELECT COUNT(*) FROM quotes q
               WHERE LOWER(TRIM(q.status)) IN ('sent', 'viewed') AND ${pQuotesSent})
+         + (SELECT COUNT(*) FROM estimates e
+              WHERE LOWER(TRIM(e.status)) IN ('sent', 'viewed') AND ${pEstimatesSent})
          AS c`,
         [{ c: 0 }]
       ),
@@ -153,11 +163,16 @@ export async function getDashboardStats(req, res) {
            (SELECT COUNT(*) FROM proposals pr WHERE pr.status IN ('sent', 'draft', 'viewed', 'created'))
          + (SELECT COUNT(*) FROM quotes q
               WHERE LOWER(TRIM(q.status)) IN ('sent', 'draft', 'viewed', 'created'))
+         + (SELECT COUNT(*) FROM estimates e
+              WHERE LOWER(TRIM(e.status)) IN ('draft', 'sent', 'viewed'))
          AS cnt,
            COALESCE((SELECT SUM(pr.total_value) FROM proposals pr
-                     WHERE pr.status IN ('sent', 'draft', 'viewed', 'created')), 0)
+                     WHERE pr.status IN ('sent', 'draft', 'viewed', 'created')
+                       AND pr.total_value IS NOT NULL AND pr.total_value > 0), 0)
          + COALESCE((SELECT SUM(${quoteEffectiveAmountExpr('q')}) FROM quotes q
                      WHERE LOWER(TRIM(q.status)) IN ('sent', 'draft', 'viewed', 'created')), 0)
+         + COALESCE((SELECT SUM(${estimateMoneyExpr('e')}) FROM estimates e
+                     WHERE LOWER(TRIM(e.status)) IN ('draft', 'sent', 'viewed')), 0)
          AS val`,
         [{ cnt: 0, val: 0 }]
       ),
@@ -173,9 +188,12 @@ export async function getDashboardStats(req, res) {
         pool,
         `SELECT
            COALESCE((SELECT SUM(pr.total_value) FROM proposals pr
-                     WHERE pr.status = 'accepted' AND ${pProposalsAccepted}), 0)
+                     WHERE pr.status = 'accepted' AND ${pProposalsAccepted}
+                       AND pr.total_value IS NOT NULL AND pr.total_value > 0), 0)
          + COALESCE((SELECT SUM(${quoteEffectiveAmountExpr('q')}) FROM quotes q
                      WHERE LOWER(TRIM(q.status)) IN ('approved', 'accepted') AND ${pQuotesApproved}), 0)
+         + COALESCE((SELECT SUM(${estimateMoneyExpr('e')}) FROM estimates e
+                     WHERE LOWER(TRIM(e.status)) = 'accepted' AND ${pEstimatesAccepted}), 0)
          AS s`,
         [{ s: 0 }]
       ),
@@ -217,6 +235,7 @@ export async function getDashboardStats(req, res) {
            AND (
              EXISTS (SELECT 1 FROM proposals pr WHERE pr.lead_id = v.lead_id)
              OR EXISTS (SELECT 1 FROM quotes q WHERE q.lead_id = v.lead_id)
+             OR EXISTS (SELECT 1 FROM estimates e WHERE e.lead_id = v.lead_id)
            )`,
         [{ c: 0 }]
       ),
@@ -237,9 +256,13 @@ export async function getDashboardStats(req, res) {
          FROM (
            SELECT pr.total_value AS v FROM proposals pr
            WHERE pr.status = 'accepted' AND ${pProposalsAccepted}
+             AND pr.total_value IS NOT NULL AND pr.total_value > 0
            UNION ALL
            SELECT ${quoteEffectiveAmountExpr('q')} AS v FROM quotes q
            WHERE LOWER(TRIM(q.status)) IN ('approved', 'accepted') AND ${pQuotesApproved}
+           UNION ALL
+           SELECT ${estimateMoneyExpr('e')} AS v FROM estimates e
+           WHERE LOWER(TRIM(e.status)) = 'accepted' AND ${pEstimatesAccepted}
          ) u`,
         [{ a: 0 }]
       ),
@@ -253,13 +276,15 @@ export async function getDashboardStats(req, res) {
       safeQuery(
         pool,
         `SELECT
-           (SELECT COALESCE(SUM(pr1.total_value), 0) FROM proposals pr1 WHERE pr1.status = 'accepted')
+           (SELECT COALESCE(SUM(pr1.total_value), 0) FROM proposals pr1
+              WHERE pr1.status = 'accepted' AND pr1.total_value IS NOT NULL AND pr1.total_value > 0)
          + (SELECT COALESCE(SUM(pr2.total_value), 0)
               FROM proposals pr2
               INNER JOIN leads l2 ON l2.id = pr2.lead_id
               INNER JOIN pipeline_stages ps2 ON ps2.id = l2.pipeline_stage_id
               WHERE ps2.slug = 'negotiation'
-                AND pr2.status IN ('draft', 'sent', 'viewed', 'created'))
+                AND pr2.status IN ('draft', 'sent', 'viewed', 'created')
+                AND pr2.total_value IS NOT NULL AND pr2.total_value > 0)
          + (SELECT COALESCE(SUM(${quoteEffectiveAmountExpr('q1')}), 0) FROM quotes q1
               WHERE LOWER(TRIM(q1.status)) IN ('approved', 'accepted'))
          + (SELECT COALESCE(SUM(${quoteEffectiveAmountExpr('q2')}), 0)
@@ -267,7 +292,15 @@ export async function getDashboardStats(req, res) {
               INNER JOIN leads lq ON lq.id = q2.lead_id
               INNER JOIN pipeline_stages psq ON psq.id = lq.pipeline_stage_id
               WHERE psq.slug = 'negotiation'
-                AND LOWER(TRIM(q2.status)) IN ('draft', 'sent', 'viewed', 'created')) AS s`,
+                AND LOWER(TRIM(q2.status)) IN ('draft', 'sent', 'viewed', 'created'))
+         + (SELECT COALESCE(SUM(${estimateMoneyExpr('e1')}), 0) FROM estimates e1
+              WHERE LOWER(TRIM(e1.status)) = 'accepted')
+         + (SELECT COALESCE(SUM(${estimateMoneyExpr('e2')}), 0)
+              FROM estimates e2
+              INNER JOIN leads le2 ON le2.id = e2.lead_id
+              INNER JOIN pipeline_stages pse ON pse.id = le2.pipeline_stage_id
+              WHERE pse.slug = 'negotiation'
+                AND LOWER(TRIM(e2.status)) IN ('draft', 'sent', 'viewed')) AS s`,
         [{ s: 0 }]
       ),
       safeQuery(
@@ -295,9 +328,12 @@ export async function getDashboardStats(req, res) {
          LEFT JOIN leads l ON l.pipeline_stage_id = ps.id
          LEFT JOIN (
            SELECT lead_id, MAX(v) AS tv FROM (
-             SELECT lead_id, total_value AS v FROM proposals WHERE lead_id IS NOT NULL
+             SELECT lead_id, total_value AS v FROM proposals
+               WHERE lead_id IS NOT NULL AND total_value IS NOT NULL AND total_value > 0
              UNION ALL
              SELECT lead_id, ${quoteEffectiveAmountExpr('quotes')} AS v FROM quotes WHERE lead_id IS NOT NULL
+             UNION ALL
+             SELECT lead_id, ${estimateMoneyExpr('est')} AS v FROM estimates est WHERE lead_id IS NOT NULL
            ) z GROUP BY lead_id
          ) px ON px.lead_id = l.id
          GROUP BY ps.id, ps.name, ps.slug, ps.order_num
@@ -514,6 +550,73 @@ export async function getDashboardStats(req, res) {
   } catch (error) {
     console.error('Dashboard stats error:', error);
     return res.status(500).json({ success: false, error: error.message || 'Internal error' });
+  }
+}
+
+/**
+ * GET /api/dashboard/debug — agregados brutos por tabela (quotes, proposals, estimates, pipeline).
+ * Ative no servidor: DASHBOARD_DEBUG=1. Desative em produção quando não precisar.
+ */
+export async function getDashboardDebug(req, res) {
+  if (process.env.DASHBOARD_DEBUG !== '1') {
+    return res.status(404).json({
+      success: false,
+      error: 'Endpoint desligado. Defina DASHBOARD_DEBUG=1 no ambiente para inspecionar agregados.',
+    });
+  }
+  try {
+    const pool = await getDBConnection();
+    if (!pool) {
+      return res.status(503).json({ success: false, error: 'Database not available' });
+    }
+
+    const run = async (sql) => {
+      try {
+        const [rows] = await pool.query(sql);
+        return { ok: true, rows };
+      } catch (e) {
+        if (isNoSuchTableError(e)) {
+          return { ok: false, error: 'no_such_table', message: e.message };
+        }
+        throw e;
+      }
+    };
+
+    const [estimates, proposals, quotes, pipeline] = await Promise.all([
+      run(
+        `SELECT status, COUNT(*) AS n,
+                COALESCE(SUM(CASE WHEN final_price IS NOT NULL AND final_price > 0 THEN final_price ELSE 0 END), 0) AS total
+         FROM estimates GROUP BY status ORDER BY status`
+      ),
+      run(
+        `SELECT status, COUNT(*) AS n,
+                COALESCE(SUM(CASE WHEN total_value IS NOT NULL AND total_value > 0 THEN total_value ELSE 0 END), 0) AS total
+         FROM proposals GROUP BY status ORDER BY status`
+      ),
+      run(
+        `SELECT status, COUNT(*) AS n,
+                COALESCE(SUM(${quoteEffectiveAmountExpr('q')}), 0) AS total
+         FROM quotes GROUP BY status ORDER BY status`
+      ),
+      run(
+        `SELECT ps.slug AS stage_slug, COUNT(*) AS n
+         FROM leads l
+         INNER JOIN pipeline_stages ps ON ps.id = l.pipeline_stage_id
+         GROUP BY ps.slug ORDER BY ps.slug`
+      ),
+    ]);
+
+    return res.json({
+      success: true,
+      generated_at: new Date().toISOString(),
+      estimates,
+      proposals,
+      quotes,
+      pipeline_stages: pipeline,
+    });
+  } catch (e) {
+    console.error('getDashboardDebug:', e);
+    return res.status(500).json({ success: false, error: e.message || 'Internal error' });
   }
 }
 
