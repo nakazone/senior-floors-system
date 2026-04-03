@@ -77,6 +77,7 @@ import {
   verifyMysqlPoolConnectivity,
   resetDbPool,
   isDatabaseConfigured,
+  isMysqlInfrastructureError,
 } from './config/db.js';
 import { getHealth } from './routes/health.js';
 import { ensureQuoteInvoicePdfColumn } from './lib/ensureQuoteInvoicePdfColumn.js';
@@ -548,28 +549,28 @@ const hideErrorDetailFromClient =
 
 app.use((err, req, res, next) => {
   console.error('[ERROR]', err && err.message ? err.message : err, err && err.stack ? err.stack : '');
-  const c = err && err.code;
-  const transientDb =
-    c === 'ECONNREFUSED' ||
-    c === 'ETIMEDOUT' ||
-    c === 'PROTOCOL_CONNECTION_LOST' ||
-    c === 'ECONNRESET' ||
-    c === 'EPIPE' ||
-    (err && err.fatal === true);
-  if (transientDb) {
+  const infraDb = isMysqlInfrastructureError(err);
+  if (infraDb) {
     resetDbPool().catch(() => {});
   }
 
   let status =
     (typeof err.statusCode === 'number' && err.statusCode) ||
     (typeof err.status === 'number' && err.status) ||
-    (transientDb ? 503 : 500);
+    (infraDb ? 503 : 500);
   if (status < 400 || status > 599) status = 500;
 
   if (status >= 500 && hideErrorDetailFromClient) {
     return res.status(status).json({
       error: true,
-      message: transientDb ? 'Serviço temporariamente indisponível' : 'Erro interno do servidor',
+      message: infraDb
+        ? 'Serviço temporariamente indisponível (base de dados).'
+        : 'Erro interno do servidor',
+      ...(infraDb
+        ? {
+            hint: 'Railway: serviço Node → DATABASE_URL ligado ao MySQL; GET /api/health/db',
+          }
+        : {}),
     });
   }
 

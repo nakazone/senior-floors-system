@@ -89,8 +89,22 @@
         fetch('/api/auth/session', {
             credentials: 'include'
         })
-            .then(r => r.json())
-            .then(data => {
+            .then(async (r) => {
+                const data = await r.json().catch(() => ({}));
+                if (!r.ok) {
+                    const el = document.getElementById('errorMessage');
+                    const msg =
+                        data.message ||
+                        (r.status === 503
+                            ? 'Base de dados ou sessão indisponível no servidor.'
+                            : 'Erro ao contactar o servidor.');
+                    const hint = data.hint ? ' ' + data.hint : '';
+                    if (el) {
+                        el.textContent = msg + hint;
+                        el.style.display = 'block';
+                    }
+                    return;
+                }
                 if (data.authenticated) {
                     var u = data.user || {};
                     window.location.href = u.must_change_password ? '/change-password.html' : '/dashboard.html';

@@ -11,6 +11,8 @@ export function isTransientMysqlError(err) {
   if (!err) return false;
   const c = err.code;
   return (
+    c === 'ECONNREFUSED' ||
+    c === 'ENOTFOUND' ||
     c === 'PROTOCOL_CONNECTION_LOST' ||
     c === 'ECONNRESET' ||
     c === 'ETIMEDOUT' ||
@@ -18,6 +20,30 @@ export function isTransientMysqlError(err) {
     c === 'EPIPE' ||
     err.fatal === true
   );
+}
+
+/**
+ * Erros de infraestrutura MySQL (pool, sessão, credenciais) — responder 503 em vez de 500 genérico.
+ */
+export function isMysqlInfrastructureError(err) {
+  if (!err) return false;
+  if (isTransientMysqlError(err)) return true;
+  const c = err.code;
+  if (
+    c === 'ER_ACCESS_DENIED_ERROR' ||
+    c === 'ER_BAD_DB_ERROR' ||
+    c === 'ER_DBACCESS_DENIED_ERROR' ||
+    c === 'ER_TOO_MANY_USER_CONNECTIONS'
+  ) {
+    return true;
+  }
+  const msg = String(err.message || '').toLowerCase();
+  if (c === 'ER_NO_SUCH_TABLE' && msg.includes('session')) return true;
+  if (msg.includes('server has gone away')) return true;
+  if (msg.includes('pool is closed')) return true;
+  if (msg.includes('pool is ended')) return true;
+  if (msg.includes('connection lost')) return true;
+  return false;
 }
 
 export async function resetDbPool() {

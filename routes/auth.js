@@ -2,7 +2,7 @@
  * Authentication routes - Login, Logout, Session, Change password
  */
 import bcrypt from 'bcryptjs';
-import { getDBConnection, resetDbPool } from '../config/db.js';
+import { getDBConnection, resetDbPool, isMysqlInfrastructureError } from '../config/db.js';
 import { resolvePermissionKeysForUser } from '../lib/userPermissions.js';
 
 /** Garante que o cookie de sessão é enviado antes da resposta JSON (evita 401 em PUT seguinte). */
@@ -204,35 +204,62 @@ export async function logout(req, res) {
 }
 
 export async function checkSession(req, res) {
-  if (req.session.userId) {
-    try {
-      const pool = await getDBConnection();
-      if (pool) {
-        req.session.permissionKeys = await resolvePermissionKeysForUser(
-          pool,
-          sessionSafeUserId(req.session.userId),
-          req.session.userRole
-        );
-      }
-    } catch (_) {
-      /* mantém permissionKeys já na sessão */
+  try {
+    if (!req.session) {
+      return res.status(503).json({
+        success: false,
+        authenticated: false,
+        error: 'session_unavailable',
+        message:
+          'Sessão indisponível. Confirme MySQL no Railway e a tabela `sessions` (express-mysql-session).',
+      });
     }
-    res.json({
-      success: true,
-      authenticated: true,
-      user: {
-        id: sessionSafeUserId(req.session.userId),
-        email: req.session.userEmail,
-        role: req.session.userRole,
-        name: req.session.userName,
-        must_change_password: !!req.session.mustChangePassword,
-        permissions: req.session.permissionKeys || [],
-      },
-    });
-  } else {
-    res.json({
+    if (req.session.userId) {
+      try {
+        const pool = await getDBConnection();
+        if (pool) {
+          req.session.permissionKeys = await resolvePermissionKeysForUser(
+            pool,
+            sessionSafeUserId(req.session.userId),
+            req.session.userRole
+          );
+        }
+      } catch (_) {
+        /* mantém permissionKeys já na sessão */
+      }
+      return res.json({
+        success: true,
+        authenticated: true,
+        user: {
+          id: sessionSafeUserId(req.session.userId),
+          email: req.session.userEmail,
+          role: req.session.userRole,
+          name: req.session.userName,
+          must_change_password: !!req.session.mustChangePassword,
+          permissions: req.session.permissionKeys || [],
+        },
+      });
+    }
+    return res.json({
       success: true,
       authenticated: false,
+    });
+  } catch (e) {
+    console.error('[auth] checkSession', e);
+    if (isMysqlInfrastructureError(e)) {
+      resetDbPool().catch(() => {});
+      return res.status(503).json({
+        success: false,
+        authenticated: false,
+        error: 'database',
+        message: 'Base de dados temporariamente indisponível.',
+      });
+    }
+    return res.status(500).json({
+      success: false,
+      authenticated: false,
+      error: 'check_session_failed',
+      message: 'Erro ao verificar a sessão.',
     });
   }
 }

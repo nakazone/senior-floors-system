@@ -91,8 +91,25 @@ function updateUsersPageActions() {
 }
 
 fetch('/api/auth/session', { credentials: 'include' })
-    .then((r) => r.json())
-    .then((data) => {
+    .then(async (r) => {
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok) {
+            const msg =
+                data.message ||
+                (r.status === 503
+                    ? 'Base de dados indisponível. Verifique DATABASE_URL / MySQL na Railway.'
+                    : 'Erro do servidor (' + r.status + ').');
+            const full = data.hint ? msg + ' ' + data.hint : msg;
+            if (typeof window.crmNotify === 'function') {
+                window.crmNotify(full, 'error');
+            } else {
+                console.error(full, data);
+            }
+            if (r.status === 401 || r.status === 403) {
+                window.location.href = '/login.html';
+            }
+            return;
+        }
         if (!data.authenticated) {
             window.location.href = '/login.html';
             return;
@@ -128,6 +145,9 @@ fetch('/api/auth/session', { credentials: 'include' })
     })
     .catch((err) => {
         console.error('Session check error:', err);
+        if (typeof window.crmNotify === 'function') {
+            window.crmNotify('Falha de rede ao verificar sessão.', 'error');
+        }
         window.location.href = '/login.html';
     });
 
