@@ -11,8 +11,8 @@
     { href: 'dashboard.html?page=crm', label: 'CRM', perm: 'pipeline.view', page: 'crm' },
     { href: 'dashboard.html?page=customers', label: 'Clients', perm: 'customers.view', page: 'customers' },
     { href: 'dashboard.html?page=quotes', label: 'Quotes', perm: 'quotes.view', page: 'quotes' },
-    { href: 'dashboard.html?page=projects', label: 'Projects', perm: 'projects.view', page: 'projects' },
     { href: 'dashboard.html?page=schedule', label: 'Schedule', perm: 'visits.view', page: 'schedule' },
+    { href: 'projects.html', label: 'Projetos', perm: 'projects.view', page: '' },
     { href: 'dashboard.html?page=financeiro', label: 'Financeiro', perm: 'contracts.view', page: 'financeiro' },
     { href: 'payroll-module.html', label: 'Folha obra', perm: 'payroll.view', page: '' },
     { href: 'dashboard.html?page=activities', label: 'Activities', perm: 'activities.view', page: 'activities' },
@@ -44,6 +44,9 @@
     const base = h.split('?')[0].split('/').pop().toLowerCase();
     if (base === 'marketing.html') {
       return file === 'marketing.html';
+    }
+    if (base === 'projects.html') {
+      return file === 'projects.html';
     }
     if (h.indexOf('dashboard.html') === 0) {
       if (file !== 'dashboard.html') return false;

@@ -11,6 +11,7 @@ import {
   generateEstimateNumber,
   calculateMarginPercentage
 } from '../services/estimateCalculator.js';
+import { createOrSyncProjectFromAcceptedEstimate } from '../modules/projects/fromEstimate.js';
 
 /**
  * Listar estimativas
@@ -244,6 +245,12 @@ export async function updateEstimate(req, res) {
       return res.status(400).json({ success: false, error: 'Invalid estimate ID' });
     }
 
+    const [[prevEst]] = await pool.query('SELECT status FROM estimates WHERE id = ?', [estimateId]);
+    if (!prevEst) {
+      return res.status(404).json({ success: false, error: 'Estimate not found' });
+    }
+    const oldStatus = String(prevEst.status || '');
+
     const {
       items,
       overhead_percentage,
@@ -374,6 +381,21 @@ export async function updateEstimate(req, res) {
     );
 
     updated[0].items = estimateItems;
+
+    const newStatus = String(updated[0].status || '');
+    if (newStatus === 'accepted' && oldStatus !== 'accepted') {
+      try {
+        const uid = req.session?.userId != null ? parseInt(String(req.session.userId), 10) : null;
+        const projRes = await createOrSyncProjectFromAcceptedEstimate(pool, estimateId, uid);
+        if (projRes.ok) {
+          console.log('[AUTO] Projeto criado/atualizado:', projRes.data?.project_number || projRes.data?.id);
+        } else {
+          console.warn('[AUTO] Projeto não sincronizado:', projRes.error);
+        }
+      } catch (e) {
+        console.error('[AUTO] Erro ao criar projeto:', e.message);
+      }
+    }
 
     return res.json({ success: true, data: updated[0] });
   } catch (error) {

@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Projeto — Senior Floors CRM</title>
+  <link rel="icon" type="image/png" href="/assets/SeniorFloors.png" />
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="design-system.css" />
+  <link rel="stylesheet" href="crm-shared-nav.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    .pd-body { background: var(--sf-gold-bg); min-height: 100vh; }
+    .pd-main { max-width: 1200px; margin: 0 auto; padding: 1rem 1.25rem 2.5rem; }
+    .pd-breadcrumb { font-size: 12px; color: var(--sf-muted); margin-bottom: 8px; }
+    .pd-breadcrumb a { color: var(--sf-navy2); }
+    .pd-head { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+    .pd-title { font-size: 1.35rem; font-weight: 700; color: var(--sf-navy); margin: 0; }
+    .pd-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    .pd-btn { padding: 8px 14px; border-radius: 8px; border: 1px solid var(--sf-border); background: #fff; font-size: 12px; font-weight: 600; cursor: pointer; color: var(--sf-navy); }
+    .pd-btn--primary { background: var(--sf-navy); color: var(--sf-gold); border-color: var(--sf-navy); }
+    button.pd-btn--primary { color: var(--sf-gold); }
+    .pd-progress-wrap { flex: 1; min-width: 200px; max-width: 420px; }
+    .pd-progress-bar { height: 8px; background: rgba(26,32,54,.12); border-radius: 6px; overflow: hidden; }
+    .pd-progress-bar > div { height: 100%; background: var(--sf-gold3); transition: width .3s; }
+    .pd-tabs { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid var(--sf-border); margin-bottom: 16px; }
+    .tab-btn { padding: 10px 14px; border: none; background: transparent; font-size: 13px; font-weight: 600; color: var(--sf-muted); cursor: pointer; border-radius: 8px 8px 0 0; }
+    .tab-btn.active { color: var(--sf-navy); background: rgba(26,32,54,.06); }
+    .tab-pane { display: none; }
+    .pd-collapsible { border: 1px solid var(--sf-border); border-radius: 10px; margin-bottom: 10px; overflow: hidden; background: #fff; }
+    .pd-collapsible-h { padding: 10px 12px; font-weight: 700; font-size: 13px; color: var(--sf-navy); cursor: pointer; display: flex; justify-content: space-between; align-items: center; background: var(--sf-gold-soft); }
+    .pd-collapsible-b { padding: 12px; display: none; }
+    .pd-collapsible.open .pd-collapsible-b { display: block; }
+    .pd-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .pd-table th, .pd-table td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #eee; }
+    .pd-inline-form { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--sf-border); }
+    .pd-inline-form input, .pd-inline-form select { padding: 6px 8px; border-radius: 6px; border: 1px solid var(--sf-border); }
+    .pd-gallery-col { flex: 1; min-width: 200px; }
+    .pd-gallery-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+    .pd-gallery-grid img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 6px; cursor: pointer; }
+    .pd-add-photo { min-height: 72px; border: 2px dashed var(--sf-border); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 24px; color: var(--sf-gold4); cursor: pointer; background: rgba(255,255,255,.5); }
+    .pd-check-cat { margin-bottom: 14px; }
+    .pd-check-cat h4 { font-size: 12px; color: var(--sf-navy); margin: 0 0 8px; }
+    .pd-check-item { display: flex; align-items: flex-start; gap: 8px; padding: 6px 0; border-bottom: 1px solid #f0ebe3; }
+    .pd-banner-ok { background: rgba(45,110,74,.12); color: var(--sf-ok); padding: 10px 14px; border-radius: 8px; font-weight: 600; font-size: 13px; margin-bottom: 12px; }
+    .pd-pl-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; margin-bottom: 12px; }
+    .status-dd { position: relative; }
+    .status-dd select { appearance: auto; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--sf-border); font-weight: 600; }
+    .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+  </style>
+</head>
+<body class="dashboard-app-body pd-body payroll-sidebar-page">
+  <header class="mobile-app-header" id="mobileAppHeader" aria-label="Barra superior">
+    <button type="button" class="mobile-app-header__menu" id="mobileMenuToggle" aria-label="Abrir menu" aria-expanded="false" aria-controls="pdSidebar">
+      <span class="mobile-app-header__menu-icon" aria-hidden="true"></span>
+    </button>
+    <div class="mobile-app-header__brand">
+      <img src="/assets/SeniorFloors.png" alt="" class="mobile-app-header__logo" width="28" height="28" onerror="this.style.display='none'" />
+      <h1 class="mobile-app-header__title">Projeto</h1>
+    </div>
+  </header>
+  <div class="dashboard-container">
+    <aside class="dashboard-sidebar" id="pdSidebar" aria-label="Menu lateral">
+      <div class="sidebar-header">
+        <img src="/assets/SeniorFloors.png" alt="" class="sidebar-brand-logo logo-image" width="48" height="48" onerror="this.style.display='none'" />
+        <div class="sidebar-brand-text">
+          <span class="sidebar-brand-text__name mobile-hidden">Senior Floors CRM</span>
+          <span class="sidebar-brand-text__name mobile-only">CRM</span>
+        </div>
+      </div>
+      <nav class="sidebar-nav"><div id="crmSharedNavRoot" data-layout="sidebar"></div></nav>
+      <div class="sidebar-footer">
+        <button type="button" class="btn" id="pdSidebarLogout">Sair da conta</button>
+      </div>
+    </aside>
+    <div class="mobile-overlay" id="mobileOverlay"></div>
+    <main class="dashboard-main pd-main">
+      <div class="pd-breadcrumb"><a href="projects.html">Projetos</a> / <span id="pd-crumb-name">…</span></div>
+      <div class="pd-head">
+        <h1 class="pd-title" id="pd-title">…</h1>
+        <div class="status-dd">
+          <label class="visually-hidden" for="pd-status">Status</label>
+          <select id="pd-status" aria-label="Status do projeto"></select>
+        </div>
+      </div>
+      <div class="pd-head">
+        <div class="pd-progress-wrap">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+            <span style="font-size:12px;font-weight:600;color:var(--sf-navy)">Conclusão</span>
+            <input type="number" id="pd-pct" min="0" max="100" style="width:52px;padding:4px 6px;border-radius:6px;border:1px solid var(--sf-border)" /> %
+          </div>
+          <div class="pd-progress-bar"><div id="pd-progress-fill" style="width:0%"></div></div>
+        </div>
+        <div class="pd-actions">
+          <button type="button" class="pd-btn" id="btn-tab-checklist">Completar Checklist</button>
+          <button type="button" class="pd-btn" id="btn-tab-pl">Ver P&amp;L</button>
+          <button type="button" class="pd-btn pd-btn--primary" id="btn-tab-gallery">Galeria</button>
+        </div>
+      </div>
+
+      <div class="pd-tabs" role="tablist">
+        <button type="button" class="tab-btn active" data-tab="overview" role="tab">Visão geral</button>
+        <button type="button" class="tab-btn" data-tab="costs" role="tab">Custos</button>
+        <button type="button" class="tab-btn" data-tab="checklist" role="tab">Checklist</button>
+        <button type="button" class="tab-btn" data-tab="gallery" role="tab">Galeria</button>
+        <button type="button" class="tab-btn" data-tab="builder" role="tab" id="tab-btn-builder" style="display:none">Builder</button>
+      </div>
+
+      <div id="tab-overview" class="tab-pane" style="display:block"></div>
+      <div id="tab-costs" class="tab-pane"></div>
+      <div id="tab-checklist" class="tab-pane"></div>
+      <div id="tab-gallery" class="tab-pane"></div>
+      <div id="tab-builder" class="tab-pane"></div>
+    </main>
+  </div>
+  <input type="file" id="pd-file-input" accept="image/jpeg,image/png,image/webp,image/heic,.heic" capture="environment" style="position:fixed;left:-9999px;width:1px;height:1px;opacity:0" />
+  <script src="crm-shared-nav.js?v=4"></script>
+  <script src="project-detail.js?v=1"></script>
+  <script>
+    (function () {
+      var t = document.getElementById('mobileMenuToggle');
+      var s = document.getElementById('pdSidebar');
+      var o = document.getElementById('mobileOverlay');
+      if (t && s && o) {
+        t.addEventListener('click', function () {
+          var open = s.classList.toggle('mobile-open');
+          o.classList.toggle('active', open);
+          t.setAttribute('aria-expanded', open ? 'true' : 'false');
+        });
+        o.addEventListener('click', function () {
+          s.classList.remove('mobile-open');
+          o.classList.remove('active');
+          t.setAttribute('aria-expanded', 'false');
+        });
+      }
+      document.getElementById('pdSidebarLogout')?.addEventListener('click', async function () {
+        try { await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }); } catch (e) {}
+        window.location.href = 'login.html';
+      });
+    })();
+  </script>
+</body>
+</html>

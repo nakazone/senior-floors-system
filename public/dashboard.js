@@ -139,6 +139,10 @@ fetch('/api/auth/session', { credentials: 'include' })
         loadDashboard();
         startNewLeadPolling();
         const pageParam = new URLSearchParams(window.location.search).get('page');
+        if (pageParam === 'projects') {
+            window.location.replace('/projects.html');
+            return;
+        }
         if (pageParam && document.querySelector(`#dashboardSidebar [data-page="${pageParam}"]`)) {
             showPage(pageParam);
         }

@@ -2,6 +2,7 @@
  * Quando um orçamento fica aprovado/aceite, garante um registo em `projects` e liga `quotes.project_id`.
  */
 import { ensureClientFromLead } from '../clients/leadToClient.js';
+import { nextProjectNumber } from '../projects/projectHelpers.js';
 
 const APPROVED = new Set(['approved', 'accepted']);
 
@@ -98,24 +99,22 @@ export async function ensureProjectForApprovedQuote(pool, quoteId) {
       }
     }
 
+    const pn = await nextProjectNumber(conn);
+    const contractVal = estimated != null && Number.isFinite(estimated) ? estimated : 0;
+    const oid = ownerId && ownerId > 0 ? ownerId : null;
     const [ins] = await conn.execute(
-      `INSERT INTO projects (customer_id, lead_id, name, project_type, status, address, city, state, zipcode,
-        estimated_start_date, estimated_end_date, estimated_cost, owner_id, notes)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO projects (
+        customer_id, lead_id, name, project_number, project_type, status,
+        contract_value, assigned_to, owner_id, notes
+      ) VALUES (?, ?, ?, ?, 'installation', 'scheduled', ?, ?, ?, ?)`,
       [
         customerId,
         leadIdIns && leadIdIns > 0 ? leadIdIns : null,
         name.slice(0, 255),
-        'installation',
-        'quoted',
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        estimated,
-        ownerId && ownerId > 0 ? ownerId : null,
+        pn,
+        contractVal,
+        oid,
+        oid,
         notes,
       ]
     );

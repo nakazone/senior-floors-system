@@ -39,7 +39,7 @@ import { getEmailTransportStatus } from './modules/quotes/quoteMail.js';
 import * as erpMaterials from './routes/erpMaterials.js';
 import * as publicQuote from './routes/publicQuote.js';
 import { quotePdfUploadMiddleware } from './lib/quotePdfUpload.js';
-import { listProjects, getProject, createProject, updateProject } from './routes/projects.js';
+import projectsRouter from './routes/projects.js';
 import { listVisits, getVisit, createVisit, updateVisit } from './routes/visits.js';
 import { listActivities, createActivity } from './routes/activities.js';
 import { listContracts, getContract, createContract, updateContract } from './routes/contracts.js';
@@ -251,6 +251,7 @@ app.use(
     },
   })
 );
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 function shouldSkipGeneralApiRateLimit(req) {
   if (!req.path.startsWith('/api')) return true;
@@ -428,11 +429,12 @@ app.put('/api/estimates/:id', requireAuth, updateEstimate);
 app.delete('/api/estimates/:id', requireAuth, deleteEstimate);
 app.get('/api/estimates/analytics/overview', requireAuth, getEstimateAnalytics);
 
-// Projects
-app.get('/api/projects', requireAuth, listProjects);
-app.get('/api/projects/:id', requireAuth, getProject);
-app.post('/api/projects', requireAuth, createProject);
-app.put('/api/projects/:id', requireAuth, updateProject);
+// Financial (antes do router /api/projects para não colidir com /:id)
+app.get('/api/projects/:projectId/financial', requireAuth, getProjectFinancial);
+app.put('/api/projects/:projectId/financial', requireAuth, updateProjectFinancial);
+
+// Projects (router completo: lista, custos, checklist, fotos, P&L, etc.)
+app.use('/api/projects', projectsRouter);
 
 // Visits/Schedule
 app.get('/api/visits', requireAuth, listVisits);
@@ -475,8 +477,6 @@ app.post('/api/contracts', requireAuth, createContract);
 app.put('/api/contracts/:id', requireAuth, updateContract);
 
 // Financial Management
-app.get('/api/projects/:projectId/financial', requireAuth, getProjectFinancial);
-app.put('/api/projects/:projectId/financial', requireAuth, updateProjectFinancial);
 app.get('/api/expenses', requireAuth, listExpenses);
 app.post('/api/expenses', requireAuth, createExpense);
 app.put('/api/expenses/:id/approve', requireAuth, approveExpense);
@@ -633,7 +633,7 @@ async function start() {
     console.log('  Leads: GET /api/leads, GET /api/leads/:id, PUT /api/leads/:id, DELETE /api/leads/:id');
     console.log('  Customers: GET /api/customers, POST /api/customers, PUT /api/customers/:id');
     console.log('  Quotes: GET /api/quotes, POST /api/quotes, PUT /api/quotes/:id');
-    console.log('  Projects: GET /api/projects, POST /api/projects, PUT /api/projects/:id');
+    console.log('  Projects: /api/projects (router completo + financial em /:id/financial)');
     console.log('  Visits: GET /api/visits, POST /api/visits, PUT /api/visits/:id');
     console.log('  Activities: GET /api/activities, POST /api/activities');
     console.log('  Contracts: GET /api/contracts, POST /api/contracts, PUT /api/contracts/:id');
