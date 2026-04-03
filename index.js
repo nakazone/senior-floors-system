@@ -78,6 +78,8 @@ import {
   resetDbPool,
   isDatabaseConfigured,
   isMysqlInfrastructureError,
+  isRailwayPublicMysqlHostname,
+  isLikelyRailwayAppContainer,
 } from './config/db.js';
 import { getHealth } from './routes/health.js';
 import { ensureQuoteInvoicePdfColumn } from './lib/ensureQuoteInvoicePdfColumn.js';
@@ -321,6 +323,14 @@ app.get('/api/health/db', async (req, res) => {
   } catch (e) {
     body.error_code = e.code || null;
     body.message = e.message || String(e);
+    if (
+      (e.code === 'ETIMEDOUT' || e.code === 'ECONNREFUSED') &&
+      isRailwayPublicMysqlHostname(body.host) &&
+      isLikelyRailwayAppContainer()
+    ) {
+      body.hint =
+        'No serviço Node use DATABASE_URL com mysql.railway.internal (variável de referência ao MySQL). O hostname *.up.railway.app é para acesso fora da Railway e costuma dar ETIMEDOUT entre serviços.';
+    }
     res.status(503).json(body);
   }
 });

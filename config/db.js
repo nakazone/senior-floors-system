@@ -85,6 +85,19 @@ function isRailwayInternalHost(host) {
   return typeof host === 'string' && /\.railway\.internal$/i.test(host.trim());
 }
 
+/** Node a correr no container Railway (não confundir com .env local com RAILWAY_* copiados). */
+export function isLikelyRailwayAppContainer() {
+  return Boolean(
+    process.env.RAILWAY_REPLICA_ID ||
+      process.env.RAILWAY_DEPLOYMENT_ID ||
+      String(process.env.RAILWAY || '').toLowerCase() === 'true'
+  );
+}
+
+export function isRailwayPublicMysqlHostname(host) {
+  return typeof host === 'string' && /\.up\.railway\.app$/i.test(host.trim());
+}
+
 /** Variáveis do plugin MySQL no Railway (serviço Node referencia o MySQL). */
 function mysqlPluginConfigFromEnv() {
   const host = process.env.MYSQLHOST || process.env.MYSQL_HOST;
@@ -129,7 +142,7 @@ function isDatabaseConfigured() {
  * Ordem: DATABASE_URL (etc.) se útil; se a URL aponta para localhost mas DB_HOST é remoto, usa DB_* (evita URL velha no shell / .env).
  * Depois DB_* ; depois MYSQLHOST / MYSQLUSER… (Railway).
  * Se a resolução cair em *.railway.internal mas MYSQLHOST apontar para um host público, usa o plugin
- * (comum: DATABASE_URL privada + DB_HOST=localhost ainda do env.example + variáveis MYSQL_* da Railway).
+ * só fora do container Railway (no Mac o interno não resolve; na Railway o público *.up.railway.app dá ETIMEDOUT).
  * localhost → 127.0.0.1 para evitar ::1 no macOS sem listener IPv6.
  */
 export function getMysqlConnectionConfig() {
@@ -180,7 +193,13 @@ export function getMysqlConnectionConfig() {
   if (h === 'localhost' || h === '::1') cfg = { ...cfg, host: '127.0.0.1' };
 
   const plugin = mysqlPluginConfigFromEnv();
-  if (plugin && plugin.user && plugin.database && isRailwayInternalHost(cfg.host)) {
+  if (
+    plugin &&
+    plugin.user &&
+    plugin.database &&
+    isRailwayInternalHost(cfg.host) &&
+    !isLikelyRailwayAppContainer()
+  ) {
     const ph = (plugin.host || '').trim();
     if (ph && !isLocalMysqlHost(ph) && !isRailwayInternalHost(ph)) {
       cfg = { ...plugin };
