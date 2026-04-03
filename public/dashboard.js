@@ -795,20 +795,20 @@ function renderDashboardStats() {
                     <div class="sf-card-ic" aria-hidden="true"><span class="sf-card-ic-emoji">💰</span></div>
                     <span class="sf-card-badge sf-card-badge--muted">${pl.proposals_open_count} itens</span>
                 </div>
-                <div class="sf-card-val">${formatDashboardCompact(openVal)}</div>
-                <div class="sf-card-lbl">Valor em aberto</div>
-                <div class="sf-card-sub">${formatDashboardCurrency(openVal)}</div>
+                <div class="sf-card-val">${openVal >= 1000 ? formatDashboardCompact(openVal) : formatDashboardCurrency(openVal)}</div>
+                <div class="sf-card-lbl">Valor em aberto (pipeline)</div>
+                <div class="sf-card-sub">${formatDashboardCurrency(openVal)} total · rascunho/enviado/visualizado</div>
                 <div class="sf-card-prog"><div class="sf-card-pf" style="width:${dashKpiProgPct(openVal, 100000)}%"></div></div>
             </div>
             <div class="sf-card sf-ok">
                 <div class="sf-card__head">
                     <div class="sf-card-ic" aria-hidden="true"><span class="sf-card-ic-emoji">✅</span></div>
-                    <span class="sf-card-badge">${formatDashboardCompact(closedVal)}</span>
+                    <span class="sf-card-badge">${pl.closed_won_count} won</span>
                 </div>
-                <div class="sf-card-val">${pl.closed_won_count}</div>
-                <div class="sf-card-lbl">Fechamentos (leads won)</div>
-                <div class="sf-card-sub">${formatDashboardCurrency(closedVal)} no período</div>
-                <div class="sf-card-prog"><div class="sf-card-pf" style="width:${dashKpiProgPct(pl.closed_won_count, 10)}%"></div></div>
+                <div class="sf-card-val">${formatDashboardCurrency(closedVal)}</div>
+                <div class="sf-card-lbl">Valor fechado no período</div>
+                <div class="sf-card-sub">Propostas, quotes e estimates aceites · ${pl.closed_won_count} lead(s) em etapa won</div>
+                <div class="sf-card-prog"><div class="sf-card-pf" style="width:${dashKpiProgPct(closedVal, 100000)}%"></div></div>
             </div>
             <div class="sf-card">
                 <div class="sf-card__head">
@@ -842,7 +842,7 @@ function renderDashboardStats() {
                 </div>
                 <div class="sf-card-val">${formatDashboardPercent(conv.proposal_win_rate)}</div>
                 <div class="sf-card-lbl">Taxa proposta ganha</div>
-                <div class="sf-card-sub">Visita → proposta: ${formatDashboardPercent(conv.visit_to_proposal_rate)}</div>
+                <div class="sf-card-sub">${Number(conv.proposal_wins) || 0} ganhos · ${Number(conv.proposal_losses) || 0} perdas no período · visita→prop. ${formatDashboardPercent(conv.visit_to_proposal_rate)}</div>
                 <div class="sf-card-prog"><div class="sf-card-pf" style="width:${pw}%"></div></div>
             </div>
             <div class="sf-card sf-ok">

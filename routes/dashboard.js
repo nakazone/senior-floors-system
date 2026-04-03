@@ -96,8 +96,7 @@ export async function getDashboardStats(req, res) {
       convLeadsReachedVisit,
       visitsCompletedPeriod,
       visitsWithProposal,
-      propWinNum,
-      propWinDen,
+      propWinWinsLosses,
       avgDeal,
       revenueMonth,
       revenueProjected,
@@ -146,36 +145,69 @@ export async function getDashboardStats(req, res) {
         `SELECT COUNT(*) AS c FROM visits v WHERE DATE(v.scheduled_at) = CURDATE()`,
         [{ c: 0 }]
       ),
-      safeQuery(
-        pool,
-        `SELECT
-           (SELECT COUNT(*) FROM proposals pr WHERE pr.status = 'sent' AND ${pProposalsSent})
-         + (SELECT COUNT(*) FROM quotes q
-              WHERE LOWER(TRIM(q.status)) IN ('sent', 'viewed') AND ${pQuotesSent})
-         + (SELECT COUNT(*) FROM estimates e
-              WHERE LOWER(TRIM(e.status)) IN ('sent', 'viewed') AND ${pEstimatesSent})
-         AS c`,
-        [{ c: 0 }]
-      ),
-      safeQuery(
-        pool,
-        `SELECT
-           (SELECT COUNT(*) FROM proposals pr WHERE pr.status IN ('sent', 'draft', 'viewed', 'created'))
-         + (SELECT COUNT(*) FROM quotes q
-              WHERE LOWER(TRIM(q.status)) IN ('sent', 'draft', 'viewed', 'created'))
-         + (SELECT COUNT(*) FROM estimates e
-              WHERE LOWER(TRIM(e.status)) IN ('draft', 'sent', 'viewed'))
-         AS cnt,
-           COALESCE((SELECT SUM(pr.total_value) FROM proposals pr
-                     WHERE pr.status IN ('sent', 'draft', 'viewed', 'created')
-                       AND pr.total_value IS NOT NULL AND pr.total_value > 0), 0)
-         + COALESCE((SELECT SUM(${quoteEffectiveAmountExpr('q')}) FROM quotes q
-                     WHERE LOWER(TRIM(q.status)) IN ('sent', 'draft', 'viewed', 'created')), 0)
-         + COALESCE((SELECT SUM(${estimateMoneyExpr('e')}) FROM estimates e
-                     WHERE LOWER(TRIM(e.status)) IN ('draft', 'sent', 'viewed')), 0)
-         AS val`,
-        [{ cnt: 0, val: 0 }]
-      ),
+      Promise.all([
+        safeQuery(
+          pool,
+          `SELECT COUNT(*) AS c FROM proposals pr
+           WHERE LOWER(TRIM(pr.status)) IN ('sent', 'viewed', 'created')
+             AND ${pProposalsSent}`,
+          [{ c: 0 }]
+        ),
+        safeQuery(
+          pool,
+          `SELECT COUNT(*) AS c FROM quotes q
+           WHERE LOWER(TRIM(q.status)) IN ('sent', 'viewed', 'created')
+             AND ${pQuotesSent}`,
+          [{ c: 0 }]
+        ),
+        safeQuery(
+          pool,
+          `SELECT COUNT(*) AS c FROM estimates e
+           WHERE LOWER(TRIM(e.status)) IN ('sent', 'viewed', 'draft')
+             AND ${pEstimatesSent}`,
+          [{ c: 0 }]
+        ),
+      ]).then((parts) => [
+        {
+          c: parts.reduce((s, rows) => s + toFiniteNumber(firstRow(rows).c), 0),
+        },
+      ]),
+      Promise.all([
+        safeQuery(
+          pool,
+          `SELECT COUNT(*) AS cnt,
+                  COALESCE(SUM(pr.total_value), 0) AS val
+           FROM proposals pr
+           WHERE LOWER(TRIM(pr.status)) IN ('sent', 'draft', 'viewed', 'created')
+             AND pr.total_value IS NOT NULL AND pr.total_value > 0`,
+          [{ cnt: 0, val: 0 }]
+        ),
+        safeQuery(
+          pool,
+          `SELECT COUNT(*) AS cnt,
+                  COALESCE(SUM(${quoteEffectiveAmountExpr('q')}), 0) AS val
+           FROM quotes q
+           WHERE LOWER(TRIM(q.status)) IN ('sent', 'draft', 'viewed', 'created')`,
+          [{ cnt: 0, val: 0 }]
+        ),
+        safeQuery(
+          pool,
+          `SELECT COUNT(*) AS cnt,
+                  COALESCE(SUM(${estimateMoneyExpr('e')}), 0) AS val
+           FROM estimates e
+           WHERE LOWER(TRIM(e.status)) IN ('draft', 'sent', 'viewed')`,
+          [{ cnt: 0, val: 0 }]
+        ),
+      ]).then((parts) => {
+        let cnt = 0;
+        let val = 0;
+        for (const rows of parts) {
+          const row = firstRow(rows);
+          cnt += toFiniteNumber(row.cnt);
+          val += toFiniteNumber(row.val);
+        }
+        return [{ cnt, val }];
+      }),
       safeQuery(
         pool,
         `SELECT COUNT(*) AS c
@@ -184,19 +216,37 @@ export async function getDashboardStats(req, res) {
          WHERE ${pLeadUpdated}`,
         [{ c: 0 }]
       ),
-      safeQuery(
-        pool,
-        `SELECT
-           COALESCE((SELECT SUM(pr.total_value) FROM proposals pr
-                     WHERE pr.status = 'accepted' AND ${pProposalsAccepted}
-                       AND pr.total_value IS NOT NULL AND pr.total_value > 0), 0)
-         + COALESCE((SELECT SUM(${quoteEffectiveAmountExpr('q')}) FROM quotes q
-                     WHERE LOWER(TRIM(q.status)) IN ('approved', 'accepted') AND ${pQuotesApproved}), 0)
-         + COALESCE((SELECT SUM(${estimateMoneyExpr('e')}) FROM estimates e
-                     WHERE LOWER(TRIM(e.status)) = 'accepted' AND ${pEstimatesAccepted}), 0)
-         AS s`,
-        [{ s: 0 }]
-      ),
+      Promise.all([
+        safeQuery(
+          pool,
+          `SELECT COALESCE(SUM(pr.total_value), 0) AS s
+           FROM proposals pr
+           WHERE pr.status = 'accepted'
+             AND ${pProposalsAccepted}
+             AND pr.total_value IS NOT NULL AND pr.total_value > 0`,
+          [{ s: 0 }]
+        ),
+        safeQuery(
+          pool,
+          `SELECT COALESCE(SUM(${quoteEffectiveAmountExpr('q')}), 0) AS s
+           FROM quotes q
+           WHERE LOWER(TRIM(q.status)) IN ('approved', 'accepted')
+             AND ${pQuotesApproved}`,
+          [{ s: 0 }]
+        ),
+        safeQuery(
+          pool,
+          `SELECT COALESCE(SUM(${estimateMoneyExpr('e')}), 0) AS s
+           FROM estimates e
+           WHERE LOWER(TRIM(e.status)) = 'accepted'
+             AND ${pEstimatesAccepted}`,
+          [{ s: 0 }]
+        ),
+      ]).then((parts) => [
+        {
+          s: parts.reduce((sum, rows) => sum + toFiniteNumber(firstRow(rows).s), 0),
+        },
+      ]),
       safeQuery(
         pool,
         `SELECT COUNT(*) AS c
@@ -239,17 +289,56 @@ export async function getDashboardStats(req, res) {
            )`,
         [{ c: 0 }]
       ),
-      safeQuery(
-        pool,
-        `SELECT COUNT(*) AS c FROM proposals pr WHERE pr.status = 'accepted' AND ${pProposalsSent}`,
-        [{ c: 0 }]
-      ),
-      safeQuery(
-        pool,
-        `SELECT COUNT(*) AS c FROM proposals pr
-         WHERE pr.status IN ('accepted', 'rejected') AND ${pProposalsSent}`,
-        [{ c: 0 }]
-      ),
+      Promise.all([
+        safeQuery(
+          pool,
+          `SELECT COUNT(*) AS c FROM proposals pr
+           WHERE pr.status = 'accepted' AND ${pProposalsAccepted}`,
+          [{ c: 0 }]
+        ),
+        safeQuery(
+          pool,
+          `SELECT COUNT(*) AS c FROM quotes q
+           WHERE LOWER(TRIM(q.status)) IN ('approved', 'accepted') AND ${pQuotesApproved}`,
+          [{ c: 0 }]
+        ),
+        safeQuery(
+          pool,
+          `SELECT COUNT(*) AS c FROM estimates e
+           WHERE LOWER(TRIM(e.status)) = 'accepted' AND ${pEstimatesAccepted}`,
+          [{ c: 0 }]
+        ),
+        safeQuery(
+          pool,
+          `SELECT COUNT(*) AS c FROM proposals pr
+           WHERE pr.status = 'rejected' AND ${periodPredicate('COALESCE(pr.updated_at, pr.created_at)', period)}`,
+          [{ c: 0 }]
+        ),
+        safeQuery(
+          pool,
+          `SELECT COUNT(*) AS c FROM quotes q
+           WHERE LOWER(TRIM(q.status)) IN ('declined', 'rejected')
+             AND ${periodPredicate('q.updated_at', period)}`,
+          [{ c: 0 }]
+        ),
+        safeQuery(
+          pool,
+          `SELECT COUNT(*) AS c FROM estimates e
+           WHERE LOWER(TRIM(e.status)) IN ('declined', 'expired')
+             AND ${periodPredicate('COALESCE(e.declined_at, e.updated_at)', period)}`,
+          [{ c: 0 }]
+        ),
+      ]).then((parts) => {
+        const wins =
+          toFiniteNumber(firstRow(parts[0]).c) +
+          toFiniteNumber(firstRow(parts[1]).c) +
+          toFiniteNumber(firstRow(parts[2]).c);
+        const losses =
+          toFiniteNumber(firstRow(parts[3]).c) +
+          toFiniteNumber(firstRow(parts[4]).c) +
+          toFiniteNumber(firstRow(parts[5]).c);
+        return [{ wins, losses }];
+      }),
       safeQuery(
         pool,
         `SELECT COALESCE(AVG(u.v), 0) AS a
@@ -428,9 +517,13 @@ export async function getDashboardStats(req, res) {
     const numVP = Number(firstRow(visitsWithProposal).c) || 0;
     const visitToProposal = denomVisit > 0 ? Math.round((numVP / denomVisit) * 1000) / 10 : 0;
 
-    const numAcc = Number(firstRow(propWinNum).c) || 0;
-    const denWin = Number(firstRow(propWinDen).c) || 0;
-    const proposalWin = denWin > 0 ? Math.round((numAcc / denWin) * 1000) / 10 : 0;
+    const wlr = firstRow(propWinWinsLosses);
+    const winCount = toFiniteNumber(wlr.wins);
+    const lossCount = toFiniteNumber(wlr.losses);
+    let denWin = winCount + lossCount;
+    if (denWin === 0) denWin = Math.max(psent, 1);
+    const proposalWin =
+      denWin > 0 ? Math.min(100, Math.round((winCount / denWin) * 1000) / 10) : 0;
 
     const avgDealVal = toFiniteNumber(firstRow(avgDeal).a);
 
@@ -530,6 +623,8 @@ export async function getDashboardStats(req, res) {
         lead_to_visit_rate: leadToVisit,
         visit_to_proposal_rate: visitToProposal,
         proposal_win_rate: proposalWin,
+        proposal_wins: winCount,
+        proposal_losses: lossCount,
         avg_deal_value: Math.round(avgDealVal * 100) / 100,
       },
       financial: {
