@@ -130,13 +130,13 @@ function printIncompleteMysqlEnvHelp() {
 }
 
 function printRailwayInternalHelp(host) {
-  console.error('[migrate] Host', host || 'mysql.railway.internal', 'só existe na rede privada Railway — não resolve no seu computador (ENOTFOUND).');
+  console.error('[migrate] Host', host || 'mysql.railway.internal', 'só existe na rede privada Railway — não resolve no seu computador.');
   console.error('  Opções:');
-  console.error('  1) Railway CLI (recomendado):');
+  console.error('  1) No .env de senior-floors-system, acrescente DATABASE_PUBLIC_URL= com a URL "Public network" / TCP (MySQL → Connect).');
+  console.error('     Mantenha DATABASE_URL interno se quiser; no Mac a ligação usa DATABASE_PUBLIC_URL automaticamente.');
+  console.error('  2) railway run (injeta variáveis do serviço): se falhar, adicione DATABASE_PUBLIC_URL também nas Variables do serviço Node na Railway.');
   console.error('     cd senior-floors-system && railway run -s senior-floors-system npm run migrate:marketing-complete');
-  console.error('  2) No .env local: copie do painel Railway → MySQL → Connect → "Public network" a URL para:');
-  console.error('     DATABASE_PUBLIC_URL=mysql://...');
-  console.error('  3) Ou defina DB_HOST / DB_USER / DB_PASS / DB_NAME com o host público (ex. *.proxy.rlwy.net), não o interno.');
+  console.error('  3) Ou DB_HOST + DB_USER + DB_PASS + DB_NAME com o host/porta TCP do painel (não mysql.railway.internal).');
 }
 
 async function main() {
@@ -185,7 +185,7 @@ async function main() {
         console.error('  MySQL público da Railway a partir do Mac: muitas redes bloqueiam saída TCP 3306 ou o host/porta do painel mudou.');
         console.error('  • Melhor opção: railway run -s senior-floors-system npm run migrate:marketing-complete (usa rede interna, sem depender do seu WiFi).');
         if (diag.urlHostRailwayInternal && !diag.databasePublicUrlSet) {
-          console.error('  • Com DATABASE_URL interno, o script usava MYSQLHOST (*.up.railway.app). Adicione DATABASE_PUBLIC_URL ao .env com a URL "Public network" / TCP do painel (host/porta diferentes).');
+          console.error('  • Adicione DATABASE_PUBLIC_URL ao .env (URL TCP em MySQL → Connect → Public network). Com DATABASE_URL interno, o cliente usa essa URL no Mac em vez de mysql.railway.internal.');
         }
         if (diag.databasePublicUrlSet && !diag.databasePublicUrlParsesOk) {
           console.error('  • DATABASE_PUBLIC_URL não está num formato mysql:// válido — corrija no .env.');

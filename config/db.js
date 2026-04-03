@@ -151,13 +151,36 @@ function isDatabaseConfigured() {
  * Config MySQL única para pool (app) e scripts (migrate).
  * Ordem: DATABASE_URL (etc.) se útil; se a URL aponta para localhost mas DB_HOST é remoto, usa DB_* (evita URL velha no shell / .env).
  * Depois DB_* ; depois MYSQLHOST / MYSQLUSER… (Railway).
- * Se a resolução cair em *.railway.internal mas MYSQLHOST apontar para um host público, usa o plugin
- * só fora do container Railway (no Mac o interno não resolve; na Railway o público *.up.railway.app dá ETIMEDOUT).
+ * Fora do container: se DATABASE_URL é *.railway.internal e existe DATABASE_PUBLIC_URL válida, usa a pública
+ * (TCP do painel). Não substituir por MYSQLHOST (*.up.railway.app) — costuma dar ETIMEDOUT no Mac.
  * localhost → 127.0.0.1 para evitar ::1 no macOS sem listener IPv6.
  */
 export function getMysqlConnectionConfig() {
-  const url = process.env.DATABASE_URL || process.env.DATABASE_PUBLIC_URL || process.env.MYSQL_URL;
-  const fromUrl = parseDatabaseUrl(url);
+  const rawDbUrl = process.env.DATABASE_URL?.trim();
+  const rawPublicUrl = process.env.DATABASE_PUBLIC_URL?.trim();
+  const rawMysqlUrl = process.env.MYSQL_URL?.trim();
+  const url = rawDbUrl || rawPublicUrl || rawMysqlUrl;
+  let fromUrl = parseDatabaseUrl(url);
+
+  if (
+    rawDbUrl &&
+    rawPublicUrl &&
+    fromUrl &&
+    isRailwayInternalHost(fromUrl.host) &&
+    !isLikelyRailwayAppContainer()
+  ) {
+    const pubParsed = parseDatabaseUrl(rawPublicUrl);
+    if (
+      pubParsed &&
+      pubParsed.user &&
+      pubParsed.database &&
+      !isRailwayInternalHost(pubParsed.host) &&
+      !isLocalMysqlHost(pubParsed.host)
+    ) {
+      fromUrl = pubParsed;
+    }
+  }
+
   const hasExplicitDb =
     Boolean(process.env.DB_HOST?.trim()) &&
     Boolean(process.env.DB_USER?.trim()) &&
@@ -201,42 +224,6 @@ export function getMysqlConnectionConfig() {
   if (!cfg) return null;
   let h = (cfg.host || '').trim();
   if (h === 'localhost' || h === '::1') cfg = { ...cfg, host: '127.0.0.1' };
-
-  const plugin = mysqlPluginConfigFromEnv();
-  if (
-    plugin &&
-    plugin.user &&
-    plugin.database &&
-    isRailwayInternalHost(cfg.host) &&
-    !isLikelyRailwayAppContainer()
-  ) {
-    /**
-     * No Mac: DATABASE_URL é interno → precisamos de host público. Preferir DATABASE_PUBLIC_URL
-     * (URL TCP do painel Connect) a MYSQLHOST: o *.up.railway.app do plugin muitas vezes dá ETIMEDOUT
-     * fora da Railway; o proxy costuma usar outro host/porta.
-     */
-    const pubUrlEnv = process.env.DATABASE_PUBLIC_URL?.trim();
-    let usedPublicUrl = false;
-    if (pubUrlEnv) {
-      const pubParsed = parseDatabaseUrl(pubUrlEnv);
-      if (
-        pubParsed &&
-        pubParsed.user &&
-        pubParsed.database &&
-        !isRailwayInternalHost(pubParsed.host) &&
-        !isLocalMysqlHost(pubParsed.host)
-      ) {
-        cfg = { ...pubParsed };
-        usedPublicUrl = true;
-      }
-    }
-    if (!usedPublicUrl) {
-      const ph = (plugin.host || '').trim();
-      if (ph && !isLocalMysqlHost(ph) && !isRailwayInternalHost(ph)) {
-        cfg = { ...plugin };
-      }
-    }
-  }
 
   h = (cfg.host || '').trim();
   if (h === 'localhost' || h === '::1') cfg = { ...cfg, host: '127.0.0.1' };
