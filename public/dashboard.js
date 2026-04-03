@@ -746,7 +746,7 @@ function renderDashboardStats() {
                 <div class="dash-kpi-card__body">
                     <div class="dash-kpi-card__value">${formatDashboardCurrency(pl.proposals_open_value)}</div>
                     <div class="dash-kpi-card__label">Em aberto (valor)</div>
-                    <div class="dash-kpi-card__sub">${pl.proposals_open_count} propostas</div>
+                    <div class="dash-kpi-card__sub">${pl.proposals_open_count} orçamentos / propostas</div>
                 </div>
             </div>
             <div class="dash-kpi-card dash-kpi-card--won">

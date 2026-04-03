@@ -45,6 +45,8 @@ export async function getDashboardStats(req, res) {
   const pVisitsCreated = periodPredicate('v.created_at', period);
   const pProposalsSent = periodPredicate('COALESCE(pr.sent_at, pr.updated_at)', period);
   const pProposalsAccepted = periodPredicate('pr.accepted_at', period);
+  const pQuotesApproved = periodPredicate('COALESCE(q.approved_at, q.updated_at)', period);
+  const pQuotesSent = periodPredicate('COALESCE(q.sent_at, q.updated_at)', period);
   const pLeadUpdated = periodPredicate('l.updated_at', period);
 
   try {
@@ -122,14 +124,23 @@ export async function getDashboardStats(req, res) {
       ),
       safeQuery(
         pool,
-        `SELECT COUNT(*) AS c FROM proposals pr WHERE pr.status = 'sent' AND ${pProposalsSent}`,
+        `SELECT
+           (SELECT COUNT(*) FROM proposals pr WHERE pr.status = 'sent' AND ${pProposalsSent})
+         + (SELECT COUNT(*) FROM quotes q WHERE q.status IN ('sent', 'viewed') AND ${pQuotesSent})
+         AS c`,
         [{ c: 0 }]
       ),
       safeQuery(
         pool,
-        `SELECT COUNT(*) AS cnt, COALESCE(SUM(pr.total_value), 0) AS val
-         FROM proposals pr
-         WHERE pr.status IN ('sent', 'draft', 'viewed', 'created')`,
+        `SELECT
+           (SELECT COUNT(*) FROM proposals pr WHERE pr.status IN ('sent', 'draft', 'viewed', 'created'))
+         + (SELECT COUNT(*) FROM quotes q WHERE q.status IN ('sent', 'draft', 'viewed', 'created'))
+         AS cnt,
+           COALESCE((SELECT SUM(pr.total_value) FROM proposals pr
+                     WHERE pr.status IN ('sent', 'draft', 'viewed', 'created')), 0)
+         + COALESCE((SELECT SUM(q.total_amount) FROM quotes q
+                     WHERE q.status IN ('sent', 'draft', 'viewed', 'created')), 0)
+         AS val`,
         [{ cnt: 0, val: 0 }]
       ),
       safeQuery(
@@ -142,9 +153,12 @@ export async function getDashboardStats(req, res) {
       ),
       safeQuery(
         pool,
-        `SELECT COALESCE(SUM(pr.total_value), 0) AS s
-         FROM proposals pr
-         WHERE pr.status = 'accepted' AND ${pProposalsAccepted}`,
+        `SELECT
+           COALESCE((SELECT SUM(pr.total_value) FROM proposals pr
+                     WHERE pr.status = 'accepted' AND ${pProposalsAccepted}), 0)
+         + COALESCE((SELECT SUM(q.total_amount) FROM quotes q
+                     WHERE q.status IN ('approved', 'accepted') AND ${pQuotesApproved}), 0)
+         AS s`,
         [{ s: 0 }]
       ),
       safeQuery(
@@ -182,7 +196,10 @@ export async function getDashboardStats(req, res) {
          FROM visits v
          WHERE v.status = 'completed'
            AND ${pVisitsCreated}
-           AND EXISTS (SELECT 1 FROM proposals pr WHERE pr.lead_id = v.lead_id)`,
+           AND (
+             EXISTS (SELECT 1 FROM proposals pr WHERE pr.lead_id = v.lead_id)
+             OR EXISTS (SELECT 1 FROM quotes q WHERE q.lead_id = v.lead_id)
+           )`,
         [{ c: 0 }]
       ),
       safeQuery(
@@ -198,9 +215,14 @@ export async function getDashboardStats(req, res) {
       ),
       safeQuery(
         pool,
-        `SELECT COALESCE(AVG(pr.total_value), 0) AS a
-         FROM proposals pr
-         WHERE pr.status = 'accepted' AND ${pProposalsAccepted}`,
+        `SELECT COALESCE(AVG(u.v), 0) AS a
+         FROM (
+           SELECT pr.total_value AS v FROM proposals pr
+           WHERE pr.status = 'accepted' AND ${pProposalsAccepted}
+           UNION ALL
+           SELECT q.total_amount AS v FROM quotes q
+           WHERE q.status IN ('approved', 'accepted') AND ${pQuotesApproved}
+         ) u`,
         [{ a: 0 }]
       ),
       safeQuery(
@@ -219,7 +241,15 @@ export async function getDashboardStats(req, res) {
               INNER JOIN leads l2 ON l2.id = pr2.lead_id
               INNER JOIN pipeline_stages ps2 ON ps2.id = l2.pipeline_stage_id
               WHERE ps2.slug = 'negotiation'
-                AND pr2.status IN ('draft', 'sent', 'viewed', 'created')) AS s`,
+                AND pr2.status IN ('draft', 'sent', 'viewed', 'created'))
+         + (SELECT COALESCE(SUM(q1.total_amount), 0) FROM quotes q1
+              WHERE q1.status IN ('approved', 'accepted'))
+         + (SELECT COALESCE(SUM(q2.total_amount), 0)
+              FROM quotes q2
+              INNER JOIN leads lq ON lq.id = q2.lead_id
+              INNER JOIN pipeline_stages psq ON psq.id = lq.pipeline_stage_id
+              WHERE psq.slug = 'negotiation'
+                AND q2.status IN ('draft', 'sent', 'viewed', 'created')) AS s`,
         [{ s: 0 }]
       ),
       safeQuery(
@@ -246,7 +276,11 @@ export async function getDashboardStats(req, res) {
          FROM pipeline_stages ps
          LEFT JOIN leads l ON l.pipeline_stage_id = ps.id
          LEFT JOIN (
-           SELECT lead_id, MAX(total_value) AS tv FROM proposals GROUP BY lead_id
+           SELECT lead_id, MAX(v) AS tv FROM (
+             SELECT lead_id, total_value AS v FROM proposals WHERE lead_id IS NOT NULL
+             UNION ALL
+             SELECT lead_id, total_amount AS v FROM quotes WHERE lead_id IS NOT NULL
+           ) z GROUP BY lead_id
          ) px ON px.lead_id = l.id
          GROUP BY ps.id, ps.name, ps.slug, ps.order_num
          ORDER BY ps.order_num ASC`,
