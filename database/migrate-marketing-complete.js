@@ -119,12 +119,14 @@ function looksLikeEnvExampleCredentials(cfg) {
 
 function printIncompleteMysqlEnvHelp() {
   console.error(
-    '[migrate] O .env não tem ligação à MySQL na Railway: falta DATABASE_URL (ou MYSQLHOST) e DB_HOST=localhost com placeholders.'
+    '[migrate] O .env do senior-floors-system está incompleto: não há DATABASE_URL, DATABASE_PUBLIC_URL, MYSQL_URL nem MYSQLHOST,'
   );
-  console.error('  No painel Railway → serviço MySQL → tab Variables (ou Connect):');
-  console.error('  • Copie DATABASE_URL para o .env do senior-floors-system, ou');
-  console.error('  • Defina DB_HOST com o hostname público (*.up.railway.app / *.proxy.rlwy.net), DB_USER, DB_PASS, DB_NAME com os valores reais.');
-  console.error('  • Ou: railway run -s senior-floors-system npm run migrate:marketing-complete');
+  console.error('  e DB_* ainda parecem o env.example (ex. DB_HOST=localhost, DB_NAME=your_db_name).');
+  console.error('  Corrija um destes cenários:');
+  console.error('  A) Copie do Railway → serviço MySQL → Variables a variável DATABASE_URL (referência ao MySQL) para o .env.');
+  console.error('     No Mac, acrescente também DATABASE_PUBLIC_URL com a URL "Public network" / TCP (Connect), se o interno não resolver.');
+  console.error('  B) Ou preencha DB_HOST (host público do painel), DB_USER, DB_PASS, DB_NAME com valores reais — não localhost nem placeholders.');
+  console.error('  C) Sem editar .env: cd senior-floors-system && railway run -s senior-floors-system npm run migrate:marketing-complete');
 }
 
 function printRailwayInternalHelp(host) {
