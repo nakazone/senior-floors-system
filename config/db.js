@@ -102,6 +102,8 @@ function isDatabaseConfigured() {
  * Config MySQL única para pool (app) e scripts (migrate).
  * Ordem: DATABASE_URL (etc.) se útil; se a URL aponta para localhost mas DB_HOST é remoto, usa DB_* (evita URL velha no shell / .env).
  * Depois DB_* ; depois MYSQLHOST / MYSQLUSER… (Railway).
+ * Se a resolução cair em *.railway.internal mas MYSQLHOST apontar para um host público, usa o plugin
+ * (comum: DATABASE_URL privada + DB_HOST=localhost ainda do env.example + variáveis MYSQL_* da Railway).
  * localhost → 127.0.0.1 para evitar ::1 no macOS sem listener IPv6.
  */
 export function getMysqlConnectionConfig() {
@@ -117,9 +119,15 @@ export function getMysqlConnectionConfig() {
   const dbHostStr = process.env.DB_HOST?.trim() || '';
   const preferExplicitOverLocalUrl =
     hasExplicitDb && urlLooksLocal && !isLocalMysqlHost(dbHostStr);
-  /** URL privada Railway + DB_HOST público no .env → usar DB_* (comum ao migrar no Mac). */
+  /**
+   * URL privada Railway + DB_HOST realmente remoto (não localhost) → usar DB_*.
+   * localhost no DB_HOST não conta: é placeholder e não deve sobrepor a URL interna.
+   */
   const preferExplicitOverInternalRailwayUrl =
-    hasExplicitDb && urlLooksInternalRailway && !isRailwayInternalHost(dbHostStr);
+    hasExplicitDb &&
+    urlLooksInternalRailway &&
+    !isRailwayInternalHost(dbHostStr) &&
+    !isLocalMysqlHost(dbHostStr);
 
   let cfg = null;
   if (
@@ -142,7 +150,18 @@ export function getMysqlConnectionConfig() {
     cfg = mysqlPluginConfigFromEnv();
   }
   if (!cfg) return null;
-  const h = (cfg.host || '').trim();
+  let h = (cfg.host || '').trim();
+  if (h === 'localhost' || h === '::1') cfg = { ...cfg, host: '127.0.0.1' };
+
+  const plugin = mysqlPluginConfigFromEnv();
+  if (plugin && plugin.user && plugin.database && isRailwayInternalHost(cfg.host)) {
+    const ph = (plugin.host || '').trim();
+    if (ph && !isLocalMysqlHost(ph) && !isRailwayInternalHost(ph)) {
+      cfg = { ...plugin };
+    }
+  }
+
+  h = (cfg.host || '').trim();
   if (h === 'localhost' || h === '::1') cfg = { ...cfg, host: '127.0.0.1' };
   return cfg;
 }
@@ -154,17 +173,17 @@ export function getMysqlEnvDiagnostics() {
   const fromUrl = parseDatabaseUrl(url);
   const urlLooksLocal = Boolean(fromUrl && isLocalMysqlHost(fromUrl.host));
   const urlLooksInternalRailway = Boolean(fromUrl && isRailwayInternalHost(fromUrl.host));
-  const explicitRemote =
-    Boolean(process.env.DB_HOST?.trim()) && !isLocalMysqlHost(process.env.DB_HOST);
-  const explicitNotInternalRailway =
-    Boolean(process.env.DB_HOST?.trim()) && !isRailwayInternalHost(process.env.DB_HOST);
+  const explicitOverridesParsedUrl =
+    Boolean(process.env.DB_HOST?.trim()) &&
+    !isRailwayInternalHost(process.env.DB_HOST) &&
+    !isLocalMysqlHost(process.env.DB_HOST);
   const hasExplicitDb =
     Boolean(process.env.DB_HOST?.trim()) &&
     Boolean(process.env.DB_USER?.trim()) &&
     Boolean(process.env.DB_NAME?.trim());
   const overtakenByDbHost =
     hasExplicitDb &&
-    explicitNotInternalRailway &&
+    explicitOverridesParsedUrl &&
     (urlLooksLocal || urlLooksInternalRailway);
   const resolved = getMysqlConnectionConfig();
   return {
