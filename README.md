@@ -53,3 +53,20 @@ npm start
 ```
 
 Abre em `http://localhost:3000`.
+
+## Documentação
+
+Guias e notas de diagnóstico (todos em `docs/`):
+
+- [CONFIGURACAO_VERCEL.md](docs/CONFIGURACAO_VERCEL.md)
+- [DIAGNOSTICO_RAILWAY.md](docs/DIAGNOSTICO_RAILWAY.md)
+- [FIX_LEAD_SUBMISSION.md](docs/FIX_LEAD_SUBMISSION.md)
+- [SOLUCAO_EMAIL.md](docs/SOLUCAO_EMAIL.md)
+- [FUNCIONALIDADES_LEADS.md](docs/FUNCIONALIDADES_LEADS.md)
+- [RAILWAY_DEPLOY.md](docs/RAILWAY_DEPLOY.md)
+- [CONFIGURAR_GMAIL_APP_PASSWORD.md](docs/CONFIGURAR_GMAIL_APP_PASSWORD.md)
+- [TESTE_APP_PASSWORD.md](docs/TESTE_APP_PASSWORD.md)
+- [CRM_PROGRESS.md](docs/CRM_PROGRESS.md)
+- [NEXT_STEPS.md](docs/NEXT_STEPS.md)
+- [google-calendar-setup.md](docs/google-calendar-setup.md)
+- [SUPPLIER_PRODUCT_QUOTE_ERP.md](docs/SUPPLIER_PRODUCT_QUOTE_ERP.md)

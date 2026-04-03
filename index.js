@@ -6,8 +6,10 @@
 import 'dotenv/config';
 import express from 'express';
 import 'express-async-errors';
+import rateLimit from 'express-rate-limit';
 import cors from 'cors';
 import session from 'express-session';
+import MySQLStoreFactory from 'express-mysql-session';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { handleReceiveLead, handleReceiveLeadBatch } from './routes/receiveLead.js';
@@ -82,14 +84,98 @@ import {
   getMysqlConnectionTargetInfo,
   verifyMysqlPoolConnectivity,
   resetDbPool,
+  isDatabaseConfigured,
 } from './config/db.js';
+import { getHealth } from './routes/health.js';
 import { ensureQuoteInvoicePdfColumn } from './lib/ensureQuoteInvoicePdfColumn.js';
 import { ensureUserModuleColumns } from './lib/ensureUserModuleColumns.js';
 import { ensureCustomersResponsibleNameColumn } from './lib/ensureCustomersResponsibleNameColumn.js';
 import { getUiConfig } from './routes/uiConfig.js';
 
+function validateEnv() {
+  const missing = [];
+  if (!process.env.SESSION_SECRET?.trim()) {
+    missing.push('SESSION_SECRET');
+  }
+  const dbKeys = ['DB_HOST', 'DB_NAME', 'DB_USER', 'DB_PASS'];
+  const allDbVarsSet = dbKeys.every((key) => process.env[key]?.trim());
+  if (!allDbVarsSet && !isDatabaseConfigured()) {
+    dbKeys.forEach((key) => {
+      if (!process.env[key]?.trim()) {
+        missing.push(key);
+      }
+    });
+  }
+  if (missing.length) {
+    console.error('[boot] Variáveis de ambiente em falta ou vazias:');
+    missing.forEach((k) => console.error(`  - ${k}`));
+    console.error(
+      '[boot] Para MySQL: preencha DB_HOST, DB_NAME, DB_USER e DB_PASS, ou use DATABASE_URL / variáveis MYSQL* (Railway).'
+    );
+    process.exit(1);
+  }
+}
+
+validateEnv();
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+const mysqlPool = await getDBConnection();
+if (!mysqlPool) {
+  console.error('[boot] Não foi possível criar o pool MySQL (ver credenciais e conectividade).');
+  process.exit(1);
+}
+
+const MySQLStore = MySQLStoreFactory(session);
+const sessionStore = new MySQLStore(
+  {
+    createDatabaseTable: true,
+    clearExpired: true,
+    checkExpirationInterval: 900000,
+    endConnectionOnClose: false,
+  },
+  mysqlPool
+);
+
+const loginLimiter = rateLimit({
+  windowMs: 60000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler(req, res) {
+    res.status(429).json({
+      error: true,
+      message: 'Muitas tentativas de início de sessão a partir deste IP. Aguarde um minuto.',
+    });
+  },
+});
+
+const receiveLeadLimiter = rateLimit({
+  windowMs: 60000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler(req, res) {
+    res.status(429).json({
+      error: true,
+      message: 'Limite de envio de leads excedido para este IP. Aguarde um minuto.',
+    });
+  },
+});
+
+const apiLimiter = rateLimit({
+  windowMs: 60000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler(req, res) {
+    res.status(429).json({
+      error: true,
+      message: 'Limite de pedidos à API excedido para este IP. Aguarde um minuto.',
+    });
+  },
+});
 
 const app = express();
 const rawPort = process.env.PORT;
@@ -112,20 +198,22 @@ const isProduction = process.env.NODE_ENV === 'production' || !!process.env.RAIL
 // UI em outro domínio (ex.: Vercel) chamando API no Railway: defina SESSION_CROSS_SITE=1 (cookie SameSite=None; Secure)
 const crossSiteSession = process.env.SESSION_CROSS_SITE === '1' || process.env.SESSION_CROSS_SITE === 'true';
 
-// Session configuration
-app.use(session({
-  secret: process.env.SESSION_SECRET || 'senior-floors-secret-change-in-production',
-  resave: false,
-  saveUninitialized: false,
-  name: 'seniorfloors.sid', // Nome customizado para evitar conflitos
-  rolling: true,
-  cookie: {
-    secure: crossSiteSession || isProduction,
-    httpOnly: true,
-    sameSite: crossSiteSession ? 'none' : 'lax',
-    maxAge: 24 * 60 * 60 * 1000 // 24 hours
-  }
-}));
+app.use(
+  session({
+    store: sessionStore,
+    secret: process.env.SESSION_SECRET,
+    resave: false,
+    saveUninitialized: false,
+    name: 'seniorfloors.sid',
+    rolling: true,
+    cookie: {
+      secure: crossSiteSession || isProduction,
+      httpOnly: true,
+      sameSite: crossSiteSession ? 'none' : 'lax',
+      maxAge: 24 * 60 * 60 * 1000,
+    },
+  })
+);
 
 app.use(cors({
   origin: true,
@@ -149,6 +237,24 @@ app.use(
   })
 );
 
+function shouldSkipGeneralApiRateLimit(req) {
+  if (!req.path.startsWith('/api')) return true;
+  if (req.method === 'GET' && req.path === '/api/health') return true;
+  if (req.method === 'POST' && req.path === '/api/auth/login') return true;
+  if (
+    req.method === 'POST' &&
+    (req.path === '/api/receive-lead' || req.path === '/api/receive-lead-batch')
+  ) {
+    return true;
+  }
+  return false;
+}
+
+app.use((req, res, next) => {
+  if (shouldSkipGeneralApiRateLimit(req)) return next();
+  return apiLimiter(req, res, next);
+});
+
 // Root route - redirect to admin or show API info
 app.get('/', (req, res) => {
   if (req.session && req.session.userId) {
@@ -158,18 +264,16 @@ app.get('/', (req, res) => {
 });
 
 // Authentication routes (public)
-app.post('/api/auth/login', login);
+app.post('/api/auth/login', loginLimiter, login);
 app.post('/api/auth/logout', logout);
 app.get('/api/auth/session', checkSession);
 app.post('/api/auth/change-password', requireAuth, changePassword);
 
 // Public API routes (LP can call these)
 app.get('/api/db-check', handleDbCheck);
-app.post('/api/receive-lead', handleReceiveLead);
-app.post('/api/receive-lead-batch', handleReceiveLeadBatch);
-app.get('/api/health', (req, res) => {
-  res.json({ ok: true, service: 'senior-floors-system', time: new Date().toISOString() });
-});
+app.post('/api/receive-lead', receiveLeadLimiter, handleReceiveLead);
+app.post('/api/receive-lead-batch', receiveLeadLimiter, handleReceiveLeadBatch);
+app.get('/api/health', getHealth);
 
 /** Ligação real ao MySQL (diagnóstico Railway). Sem credenciais na resposta. */
 app.get('/api/health/email', (req, res) => {
@@ -437,15 +541,19 @@ app.delete('/api/users/:id', requireAuth, requirePermission('users.delete'), del
 
 // Compatibility: system.php?api=receive-lead
 app.all('/system.php', (req, res) => {
-  if (req.query.api === 'receive-lead' && req.method === 'POST') return handleReceiveLead(req, res);
+  if (req.query.api === 'receive-lead' && req.method === 'POST') {
+    return receiveLeadLimiter(req, res, () => handleReceiveLead(req, res));
+  }
   if (req.query.api === 'db-check' && req.method === 'GET') return handleDbCheck(req, res);
   res.status(404).json({ error: 'Not found' });
 });
 
-// Error handling middleware (express-async-errors envia rejeições async para aqui)
+const hideErrorDetailFromClient =
+  (process.env.NODE_ENV === 'production' || !!process.env.RAILWAY_ENVIRONMENT) &&
+  process.env.API_ERROR_DETAIL !== '1';
+
 app.use((err, req, res, next) => {
-  console.error('Unhandled error:', err);
-  console.error('Stack:', err.stack);
+  console.error('[ERROR]', err && err.message ? err.message : err, err && err.stack ? err.stack : '');
   const c = err && err.code;
   const transientDb =
     c === 'ECONNREFUSED' ||
@@ -457,14 +565,23 @@ app.use((err, req, res, next) => {
   if (transientDb) {
     resetDbPool().catch(() => {});
   }
-  const showDetail =
-    process.env.NODE_ENV === 'development' || process.env.API_ERROR_DETAIL === '1';
-  const status = transientDb ? 503 : 500;
-  res.status(status).json({
-    success: false,
-    error: transientDb ? 'Database temporarily unavailable' : 'Internal server error',
-    code: c || undefined,
-    message: showDetail ? (err && err.message) : undefined,
+
+  let status =
+    (typeof err.statusCode === 'number' && err.statusCode) ||
+    (typeof err.status === 'number' && err.status) ||
+    (transientDb ? 503 : 500);
+  if (status < 400 || status > 599) status = 500;
+
+  if (status >= 500 && hideErrorDetailFromClient) {
+    return res.status(status).json({
+      error: true,
+      message: transientDb ? 'Serviço temporariamente indisponível' : 'Erro interno do servidor',
+    });
+  }
+
+  return res.status(status).json({
+    error: true,
+    message: (err && err.message) || 'Pedido inválido',
   });
 });
 
@@ -485,7 +602,7 @@ app.use((req, res) => {
 });
 
 async function start() {
-  const pool = await getDBConnection();
+  const pool = mysqlPool;
   const skipMysqlPing =
     process.env.SKIP_MYSQL_PING === '1' || process.env.SKIP_MYSQL_PING === 'true';
 

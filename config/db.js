@@ -201,9 +201,12 @@ async function getDBConnection() {
       waitForConnections: true,
       connectionLimit: 10,
       queueLimit: 0,
-      connectTimeout: 30000,
+      connectTimeout: 10000,
       enableKeepAlive: true,
       keepAliveInitialDelay: 0,
+    });
+    pool.on('error', (err) => {
+      console.error('[DB] Pool error:', err && err.message ? err.message : err);
     });
     return pool;
   } catch (e) {
