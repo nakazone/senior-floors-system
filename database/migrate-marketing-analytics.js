@@ -3,7 +3,7 @@
  * Run: node database/migrate-marketing-analytics.js
  * Requires DB_* env (same as app).
  */
-import 'dotenv/config';
+import './load-dotenv-override.mjs';
 import mysql from 'mysql2/promise';
 
 async function columnExists(conn, table, column) {

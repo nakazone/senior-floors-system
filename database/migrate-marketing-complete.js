@@ -5,8 +5,10 @@
  *
  * Usa a mesma resolução de credenciais que a app (DATABASE_URL, MYSQL*, DB_*)
  * e força localhost → 127.0.0.1 para evitar ::1:3306 no macOS.
+ *
+ * .env prevalece sobre o terminal: ver database/load-dotenv-override.mjs
  */
-import 'dotenv/config';
+import './load-dotenv-override.mjs';
 import mysql from 'mysql2/promise';
 import {
   getMysqlConnectionConfig,
