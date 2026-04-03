@@ -31,7 +31,7 @@ export async function resetDbPool() {
   }
 }
 
-function parseDatabaseUrl(url) {
+export function parseDatabaseUrl(url) {
   if (!url || typeof url !== 'string') return null;
   try {
     const u = url.startsWith('mysql') ? url : 'mysql://' + url.replace(/^\/\//, '');

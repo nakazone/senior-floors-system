@@ -8,7 +8,40 @@
  */
 import 'dotenv/config';
 import mysql from 'mysql2/promise';
-import { getMysqlConnectionConfig, getMysqlEnvDiagnostics } from '../config/db.js';
+import { getMysqlConnectionConfig, getMysqlEnvDiagnostics, parseDatabaseUrl } from '../config/db.js';
+
+function isRailwayInternalHost(host) {
+  return typeof host === 'string' && /\.railway\.internal$/i.test(host.trim());
+}
+
+function isRailwayRuntime() {
+  return Boolean(process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_PROJECT_ID);
+}
+
+/**
+ * No Mac: DATABASE_URL com mysql.railway.internal não resolve. Usar DATABASE_PUBLIC_URL se existir.
+ */
+function resolveMysqlConfigForMigrate() {
+  let cfg = getMysqlConnectionConfig();
+  if (!cfg) return { cfg: null };
+  if (isRailwayRuntime() || !isRailwayInternalHost(cfg.host)) {
+    return { cfg };
+  }
+  const pubUrl = process.env.DATABASE_PUBLIC_URL?.trim();
+  if (pubUrl) {
+    const pub = parseDatabaseUrl(pubUrl);
+    if (pub && pub.user && pub.database && !isRailwayInternalHost(pub.host)) {
+      console.warn(
+        '[migrate] Host interno Railway detetado; a usar DATABASE_PUBLIC_URL para ligação a partir desta máquina.'
+      );
+      let c = { ...pub };
+      const h = (c.host || '').trim();
+      if (h === 'localhost' || h === '::1') c = { ...c, host: '127.0.0.1' };
+      return { cfg: c };
+    }
+  }
+  return { cfg, internalOnly: true, internalHost: cfg.host };
+}
 
 async function columnExists(conn, table, column) {
   const [rows] = await conn.query(
@@ -28,13 +61,29 @@ async function addColumn(conn, table, ddl) {
   await conn.query(`ALTER TABLE \`${table}\` ADD COLUMN ${ddl}`);
 }
 
+function printRailwayInternalHelp(host) {
+  console.error('[migrate] Host', host || 'mysql.railway.internal', 'só existe na rede privada Railway — não resolve no seu computador (ENOTFOUND).');
+  console.error('  Opções:');
+  console.error('  1) Railway CLI (recomendado):');
+  console.error('     cd senior-floors-system && railway run -s senior-floors-system npm run migrate:marketing-complete');
+  console.error('  2) No .env local: copie do painel Railway → MySQL → Connect → "Public network" a URL para:');
+  console.error('     DATABASE_PUBLIC_URL=mysql://...');
+  console.error('  3) Ou defina DB_HOST / DB_USER / DB_PASS / DB_NAME com o host público (ex. *.proxy.rlwy.net), não o interno.');
+}
+
 async function main() {
-  const cfg = getMysqlConnectionConfig();
+  const resolved = resolveMysqlConfigForMigrate();
+  if (resolved.internalOnly) {
+    printRailwayInternalHelp(resolved.internalHost);
+    console.error('  Diagnóstico:', JSON.stringify(getMysqlEnvDiagnostics(), null, 2));
+    process.exit(1);
+  }
+  const cfg = resolved.cfg;
   if (!cfg) {
     console.error('[migrate] MySQL não configurado.');
     console.error('  Defina DATABASE_URL ou DB_HOST + DB_USER + DB_PASS + DB_NAME no .env');
     console.error('  Diagnóstico:', JSON.stringify(getMysqlEnvDiagnostics(), null, 2));
-    console.error('  Em produção (Railway): railway run -s senior-floors-system npm run migrate:marketing-complete');
+    console.error('  Na Railway: railway run -s senior-floors-system npm run migrate:marketing-complete');
     process.exit(1);
   }
 
@@ -50,6 +99,9 @@ async function main() {
       console.error('  • MySQL local a correr? (Docker / Homebrew) Ou use host remoto no .env.');
       console.error('  • Se DB_HOST=localhost, o script já usa 127.0.0.1; confirme que o servidor escuta na porta 3306.');
       console.error('  • Para migrar a BD da Railway a partir do Mac: railway run npm run migrate:marketing-complete');
+    }
+    if (e?.code === 'ENOTFOUND' && isRailwayInternalHost(cfg.host)) {
+      printRailwayInternalHelp(cfg.host);
     }
     throw e;
   }
