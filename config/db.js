@@ -95,7 +95,17 @@ export function isLikelyRailwayAppContainer() {
 }
 
 export function isRailwayPublicMysqlHostname(host) {
-  return typeof host === 'string' && /\.up\.railway\.app$/i.test(host.trim());
+  const h = String(host || '').trim().toLowerCase();
+  return /\.up\.railway\.app$/.test(h) || /\.proxy\.rlwy\.net$/.test(h);
+}
+
+/**
+ * Endpoint MySQL público da Railway costuma exigir TLS; sem isto o cliente pode falhar ou
+ * em algumas redes nunca completar o handshake (timeout).
+ */
+export function attachRailwayPublicMysqlSsl(cfg) {
+  if (!cfg || !isRailwayPublicMysqlHostname(cfg.host)) return cfg;
+  return { ...cfg, ssl: { rejectUnauthorized: false } };
 }
 
 /** Variáveis do plugin MySQL no Railway (serviço Node referencia o MySQL). */
@@ -208,7 +218,7 @@ export function getMysqlConnectionConfig() {
 
   h = (cfg.host || '').trim();
   if (h === 'localhost' || h === '::1') cfg = { ...cfg, host: '127.0.0.1' };
-  return cfg;
+  return attachRailwayPublicMysqlSsl(cfg);
 }
 
 /** Para scripts (migrate): o que falta sem expor segredos. */

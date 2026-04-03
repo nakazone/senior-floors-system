@@ -8,7 +8,13 @@
  */
 import 'dotenv/config';
 import mysql from 'mysql2/promise';
-import { getMysqlConnectionConfig, getMysqlEnvDiagnostics, parseDatabaseUrl } from '../config/db.js';
+import {
+  getMysqlConnectionConfig,
+  getMysqlEnvDiagnostics,
+  parseDatabaseUrl,
+  isRailwayPublicMysqlHostname,
+  attachRailwayPublicMysqlSsl,
+} from '../config/db.js';
 
 function isRailwayInternalHost(host) {
   return typeof host === 'string' && /\.railway\.internal$/i.test(host.trim());
@@ -60,7 +66,7 @@ function resolveMysqlConfigForMigrate() {
           console.warn(
             '[migrate] Host interno Railway; a usar DATABASE_PUBLIC_URL (ligação a partir desta máquina).'
           );
-          return { cfg: { ...pub } };
+          return { cfg: attachRailwayPublicMysqlSsl({ ...pub }) };
         }
       }
     }
@@ -167,8 +173,23 @@ async function main() {
     conn = await mysql.createConnection({
       ...cfg,
       multipleStatements: true,
+      connectTimeout: 30000,
     });
   } catch (e) {
+    if (e?.code === 'ETIMEDOUT') {
+      console.error('[migrate] Timeout (ETIMEDOUT) ao ligar a', `${cfg.host}:${cfg.port || 3306}`);
+      if (isRailwayPublicMysqlHostname(cfg.host)) {
+        console.error('  MySQL público da Railway a partir do Mac: muitas redes bloqueiam saída TCP 3306 ou o host/porta do painel mudou.');
+        console.error('  • Melhor opção: railway run -s senior-floors-system npm run migrate:marketing-complete (usa rede interna, sem depender do seu WiFi).');
+        console.error('  • MySQL → Connect → copie host e porta exatos da "Public network" / TCP proxy (podem não ser 3306).');
+        console.error('  • Experimente outra rede (ex. hotspot) se estiver em WiFi empresarial.');
+        console.error('  • O cliente já usa SSL para *.up.railway.app / *.proxy.rlwy.net (config/db.js).');
+      } else {
+        console.error('  • Confirme firewall, host/porta e que o servidor MySQL aceita ligações remotas.');
+      }
+      console.error('  Diagnóstico:', JSON.stringify(getMysqlEnvDiagnostics(), null, 2));
+      process.exit(1);
+    }
     if (e?.code === 'ECONNREFUSED') {
       console.error('[migrate] Ligação recusada em', `${cfg.host}:${cfg.port || 3306}`);
       if (isLocalMysqlHost(cfg.host)) {
