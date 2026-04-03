@@ -2,9 +2,13 @@
  * Completa ad_spend + marketing_goals + marketing_campaigns.
  * Idempotente: SHOW COLUMNS + ALTER só para colunas em falta. Nunca DROP TABLE.
  * Run: npm run migrate:marketing-complete
+ *
+ * Usa a mesma resolução de credenciais que a app (DATABASE_URL, MYSQL*, DB_*)
+ * e força localhost → 127.0.0.1 para evitar ::1:3306 no macOS.
  */
 import 'dotenv/config';
 import mysql from 'mysql2/promise';
+import { getMysqlConnectionConfig, getMysqlEnvDiagnostics } from '../config/db.js';
 
 async function columnExists(conn, table, column) {
   const [rows] = await conn.query(
@@ -25,15 +29,32 @@ async function addColumn(conn, table, ddl) {
 }
 
 async function main() {
-  const conn = await mysql.createConnection({
-    host: process.env.DB_HOST,
-    user: process.env.DB_USER,
-    password: process.env.DB_PASS,
-    database: process.env.DB_NAME,
-    multipleStatements: true,
-  });
+  const cfg = getMysqlConnectionConfig();
+  if (!cfg) {
+    console.error('[migrate] MySQL não configurado.');
+    console.error('  Defina DATABASE_URL ou DB_HOST + DB_USER + DB_PASS + DB_NAME no .env');
+    console.error('  Diagnóstico:', JSON.stringify(getMysqlEnvDiagnostics(), null, 2));
+    console.error('  Em produção (Railway): railway run -s senior-floors-system npm run migrate:marketing-complete');
+    process.exit(1);
+  }
 
-  console.log('migrate-marketing-complete…');
+  let conn;
+  try {
+    conn = await mysql.createConnection({
+      ...cfg,
+      multipleStatements: true,
+    });
+  } catch (e) {
+    if (e?.code === 'ECONNREFUSED') {
+      console.error('[migrate] Ligação recusada em', `${cfg.host}:${cfg.port || 3306}`);
+      console.error('  • MySQL local a correr? (Docker / Homebrew) Ou use host remoto no .env.');
+      console.error('  • Se DB_HOST=localhost, o script já usa 127.0.0.1; confirme que o servidor escuta na porta 3306.');
+      console.error('  • Para migrar a BD da Railway a partir do Mac: railway run npm run migrate:marketing-complete');
+    }
+    throw e;
+  }
+
+  console.log('migrate-marketing-complete…', `(host=${cfg.host}, db=${cfg.database})`);
 
   if (!(await tableExists(conn, 'ad_spend'))) {
     await conn.query(`
