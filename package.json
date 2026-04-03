@@ -8,6 +8,7 @@
     "start": "node index.js",
     "dev": "node --watch index.js",
     "migrate:marketing": "node database/migrate-marketing-analytics.js",
+    "migrate:marketing-complete": "node database/migrate-marketing-complete.js",
     "migrate:quote-pdf-blob": "node database/migrate-quote-invoice-pdf-blob.js",
     "fix:lead-names-csv": "node database/fix-lead-names-from-csv.js",
     "migrate:lead-address": "node database/add-lead-address-column.js",
@@ -37,6 +38,7 @@
     "multer": "^2.1.1",
     "mysql2": "^3.6.5",
     "nodemailer": "^6.10.1",
-    "pdf-lib": "^1.17.1"
+    "pdf-lib": "^1.17.1",
+    "xlsx": "^0.18.5"
   }
 }

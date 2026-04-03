@@ -164,7 +164,7 @@ async function loadMarketingAdSpend() {
   tbody.innerHTML = (j.data || [])
     .map(
       (row) => `<tr>
-      <td>${row.spend_date}</td>
+      <td>${escapeHtml(row.spend_date || row.period_end || row.period_start || '—')}</td>
       <td>${escapeHtml(row.platform)}</td>
       <td>${escapeHtml(row.campaign_name)}</td>
       <td>${escapeHtml(row.utm_campaign || '')}</td>

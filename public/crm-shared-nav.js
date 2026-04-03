@@ -6,7 +6,7 @@
   /** Mesma ordem e itens que o sidebar do dashboard.html (sem «Ferramentas» no lateral). */
   const MAIN_NAV = [
     { href: 'dashboard.html', label: 'Dashboard', perm: null, page: '' },
-    { href: 'dashboard.html?page=marketing', label: 'Marketing', perm: 'reports.view', page: 'marketing' },
+    { href: 'marketing.html', label: 'Marketing', perm: 'reports.view', page: '' },
     { href: 'dashboard.html?page=leads', label: 'Leads', perm: 'leads.view', page: 'leads' },
     { href: 'dashboard.html?page=crm', label: 'CRM', perm: 'pipeline.view', page: 'crm' },
     { href: 'dashboard.html?page=customers', label: 'Clients', perm: 'customers.view', page: 'customers' },
@@ -40,7 +40,11 @@
   }
 
   function linkActive(item, file, page) {
-    const h = item.href;
+    const h = item.href || '';
+    const base = h.split('?')[0].split('/').pop().toLowerCase();
+    if (base === 'marketing.html') {
+      return file === 'marketing.html';
+    }
     if (h.indexOf('dashboard.html') === 0) {
       if (file !== 'dashboard.html') return false;
       const expected = item.page || '';

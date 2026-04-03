@@ -54,15 +54,7 @@ import {
 } from './routes/users.js';
 import { listPermissionRegistry } from './routes/permissions.js';
 import { getDashboardStats } from './routes/dashboard.js';
-import {
-  getMarketingMetrics,
-  listAdSpend,
-  createAdSpend,
-  updateAdSpend,
-  deleteAdSpend,
-  exportLeadsCsv,
-  getLeadsNotContactedUrgent,
-} from './routes/marketing.js';
+import marketingRouter from './routes/marketing.js';
 import { getQualification, createOrUpdateQualification } from './routes/qualification.js';
 import { listInteractions, createInteraction } from './routes/interactions.js';
 import { getMeasurement, createOrUpdateMeasurement } from './routes/measurements.js';
@@ -321,14 +313,8 @@ app.post('/api/public/quotes/:token/approve', publicQuote.postApproveQuote);
 // Dashboard
 app.get('/api/dashboard/stats', requireAuth, getDashboardStats);
 
-// Marketing analytics
-app.get('/api/marketing/metrics', requireAuth, getMarketingMetrics);
-app.get('/api/marketing/ad-spend', requireAuth, listAdSpend);
-app.post('/api/marketing/ad-spend', requireAuth, createAdSpend);
-app.put('/api/marketing/ad-spend/:id', requireAuth, updateAdSpend);
-app.delete('/api/marketing/ad-spend/:id', requireAuth, deleteAdSpend);
-app.get('/api/marketing/export/leads', requireAuth, exportLeadsCsv);
-app.get('/api/marketing/alerts/not-contacted', requireAuth, getLeadsNotContactedUrgent);
+// Marketing (router inclui requireAuth + reports.view)
+app.use('/api/marketing', marketingRouter);
 
 // Pipeline Stages
 app.get('/api/pipeline-stages', requireAuth, listPipelineStages);
