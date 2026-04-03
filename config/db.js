@@ -210,9 +210,31 @@ export function getMysqlConnectionConfig() {
     isRailwayInternalHost(cfg.host) &&
     !isLikelyRailwayAppContainer()
   ) {
-    const ph = (plugin.host || '').trim();
-    if (ph && !isLocalMysqlHost(ph) && !isRailwayInternalHost(ph)) {
-      cfg = { ...plugin };
+    /**
+     * No Mac: DATABASE_URL é interno → precisamos de host público. Preferir DATABASE_PUBLIC_URL
+     * (URL TCP do painel Connect) a MYSQLHOST: o *.up.railway.app do plugin muitas vezes dá ETIMEDOUT
+     * fora da Railway; o proxy costuma usar outro host/porta.
+     */
+    const pubUrlEnv = process.env.DATABASE_PUBLIC_URL?.trim();
+    let usedPublicUrl = false;
+    if (pubUrlEnv) {
+      const pubParsed = parseDatabaseUrl(pubUrlEnv);
+      if (
+        pubParsed &&
+        pubParsed.user &&
+        pubParsed.database &&
+        !isRailwayInternalHost(pubParsed.host) &&
+        !isLocalMysqlHost(pubParsed.host)
+      ) {
+        cfg = { ...pubParsed };
+        usedPublicUrl = true;
+      }
+    }
+    if (!usedPublicUrl) {
+      const ph = (plugin.host || '').trim();
+      if (ph && !isLocalMysqlHost(ph) && !isRailwayInternalHost(ph)) {
+        cfg = { ...plugin };
+      }
     }
   }
 
@@ -240,6 +262,8 @@ export function getMysqlEnvDiagnostics() {
     hasExplicitDb &&
     explicitOverridesParsedUrl &&
     (urlLooksLocal || urlLooksInternalRailway);
+  const pubUrlRaw = process.env.DATABASE_PUBLIC_URL?.trim();
+  const pubUrlParsed = pubUrlRaw ? parseDatabaseUrl(pubUrlRaw) : null;
   const resolved = getMysqlConnectionConfig();
   return {
     urlSet: Boolean(url?.trim()),
@@ -248,6 +272,11 @@ export function getMysqlEnvDiagnostics() {
     urlHostRailwayInternal: urlLooksInternalRailway,
     urlParsedHost: fromUrl?.host ?? null,
     urlOvertakenByDbHost: overtakenByDbHost,
+    databasePublicUrlSet: Boolean(pubUrlRaw),
+    databasePublicUrlParsesOk: Boolean(
+      pubUrlParsed && pubUrlParsed.user && pubUrlParsed.database
+    ),
+    databasePublicHost: pubUrlParsed?.host ?? null,
     dbHost: Boolean(process.env.DB_HOST?.trim()),
     dbHostEnv: process.env.DB_HOST?.trim() || null,
     dbUser: Boolean(process.env.DB_USER?.trim()),

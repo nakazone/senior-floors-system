@@ -178,16 +178,23 @@ async function main() {
   } catch (e) {
     if (e?.code === 'ETIMEDOUT') {
       console.error('[migrate] Timeout (ETIMEDOUT) ao ligar a', `${cfg.host}:${cfg.port || 3306}`);
+      const diag = getMysqlEnvDiagnostics();
       if (isRailwayPublicMysqlHostname(cfg.host)) {
         console.error('  MySQL público da Railway a partir do Mac: muitas redes bloqueiam saída TCP 3306 ou o host/porta do painel mudou.');
         console.error('  • Melhor opção: railway run -s senior-floors-system npm run migrate:marketing-complete (usa rede interna, sem depender do seu WiFi).');
-        console.error('  • MySQL → Connect → copie host e porta exatos da "Public network" / TCP proxy (podem não ser 3306).');
+        if (diag.urlHostRailwayInternal && !diag.databasePublicUrlSet) {
+          console.error('  • Com DATABASE_URL interno, o script usava MYSQLHOST (*.up.railway.app). Adicione DATABASE_PUBLIC_URL ao .env com a URL "Public network" / TCP do painel (host/porta diferentes).');
+        }
+        if (diag.databasePublicUrlSet && !diag.databasePublicUrlParsesOk) {
+          console.error('  • DATABASE_PUBLIC_URL não está num formato mysql:// válido — corrija no .env.');
+        }
+        console.error('  • MySQL → Connect → copie host e porta exatos da "Public network" / TCP proxy.');
         console.error('  • Experimente outra rede (ex. hotspot) se estiver em WiFi empresarial.');
         console.error('  • O cliente já usa SSL para *.up.railway.app / *.proxy.rlwy.net (config/db.js).');
       } else {
         console.error('  • Confirme firewall, host/porta e que o servidor MySQL aceita ligações remotas.');
       }
-      console.error('  Diagnóstico:', JSON.stringify(getMysqlEnvDiagnostics(), null, 2));
+      console.error('  Diagnóstico:', JSON.stringify(diag, null, 2));
       process.exit(1);
     }
     if (e?.code === 'ECONNREFUSED') {
