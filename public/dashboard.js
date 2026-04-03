@@ -4,8 +4,10 @@
 let currentPage = 1;
 let currentPageName = 'dashboard';
 let dashboardStats = null;
-let chartInstances = {};
 let lastLeadCount = null;
+/** Período do dashboard operacional: today | week | month */
+let currentDashboardPeriod = 'month';
+let dashboardAutoRefreshTimer = null;
 const NEW_LEAD_POLL_INTERVAL_MS = 30000; // 30s
 let newLeadPollTimer = null;
 
@@ -538,152 +540,357 @@ function showPage(pageName) {
     }
 }
 
-// Dashboard
-async function loadDashboard() {
+// Dashboard operacional (GET /api/dashboard/stats?period=)
+function formatDashboardCurrency(v) {
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(v) || 0);
+}
+
+function formatDashboardPercent(v) {
+    return `${(Number(v) || 0).toFixed(1)}%`;
+}
+
+function setDashboardPeriod(p) {
+    if (!['today', 'week', 'month'].includes(p)) return;
+    currentDashboardPeriod = p;
+    document.querySelectorAll('[data-dash-period]').forEach((btn) => {
+        btn.classList.toggle('dash-period--active', btn.getAttribute('data-dash-period') === p);
+    });
+    loadDashboard(p);
+}
+window.setDashboardPeriod = setDashboardPeriod;
+
+function showDashboardSkeletons() {
+    const root = document.getElementById('dashInsightsRoot');
+    if (root) root.classList.add('dash-skeleton');
+}
+
+function hideDashboardSkeletons() {
+    const root = document.getElementById('dashInsightsRoot');
+    if (root) root.classList.remove('dash-skeleton');
+}
+
+function handleDashboardActionUrl(url) {
+    if (!url) return;
+    const u = String(url).toLowerCase();
+    if (u.includes('schedule') || u.endsWith('/schedule')) {
+        showPage('schedule');
+        return;
+    }
+    if (u.includes('lead') || u.includes('filter=no_contact')) {
+        showPage('leads');
+        return;
+    }
+    if (u.includes('crm')) {
+        showPage('crm');
+        return;
+    }
+    showPage('leads');
+}
+
+function funnelRowClass(slug) {
+    const s = String(slug || '');
+    if (s === 'closed_won') return 'dash-funnel__row--won';
+    if (s === 'closed_lost') return 'dash-funnel__row--lost';
+    if (['lead_received', 'contact_made', 'qualified', 'visit_scheduled'].includes(s)) return 'dash-funnel__row--early';
+    if (['measurement_done', 'proposal_created', 'proposal_sent', 'negotiation'].includes(s)) return 'dash-funnel__row--mid';
+    return 'dash-funnel__row--default';
+}
+
+async function loadDashboard(period) {
+    const p = period && ['today', 'week', 'month'].includes(period) ? period : currentDashboardPeriod;
+    currentDashboardPeriod = p;
+    document.querySelectorAll('[data-dash-period]').forEach((btn) => {
+        btn.classList.toggle('dash-period--active', btn.getAttribute('data-dash-period') === p);
+    });
+
+    const errBanner = document.getElementById('dashErrorBanner');
+    if (errBanner) {
+        errBanner.style.display = 'none';
+        errBanner.textContent = '';
+    }
+    showDashboardSkeletons();
+
     try {
-        const response = await fetch('/api/dashboard/stats', { credentials: 'include' });
+        const response = await fetch(`/api/dashboard/stats?period=${encodeURIComponent(p)}`, { credentials: 'include' });
         const data = await response.json();
-        
+
         if (data.success) {
-            dashboardStats = data.data;
+            dashboardStats = data;
             renderDashboardStats();
+        } else if (errBanner) {
+            errBanner.textContent = data.error || 'Não foi possível carregar o dashboard.';
+            errBanner.style.display = 'block';
         }
     } catch (error) {
         console.error('Dashboard error:', error);
+        if (errBanner) {
+            errBanner.textContent = 'Erro ao carregar dados. Tente novamente.';
+            errBanner.style.display = 'block';
+        }
+    } finally {
+        hideDashboardSkeletons();
     }
 }
+window.loadDashboard = loadDashboard;
 
 function renderDashboardStats() {
-    if (!dashboardStats) return;
-    
-    const stats = dashboardStats;
-    const ctr = stats.contracts || {};
-    const contractsOnly =
-        ctr.contracts_revenue != null ? Number(ctr.contracts_revenue) || 0 : Number(ctr.total_revenue) || 0;
-    const wonQuotesOrphan = Number(ctr.won_quotes_revenue) || 0;
-    const revenueTotal =
-        ctr.total_revenue != null ? Number(ctr.total_revenue) || 0 : contractsOnly + wonQuotesOrphan;
-    const revenueMonth = Number(ctr.this_month_revenue) || 0;
+    if (!dashboardStats || !dashboardStats.pipeline) return;
 
-    const statsHtml = `
-        <div class="stat-card">
-            <h3>Leads</h3>
-            <div class="stat-value">${stats.leads.total}</div>
-            <div class="stat-details">
-                <span>New: ${stats.leads.new_leads}</span>
-                <span>Today: ${stats.leads.today}</span>
-            </div>
-        </div>
-        <div class="stat-card">
-            <h3>Clients</h3>
-            <div class="stat-value">${stats.customers.total}</div>
-            <div class="stat-details">
-                <span>Active: ${stats.customers.active}</span>
-            </div>
-        </div>
-        <div class="stat-card">
-            <h3>Quotes</h3>
-            <div class="stat-value">${stats.quotes.total}</div>
-            <div class="stat-details">
-                <span>Value: $${parseFloat(stats.quotes.total_value || 0).toLocaleString()}</span>
-            </div>
-        </div>
-        <div class="stat-card">
-            <h3>Projects</h3>
-            <div class="stat-value">${stats.projects.total}</div>
-            <div class="stat-details">
-                <span>In Progress: ${stats.projects.in_progress}</span>
-            </div>
-        </div>
-        <div class="stat-card">
-            <h3>Receita (CRM)</h3>
-            <div class="stat-value">$${revenueTotal.toLocaleString()}</div>
-            <div class="stat-details">
-                <span>Contratos: $${contractsOnly.toLocaleString()}</span>
-                <span>Ganhos s/ contrato (aprovado ou lead Fechado-Ganhou): $${wonQuotesOrphan.toLocaleString()}</span>
-                <span>Últ. 30 dias: $${revenueMonth.toLocaleString()}</span>
-            </div>
-        </div>
-        <div class="stat-card">
-            <h3>Visits</h3>
-            <div class="stat-value">${stats.visits.scheduled}</div>
-            <div class="stat-details">
-                <span>Today: ${stats.visits.today}</span>
-                <span>This Week: ${stats.visits.this_week}</span>
-            </div>
-        </div>
-    `;
-    
-    document.getElementById('dashboardStats').innerHTML = statsHtml;
-    
-    // Banner: leads novos (urgência 30 min)
-    const urgentCount = stats.new_leads_urgent_count || 0;
+    const d = dashboardStats;
+    const pl = d.pipeline || {};
+    const conv = d.conversion || {};
+    const fin = d.financial || {};
+
+    const nameEl = document.getElementById('sidebarUserName');
+    const name = nameEl ? String(nameEl.textContent || '').trim() : '';
+    const h = new Date().getHours();
+    let greet = 'Bom dia';
+    if (h >= 12 && h < 18) greet = 'Boa tarde';
+    else if (h >= 18) greet = 'Boa noite';
+    const greetLine = document.getElementById('dashGreetingLine');
+    if (greetLine) greetLine.textContent = name ? `${greet}, ${name}` : greet;
+
+    const subLine = document.getElementById('dashSubtitleLine');
+    if (subLine) {
+        const longDate = new Intl.DateTimeFormat('en-US', { dateStyle: 'long' }).format(new Date());
+        subLine.textContent = `Atualizado agora • ${longDate}`;
+    }
+
+    const urgentCount = d.new_leads_urgent_count || 0;
     const bannerEl = document.getElementById('urgentLeadsBanner');
     const bannerText = document.getElementById('urgentLeadsBannerText');
     if (bannerEl && bannerText) {
         if (urgentCount > 0) {
-            bannerText.textContent = '⚠️ Você tem ' + urgentCount + ' lead(s) novo(s). Contate em até 30 minutos!';
+            bannerText.textContent =
+                '⚠️ Você tem ' + urgentCount + ' lead(s) novo(s). Contate em até 30 minutos!';
             bannerEl.style.display = 'flex';
         } else {
             bannerEl.style.display = 'none';
         }
     }
-    
-    // Render charts
-    renderCharts(stats);
-    
-    // Recent leads (com badge de urgência para novos)
-    const urgentIds = (stats.new_leads_urgent || []).reduce((acc, l) => { acc[l.id] = l.created_at; return acc; }, {});
-    function minutesRemaining(createdAt) {
-        if (!createdAt) return 0;
-        const end = new Date(new Date(createdAt).getTime() + 30 * 60000);
-        const min = Math.max(0, Math.ceil((end - new Date()) / 60000));
-        return min;
+
+    const alertsBar = document.getElementById('dashAlertsBar');
+    if (alertsBar) {
+        const alerts = Array.isArray(d.alerts) ? d.alerts : [];
+        const icons = { warning: '⚠️', danger: '🔴', info: 'ℹ️' };
+        alertsBar.innerHTML = alerts
+            .map((a) => {
+                const t = a.type === 'danger' ? 'danger' : a.type === 'info' ? 'info' : 'warning';
+                const msg = escapeHtmlCrm(a.message || '');
+                const cnt = Number(a.count) || 0;
+                const url = escapeHtmlCrm(a.action_url || '#');
+                return `<a href="#" class="dash-alert dash-alert--${t}" onclick="event.preventDefault(); handleDashboardActionUrl('${url}');">
+                    <span class="dash-alert__icon" aria-hidden="true">${icons[t]}</span>
+                    <span class="dash-alert__text">${msg} <span class="dash-alert__count">(${cnt})</span></span>
+                </a>`;
+            })
+            .join('');
     }
-    const recentLeadsHtml = stats.recent_leads && stats.recent_leads.length > 0
-        ? stats.recent_leads.map(l => {
-            const isNew = urgentIds[l.id];
-            const minLeft = isNew ? minutesRemaining(l.created_at) : 0;
-            const badge = isNew && minLeft > 0 ? '<span class="badge-urgent-new">Novo – ' + minLeft + ' min</span>' : '';
-            return `
-            <div style="padding: 12px; border-bottom: 1px solid var(--border-color);">
-                <div style="display: flex; justify-content: space-between; align-items: start;">
-                    <div>
-                        <strong style="color: var(--text-dark);">${l.name || 'Unknown'}</strong> ${badge}<br>
-                        <small style="color: var(--text-muted);">${l.email || ''}</small><br>
-                        <span class="badge badge-info" style="margin-top: 4px; display: inline-block;">${l.status || 'new'}</span>
-                    </div>
-                    <small style="color: var(--text-muted);">${new Date(l.created_at).toLocaleDateString()}</small>
+
+    const row1 = document.getElementById('dashKpiRow1');
+    if (row1) {
+        const lt =
+            pl.leads_new_today > 0
+                ? `<span class="dash-kpi-card__sub dash-kpi-card__sub--pos">+${pl.leads_new_today} hoje</span>`
+                : '';
+        const vtSub =
+            pl.visits_today > 0
+                ? `<div class="dash-kpi-card__sub">${pl.visits_today} hoje</div>`
+                : '';
+        row1.innerHTML = `
+            <div class="dash-kpi-card dash-kpi-card--pipeline">
+                <span class="dash-kpi-card__icon" aria-hidden="true">📥</span>
+                <div class="dash-kpi-card__body">
+                    <div class="dash-kpi-card__value">${pl.leads_received}</div>
+                    <div class="dash-kpi-card__label">Leads recebidos</div>
+                    ${lt || '<div class="dash-kpi-card__sub">No período</div>'}
                 </div>
             </div>
-        `;
-        }).join('')
-        : '<div class="empty-state"><div class="empty-state-icon">L</div><p>No recent leads</p></div>';
-    document.getElementById('recentLeads').innerHTML = recentLeadsHtml;
-    
-    // Upcoming visits
-    const visitsHtml = stats.upcoming_visits && stats.upcoming_visits.length > 0
-        ? stats.upcoming_visits.map(v => `
-            <div style="padding: 12px; border-bottom: 1px solid var(--border-color);">
-                <div style="display: flex; justify-content: space-between; align-items: start;">
-                    <div>
-                        <strong style="color: var(--text-dark);">${v.lead_name || v.customer_name || 'Unknown'}</strong><br>
-                        <small style="color: var(--text-muted);">${new Date(v.scheduled_at).toLocaleString()}</small><br>
-                        <span class="badge badge-success" style="margin-top: 4px; display: inline-block;">${v.status || 'scheduled'}</span>
-                    </div>
+            <div class="dash-kpi-card dash-kpi-card--pipeline">
+                <span class="dash-kpi-card__icon" aria-hidden="true">🗓️</span>
+                <div class="dash-kpi-card__body">
+                    <div class="dash-kpi-card__value">${pl.visits_scheduled}</div>
+                    <div class="dash-kpi-card__label">Visitas agendadas</div>
+                    ${vtSub || '<div class="dash-kpi-card__sub">No período</div>'}
                 </div>
             </div>
-        `).join('')
-        : '<div class="empty-state"><div class="empty-state-icon">S</div><p>No upcoming visits</p></div>';
-    document.getElementById('upcomingVisits').innerHTML = visitsHtml;
+            <div class="dash-kpi-card dash-kpi-card--pipeline">
+                <span class="dash-kpi-card__icon" aria-hidden="true">📄</span>
+                <div class="dash-kpi-card__body">
+                    <div class="dash-kpi-card__value">${pl.proposals_sent}</div>
+                    <div class="dash-kpi-card__label">Propostas enviadas</div>
+                </div>
+            </div>
+            <div class="dash-kpi-card dash-kpi-card--money">
+                <span class="dash-kpi-card__icon" aria-hidden="true">💰</span>
+                <div class="dash-kpi-card__body">
+                    <div class="dash-kpi-card__value">${formatDashboardCurrency(pl.proposals_open_value)}</div>
+                    <div class="dash-kpi-card__label">Em aberto (valor)</div>
+                    <div class="dash-kpi-card__sub">${pl.proposals_open_count} propostas</div>
+                </div>
+            </div>
+            <div class="dash-kpi-card dash-kpi-card--won">
+                <span class="dash-kpi-card__icon" aria-hidden="true">✅</span>
+                <div class="dash-kpi-card__body">
+                    <div class="dash-kpi-card__value">${pl.closed_won_count}</div>
+                    <div class="dash-kpi-card__label">Fechamentos</div>
+                    <div class="dash-kpi-card__sub dash-kpi-card__sub--pos">${formatDashboardCurrency(pl.closed_won_value)}</div>
+                </div>
+            </div>
+            <div class="dash-kpi-card dash-kpi-card--prod">
+                <span class="dash-kpi-card__icon" aria-hidden="true">🔨</span>
+                <div class="dash-kpi-card__body">
+                    <div class="dash-kpi-card__value">${pl.in_production}</div>
+                    <div class="dash-kpi-card__label">Em produção</div>
+                    <div class="dash-kpi-card__sub">Projetos ativos</div>
+                </div>
+            </div>`;
+    }
+
+    const row2 = document.getElementById('dashKpiRow2');
+    if (row2) {
+        const lv = Math.min(100, Math.max(0, conv.lead_to_visit_rate || 0));
+        const pw = Math.min(100, Math.max(0, conv.proposal_win_rate || 0));
+        row2.innerHTML = `
+            <div class="dash-kpi-card dash-kpi-card--pipeline">
+                <div class="dash-kpi-card__body">
+                    <div class="dash-kpi-card__value">${formatDashboardPercent(conv.lead_to_visit_rate)}</div>
+                    <div class="dash-kpi-card__label">Taxa lead → visita</div>
+                    <div class="dash-progress"><div class="dash-progress__bar" style="width:${lv}%"></div></div>
+                </div>
+            </div>
+            <div class="dash-kpi-card dash-kpi-card--pipeline">
+                <div class="dash-kpi-card__body">
+                    <div class="dash-kpi-card__value">${formatDashboardPercent(conv.proposal_win_rate)}</div>
+                    <div class="dash-kpi-card__label">Taxa proposta ganha</div>
+                    <div class="dash-kpi-card__sub">Visita → proposta: ${formatDashboardPercent(conv.visit_to_proposal_rate)}</div>
+                    <div class="dash-progress"><div class="dash-progress__bar" style="width:${pw}%"></div></div>
+                </div>
+            </div>
+            <div class="dash-kpi-card dash-kpi-card--money">
+                <div class="dash-kpi-card__body">
+                    <div class="dash-kpi-card__value">${formatDashboardCurrency(fin.revenue_month)}</div>
+                    <div class="dash-kpi-card__label">Receita do mês</div>
+                    <div class="dash-kpi-card__sub">Project financials (MTD)</div>
+                </div>
+            </div>
+            <div class="dash-kpi-card dash-kpi-card--won">
+                <div class="dash-kpi-card__body">
+                    <div class="dash-kpi-card__value">${formatDashboardCurrency(fin.profit_month)}</div>
+                    <div class="dash-kpi-card__label">Lucro do mês</div>
+                    <div class="dash-kpi-card__sub">Avg margin ${formatDashboardPercent(fin.avg_margin)}</div>
+                </div>
+            </div>`;
+    }
+
+    const funnelEl = document.getElementById('dashFunnel');
+    if (funnelEl && Array.isArray(d.pipeline_funnel)) {
+        const maxC = Math.max(1, ...d.pipeline_funnel.map((x) => Number(x.count) || 0));
+        funnelEl.innerHTML = d.pipeline_funnel
+            .map((st) => {
+                const pct = ((Number(st.count) || 0) / maxC) * 100;
+                const cls = funnelRowClass(st.slug);
+                const sid = Number(st.stage_id) || 0;
+                const nm = escapeHtmlCrm(st.stage_name || '');
+                return `<div class="dash-funnel__row ${cls}" role="button" tabindex="0"
+                    onclick="showPage('crm')"
+                    onkeydown="if(event.key==='Enter'){showPage('crm');}">
+                    <div class="dash-funnel__label">
+                        <span class="dash-funnel__name">${nm}</span>
+                        <span class="dash-funnel__count">${st.count}</span>
+                    </div>
+                    <div class="dash-funnel__bar-wrap">
+                        <div class="dash-funnel__bar" style="width:${pct}%"></div>
+                    </div>
+                </div>`;
+            })
+            .join('');
+    }
+
+    const recentEl = document.getElementById('dashRecentLeads');
+    if (recentEl) {
+        const list = Array.isArray(d.recent_leads) ? d.recent_leads : [];
+        recentEl.innerHTML =
+            list.length === 0
+                ? '<li>Nenhum lead recente.</li>'
+                : list
+                      .map((l) => {
+                          const badge = escapeHtmlCrm(l.pipeline_stage || '—');
+                          return `<li>
+                            <strong>${escapeHtmlCrm(l.name || '—')}</strong>
+                            <span class="dash-badge" style="background:#e0e7ff;color:#3730a3;">${badge}</span>
+                            <div style="color:var(--color-muted);font-size:0.8rem;margin-top:0.25rem;">
+                              ${escapeHtmlCrm(l.time_ago || '')} · ${escapeHtmlCrm(l.source || '')}
+                            </div>
+                          </li>`;
+                      })
+                      .join('');
+    }
+
+    const visitsEl = document.getElementById('dashVisitsToday');
+    if (visitsEl) {
+        const vlist = Array.isArray(d.visits_today_detail) ? d.visits_today_detail : [];
+        visitsEl.innerHTML =
+            vlist.length === 0
+                ? '<li>Nenhuma visita hoje 🎉</li>'
+                : vlist
+                      .map((v) => {
+                          const t = new Date(v.scheduled_at);
+                          const timeStr = t.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+                          return `<li><strong>${escapeHtmlCrm(v.client_name || '—')}</strong>
+                            <span style="color:var(--color-muted);"> · ${timeStr}</span>
+                            <span class="dash-badge" style="background:#f3f4f6;">${escapeHtmlCrm(v.status || '')}</span></li>`;
+                      })
+                      .join('');
+    }
+
+    const insightHost = document.getElementById('dashInsightCards');
+    if (insightHost) {
+        const cards = [];
+        if (pl.contact_pending > 0) {
+            cards.push(`<div class="dash-insight-card dash-insight-card--yellow">
+                <p><strong>${pl.contact_pending}</strong> lead(s) aguardam primeiro contato há mais de 24h.</p>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="showPage('leads')">Ver leads</button>
+            </div>`);
+        }
+        if (pl.visits_today > 0) {
+            cards.push(`<div class="dash-insight-card dash-insight-card--blue">
+                <p>Você tem <strong>${pl.visits_today}</strong> visita(s) hoje.</p>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="showPage('schedule')">Ver agenda</button>
+            </div>`);
+        }
+        if (pl.proposals_open_count > 5) {
+            cards.push(`<div class="dash-insight-card dash-insight-card--purple">
+                <p><strong>${pl.proposals_open_count}</strong> propostas em aberto precisam de follow-up.</p>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="showPage('crm')">Ver pipeline</button>
+            </div>`);
+        }
+        if (pl.closed_won_count === 0) {
+            cards.push(`<div class="dash-insight-card dash-insight-card--gray">
+                <p>Nenhum fechamento ainda neste período. Foque nas <strong>${pl.proposals_sent}</strong> propostas enviadas.</p>
+            </div>`);
+        }
+        if (fin.profit_month < 0) {
+            cards.push(`<div class="dash-insight-card dash-insight-card--red">
+                <p>⚠️ Margem negativa este mês. Revise os custos.</p>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="showPage('financeiro')">Financeiro</button>
+            </div>`);
+        }
+        insightHost.innerHTML =
+            cards.length > 0 ? cards.join('') : '<p style="color:var(--color-muted);">Nenhuma ação sugerida no momento.</p>';
+    }
 
     renderSfMobileDashboardBlocks();
     loadSfMobileRecentQuotes();
 }
 
 function renderSfMobileDashboardBlocks() {
-    if (!dashboardStats) return;
-    const stats = dashboardStats;
+    if (!dashboardStats || !dashboardStats.pipeline) return;
+    const d = dashboardStats;
+    const pl = d.pipeline;
+    const fin = d.financial || {};
+    const conv = d.conversion || {};
+
     const greetingEl = document.getElementById('sfMobileGreeting');
     const nameEl = document.getElementById('sidebarUserName');
     const name = nameEl ? String(nameEl.textContent || '').trim() : '';
@@ -696,36 +903,25 @@ function renderSfMobileDashboardBlocks() {
         greetingEl.style.color = 'var(--sf-text-accent, #c8a96e)';
     }
 
-    const ctr = stats.contracts || {};
-    const revenueMonth = Number(ctr.this_month_revenue) || 0;
-    const q = stats.quotes || {};
-    const openQuotes = (Number(q.draft) || 0) + (Number(q.sent) || 0);
-    const proj = stats.projects || {};
-    const activeProj = Number(proj.in_progress) || 0;
-    const leads = stats.leads || {};
-    const totalLeads = Number(leads.total) || 0;
-    const converted = Number(leads.converted) || 0;
-    const convPct = totalLeads > 0 ? ((converted / totalLeads) * 100).toFixed(1) + '%' : '—';
-
-    const rm = revenueMonth.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const rm = formatDashboardCurrency(fin.revenue_month);
     const kpiGrid = document.getElementById('sfMobileKpiGrid');
     if (kpiGrid) {
         kpiGrid.innerHTML = `
             <div class="sf-kpi-card touchable">
-                <div class="sf-kpi-card__value">$${rm}</div>
-                <div class="sf-kpi-card__label">Faturamento mês</div>
+                <div class="sf-kpi-card__value">${pl.leads_received}</div>
+                <div class="sf-kpi-card__label">Leads (período)</div>
             </div>
             <div class="sf-kpi-card touchable">
-                <div class="sf-kpi-card__value">${openQuotes}</div>
-                <div class="sf-kpi-card__label">Quotes em aberto</div>
+                <div class="sf-kpi-card__value">${rm}</div>
+                <div class="sf-kpi-card__label">Receita mês</div>
             </div>
             <div class="sf-kpi-card touchable">
-                <div class="sf-kpi-card__value">${activeProj}</div>
-                <div class="sf-kpi-card__label">Projetos ativos</div>
+                <div class="sf-kpi-card__value">${pl.closed_won_count}</div>
+                <div class="sf-kpi-card__label">Fechamentos</div>
             </div>
             <div class="sf-kpi-card touchable">
-                <div class="sf-kpi-card__value">${convPct}</div>
-                <div class="sf-kpi-card__label">Conversão leads</div>
+                <div class="sf-kpi-card__value">${formatDashboardPercent(conv.proposal_win_rate)}</div>
+                <div class="sf-kpi-card__label">Win rate</div>
             </div>`;
     }
 
@@ -744,13 +940,13 @@ function renderSfMobileDashboardBlocks() {
     const act = document.getElementById('sfMobileActivityChips');
     if (act) {
         const chips = [];
-        (stats.new_leads_urgent || []).slice(0, 6).forEach((l) => {
+        (d.new_leads_urgent || []).slice(0, 6).forEach((l) => {
             const nm = escapeHtmlCrm(l.name || 'Lead');
             chips.push(
                 `<button type="button" class="sf-quick-pill touchable" onclick="showPage('leads')"><span aria-hidden="true">⚡</span> ${nm}</button>`
             );
         });
-        (stats.upcoming_visits || []).slice(0, 6).forEach((v) => {
+        (d.upcoming_visits || []).slice(0, 6).forEach((v) => {
             const label = escapeHtmlCrm(v.lead_name || v.customer_name || v.project_name || 'Visita');
             chips.push(
                 `<button type="button" class="sf-quick-pill touchable" onclick="showPage('schedule')"><span aria-hidden="true">📍</span> ${label}</button>`
@@ -793,219 +989,14 @@ async function loadSfMobileRecentQuotes() {
     }
 }
 
-function renderCharts(stats) {
-    // Destroy existing charts
-    Object.values(chartInstances).forEach(chart => {
-        if (chart) chart.destroy();
-    });
-    chartInstances = {};
-    
-    if (typeof Chart === 'undefined') {
-        console.warn('Chart.js not loaded');
-        return;
-    }
-    
-    const chartColors = {
-        primary: '#1a2036',
-        secondary: '#d6b598',
-        success: '#48bb78',
-        warning: '#ed8936',
-        error: '#f56565',
-        info: '#4299e1'
-    };
-    
-    // Leads by Status Chart
-    const leadsStatusCtx = document.getElementById('leadsStatusChart');
-    if (leadsStatusCtx) {
-        chartInstances.leadsStatus = new Chart(leadsStatusCtx, {
-            type: 'doughnut',
-            data: {
-                labels: ['New', 'Contacted', 'Qualified', 'Converted', 'Lost'],
-                datasets: [{
-                    data: [
-                        stats.leads.new_leads || 0,
-                        stats.leads.contacted || 0,
-                        stats.leads.qualified || 0,
-                        stats.leads.converted || 0,
-                        stats.leads.lost || 0
-                    ],
-                    backgroundColor: [
-                        chartColors.info,
-                        chartColors.warning,
-                        chartColors.secondary,
-                        chartColors.success,
-                        chartColors.error
-                    ]
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        position: 'bottom'
-                    }
-                }
-            }
-        });
-    }
-    
-    // Leads Monthly Chart (últimos 12 meses — dados reais da API)
-    const leadsMonthlyCtx = document.getElementById('leadsMonthlyChart');
-    if (leadsMonthlyCtx) {
-        const monthShort = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-        const keys = [];
-        const now = new Date();
-        for (let i = 11; i >= 0; i--) {
-            const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-            keys.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
-        }
-        const byYm = {};
-        (stats.leads_by_month || []).forEach((row) => {
-            if (row && row.ym) byYm[String(row.ym).slice(0, 7)] = parseInt(row.cnt, 10) || 0;
-        });
-        const monthlyData = keys.map((k) => byYm[k] || 0);
-        const labels = keys.map((k) => {
-            const [y, m] = k.split('-').map(Number);
-            return `${monthShort[m - 1]} ${y}`;
-        });
+document.querySelectorAll('[data-dash-period]').forEach((btn) => {
+    btn.addEventListener('click', () => setDashboardPeriod(btn.getAttribute('data-dash-period')));
+});
 
-        chartInstances.leadsMonthly = new Chart(leadsMonthlyCtx, {
-            type: 'line',
-            data: {
-                labels,
-                datasets: [{
-                    label: 'Leads criados',
-                    data: monthlyData,
-                    borderColor: chartColors.primary,
-                    backgroundColor: chartColors.primary + '20',
-                    tension: 0.4,
-                    fill: true
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        display: false
-                    }
-                },
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        ticks: { stepSize: 1 }
-                    }
-                }
-            }
-        });
-    }
-    
-    // Receita: contratos + orçamentos aprovados/aceites sem contrato; total e janela 30 dias
-    const revenueCtx = document.getElementById('revenueChart');
-    if (revenueCtx) {
-        const ctrChart = stats.contracts || {};
-        const cRev = ctrChart.contracts_revenue != null ? Number(ctrChart.contracts_revenue) || 0 : Number(ctrChart.total_revenue) || 0;
-        const wRev = Number(ctrChart.won_quotes_revenue) || 0;
-        const tRev =
-            ctrChart.total_revenue != null ? Number(ctrChart.total_revenue) || 0 : cRev + wRev;
-        const mRev = Number(ctrChart.this_month_revenue) || 0;
-        chartInstances.revenue = new Chart(revenueCtx, {
-            type: 'bar',
-            data: {
-                labels: ['Contratos (fechado)', 'Orç. aprov./aceite (s/ contrato)', 'Receita total CRM', 'Últ. 30 dias'],
-                datasets: [{
-                    label: 'Valor ($)',
-                    data: [cRev, wRev, tRev, mRev],
-                    backgroundColor: [
-                        chartColors.success,
-                        chartColors.secondary,
-                        chartColors.primary,
-                        chartColors.info
-                    ]
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        display: false
-                    },
-                    tooltip: {
-                        callbacks: {
-                            label(ctx) {
-                                const v = ctx.raw;
-                                return typeof v === 'number' ? '$' + v.toLocaleString() : String(v);
-                            }
-                        }
-                    }
-                },
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        ticks: {
-                            callback: function(value) {
-                                return '$' + value.toLocaleString();
-                            }
-                        }
-                    }
-                }
-            }
-        });
-    }
-    
-    // Valor de orçamentos aprovados/aceites por vendedor (quotes.assigned_to)
-    const salesPerformanceCtx = document.getElementById('salesPerformanceChart');
-    if (salesPerformanceCtx) {
-        const reps = stats.sales_by_rep || [];
-        const repLabels = reps.length
-            ? reps.map((r) => String(r.rep_name || '—').slice(0, 22))
-            : ['Sem dados'];
-        const repAmounts = reps.length ? reps.map((r) => parseFloat(r.won_amount) || 0) : [0];
-        chartInstances.salesPerformance = new Chart(salesPerformanceCtx, {
-            type: 'bar',
-            data: {
-                labels: repLabels,
-                datasets: [{
-                    label: 'Orç. aprov./aceite ($)',
-                    data: repAmounts,
-                    backgroundColor: chartColors.secondary
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        position: 'bottom'
-                    },
-                    tooltip: {
-                        callbacks: {
-                            label(ctx) {
-                                const v = ctx.raw;
-                                const i = ctx.dataIndex;
-                                const row = reps[i];
-                                const n = row ? parseInt(row.won_count, 10) || 0 : 0;
-                                const money = typeof v === 'number' ? '$' + v.toLocaleString() : String(v);
-                                return reps.length ? `${money} (${n} orç.)` : money;
-                            }
-                        }
-                    }
-                },
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        ticks: {
-                            callback: function(value) {
-                                return '$' + value.toLocaleString();
-                            }
-                        }
-                    }
-                }
-            }
-        });
-    }
+if (!dashboardAutoRefreshTimer) {
+    dashboardAutoRefreshTimer = setInterval(() => {
+        if (currentPageName === 'dashboard') loadDashboard(currentDashboardPeriod);
+    }, 5 * 60 * 1000);
 }
 
 // Leads

@@ -18,10 +18,10 @@
     <link rel="stylesheet" href="mobile-design-system.css">
     <link rel="stylesheet" href="crm-toast.css">
     <link rel="stylesheet" href="crm-command-palette.css">
+    <link rel="stylesheet" href="dashboard-insights.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
 <body class="dashboard-app-body">
     <header class="mobile-app-header" id="mobileAppHeader">
@@ -193,15 +193,8 @@
                         <span id="urgentLeadsBannerText"></span>
                         <a href="#" onclick="showPage('leads'); return false;" id="urgentLeadsBannerLink">Ver leads</a>
                     </div>
-                    <header class="crm-page-header sf-desktop-dashboard-block">
-                        <div class="crm-page-header__titles">
-                            <h2 class="crm-page-header__title page-title" style="margin:0;">Dashboard</h2>
-                            <p class="crm-page-header__subtitle">Resumo e gráficos do CRM</p>
-                        </div>
-                        <div class="crm-page-header__actions">
-                            <button type="button" class="btn btn-secondary" onclick="loadDashboard()">Atualizar</button>
-                        </div>
-                    </header>
+
+                    <div id="dashErrorBanner" class="dash-error-banner sf-desktop-dashboard-block" style="display: none;" role="alert"></div>
 
                     <div id="sfMobileHomeBlock" class="sf-mobile-only">
                         <div class="sf-hero">
@@ -214,47 +207,48 @@
                         <p class="sf-title" style="margin:12px 0 8px;">Orçamentos recentes</p>
                         <div id="sfMobileRecentQuotes" class="sf-quotes-card-list"></div>
                     </div>
-                    
-                    <div id="dashboardStats" class="stats-grid sf-desktop-dashboard-block">
-                        <!-- Stats serão carregadas aqui -->
-                    </div>
-                    
-                    <div class="charts-container sf-desktop-dashboard-block">
-                        <div class="chart-card">
-                            <h3>Leads por Status</h3>
-                            <div class="chart-container">
-                                <canvas id="leadsStatusChart"></canvas>
+
+                    <div id="dashInsightsRoot" class="dash-insights sf-desktop-dashboard-block">
+                        <header class="dash-insights__header">
+                            <div class="dash-insights__titles">
+                                <h2 class="page-title" style="margin:0;">Dashboard</h2>
+                                <p class="dash-insights__greet" id="dashGreetingLine">Bom dia</p>
+                                <p class="dash-insights__sub" id="dashSubtitleLine">Atualizado agora</p>
+                            </div>
+                            <div class="dash-insights__toolbar">
+                                <div class="dash-period-group" role="group" aria-label="Período">
+                                    <button type="button" data-dash-period="today">Hoje</button>
+                                    <button type="button" data-dash-period="week">Semana</button>
+                                    <button type="button" data-dash-period="month" class="dash-period--active">Mês</button>
+                                </div>
+                                <button type="button" class="btn btn-secondary dash-insights__refresh" id="dashRefreshBtn" onclick="loadDashboard(currentDashboardPeriod)" title="Atualizar">
+                                    <span aria-hidden="true">↻</span> Atualizar
+                                </button>
+                            </div>
+                        </header>
+
+                        <div id="dashAlertsBar" class="dash-alerts"></div>
+
+                        <div id="dashKpiRow1" class="dash-kpi-grid"></div>
+                        <div id="dashKpiRow2" class="dash-kpi-grid"></div>
+
+                        <div class="dash-panels">
+                            <div class="dash-panel">
+                                <h3>Funil do pipeline</h3>
+                                <div id="dashFunnel"></div>
+                            </div>
+                            <div class="dash-panel">
+                                <h3>Leads recentes</h3>
+                                <ul id="dashRecentLeads" class="dash-list"></ul>
+                                <h3 style="margin-top:1.25rem;">Visitas de hoje</h3>
+                                <ul id="dashVisitsToday" class="dash-list"></ul>
                             </div>
                         </div>
-                        <div class="chart-card">
-                            <h3>Leads por Mês</h3>
-                            <div class="chart-container">
-                                <canvas id="leadsMonthlyChart"></canvas>
-                            </div>
-                        </div>
-                        <div class="chart-card">
-                            <h3>Receita (contratos + orç. aprovados)</h3>
-                            <div class="chart-container">
-                                <canvas id="revenueChart"></canvas>
-                            </div>
-                        </div>
-                        <div class="chart-card">
-                            <h3>Orçamentos ganhos por vendedor</h3>
-                            <div class="chart-container">
-                                <canvas id="salesPerformanceChart"></canvas>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="sf-desktop-dashboard-block" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: var(--spacing-md); margin-top: var(--spacing-md);">
-                        <div class="chart-card">
-                            <h3>Leads Recentes</h3>
-                            <div id="recentLeads" style="max-height: 400px; overflow-y: auto;"></div>
-                        </div>
-                        <div class="chart-card">
-                            <h3>Visitas Próximas</h3>
-                            <div id="upcomingVisits" style="max-height: 400px; overflow-y: auto;"></div>
-                        </div>
+
+                        <section class="dash-insights__insights">
+                            <h3>📋 Ações recomendadas</h3>
+                            <div id="dashInsightCards" class="dash-insight-cards"></div>
+                        </section>
                     </div>
                 </div>
                 
