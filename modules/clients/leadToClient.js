@@ -25,10 +25,19 @@ const PLACEHOLDER_PHONE = '—';
  */
 export async function ensureClientFromLead(pool, leadRow, opts = {}) {
   const force = !!opts.force;
-  const slug = String(leadRow.pipeline_stage_slug || leadRow.status || '').trim();
-  if (!force && !AUTO_CONVERT_STAGE_SLUGS.has(slug)) {
+  const stageSlug = String(leadRow.pipeline_stage_slug || '')
+    .trim()
+    .toLowerCase();
+  const statusSlug = String(leadRow.status || '')
+    .trim()
+    .toLowerCase();
+  const inAutoStage =
+    AUTO_CONVERT_STAGE_SLUGS.has(stageSlug) || AUTO_CONVERT_STAGE_SLUGS.has(statusSlug);
+  if (!force && !inAutoStage) {
     return { created: false, reason: 'stage_not_converting' };
   }
+  const slug =
+    AUTO_CONVERT_STAGE_SLUGS.has(stageSlug) ? stageSlug : AUTO_CONVERT_STAGE_SLUGS.has(statusSlug) ? statusSlug : stageSlug || statusSlug;
 
   const leadId = Number(leadRow.id);
   if (!Number.isFinite(leadId) || leadId <= 0) {

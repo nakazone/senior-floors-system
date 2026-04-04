@@ -468,6 +468,19 @@ async function updateLeadStage(leadId, stageId, stageSlug) {
         
         const data = await response.json();
         if (data.success) {
+            if (data.project_auto) {
+                if (data.project_auto.created && data.project_auto.project_id) {
+                    if (typeof crmNotify === 'function') {
+                        crmNotify('Projeto criado (ID ' + data.project_auto.project_id + ').', 'success');
+                    }
+                } else if (data.project_auto.ok === false && data.project_auto.error) {
+                    const msg =
+                        data.project_auto.error === 'invalid_email'
+                            ? 'Projeto não criado: email do lead inválido'
+                            : 'Projeto não criado: ' + data.project_auto.error;
+                    if (typeof crmNotify === 'function') crmNotify(msg, 'error');
+                }
+            }
             // Adiar reload: await dentro de onEnd do Sortable corta o teardown do drag e “prende” cartões.
             queueMicrotask(() => {
                 loadKanbanBoard();

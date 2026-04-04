@@ -103,8 +103,16 @@ export async function ensureProjectFromWonLead(pool, leadId, userId) {
   );
   if (!leads.length) return { ok: false, error: 'lead_not_found' };
   const lead = leads[0];
-  const slug = String(lead.pipeline_stage_slug || lead.status || '').trim();
-  if (slug !== 'closed_won') {
+  // Não usar só pipeline_stage_slug: se status foi atualizado para closed_won mas
+  // pipeline_stage_id ficou desalinhado, o JOIN ainda devolve o slug antigo.
+  const fromStage = String(lead.pipeline_stage_slug || '')
+    .trim()
+    .toLowerCase();
+  const fromStatus = String(lead.status || '')
+    .trim()
+    .toLowerCase();
+  const isWon = fromStage === 'closed_won' || fromStatus === 'closed_won';
+  if (!isWon) {
     return { ok: true, skipped: true, reason: 'not_won' };
   }
 

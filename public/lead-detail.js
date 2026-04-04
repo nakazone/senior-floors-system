@@ -196,9 +196,28 @@ async function loadPipelineStages() {
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include',
                 body: JSON.stringify({ status: newStatus })
-            }).then(r => r.json()).then(data => {
-                if (data.success) currentLead.status = newStatus;
-            }).catch(() => {});
+            })
+                .then((r) => r.json())
+                .then((data) => {
+                    if (data.success) currentLead.status = newStatus;
+                    if (data.success && data.project_auto) {
+                        if (data.project_auto.created && data.project_auto.project_id) {
+                            notifyLead(
+                                'Projeto criado automaticamente (ID ' + data.project_auto.project_id + ').',
+                                'success'
+                            );
+                        } else if (data.project_auto.ok === false && data.project_auto.error) {
+                            notifyLead(
+                                'Projeto automático falhou: ' +
+                                    (data.project_auto.error === 'invalid_email'
+                                        ? 'email inválido — corrija no lead'
+                                        : data.project_auto.error),
+                                'error'
+                            );
+                        }
+                    }
+                })
+                .catch(() => {});
         });
     } catch (error) {
         console.error('Error loading pipeline stages:', error);
@@ -259,6 +278,23 @@ async function saveLead() {
                         '). Aparece em Dashboard → Clients quando o estágio é Fechado - Ganhou ou Produção.',
                     'success'
                 );
+            }
+            if (data.project_auto) {
+                if (data.project_auto.created && data.project_auto.project_id) {
+                    notifyLead(
+                        'Projeto criado automaticamente (ID ' + data.project_auto.project_id + '). Ver Projetos no menu.',
+                        'success'
+                    );
+                } else if (data.project_auto.ok === false && data.project_auto.error) {
+                    notifyLead(
+                        'Projeto automático: não foi possível criar (' +
+                            (data.project_auto.error === 'invalid_email'
+                                ? 'email do lead inválido — corrija e guarde de novo'
+                                : data.project_auto.error) +
+                            ').',
+                        'error'
+                    );
+                }
             }
             loadLead();
         } else {
