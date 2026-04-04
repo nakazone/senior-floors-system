@@ -237,8 +237,8 @@ export async function getDashboardStats(req, res) {
   const isOverall = period === 'overall';
   const pLeads = periodPredicate('l.created_at', period);
   const pVisitsSched = periodPredicate('v.scheduled_at', period);
-  /** Realização da visita: completed_at (schema CRM), fallback updated_at */
-  const pVisitsCompletedAt = periodPredicate('COALESCE(v.completed_at, v.updated_at)', period);
+  /** Visitas concluídas no período — só `updated_at` (coluna `completed_at` nem sempre existe no schema legado). */
+  const pVisitsCompletedAt = periodPredicate('v.updated_at', period);
   const pProposalsSent = periodPredicate('COALESCE(pr.sent_at, pr.updated_at)', period);
   const pProposalsAccepted = periodPredicate('pr.accepted_at', period);
   const pQuotesApproved = periodPredicate('COALESCE(q.approved_at, q.updated_at)', period);
