@@ -598,7 +598,7 @@ function dashKpiProgPct(value, cap) {
 }
 
 function setDashboardPeriod(p) {
-    if (!['today', 'week', 'month'].includes(p)) return;
+    if (!['today', 'week', 'month', 'overall'].includes(p)) return;
     currentDashboardPeriod = p;
     document.querySelectorAll('[data-dash-period]').forEach((btn) => {
         const on = btn.getAttribute('data-dash-period') === p;
@@ -1111,7 +1111,7 @@ function renderDashboardCharts(d) {
 }
 
 async function loadDashboard(period) {
-    const p = period && ['today', 'week', 'month'].includes(period) ? period : currentDashboardPeriod;
+    const p = period && ['today', 'week', 'month', 'overall'].includes(period) ? period : currentDashboardPeriod;
     currentDashboardPeriod = p;
     document.querySelectorAll('[data-dash-period]').forEach((btn) => {
         const on = btn.getAttribute('data-dash-period') === p;
@@ -1173,7 +1173,9 @@ function renderDashboardStats() {
                 ? 'Visão geral · hoje'
                 : d.period === 'week'
                   ? 'Visão geral · últimos 7 dias'
-                  : 'Visão geral · mês corrente';
+                  : d.period === 'overall'
+                    ? 'Visão geral · todo o histórico'
+                    : 'Visão geral · mês corrente';
         eyebrow.textContent = pe;
     }
 
@@ -1226,37 +1228,61 @@ function renderDashboardStats() {
 
     const row1 = document.getElementById('dashKpiRow1');
     if (row1) {
-        const badgeLeads = pl.leads_new_today > 0 ? `+${pl.leads_new_today} hoje` : 'no período';
-        const badgeVis = pl.visits_today > 0 ? `${pl.visits_today} hoje` : 'agendadas';
-        const badgeQuotes =
-            pl.proposals_open_count > 0 ? `${pl.proposals_open_count} em aberto` : 'enviadas';
+        const periodBadge =
+            d.period === 'today'
+                ? 'hoje'
+                : d.period === 'week'
+                  ? '7 dias'
+                  : d.period === 'overall'
+                    ? 'geral'
+                    : 'mês';
+        const badgeLeads =
+            pl.leads_new_today > 0 ? `+${pl.leads_new_today} hoje` : escapeHtmlCrm(periodBadge);
+        const badgeVis = pl.visits_today > 0 ? `${pl.visits_today} hoje` : escapeHtmlCrm(periodBadge);
+        const badgeVisDone = escapeHtmlCrm(periodBadge);
+        const leadsInProp = Number(pl.leads_in_proposal) || 0;
+        const badgeProposalPipeline =
+            pl.proposals_open_count > 0 ? `${pl.proposals_open_count} em aberto (docs)` : 'pipeline';
         row1.innerHTML = `
             <div class="sf-card">
                 <div class="sf-card__head">
                     <div class="sf-card-ic" aria-hidden="true"><span class="sf-card-ic-emoji">📥</span></div>
-                    <span class="sf-card-badge">${escapeHtmlCrm(badgeLeads)}</span>
+                    <span class="sf-card-badge">${badgeLeads}</span>
                 </div>
                 <div class="sf-card-val">${pl.leads_received}</div>
                 <div class="sf-card-lbl">Leads recebidos</div>
+                <div class="sf-card-sub">Criados no período selecionado</div>
                 <div class="sf-card-prog"><div class="sf-card-pf" style="width:${dashKpiProgPct(pl.leads_received, 50)}%"></div></div>
             </div>
             <div class="sf-card">
                 <div class="sf-card__head">
                     <div class="sf-card-ic" aria-hidden="true"><span class="sf-card-ic-emoji">🗓️</span></div>
-                    <span class="sf-card-badge">${escapeHtmlCrm(badgeVis)}</span>
+                    <span class="sf-card-badge">${badgeVis}</span>
                 </div>
                 <div class="sf-card-val">${pl.visits_scheduled}</div>
                 <div class="sf-card-lbl">Visitas agendadas</div>
+                <div class="sf-card-sub">Com data agendada no período</div>
                 <div class="sf-card-prog"><div class="sf-card-pf" style="width:${dashKpiProgPct(pl.visits_scheduled, 20)}%"></div></div>
             </div>
             <div class="sf-card">
                 <div class="sf-card__head">
-                    <div class="sf-card-ic" aria-hidden="true"><span class="sf-card-ic-emoji">📄</span></div>
-                    <span class="sf-card-badge">${escapeHtmlCrm(badgeQuotes)}</span>
+                    <div class="sf-card-ic" aria-hidden="true"><span class="sf-card-ic-emoji">✔️</span></div>
+                    <span class="sf-card-badge">${badgeVisDone}</span>
                 </div>
-                <div class="sf-card-val">${pl.proposals_sent}</div>
-                <div class="sf-card-lbl">Propostas / orçamentos enviados</div>
-                <div class="sf-card-prog"><div class="sf-card-pf" style="width:${dashKpiProgPct(pl.proposals_sent, 15)}%"></div></div>
+                <div class="sf-card-val">${pl.visits_completed}</div>
+                <div class="sf-card-lbl">Visitas realizadas</div>
+                <div class="sf-card-sub">Status concluída · data de realização</div>
+                <div class="sf-card-prog"><div class="sf-card-pf" style="width:${dashKpiProgPct(pl.visits_completed, 20)}%"></div></div>
+            </div>
+            <div class="sf-card">
+                <div class="sf-card__head">
+                    <div class="sf-card-ic" aria-hidden="true"><span class="sf-card-ic-emoji">📄</span></div>
+                    <span class="sf-card-badge">${escapeHtmlCrm(badgeProposalPipeline)}</span>
+                </div>
+                <div class="sf-card-val">${leadsInProp}</div>
+                <div class="sf-card-lbl">Leads em proposta</div>
+                <div class="sf-card-sub">Etapas: proposta criada, enviada, negociação</div>
+                <div class="sf-card-prog"><div class="sf-card-pf" style="width:${dashKpiProgPct(leadsInProp, 15)}%"></div></div>
             </div>
             <div class="sf-card sf-warn">
                 <div class="sf-card__head">
@@ -1316,11 +1342,11 @@ function renderDashboardStats() {
             <div class="sf-card sf-ok">
                 <div class="sf-card__head">
                     <div class="sf-card-ic" aria-hidden="true"><span class="sf-card-ic-emoji">💵</span></div>
-                    <span class="sf-card-badge">MTD</span>
+                    <span class="sf-card-badge">${d.period === 'overall' ? 'Total' : 'MTD'}</span>
                 </div>
                 <div class="sf-card-val">${formatDashboardCompact(revMonth)}</div>
-                <div class="sf-card-lbl">Receita do mês</div>
-                <div class="sf-card-sub">Project financials</div>
+                <div class="sf-card-lbl">${d.period === 'overall' ? 'Receita acumulada' : 'Receita do mês'}</div>
+                <div class="sf-card-sub">${d.period === 'overall' ? 'Project financials · histórico completo' : 'Project financials'}</div>
                 <div class="sf-card-prog"><div class="sf-card-pf" style="width:${dashKpiProgPct(revMonth, 25000)}%"></div></div>
             </div>
             <div class="sf-card">
@@ -1329,8 +1355,8 @@ function renderDashboardStats() {
                     <span class="sf-card-badge">${pl.closed_won_count} fech.</span>
                 </div>
                 <div class="sf-card-val">${formatDashboardCompact(avgDeal)}</div>
-                <div class="sf-card-lbl">Ticket médio</div>
-                <div class="sf-card-sub">${formatDashboardCurrency(avgDeal)}</div>
+                <div class="sf-card-lbl">Ticket médio (quotes)</div>
+                <div class="sf-card-sub">${formatDashboardCurrency(avgDeal)} · ${Number(conv.avg_ticket_quotes_count) || 0} quotes · ${formatDashboardCompact(conv.avg_ticket_quotes_total || 0)} total</div>
                 <div class="sf-card-prog"><div class="sf-card-pf" style="width:${dashKpiProgPct(avgDeal, 15000)}%"></div></div>
             </div>`;
     }
@@ -1488,7 +1514,7 @@ function renderSfMobileDashboardBlocks() {
             <div class="sf-kpi-card touchable">
                 <div class="sf-kpi-card__value">${closedVal}</div>
                 <div class="sf-kpi-card__label">Fechado (valor)</div>
-                <div class="sf-kpi-card__meta">${pl.closed_won_count || 0} leads won · ${d.period === 'today' ? 'hoje' : d.period === 'week' ? '7 dias' : 'mês'}</div>
+                <div class="sf-kpi-card__meta">${pl.closed_won_count || 0} leads won · ${d.period === 'today' ? 'hoje' : d.period === 'week' ? '7 dias' : d.period === 'overall' ? 'geral' : 'mês'}</div>
             </div>
             <div class="sf-kpi-card touchable">
                 <div class="sf-kpi-card__value">${formatDashboardPercent(conv.proposal_win_rate)}</div>

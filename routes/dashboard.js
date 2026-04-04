@@ -1,11 +1,14 @@
 /**
  * Dashboard API — métricas operacionais (pipeline, conversão, financeiro, alertas).
- * GET /api/dashboard/stats?period=today|week|month
+ * GET /api/dashboard/stats?period=today|week|month|overall
  */
 import { getDBConnection } from '../config/db.js';
 import { isNoSuchTableError } from '../lib/mysqlSchemaErrors.js';
 
-const PERIODS = new Set(['today', 'week', 'month']);
+const PERIODS = new Set(['today', 'week', 'month', 'overall']);
+
+/** Estágios de pipeline considerados “em proposta” (leads nestas etapas). */
+const PROPOSAL_STAGE_SLUGS_SQL = `('proposal_created','proposal_sent','negotiation')`;
 
 /** Valor monetário do quote: total_amount; se 0 ou ausente, subtotal + tax (fluxos legados / PDF). */
 function quoteEffectiveAmountExpr(alias = 'q') {
@@ -31,6 +34,9 @@ function toFiniteNumber(v) {
 
 /** Condições SQL para coluna de timestamp `col` dentro do período */
 function periodPredicate(col, period) {
+  if (period === 'overall') {
+    return '1=1';
+  }
   if (period === 'today') {
     return `DATE(${col}) = CURDATE()`;
   }
@@ -228,17 +234,54 @@ export async function getDashboardStats(req, res) {
   const period = PERIODS.has(String(req.query.period || '').toLowerCase())
     ? String(req.query.period).toLowerCase()
     : 'month';
+  const isOverall = period === 'overall';
   const pLeads = periodPredicate('l.created_at', period);
   const pVisitsSched = periodPredicate('v.scheduled_at', period);
-  const pVisitsCreated = periodPredicate('v.created_at', period);
+  /** Realização da visita: completed_at (schema CRM), fallback updated_at */
+  const pVisitsCompletedAt = periodPredicate('COALESCE(v.completed_at, v.updated_at)', period);
   const pProposalsSent = periodPredicate('COALESCE(pr.sent_at, pr.updated_at)', period);
   const pProposalsAccepted = periodPredicate('pr.accepted_at', period);
   const pQuotesApproved = periodPredicate('COALESCE(q.approved_at, q.updated_at)', period);
   const pQuotesSent = periodPredicate('COALESCE(q.sent_at, q.updated_at)', period);
+  const pQuotesCreated = periodPredicate('q.created_at', period);
   const pEstimatesSent = periodPredicate('COALESCE(e.sent_at, e.updated_at)', period);
   const pEstimatesAccepted = periodPredicate('COALESCE(e.accepted_at, e.updated_at)', period);
   const pLeadUpdated = periodPredicate('l.updated_at', period);
   const pEstCreated = periodPredicate('e.created_at', period);
+  const pwPropAcc = isOverall ? '1=1' : pProposalsAccepted;
+  const pwQuoteApr = isOverall ? '1=1' : pQuotesApproved;
+  const pwEstAcc = isOverall ? '1=1' : pEstimatesAccepted;
+  const pwPropRej = isOverall ? '1=1' : periodPredicate('COALESCE(pr.updated_at, pr.created_at)', period);
+  const pwQuoteDec = isOverall ? '1=1' : periodPredicate('q.updated_at', period);
+  const pwEstDec = isOverall ? '1=1' : periodPredicate('COALESCE(e.declined_at, e.updated_at)', period);
+
+  const closedWonLeadsSql = isOverall
+    ? `SELECT COUNT(*) AS c FROM leads l
+       INNER JOIN pipeline_stages ps ON ps.id = l.pipeline_stage_id AND ps.slug = 'closed_won'`
+    : `SELECT COUNT(*) AS c FROM leads l
+       INNER JOIN pipeline_stages ps ON ps.id = l.pipeline_stage_id AND ps.slug = 'closed_won'
+       WHERE ${pLeadUpdated}`;
+
+  const closedLostLeadsSql = isOverall
+    ? `SELECT COUNT(*) AS c FROM leads l
+       INNER JOIN pipeline_stages ps ON ps.id = l.pipeline_stage_id AND ps.slug = 'closed_lost'`
+    : `SELECT COUNT(*) AS c FROM leads l
+       INNER JOIN pipeline_stages ps ON ps.id = l.pipeline_stage_id AND ps.slug = 'closed_lost'
+       WHERE ${pLeadUpdated}`;
+
+  const revenueMonthSql = isOverall
+    ? `SELECT COALESCE(SUM(pf.actual_revenue), 0) AS s FROM project_financials pf`
+    : `SELECT COALESCE(SUM(pf.actual_revenue), 0) AS s FROM project_financials pf
+       WHERE pf.updated_at >= DATE_FORMAT(CURDATE(), '%Y-%m-01')`;
+
+  const expensesMonthSql = isOverall
+    ? `SELECT COALESCE(SUM(e.total_amount), 0) AS s
+       FROM expenses e
+       WHERE e.status IN ('approved', 'paid')`
+    : `SELECT COALESCE(SUM(e.total_amount), 0) AS s
+       FROM expenses e
+       WHERE e.status IN ('approved', 'paid')
+         AND e.expense_date >= DATE_FORMAT(CURDATE(), '%Y-%m-01')`;
 
   try {
     const pool = await getDBConnection();
@@ -250,6 +293,7 @@ export async function getDashboardStats(req, res) {
       leadsReceived,
       leadsNewToday,
       contactPending,
+      leadsInProposal,
       visitsScheduled,
       visitsCompleted,
       visitsToday,
@@ -305,12 +349,19 @@ export async function getDashboardStats(req, res) {
       ),
       safeQuery(
         pool,
+        `SELECT COUNT(*) AS c FROM leads l
+         INNER JOIN pipeline_stages ps ON ps.id = l.pipeline_stage_id
+         WHERE ps.slug IN ${PROPOSAL_STAGE_SLUGS_SQL}`,
+        [{ c: 0 }]
+      ),
+      safeQuery(
+        pool,
         `SELECT COUNT(*) AS c FROM visits v WHERE v.status = 'scheduled' AND ${pVisitsSched}`,
         [{ c: 0 }]
       ),
       safeQuery(
         pool,
-        `SELECT COUNT(*) AS c FROM visits v WHERE v.status = 'completed' AND ${pVisitsCreated}`,
+        `SELECT COUNT(*) AS c FROM visits v WHERE v.status = 'completed' AND ${pVisitsCompletedAt}`,
         [{ c: 0 }]
       ),
       safeQuery(
@@ -381,53 +432,62 @@ export async function getDashboardStats(req, res) {
         }
         return [{ cnt, val }];
       }),
-      safeQuery(
-        pool,
-        `SELECT COUNT(*) AS c
-         FROM leads l
-         INNER JOIN pipeline_stages ps ON ps.id = l.pipeline_stage_id AND ps.slug = 'closed_won'
-         WHERE ${pLeadUpdated}`,
-        [{ c: 0 }]
-      ),
-      Promise.all([
-        safeQuery(
-          pool,
-          `SELECT COALESCE(SUM(pr.total_value), 0) AS s
-           FROM proposals pr
-           WHERE pr.status = 'accepted'
-             AND ${pProposalsAccepted}
-             AND pr.total_value IS NOT NULL AND pr.total_value > 0`,
-          [{ s: 0 }]
-        ),
-        safeQuery(
-          pool,
-          `SELECT COALESCE(SUM(${quoteEffectiveAmountExpr('q')}), 0) AS s
-           FROM quotes q
-           WHERE LOWER(TRIM(q.status)) IN ('approved', 'accepted')
-             AND ${pQuotesApproved}`,
-          [{ s: 0 }]
-        ),
-        safeQuery(
-          pool,
-          `SELECT COALESCE(SUM(${estimateMoneyExpr('e')}), 0) AS s
-           FROM estimates e
-           WHERE LOWER(TRIM(e.status)) = 'accepted'
-             AND ${pEstimatesAccepted}`,
-          [{ s: 0 }]
-        ),
-      ]).then((parts) => [
+      safeQuery(pool, closedWonLeadsSql, [{ c: 0 }]),
+      Promise.all(
+        isOverall
+          ? [
+              safeQuery(
+                pool,
+                `SELECT COALESCE(SUM(pr.total_value), 0) AS s FROM proposals pr
+                 WHERE pr.status = 'accepted' AND pr.total_value IS NOT NULL AND pr.total_value > 0`,
+                [{ s: 0 }]
+              ),
+              safeQuery(
+                pool,
+                `SELECT COALESCE(SUM(${quoteEffectiveAmountExpr('q')}), 0) AS s FROM quotes q
+                 WHERE LOWER(TRIM(q.status)) IN ('approved', 'accepted')`,
+                [{ s: 0 }]
+              ),
+              safeQuery(
+                pool,
+                `SELECT COALESCE(SUM(${estimateMoneyExpr('e')}), 0) AS s FROM estimates e
+                 WHERE LOWER(TRIM(e.status)) = 'accepted'`,
+                [{ s: 0 }]
+              ),
+            ]
+          : [
+              safeQuery(
+                pool,
+                `SELECT COALESCE(SUM(pr.total_value), 0) AS s
+                 FROM proposals pr
+                 WHERE pr.status = 'accepted'
+                   AND ${pProposalsAccepted}
+                   AND pr.total_value IS NOT NULL AND pr.total_value > 0`,
+                [{ s: 0 }]
+              ),
+              safeQuery(
+                pool,
+                `SELECT COALESCE(SUM(${quoteEffectiveAmountExpr('q')}), 0) AS s
+                 FROM quotes q
+                 WHERE LOWER(TRIM(q.status)) IN ('approved', 'accepted')
+                   AND ${pQuotesApproved}`,
+                [{ s: 0 }]
+              ),
+              safeQuery(
+                pool,
+                `SELECT COALESCE(SUM(${estimateMoneyExpr('e')}), 0) AS s
+                 FROM estimates e
+                 WHERE LOWER(TRIM(e.status)) = 'accepted'
+                   AND ${pEstimatesAccepted}`,
+                [{ s: 0 }]
+              ),
+            ]
+      ).then((parts) => [
         {
           s: parts.reduce((sum, rows) => sum + toFiniteNumber(firstRow(rows).s), 0),
         },
       ]),
-      safeQuery(
-        pool,
-        `SELECT COUNT(*) AS c
-         FROM leads l
-         INNER JOIN pipeline_stages ps ON ps.id = l.pipeline_stage_id AND ps.slug = 'closed_lost'
-         WHERE ${pLeadUpdated}`,
-        [{ c: 0 }]
-      ),
+      safeQuery(pool, closedLostLeadsSql, [{ c: 0 }]),
       safeQuery(
         pool,
         `SELECT COUNT(*) AS c
@@ -446,7 +506,7 @@ export async function getDashboardStats(req, res) {
       ),
       safeQuery(
         pool,
-        `SELECT COUNT(*) AS c FROM visits v WHERE v.status = 'completed' AND ${pVisitsCreated}`,
+        `SELECT COUNT(*) AS c FROM visits v WHERE v.status = 'completed' AND ${pVisitsCompletedAt}`,
         [{ c: 0 }]
       ),
       safeQuery(
@@ -454,7 +514,7 @@ export async function getDashboardStats(req, res) {
         `SELECT COUNT(*) AS c
          FROM visits v
          WHERE v.status = 'completed'
-           AND ${pVisitsCreated}
+           AND ${pVisitsCompletedAt}
            AND (
              EXISTS (SELECT 1 FROM proposals pr WHERE pr.lead_id = v.lead_id)
              OR EXISTS (SELECT 1 FROM quotes q WHERE q.lead_id = v.lead_id)
@@ -466,39 +526,39 @@ export async function getDashboardStats(req, res) {
         safeQuery(
           pool,
           `SELECT COUNT(*) AS c FROM proposals pr
-           WHERE pr.status = 'accepted' AND ${pProposalsAccepted}`,
+           WHERE pr.status = 'accepted' AND (${pwPropAcc})`,
           [{ c: 0 }]
         ),
         safeQuery(
           pool,
           `SELECT COUNT(*) AS c FROM quotes q
-           WHERE LOWER(TRIM(q.status)) IN ('approved', 'accepted') AND ${pQuotesApproved}`,
+           WHERE LOWER(TRIM(q.status)) IN ('approved', 'accepted') AND (${pwQuoteApr})`,
           [{ c: 0 }]
         ),
         safeQuery(
           pool,
           `SELECT COUNT(*) AS c FROM estimates e
-           WHERE LOWER(TRIM(e.status)) = 'accepted' AND ${pEstimatesAccepted}`,
+           WHERE LOWER(TRIM(e.status)) = 'accepted' AND (${pwEstAcc})`,
           [{ c: 0 }]
         ),
         safeQuery(
           pool,
           `SELECT COUNT(*) AS c FROM proposals pr
-           WHERE pr.status = 'rejected' AND ${periodPredicate('COALESCE(pr.updated_at, pr.created_at)', period)}`,
+           WHERE pr.status = 'rejected' AND (${pwPropRej})`,
           [{ c: 0 }]
         ),
         safeQuery(
           pool,
           `SELECT COUNT(*) AS c FROM quotes q
            WHERE LOWER(TRIM(q.status)) IN ('declined', 'rejected')
-             AND ${periodPredicate('q.updated_at', period)}`,
+             AND (${pwQuoteDec})`,
           [{ c: 0 }]
         ),
         safeQuery(
           pool,
           `SELECT COUNT(*) AS c FROM estimates e
            WHERE LOWER(TRIM(e.status)) IN ('declined', 'expired')
-             AND ${periodPredicate('COALESCE(e.declined_at, e.updated_at)', period)}`,
+             AND (${pwEstDec})`,
           [{ c: 0 }]
         ),
       ]).then((parts) => {
@@ -514,27 +574,14 @@ export async function getDashboardStats(req, res) {
       }),
       safeQuery(
         pool,
-        `SELECT COALESCE(AVG(u.v), 0) AS a
-         FROM (
-           SELECT pr.total_value AS v FROM proposals pr
-           WHERE pr.status = 'accepted' AND ${pProposalsAccepted}
-             AND pr.total_value IS NOT NULL AND pr.total_value > 0
-           UNION ALL
-           SELECT ${quoteEffectiveAmountExpr('q')} AS v FROM quotes q
-           WHERE LOWER(TRIM(q.status)) IN ('approved', 'accepted') AND ${pQuotesApproved}
-           UNION ALL
-           SELECT ${estimateMoneyExpr('e')} AS v FROM estimates e
-           WHERE LOWER(TRIM(e.status)) = 'accepted' AND ${pEstimatesAccepted}
-         ) u`,
-        [{ a: 0 }]
+        `SELECT COALESCE(SUM(${quoteEffectiveAmountExpr('q')}), 0) AS s,
+                COUNT(*) AS c
+         FROM quotes q
+         WHERE LOWER(TRIM(q.status)) NOT IN ('declined', 'rejected')
+           AND (${pQuotesCreated})`,
+        [{ s: 0, c: 0 }]
       ),
-      safeQuery(
-        pool,
-        `SELECT COALESCE(SUM(pf.actual_revenue), 0) AS s
-         FROM project_financials pf
-         WHERE pf.updated_at >= DATE_FORMAT(CURDATE(), '%Y-%m-01')`,
-        [{ s: 0 }]
-      ),
+      safeQuery(pool, revenueMonthSql, [{ s: 0 }]),
       safeQuery(
         pool,
         `SELECT
@@ -565,14 +612,7 @@ export async function getDashboardStats(req, res) {
                 AND LOWER(TRIM(e2.status)) IN ('draft', 'sent', 'viewed')) AS s`,
         [{ s: 0 }]
       ),
-      safeQuery(
-        pool,
-        `SELECT COALESCE(SUM(e.total_amount), 0) AS s
-         FROM expenses e
-         WHERE e.status IN ('approved', 'paid')
-           AND e.expense_date >= DATE_FORMAT(CURDATE(), '%Y-%m-01')`,
-        [{ s: 0 }]
-      ),
+      safeQuery(pool, expensesMonthSql, [{ s: 0 }]),
       safeQuery(
         pool,
         `SELECT COALESCE(AVG(pf.actual_margin_percentage), 0) AS a
@@ -687,6 +727,7 @@ export async function getDashboardStats(req, res) {
     const vc = Number(firstRow(visitsCompleted).c) || 0;
     const vt = Number(firstRow(visitsToday).c) || 0;
     const psent = Number(firstRow(proposalsSent).c) || 0;
+    const lip = Number(firstRow(leadsInProposal).c) || 0;
     const po = firstRow(proposalsOpen);
     const proposalsOpenCount = toFiniteNumber(po.cnt);
     const proposalsOpenValue = toFiniteNumber(po.val);
@@ -707,11 +748,15 @@ export async function getDashboardStats(req, res) {
     const winCount = toFiniteNumber(wlr.wins);
     const lossCount = toFiniteNumber(wlr.losses);
     let denWin = winCount + lossCount;
-    if (denWin === 0) denWin = Math.max(psent, 1);
+    if (denWin === 0) denWin = Math.max(psent, lip, 1);
     const proposalWin =
       denWin > 0 ? Math.min(100, Math.round((winCount / denWin) * 1000) / 10) : 0;
 
-    const avgDealVal = toFiniteNumber(firstRow(avgDeal).a);
+    const avgRow = firstRow(avgDeal);
+    const quoteSum = toFiniteNumber(avgRow.s);
+    const quoteCnt = Number(avgRow.c) || 0;
+    const avgDealVal =
+      quoteCnt > 0 ? Math.round((quoteSum / quoteCnt) * 100) / 100 : 0;
 
     const revM = toFiniteNumber(firstRow(revenueMonth).s);
     const revP = toFiniteNumber(firstRow(revenueProjected).s);
@@ -828,6 +873,7 @@ export async function getDashboardStats(req, res) {
         visits_scheduled: vs,
         visits_completed: vc,
         visits_today: vt,
+        leads_in_proposal: lip,
         proposals_sent: psent,
         proposals_open_count: proposalsOpenCount,
         proposals_open_value: Math.round(proposalsOpenValue * 100) / 100,
@@ -843,6 +889,8 @@ export async function getDashboardStats(req, res) {
         proposal_wins: winCount,
         proposal_losses: lossCount,
         avg_deal_value: Math.round(avgDealVal * 100) / 100,
+        avg_ticket_quotes_count: quoteCnt,
+        avg_ticket_quotes_total: Math.round(quoteSum * 100) / 100,
       },
       financial: {
         revenue_month: Math.round(revM * 100) / 100,
