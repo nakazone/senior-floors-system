@@ -637,13 +637,477 @@ function handleDashboardActionUrl(url) {
     showPage('leads');
 }
 
-function funnelRowClass(slug) {
-    const s = String(slug || '');
-    if (s === 'closed_won') return 'dash-funnel__row--won';
-    if (s === 'closed_lost') return 'dash-funnel__row--lost';
-    if (['lead_received', 'contact_made', 'qualified', 'visit_scheduled'].includes(s)) return 'dash-funnel__row--early';
-    if (['measurement_done', 'proposal_created', 'proposal_sent', 'negotiation'].includes(s)) return 'dash-funnel__row--mid';
-    return 'dash-funnel__row--default';
+function dashLocalYmd(d) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+}
+
+function dashLocalYm(d) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    return `${y}-${m}`;
+}
+
+/** @type {Record<string, any>} */
+const _dashCharts = {};
+
+function destroyDashChart(id) {
+    const ch = _dashCharts[id];
+    if (ch) {
+        ch.destroy();
+        delete _dashCharts[id];
+    }
+}
+
+const SF_CHART_COLORS = {
+    navy: '#1a2036',
+    navy2: '#252b47',
+    navy3: '#2a3150',
+    gold3: '#c9a882',
+    gold4: '#b8906a',
+    gold5: '#a07850',
+    ok: '#2d6e4a',
+    warn: '#8f5010',
+    bad: '#8f2020',
+};
+
+const SOURCE_CHART_COLORS = [
+    SF_CHART_COLORS.navy,
+    SF_CHART_COLORS.gold3,
+    SF_CHART_COLORS.gold4,
+    SF_CHART_COLORS.gold5,
+    SF_CHART_COLORS.ok,
+    SF_CHART_COLORS.warn,
+];
+const PROPOSAL_CHART_COLORS = {
+    accepted: SF_CHART_COLORS.ok,
+    sent: SF_CHART_COLORS.gold3,
+    viewed: SF_CHART_COLORS.gold4,
+    draft: SF_CHART_COLORS.navy2,
+    declined: SF_CHART_COLORS.bad,
+    expired: SF_CHART_COLORS.warn,
+};
+const SERVICE_CHART_COLORS = [SF_CHART_COLORS.navy, SF_CHART_COLORS.gold3, SF_CHART_COLORS.ok];
+
+function dashSetText(id, text) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = text;
+}
+
+function dashBuildLegend(containerId, items) {
+    const el = document.getElementById(containerId);
+    if (!el) return;
+    el.innerHTML = items
+        .map(
+            (item) => `
+    <div style="display:flex;align-items:center;gap:6px;font-size:10px;color:var(--sf-navy)">
+      <span style="width:8px;height:8px;border-radius:50%;background:${item.color};flex-shrink:0"></span>
+      <span style="flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${item.label}</span>
+      <span style="font-weight:700;font-size:11px;flex-shrink:0">${item.value}</span>
+    </div>`,
+        )
+        .join('');
+}
+
+function dashCreateDonut(canvasId, labels, data, colors) {
+    destroyDashChart(canvasId);
+    const canvas = document.getElementById(canvasId);
+    if (!canvas || typeof Chart === 'undefined') return;
+    const ctx = canvas.getContext('2d');
+    _dashCharts[canvasId] = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels,
+            datasets: [
+                {
+                    data,
+                    backgroundColor: colors,
+                    borderWidth: 0,
+                    hoverOffset: 4,
+                },
+            ],
+        },
+        options: {
+            responsive: false,
+            cutout: '68%',
+            animation: { animateRotate: true, duration: 600 },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: (c) => ` ${c.label}: ${c.parsed}`,
+                    },
+                },
+            },
+        },
+    });
+}
+
+function renderFunnel(funnel) {
+    const container = document.getElementById('funnel-rows');
+    if (!container) {
+        console.error('[FUNNEL] #funnel-rows não encontrado no HTML');
+        return;
+    }
+    if (!funnel || !funnel.length) {
+        container.innerHTML =
+            '<div style="font-size:11px;color:var(--sf-muted);text-align:center;padding:16px">Sem dados no período</div>';
+        return;
+    }
+
+    const normalized = funnel.map((s) => ({
+        ...s,
+        stage_key: s.stage_key || s.slug || '',
+        count: parseInt(s.count, 10) || 0,
+    }));
+
+    const withData = normalized.filter((s) => s.count > 0);
+    const toRender = withData.length > 0 ? withData : normalized;
+    const max = Math.max(...toRender.map((s) => s.count), 1);
+
+    const COLORS = {
+        lead_received: '#1a2036',
+        contact_made: '#252b47',
+        qualified: '#2a3150',
+        visit_scheduled: '#c9a882',
+        measurement_done: '#c9a882',
+        proposal_created: '#b8906a',
+        proposal_sent: '#b8906a',
+        negotiation: '#8f5010',
+        closed_won: '#2d6e4a',
+        production: '#2d6e4a',
+    };
+
+    const LABELS = {
+        lead_received: 'Lead recebido',
+        contact_made: 'Contato feito',
+        qualified: 'Qualificado',
+        visit_scheduled: 'Visita agend.',
+        measurement_done: 'Medição feita',
+        proposal_created: 'Proposta criada',
+        proposal_sent: 'Proposta env.',
+        negotiation: 'Negociação',
+        closed_won: 'Fechado ✓',
+        production: 'Em produção',
+    };
+
+    container.innerHTML = toRender
+        .map((s) => {
+            const pct = Math.max(Math.round((s.count / max) * 100), 4);
+            const key = String(s.stage_key || '');
+            const color = COLORS[key] || '#1a2036';
+            const rawLabel = LABELS[key] || s.stage_name || key;
+            const label = escapeHtmlCrm(rawLabel);
+            return `
+      <div class="dash-funnel__row sf-funnel-row" style="display:flex;align-items:center;gap:8px;cursor:pointer"
+           role="button" tabindex="0"
+           onclick="showPage('crm')"
+           onkeydown="if(event.key==='Enter'){showPage('crm');}">
+        <div style="font-size:10px;color:var(--sf-gold5);width:100px;flex-shrink:0;
+                    font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+                    text-align:right">${label}</div>
+        <div style="flex:1;height:17px;background:rgba(26,32,54,.07);border-radius:3px;overflow:hidden">
+          <div style="height:100%;width:${pct}%;background:${color};border-radius:3px;
+                      display:flex;align-items:center;padding-left:7px;
+                      transition:width .5s cubic-bezier(.4,0,.2,1)">
+            <span style="font-size:9px;font-weight:700;color:rgba(255,255,255,.9)">${s.count}</span>
+          </div>
+        </div>
+      </div>`;
+        })
+        .join('');
+}
+
+function renderLeadsBySourceChart(sources) {
+    const card = document.getElementById('card-chart-sources');
+    if (card) card.style.opacity = '1';
+    if (!sources?.length) {
+        destroyDashChart('chart-sources');
+        dashSetText('chart-sources-total', '—');
+        dashSetText('chart-sources-sub', '0 total');
+        dashBuildLegend('chart-sources-legend', []);
+        return;
+    }
+    const total = sources.reduce((acc, r) => acc + (parseInt(r.count, 10) || 0), 0);
+    const labels = sources.map((r) => r.source || 'direct');
+    const data = sources.map((r) => parseInt(r.count, 10) || 0);
+    const colors = labels.map((_, i) => SOURCE_CHART_COLORS[i % SOURCE_CHART_COLORS.length]);
+
+    dashSetText('chart-sources-total', String(total));
+    const sub = document.getElementById('chart-sources-sub');
+    if (sub) sub.textContent = `${total} total`;
+
+    dashCreateDonut('chart-sources', labels, data, colors);
+    dashBuildLegend(
+        'chart-sources-legend',
+        labels.map((l, i) => ({
+            label: l.charAt(0).toUpperCase() + l.slice(1),
+            value: data[i],
+            color: colors[i],
+        })),
+    );
+}
+
+function renderProposalsByStatusChart(proposals) {
+    if (!proposals?.length) {
+        destroyDashChart('chart-proposals');
+        dashSetText('chart-proposals-total', '—');
+        dashBuildLegend('chart-proposals-legend', []);
+        return;
+    }
+    const total = proposals.reduce((acc, r) => acc + (parseInt(r.count, 10) || 0), 0);
+
+    const STATUS_LABEL = {
+        accepted: 'Aceitas',
+        sent: 'Enviadas',
+        viewed: 'Visualizadas',
+        draft: 'Rascunho',
+        declined: 'Recusadas',
+        expired: 'Expiradas',
+    };
+
+    const filtered = proposals.filter((r) => parseInt(r.count, 10) > 0);
+    const labels = filtered.map((r) => STATUS_LABEL[r.status] || r.status);
+    const data = filtered.map((r) => parseInt(r.count, 10) || 0);
+    const colors = filtered.map((r) => PROPOSAL_CHART_COLORS[r.status] || SF_CHART_COLORS.navy3);
+
+    dashSetText('chart-proposals-total', String(total));
+    dashCreateDonut('chart-proposals', labels, data, colors);
+    dashBuildLegend(
+        'chart-proposals-legend',
+        labels.map((l, i) => ({
+            label: l,
+            value: data[i],
+            color: colors[i],
+        })),
+    );
+}
+
+function renderRevenueByServiceChart(services) {
+    const elCard = document.getElementById('card-chart-services');
+    if (!services) {
+        if (elCard) elCard.style.opacity = '0.5';
+        return;
+    }
+    const supply = parseFloat(services.supply) || 0;
+    const install = parseFloat(services.installation) || 0;
+    const sand = parseFloat(services.sand_finish) || 0;
+    const total = supply + install + sand;
+
+    if (total === 0) {
+        destroyDashChart('chart-services');
+        if (elCard) elCard.style.opacity = '0.5';
+        dashSetText('chart-services-total', '—');
+        dashBuildLegend('chart-services-legend', []);
+        return;
+    }
+
+    if (elCard) elCard.style.opacity = '1';
+
+    const labels = ['Supply', 'Installation', 'Sand & Finish'];
+    const data = [supply, install, sand];
+    const colors = SERVICE_CHART_COLORS;
+
+    const totEl = document.getElementById('chart-services-total');
+    if (totEl) totEl.textContent = formatDashboardCompact(total);
+
+    dashCreateDonut('chart-services', labels, data, colors);
+    dashBuildLegend(
+        'chart-services-legend',
+        labels.map((l, i) => ({
+            label: l,
+            value: data[i] > 0 ? `${Math.round((data[i] / total) * 100)}%` : '0%',
+            color: colors[i],
+        })),
+    );
+}
+
+function dashGetLast6Months() {
+    const months = [];
+    const now = new Date();
+    for (let i = 5; i >= 0; i -= 1) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        months.push({
+            key: dashLocalYm(d),
+            label: d.toLocaleDateString('pt-BR', { month: 'short' }),
+        });
+    }
+    return months;
+}
+
+function renderMonthlyRevenueChart(months) {
+    destroyDashChart('chart-revenue');
+    const canvas = document.getElementById('chart-revenue');
+    if (!canvas || typeof Chart === 'undefined') return;
+
+    if (!months || !months.length) {
+        dashSetText('chart-revenue-avg', '—');
+        const trendEl = document.getElementById('chart-revenue-trend');
+        if (trendEl) {
+            trendEl.textContent = '—';
+            trendEl.style.color = 'var(--sf-muted)';
+        }
+    }
+
+    const last6 = dashGetLast6Months();
+    const dataMap = {};
+    (months || []).forEach((m) => {
+        dataMap[m.month] = parseFloat(m.revenue) || 0;
+    });
+    const revenues = last6.map((m) => dataMap[m.key] || 0);
+    const labels = last6.map((m) => m.label);
+
+    const nonZero = revenues.filter((v) => v > 0);
+    const avg = nonZero.length ? nonZero.reduce((a, b) => a + b, 0) / nonZero.length : 0;
+    const last = revenues[revenues.length - 1] || 0;
+    const prev = revenues[revenues.length - 2] || 0;
+    const trend = prev > 0 ? ((last - prev) / prev) * 100 : null;
+
+    dashSetText('chart-revenue-avg', formatDashboardCompact(avg));
+    const trendEl = document.getElementById('chart-revenue-trend');
+    if (trendEl) {
+        if (trend !== null && Number.isFinite(trend)) {
+            const sign = trend >= 0 ? '↑' : '↓';
+            trendEl.textContent = `${sign} ${Math.abs(Math.round(trend))}%`;
+            trendEl.style.color = trend >= 0 ? 'var(--sf-ok)' : 'var(--sf-bad, #8f2020)';
+        } else {
+            trendEl.textContent = '—';
+            trendEl.style.color = 'var(--sf-muted)';
+        }
+    }
+
+    const ctx = canvas.getContext('2d');
+    _dashCharts['chart-revenue'] = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels,
+            datasets: [
+                {
+                    data: revenues,
+                    backgroundColor: revenues.map((_, i) => (i === revenues.length - 1 ? '#1a2036' : '#c9a882')),
+                    borderWidth: 0,
+                    borderRadius: 4,
+                },
+            ],
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: { duration: 600 },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: (c) => ` ${formatDashboardCompact(c.parsed.y)}`,
+                    },
+                },
+            },
+            scales: {
+                x: {
+                    grid: { display: false },
+                    border: { display: false },
+                    ticks: {
+                        font: { size: 10, family: "'Inter', sans-serif" },
+                        color: '#8a8074',
+                    },
+                },
+                y: {
+                    grid: { color: 'rgba(26,32,54,.06)', drawBorder: false },
+                    border: { display: false },
+                    ticks: {
+                        font: { size: 9, family: "'Inter', sans-serif" },
+                        color: '#8a8074',
+                        callback: (v) => formatDashboardCompact(v),
+                    },
+                },
+            },
+        },
+    });
+}
+
+function renderLeadsTrend7dChart(rows) {
+    destroyDashChart('chart-leads-trend');
+    const canvas = document.getElementById('chart-leads-trend');
+    if (!canvas || typeof Chart === 'undefined') return;
+
+    const days = [];
+    const now = new Date();
+    for (let i = 6; i >= 0; i -= 1) {
+        const d = new Date(now);
+        d.setDate(d.getDate() - i);
+        days.push({
+            key: dashLocalYmd(d),
+            label: d.toLocaleDateString('pt-BR', { weekday: 'short', day: 'numeric' }),
+        });
+    }
+    const map = {};
+    (rows || []).forEach((r) => {
+        const k = r.day_key != null ? String(r.day_key).slice(0, 10) : '';
+        map[k] = parseInt(r.count, 10) || 0;
+    });
+    const data = days.map((d) => map[d.key] || 0);
+    const labels = days.map((d) => d.label);
+
+    const ctx = canvas.getContext('2d');
+    _dashCharts['chart-leads-trend'] = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels,
+            datasets: [
+                {
+                    data,
+                    borderColor: '#1a2036',
+                    backgroundColor: 'rgba(201,168,130,0.15)',
+                    fill: true,
+                    tension: 0.35,
+                    pointRadius: 3,
+                    pointBackgroundColor: '#c9a882',
+                },
+            ],
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: { duration: 500 },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: (c) => ` ${c.parsed.y} leads`,
+                    },
+                },
+            },
+            scales: {
+                x: {
+                    grid: { display: false },
+                    border: { display: false },
+                    ticks: { font: { size: 9 }, color: '#8a8074', maxRotation: 45 },
+                },
+                y: {
+                    beginAtZero: true,
+                    grid: { color: 'rgba(26,32,54,.06)' },
+                    border: { display: false },
+                    ticks: { stepSize: 1, font: { size: 9 }, color: '#8a8074' },
+                },
+            },
+        },
+    });
+}
+
+function renderDashboardCharts(d) {
+    if (typeof Chart === 'undefined') {
+        console.warn('[dashboard] Chart.js não carregado; gráficos omitidos.');
+        return;
+    }
+    const ch = d.charts;
+    if (!ch) return;
+    renderLeadsBySourceChart(ch.leads_by_source);
+    renderProposalsByStatusChart(ch.proposals_by_status);
+    renderRevenueByServiceChart(ch.revenue_by_service);
+    renderMonthlyRevenueChart(ch.monthly_revenue);
+    renderLeadsTrend7dChart(ch.leads_trend_7d);
 }
 
 async function loadDashboard(period) {
@@ -871,29 +1335,8 @@ function renderDashboardStats() {
             </div>`;
     }
 
-    const funnelEl = document.getElementById('dashFunnel');
-    if (funnelEl && Array.isArray(d.pipeline_funnel)) {
-        const maxC = Math.max(1, ...d.pipeline_funnel.map((x) => Number(x.count) || 0));
-        const colors = ['#1a2036', '#252b47', '#2a3150', '#c9a882', '#b8906a', '#8f5010', '#2d6e4a'];
-        funnelEl.innerHTML = d.pipeline_funnel
-            .map((st, i) => {
-                const pct = ((Number(st.count) || 0) / maxC) * 100;
-                const cls = funnelRowClass(st.slug);
-                const nm = escapeHtmlCrm(st.stage_name || '');
-                const bg = colors[i % colors.length];
-                return `<div class="dash-funnel__row sf-funnel-row ${cls}" role="button" tabindex="0"
-                    onclick="showPage('crm')"
-                    onkeydown="if(event.key==='Enter'){showPage('crm');}">
-                    <div class="sf-funnel-label">${nm}</div>
-                    <div class="sf-funnel-track">
-                        <div class="sf-funnel-bar" style="width:${pct}%;background:${bg}">
-                            <span>${st.count}</span>
-                        </div>
-                    </div>
-                </div>`;
-            })
-            .join('');
-    }
+    renderFunnel(d.pipeline_funnel || d.charts?.pipeline_funnel || []);
+    renderDashboardCharts(d);
 
     const recentEl = document.getElementById('dashRecentLeads');
     if (recentEl) {

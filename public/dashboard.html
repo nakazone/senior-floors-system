@@ -233,6 +233,95 @@
                         <div id="dashKpiRow1" class="dash-kpi-grid sf-dash-kpi-row"></div>
                         <div id="dashKpiRow2" class="dash-kpi-grid sf-dash-kpi-row sf-dash-kpi-row--4"></div>
 
+                        <section id="charts-section" class="dash-charts-section">
+                            <div class="sf-card" id="card-chart-sources">
+                                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+                                    <div>
+                                        <div style="font-size:10px;font-weight:700;color:var(--sf-navy);letter-spacing:.04em;text-transform:uppercase">Leads por origem</div>
+                                        <div style="font-size:10px;color:var(--sf-muted);margin-top:1px" id="chart-sources-sub">— total</div>
+                                    </div>
+                                </div>
+                                <div style="display:flex;align-items:center;gap:12px">
+                                    <div style="position:relative;width:80px;height:80px;flex-shrink:0">
+                                        <canvas id="chart-sources" width="80" height="80" aria-label="Leads por origem"></canvas>
+                                        <div id="chart-sources-center" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none">
+                                            <span style="font-size:16px;font-weight:700;color:var(--sf-navy)" id="chart-sources-total">—</span>
+                                            <span style="font-size:8px;color:var(--sf-muted)">leads</span>
+                                        </div>
+                                    </div>
+                                    <div id="chart-sources-legend" style="display:flex;flex-direction:column;gap:5px;flex:1;min-width:0"></div>
+                                </div>
+                            </div>
+                            <div class="sf-card sf-warn" id="card-chart-proposals">
+                                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+                                    <div>
+                                        <div style="font-size:10px;font-weight:700;color:var(--sf-navy);letter-spacing:.04em;text-transform:uppercase">Estimates</div>
+                                        <div style="font-size:10px;color:var(--sf-muted);margin-top:1px">Distribuição por status</div>
+                                    </div>
+                                </div>
+                                <div style="display:flex;align-items:center;gap:12px">
+                                    <div style="position:relative;width:80px;height:80px;flex-shrink:0">
+                                        <canvas id="chart-proposals" width="80" height="80" aria-label="Estimates por status"></canvas>
+                                        <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none">
+                                            <span style="font-size:16px;font-weight:700;color:var(--sf-navy)" id="chart-proposals-total">—</span>
+                                            <span style="font-size:8px;color:var(--sf-muted)">total</span>
+                                        </div>
+                                    </div>
+                                    <div id="chart-proposals-legend" style="display:flex;flex-direction:column;gap:5px;flex:1;min-width:0"></div>
+                                </div>
+                            </div>
+                            <div class="sf-card sf-ok" id="card-chart-services">
+                                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+                                    <div>
+                                        <div style="font-size:10px;font-weight:700;color:var(--sf-navy);letter-spacing:.04em;text-transform:uppercase">Receita por serviço</div>
+                                        <div style="font-size:10px;color:var(--sf-muted);margin-top:1px">Supply · Install · Sand</div>
+                                    </div>
+                                </div>
+                                <div style="display:flex;align-items:center;gap:12px">
+                                    <div style="position:relative;width:80px;height:80px;flex-shrink:0">
+                                        <canvas id="chart-services" width="80" height="80" aria-label="Receita por serviço"></canvas>
+                                        <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none">
+                                            <span style="font-size:13px;font-weight:700;color:var(--sf-navy)" id="chart-services-total">—</span>
+                                            <span style="font-size:8px;color:var(--sf-muted)">receita</span>
+                                        </div>
+                                    </div>
+                                    <div id="chart-services-legend" style="display:flex;flex-direction:column;gap:5px;flex:1;min-width:0"></div>
+                                </div>
+                            </div>
+                        </section>
+
+                        <div class="sf-card sf-gold dash-chart-revenue-card" style="margin-top:10px">
+                            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px">
+                                <div>
+                                    <div style="font-size:10px;font-weight:700;color:var(--sf-navy);letter-spacing:.04em;text-transform:uppercase">Receita mensal</div>
+                                    <div style="font-size:10px;color:var(--sf-muted);margin-top:1px">Últimos 6 meses (estimates aceites)</div>
+                                </div>
+                                <div style="display:flex;gap:16px">
+                                    <div style="text-align:right">
+                                        <div style="font-size:9px;color:var(--sf-muted)">Média</div>
+                                        <div style="font-size:13px;font-weight:700;color:var(--sf-navy)" id="chart-revenue-avg">—</div>
+                                    </div>
+                                    <div style="text-align:right">
+                                        <div style="font-size:9px;color:var(--sf-muted)">vs anterior</div>
+                                        <div style="font-size:13px;font-weight:700;color:var(--sf-ok)" id="chart-revenue-trend">—</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div style="position:relative;height:140px">
+                                <canvas id="chart-revenue"></canvas>
+                            </div>
+                        </div>
+
+                        <div class="sf-card dash-chart-trend-card" style="margin-top:10px">
+                            <div style="margin-bottom:10px">
+                                <div style="font-size:10px;font-weight:700;color:var(--sf-navy);letter-spacing:.04em;text-transform:uppercase">Novos leads</div>
+                                <div style="font-size:10px;color:var(--sf-muted);margin-top:1px">Últimos 7 dias</div>
+                            </div>
+                            <div style="position:relative;height:120px">
+                                <canvas id="chart-leads-trend"></canvas>
+                            </div>
+                        </div>
+
                         <div class="dash-panels sf-dash-panels">
                             <div class="dash-panel sf-panel">
                                 <div class="sf-panel-header">
@@ -242,7 +331,7 @@
                                     </div>
                                     <a href="#" class="sf-panel-link" onclick="event.preventDefault(); showPage('crm');">Ver pipeline →</a>
                                 </div>
-                                <div id="dashFunnel"></div>
+                                <div id="funnel-rows" class="dash-funnel-rows"></div>
                             </div>
                             <div class="dash-panel sf-panel">
                                 <div class="sf-panel-header">
@@ -1307,6 +1396,7 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <script src="crm-toast.js"></script>
     <script src="crm-command-palette.js"></script>
     <script src="notification-center.js"></script>

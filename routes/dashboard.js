@@ -58,6 +58,172 @@ function firstRow(rows) {
   return rows[0];
 }
 
+/** Ordem canónica dos slugs (alinhada ao pipeline_stages típico). */
+const FUNNEL_STAGE_ORDER = [
+  'lead_received',
+  'contact_made',
+  'qualified',
+  'visit_scheduled',
+  'measurement_done',
+  'proposal_created',
+  'proposal_sent',
+  'negotiation',
+  'closed_won',
+  'production',
+];
+
+/**
+ * Funil: LEFT JOIN pipeline_stages + leads no período (sem subquery pesada em `quotes`).
+ * @param {import('mysql2/promise').Pool} pool
+ * @param {string} pLeads — fragmento SQL já interpolado (ex.: periodPredicate em l.created_at)
+ */
+async function getFunnelData(pool, pLeads) {
+  try {
+    const [rows] = await pool.query(
+      `SELECT ps.id AS stage_id, ps.slug AS stage_key, ps.name AS stage_name,
+              COALESCE(ps.order_num, 0) AS order_index,
+              COUNT(l.id) AS cnt
+       FROM pipeline_stages ps
+       LEFT JOIN leads l ON l.pipeline_stage_id = ps.id AND (${pLeads})
+       WHERE ps.slug <> 'closed_lost'
+       GROUP BY ps.id, ps.slug, ps.name, ps.order_num
+       ORDER BY ps.order_num ASC, ps.id ASC`
+    );
+    const list = rows || [];
+    list.sort((a, b) => {
+      const ia = FUNNEL_STAGE_ORDER.indexOf(a.stage_key);
+      const ib = FUNNEL_STAGE_ORDER.indexOf(b.stage_key);
+      if (ia === -1 && ib === -1) return (Number(a.order_index) || 0) - (Number(b.order_index) || 0);
+      return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+    });
+    return list.map((r) => ({
+      stage_id: r.stage_id,
+      stage_key: r.stage_key,
+      stage_name: r.stage_name,
+      slug: r.stage_key,
+      cnt: r.cnt,
+    }));
+  } catch (e) {
+    console.error('[FUNNEL] Erro na query:', e.message);
+    try {
+      const [rows] = await pool.query(
+        `SELECT pipeline_stage_id AS stage_id, COUNT(*) AS cnt
+         FROM leads WHERE (${pLeads}) GROUP BY pipeline_stage_id`
+      );
+      return (rows || []).map((r) => ({
+        stage_id: r.stage_id,
+        stage_key: 'unknown',
+        stage_name: r.stage_id != null ? `Estágio ${r.stage_id}` : 'Sem estágio',
+        slug: 'unknown',
+        cnt: r.cnt,
+      }));
+    } catch (e2) {
+      console.error('[FUNNEL] Fallback falhou:', e2.message);
+      return [];
+    }
+  }
+}
+
+async function queryLeadsBySource(pool, pLeads) {
+  const sqlUtm = `
+    SELECT COALESCE(NULLIF(TRIM(l.utm_source), ''), NULLIF(TRIM(l.source), ''), 'direct') AS source,
+           COUNT(*) AS count
+    FROM leads l
+    WHERE ${pLeads}
+    GROUP BY COALESCE(NULLIF(TRIM(l.utm_source), ''), NULLIF(TRIM(l.source), ''), 'direct')
+    ORDER BY count DESC
+    LIMIT 6`;
+  try {
+    const [rows] = await pool.query(sqlUtm);
+    return rows || [];
+  } catch (_) {
+    try {
+      const [rows] = await pool.query(
+        `SELECT COALESCE(NULLIF(TRIM(l.source), ''), 'direct') AS source, COUNT(*) AS count
+         FROM leads l
+         WHERE ${pLeads}
+         GROUP BY COALESCE(NULLIF(TRIM(l.source), ''), 'direct')
+         ORDER BY count DESC
+         LIMIT 6`
+      );
+      return rows || [];
+    } catch (e2) {
+      console.warn('[dashboard] leads_by_source:', e2.message);
+      return [];
+    }
+  }
+}
+
+async function queryRevenueByService(pool) {
+  const sql = `
+    SELECT COALESCE(SUM(supply_value), 0) AS supply,
+           COALESCE(SUM(installation_value), 0) AS installation,
+           COALESCE(SUM(sand_finish_value), 0) AS sand_finish,
+           COALESCE(SUM(contract_value), 0) AS total
+    FROM projects
+    WHERE status IN ('in_progress', 'completed')
+      AND (deleted_at IS NULL)`;
+  try {
+    const [rows] = await pool.query(sql);
+    const r = rows[0] || {};
+    return {
+      supply: toFiniteNumber(r.supply),
+      installation: toFiniteNumber(r.installation),
+      sand_finish: toFiniteNumber(r.sand_finish),
+      total: toFiniteNumber(r.total),
+    };
+  } catch (_) {
+    try {
+      const [rows] = await pool.query(
+        `SELECT COALESCE(SUM(supply_value), 0) AS supply,
+                COALESCE(SUM(installation_value), 0) AS installation,
+                COALESCE(SUM(sand_finish_value), 0) AS sand_finish,
+                COALESCE(SUM(contract_value), 0) AS total
+         FROM projects
+         WHERE status IN ('in_progress', 'completed')`
+      );
+      const r = rows[0] || {};
+      return {
+        supply: toFiniteNumber(r.supply),
+        installation: toFiniteNumber(r.installation),
+        sand_finish: toFiniteNumber(r.sand_finish),
+        total: toFiniteNumber(r.total),
+      };
+    } catch (e2) {
+      console.warn('[dashboard] revenue_by_service:', e2.message);
+      return { supply: 0, installation: 0, sand_finish: 0, total: 0 };
+    }
+  }
+}
+
+/**
+ * GET /api/dashboard/fix-orphan-leads — apenas admin. Atribui pipeline_stage_id ao estágio lead_received.
+ */
+export async function fixDashboardOrphanLeads(req, res) {
+  try {
+    const pool = await getDBConnection();
+    if (!pool) return res.status(503).json({ success: false, error: 'Database not available' });
+    const [ps] = await pool.query(
+      `SELECT id FROM pipeline_stages WHERE slug = 'lead_received' ORDER BY id ASC LIMIT 1`
+    );
+    if (!ps.length) {
+      return res.status(400).json({ success: false, error: 'Estágio lead_received não encontrado' });
+    }
+    const sid = ps[0].id;
+    const [r] = await pool.execute(`UPDATE leads SET pipeline_stage_id = ? WHERE pipeline_stage_id IS NULL`, [
+      sid,
+    ]);
+    return res.json({
+      success: true,
+      pipeline_stage_id: sid,
+      updated: r.affectedRows != null ? Number(r.affectedRows) : 0,
+    });
+  } catch (e) {
+    console.error('fixDashboardOrphanLeads:', e);
+    return res.status(500).json({ success: false, error: e.message || 'Internal error' });
+  }
+}
+
 export async function getDashboardStats(req, res) {
   const period = PERIODS.has(String(req.query.period || '').toLowerCase())
     ? String(req.query.period).toLowerCase()
@@ -72,6 +238,7 @@ export async function getDashboardStats(req, res) {
   const pEstimatesSent = periodPredicate('COALESCE(e.sent_at, e.updated_at)', period);
   const pEstimatesAccepted = periodPredicate('COALESCE(e.accepted_at, e.updated_at)', period);
   const pLeadUpdated = periodPredicate('l.updated_at', period);
+  const pEstCreated = periodPredicate('e.created_at', period);
 
   try {
     const pool = await getDBConnection();
@@ -110,6 +277,12 @@ export async function getDashboardStats(req, res) {
       visitsTodayUnconfirmed,
       newLeadsUrgent,
       upcomingVisits,
+      orphanLeadsCount,
+      leadsBySourceRows,
+      estimatesByStatusRows,
+      monthlyRevenueRows,
+      revenueByServiceData,
+      leadsTrendRows,
     ] = await Promise.all([
       safeQuery(
         pool,
@@ -408,27 +581,7 @@ export async function getDashboardStats(req, res) {
          WHERE p.status = 'in_progress'`,
         [{ a: 0 }]
       ),
-      safeQuery(
-        pool,
-        `SELECT ps.id AS stage_id, ps.name AS stage_name, ps.slug, ps.order_num,
-                COUNT(l.id) AS cnt,
-                COALESCE(SUM(px.tv), 0) AS stage_value
-         FROM pipeline_stages ps
-         LEFT JOIN leads l ON l.pipeline_stage_id = ps.id
-         LEFT JOIN (
-           SELECT lead_id, MAX(v) AS tv FROM (
-             SELECT lead_id, total_value AS v FROM proposals
-               WHERE lead_id IS NOT NULL AND total_value IS NOT NULL AND total_value > 0
-             UNION ALL
-             SELECT lead_id, ${quoteEffectiveAmountExpr('quotes')} AS v FROM quotes WHERE lead_id IS NOT NULL
-             UNION ALL
-             SELECT lead_id, ${estimateMoneyExpr('est')} AS v FROM estimates est WHERE lead_id IS NOT NULL
-           ) z GROUP BY lead_id
-         ) px ON px.lead_id = l.id
-         GROUP BY ps.id, ps.name, ps.slug, ps.order_num
-         ORDER BY ps.order_num ASC`,
-        []
-      ),
+      getFunnelData(pool, pLeads),
       safeQuery(
         pool,
         `SELECT l.id, l.name, l.source, l.created_at,
@@ -490,6 +643,39 @@ export async function getDashboardStats(req, res) {
          WHERE v.scheduled_at >= NOW() AND v.scheduled_at <= DATE_ADD(NOW(), INTERVAL 7 DAY)
          ORDER BY v.scheduled_at ASC
          LIMIT 10`,
+        []
+      ),
+      safeQuery(pool, `SELECT COUNT(*) AS c FROM leads WHERE pipeline_stage_id IS NULL`, [{ c: 0 }]),
+      queryLeadsBySource(pool, pLeads),
+      safeQuery(
+        pool,
+        `SELECT LOWER(TRIM(e.status)) AS status, COUNT(*) AS count,
+           COALESCE(SUM(CASE WHEN e.final_price IS NOT NULL AND e.final_price > 0 THEN e.final_price ELSE 0 END), 0) AS total_value
+         FROM estimates e
+         WHERE ${pEstCreated}
+         GROUP BY LOWER(TRIM(e.status))`,
+        []
+      ),
+      safeQuery(
+        pool,
+        `SELECT DATE_FORMAT(created_at, '%Y-%m') AS month,
+                COUNT(*) AS deals_count,
+                COALESCE(SUM(CASE WHEN final_price IS NOT NULL AND final_price > 0 THEN final_price ELSE 0 END), 0) AS revenue
+         FROM estimates
+         WHERE LOWER(TRIM(status)) = 'accepted'
+           AND created_at >= DATE_SUB(NOW(), INTERVAL 6 MONTH)
+         GROUP BY DATE_FORMAT(created_at, '%Y-%m')
+         ORDER BY month ASC`,
+        []
+      ),
+      queryRevenueByService(pool),
+      safeQuery(
+        pool,
+        `SELECT DATE(l.created_at) AS day_key, COUNT(*) AS count
+         FROM leads l
+         WHERE l.created_at >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)
+         GROUP BY DATE(l.created_at)
+         ORDER BY day_key ASC`,
         []
       ),
     ]);
@@ -572,11 +758,42 @@ export async function getDashboardStats(req, res) {
 
     const pipelineFunnel = (funnelRows || []).map((row) => ({
       stage_id: row.stage_id,
+      stage_key: row.stage_key || row.slug,
       stage_name: row.stage_name,
-      slug: row.slug,
+      slug: row.slug || row.stage_key,
       count: Number(row.cnt) || 0,
-      value: Math.round(toFiniteNumber(row.stage_value) * 100) / 100,
+      value: 0,
     }));
+
+    const orphanLeads = Number(firstRow(orphanLeadsCount).c) || 0;
+
+    const charts = {
+      leads_by_source: (leadsBySourceRows || []).map((r) => ({
+        source: r.source != null ? String(r.source) : 'direct',
+        count: Number(r.count) || 0,
+      })),
+      proposals_by_status: (estimatesByStatusRows || []).map((r) => ({
+        status: r.status != null ? String(r.status) : 'unknown',
+        count: Number(r.count) || 0,
+        total_value: Math.round(toFiniteNumber(r.total_value) * 100) / 100,
+      })),
+      monthly_revenue: (monthlyRevenueRows || []).map((r) => ({
+        month: r.month != null ? String(r.month) : '',
+        deals_count: Number(r.deals_count) || 0,
+        revenue: Math.round(toFiniteNumber(r.revenue) * 100) / 100,
+      })),
+      revenue_by_service: revenueByServiceData || {
+        supply: 0,
+        installation: 0,
+        sand_finish: 0,
+        total: 0,
+      },
+      pipeline_funnel: pipelineFunnel,
+      leads_trend_7d: (leadsTrendRows || []).map((r) => ({
+        day_key: r.day_key != null ? String(r.day_key).slice(0, 10) : '',
+        count: Number(r.count) || 0,
+      })),
+    };
 
     const now = Date.now();
     const recent_leads = (recentLeadsRows || []).map((l) => ({
@@ -637,6 +854,8 @@ export async function getDashboardStats(req, res) {
       alerts,
       recent_leads,
       pipeline_funnel: pipelineFunnel,
+      orphan_leads_count: orphanLeads,
+      charts,
       visits_today_detail,
       new_leads_urgent,
       new_leads_urgent_count,

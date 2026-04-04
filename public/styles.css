@@ -2483,6 +2483,42 @@ input.score-auto {
 .sf-card.sf-bad::before {
     background: var(--sf-bad);
 }
+.sf-card.sf-gold::before {
+    background: var(--sf-gold3, #c9a882);
+}
+
+/* Dashboard: grid de gráficos (donuts + cards) */
+.dash-charts-section {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-top: 10px;
+}
+
+@media (max-width: 1024px) {
+    .dash-charts-section {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 768px) {
+    .dash-charts-section {
+        grid-template-columns: 1fr;
+    }
+}
+
+#card-chart-sources canvas,
+#card-chart-proposals canvas,
+#card-chart-services canvas {
+    display: block;
+}
+
+.dash-chart-revenue-card,
+.dash-chart-trend-card {
+    max-width: 100%;
+    overflow: hidden;
+}
+
 .sf-card__head {
     display: flex;
     align-items: flex-start;

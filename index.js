@@ -53,7 +53,7 @@ import {
   updateUserPermissions,
 } from './routes/users.js';
 import { listPermissionRegistry } from './routes/permissions.js';
-import { getDashboardStats, getDashboardDebug } from './routes/dashboard.js';
+import { getDashboardStats, getDashboardDebug, fixDashboardOrphanLeads } from './routes/dashboard.js';
 import marketingRouter from './routes/marketing.js';
 import { getQualification, createOrUpdateQualification } from './routes/qualification.js';
 import { listInteractions, createInteraction } from './routes/interactions.js';
@@ -345,6 +345,7 @@ app.post('/api/public/quotes/:token/approve', publicQuote.postApproveQuote);
 // Dashboard
 app.get('/api/dashboard/stats', requireAuth, getDashboardStats);
 app.get('/api/dashboard/debug', requireAuth, getDashboardDebug);
+app.get('/api/dashboard/fix-orphan-leads', requireAuth, requireRole('admin'), fixDashboardOrphanLeads);
 
 // Marketing (router inclui requireAuth + reports.view)
 app.use('/api/marketing', marketingRouter);
