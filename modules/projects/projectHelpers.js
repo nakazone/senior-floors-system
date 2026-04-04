@@ -91,16 +91,37 @@ export async function refreshChecklistCompletedFlag(pool, projectId) {
   }
 }
 
+/** Normaliza status legado (ex.: enum Hostinger `quoted`) para UI nova. */
+function normalizeProjectStatus(s) {
+  const v = String(s || '');
+  if (v === 'quoted') return 'scheduled';
+  return v;
+}
+
 export function mapListProjectRow(p) {
-  const contract = money(p.contract_value);
+  const contract = money(p.contract_value ?? p.estimated_cost);
   const labor = money(p.labor_cost_actual);
   const mat = money(p.material_cost_actual);
   const add = money(p.additional_cost_actual);
-  const totalCost = labor + mat + add;
+  let totalCost = labor + mat + add;
+  if (totalCost === 0 && p.actual_cost != null && String(p.actual_cost).trim() !== '') {
+    totalCost = money(p.actual_cost);
+  }
   const gross = contract - totalCost;
   const marginPct = contract > 0 ? moneyRound((gross / contract) * 100, 1) : 0;
+  const startDate = p.start_date ?? p.estimated_start_date ?? null;
+  const endEst = p.end_date_estimated ?? p.estimated_end_date ?? null;
+  const completion =
+    p.completion_percentage != null && p.completion_percentage !== ''
+      ? parseInt(String(p.completion_percentage), 10)
+      : p.status === 'completed'
+        ? 100
+        : 0;
   return {
     ...p,
+    status: normalizeProjectStatus(p.status),
+    start_date: startDate,
+    end_date_estimated: endEst,
     checklist_completed: !!(p.checklist_completed === 1 || p.checklist_completed === true),
     contract_value: moneyRound(contract, 2),
     supply_value: moneyRound(money(p.supply_value), 2),
@@ -113,7 +134,7 @@ export function mapListProjectRow(p) {
     gross_profit: moneyRound(gross, 2),
     margin_pct: marginPct,
     total_sqft: p.total_sqft != null ? moneyRound(p.total_sqft, 2) : null,
-    completion_percentage: parseInt(String(p.completion_percentage || 0), 10) || 0,
+    completion_percentage: Number.isFinite(completion) ? completion : 0,
     photos_count: parseInt(String(p.photos_count ?? 0), 10) || 0,
     checklist_total: parseInt(String(p.checklist_total ?? 0), 10) || 0,
     checklist_done: parseInt(String(p.checklist_done ?? 0), 10) || 0,

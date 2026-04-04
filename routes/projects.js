@@ -6,6 +6,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { getDBConnection } from '../config/db.js';
+import { isNoSuchTableError, isBadFieldError } from '../lib/mysqlSchemaErrors.js';
 import { requireAuth, requirePermission } from '../middleware/auth.js';
 import { setLeadPipelineBySlug } from '../lib/pipelineAutomation.js';
 import { uploadProjectPhoto } from '../lib/projectPhotoUpload.js';
@@ -46,6 +47,46 @@ async function columnExists(pool, table, col) {
   return Number(r[0].c) > 0;
 }
 
+async function tableExists(pool, name) {
+  const [rows] = await pool.query('SHOW TABLES LIKE ?', [name]);
+  return Array.isArray(rows) && rows.length > 0;
+}
+
+/** Colunas existentes em `projects` (schema novo ou legado Hostinger). */
+async function projectsColumnSet(pool) {
+  const [rows] = await pool.query(
+    `SELECT COLUMN_NAME AS n FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'projects'`
+  );
+  return new Set((rows || []).map((r) => r.n));
+}
+
+function usersJoinSql(hasCol) {
+  if (hasCol('assigned_to') && hasCol('owner_id')) {
+    return 'LEFT JOIN users u ON COALESCE(p.assigned_to, p.owner_id) = u.id';
+  }
+  if (hasCol('owner_id')) {
+    return 'LEFT JOIN users u ON p.owner_id = u.id';
+  }
+  if (hasCol('assigned_to')) {
+    return 'LEFT JOIN users u ON p.assigned_to = u.id';
+  }
+  return 'LEFT JOIN users u ON 1=0';
+}
+
+async function safeChildQuery(pool, sql, params, fallback = []) {
+  try {
+    const [rows] = await pool.query(sql, params);
+    return rows;
+  } catch (e) {
+    if (isNoSuchTableError(e) || isBadFieldError(e)) {
+      console.warn('[projects] query opcional ignorada:', e.code, e.message);
+      return fallback;
+    }
+    throw e;
+  }
+}
+
 /** Lista com filtros + agregados */
 router.get('/', ...allAuthed, requirePermission('projects.view'), async (req, res) => {
   try {
@@ -62,58 +103,74 @@ router.get('/', ...allAuthed, requirePermission('projects.view'), async (req, re
     const flooring = req.query.flooring_type ? String(req.query.flooring_type) : null;
     const search = req.query.search ? String(req.query.search).trim() : '';
 
-    const hasDeleted = await columnExists(pool, 'projects', 'deleted_at');
+    const [colSet, hasPhotosTbl, hasCheckTbl] = await Promise.all([
+      projectsColumnSet(pool),
+      tableExists(pool, 'project_photos'),
+      tableExists(pool, 'project_checklist'),
+    ]);
+    const hasCol = (c) => colSet.has(c);
+
     const parts = ['1=1'];
     const params = [];
-    if (hasDeleted) parts.push('(p.deleted_at IS NULL)');
+    if (hasCol('deleted_at')) parts.push('(p.deleted_at IS NULL)');
     if (status) {
       parts.push('p.status = ?');
       params.push(status);
     }
-    if (clientType) {
+    if (clientType && hasCol('client_type')) {
       parts.push('p.client_type = ?');
       params.push(clientType);
     }
-    if (builderId) {
+    if (builderId && hasCol('builder_id')) {
       parts.push('p.builder_id = ?');
       params.push(builderId);
     }
-    if (crewId) {
+    if (crewId && hasCol('crew_id')) {
       parts.push('p.crew_id = ?');
       params.push(crewId);
     }
-    if (flooring) {
+    if (flooring && hasCol('flooring_type')) {
       parts.push('p.flooring_type = ?');
       params.push(flooring);
     }
     if (search) {
-      parts.push('(p.name LIKE ? OR IFNULL(p.address,\'\') LIKE ? OR IFNULL(p.builder_name,\'\') LIKE ?)');
       const q = `%${search}%`;
-      params.push(q, q, q);
+      if (hasCol('builder_name')) {
+        parts.push('(p.name LIKE ? OR IFNULL(p.address,\'\') LIKE ? OR IFNULL(p.builder_name,\'\') LIKE ?)');
+        params.push(q, q, q);
+      } else {
+        parts.push('(p.name LIKE ? OR IFNULL(p.address,\'\') LIKE ?)');
+        params.push(q, q);
+      }
     }
     const where = parts.join(' AND ');
 
+    const photosSel = hasPhotosTbl
+      ? '(SELECT COUNT(*) FROM project_photos pp WHERE pp.project_id = p.id)'
+      : '0';
+    const chkTotalSel = hasCheckTbl
+      ? '(SELECT COUNT(*) FROM project_checklist pc WHERE pc.project_id = p.id)'
+      : '0';
+    const chkDoneSel = hasCheckTbl
+      ? `(SELECT COALESCE(SUM(CASE WHEN pc.checked = 1 THEN 1 ELSE 0 END), 0) FROM project_checklist pc WHERE pc.project_id = p.id)`
+      : '0';
+
+    const uJoin = usersJoinSql(hasCol);
     const sqlList = `
       SELECT p.*,
         u.name AS assigned_to_name,
         c.name AS customer_name,
-        (SELECT COUNT(*) FROM project_photos pp WHERE pp.project_id = p.id) AS photos_count,
-        (SELECT COUNT(*) FROM project_checklist pc WHERE pc.project_id = p.id) AS checklist_total,
-        (SELECT COALESCE(SUM(CASE WHEN pc.checked = 1 THEN 1 ELSE 0 END), 0) FROM project_checklist pc WHERE pc.project_id = p.id) AS checklist_done
+        ${photosSel} AS photos_count,
+        ${chkTotalSel} AS checklist_total,
+        ${chkDoneSel} AS checklist_done
       FROM projects p
-      LEFT JOIN users u ON COALESCE(p.assigned_to, p.owner_id) = u.id
+      ${uJoin}
       LEFT JOIN customers c ON p.customer_id = c.id
-      LEFT JOIN leads l ON p.lead_id = l.id
-      LEFT JOIN estimates e ON e.id = p.estimate_id
       WHERE ${where}
       ORDER BY p.created_at DESC
       LIMIT ? OFFSET ?`;
 
-    const sqlCount = `
-      SELECT COUNT(*) AS total
-      FROM projects p
-      LEFT JOIN leads l ON p.lead_id = l.id
-      WHERE ${where}`;
+    const sqlCount = `SELECT COUNT(*) AS total FROM projects p WHERE ${where}`;
 
     const [[rows], [cntRows]] = await Promise.all([
       pool.query(sqlList, [...params, limit, offset]),
@@ -141,48 +198,68 @@ router.get('/stats/overview', ...allAuthed, requirePermission('projects.view'), 
     const y = ym.getFullYear();
     const m = ym.getMonth() + 1;
 
-    const [
-      [activeRows],
-      [completedMonth],
-      [revMargin],
-      [sqftVar],
-      [byStatus],
-      [byFloor],
-    ] = await Promise.all([
-      pool.query(
-        `SELECT COUNT(*) AS c FROM projects WHERE ${delClause} status IN ('scheduled','in_progress','on_hold')`
-      ),
-      pool.query(
-        `SELECT COUNT(*) AS c FROM projects WHERE ${delClause} status = 'completed'
+    let activeRows;
+    let completedMonth;
+    let revMargin;
+    let sqftVar;
+    let byStatus;
+    let byFloor;
+    try {
+      [
+        [activeRows],
+        [completedMonth],
+        [revMargin],
+        [sqftVar],
+        [byStatus],
+        [byFloor],
+      ] = await Promise.all([
+        pool.query(
+          `SELECT COUNT(*) AS c FROM projects WHERE ${delClause} status IN ('scheduled','in_progress','on_hold','quoted')`
+        ),
+        pool.query(
+          `SELECT COUNT(*) AS c FROM projects WHERE ${delClause} status = 'completed'
          AND YEAR(COALESCE(end_date_actual, updated_at)) = ? AND MONTH(COALESCE(end_date_actual, updated_at)) = ?`,
-        [y, m]
-      ),
-      pool.query(
-        `SELECT
+          [y, m]
+        ),
+        pool.query(
+          `SELECT
            COALESCE(SUM(contract_value), 0) AS revenue,
            AVG(CASE WHEN contract_value > 0 THEN (contract_value - (COALESCE(labor_cost_actual,0)+COALESCE(material_cost_actual,0)+COALESCE(additional_cost_actual,0))) / contract_value * 100 END) AS avg_margin
          FROM projects WHERE ${delClause} status = 'completed'
          AND YEAR(COALESCE(end_date_actual, updated_at)) = ? AND MONTH(COALESCE(end_date_actual, updated_at)) = ?`,
-        [y, m]
-      ),
-      pool.query(
-        `SELECT
+          [y, m]
+        ),
+        pool.query(
+          `SELECT
            COALESCE(SUM(total_sqft), 0) AS sqft,
            AVG(CASE WHEN days_estimated IS NOT NULL AND days_estimated > 0 AND days_actual IS NOT NULL
                THEN (days_actual - days_estimated) END) AS avg_var
          FROM projects WHERE ${delClause} status = 'completed'
          AND YEAR(COALESCE(end_date_actual, updated_at)) = ? AND MONTH(COALESCE(end_date_actual, updated_at)) = ?`,
-        [y, m]
-      ),
-      pool.query(
-        `SELECT status, COUNT(*) AS c FROM projects WHERE ${delClause} 1=1 GROUP BY status`
-      ),
-      pool.query(
-        `SELECT flooring_type AS type, COUNT(*) AS count, COALESCE(SUM(total_sqft), 0) AS sqft
+          [y, m]
+        ),
+        pool.query(`SELECT status, COUNT(*) AS c FROM projects WHERE ${delClause} 1=1 GROUP BY status`),
+        pool.query(
+          `SELECT flooring_type AS type, COUNT(*) AS count, COALESCE(SUM(total_sqft), 0) AS sqft
          FROM projects WHERE ${delClause} flooring_type IS NOT NULL AND TRIM(flooring_type) <> ''
          GROUP BY flooring_type`
-      ),
-    ]);
+        ),
+      ]);
+    } catch (inner) {
+      console.warn('projects stats/overview fallback (schema legado):', inner.message);
+      const [[a], [b]] = await Promise.all([
+        pool.query(
+          `SELECT COUNT(*) AS c FROM projects WHERE ${delClause} status IN ('scheduled','in_progress','on_hold','quoted')`
+        ),
+        pool.query(`SELECT status, COUNT(*) AS c FROM projects WHERE ${delClause} 1=1 GROUP BY status`),
+      ]);
+      activeRows = a;
+      completedMonth = [{ c: 0 }];
+      revMargin = [{ revenue: 0, avg_margin: null }];
+      sqftVar = [{ sqft: 0, avg_var: null }];
+      byStatus = b;
+      byFloor = [];
+    }
 
     const by_status = {};
     for (const r of byStatus) {
@@ -900,40 +977,51 @@ router.get('/:id', ...allAuthed, requirePermission('projects.view'), async (req,
     const id = parseInt(req.params.id, 10);
     if (!id) return res.status(400).json({ success: false, error: 'Invalid id' });
 
-    const [
-      [proj],
-      [costs],
-      [materials],
-      [checklist],
-      [photos],
-      [lead],
-      [customer],
-    ] = await Promise.all([
-      pool.query(
+    const colSet = await projectsColumnSet(pool);
+    const hasCol = (c) => colSet.has(c);
+    const uJoin = usersJoinSql(hasCol);
+
+    let proj;
+    try {
+      const [rows] = await pool.query(
         `SELECT p.*, u.name AS assigned_to_name,
           c.name AS customer_name, c.email AS customer_email, c.phone AS customer_phone
          FROM projects p
-         LEFT JOIN users u ON COALESCE(p.assigned_to, p.owner_id) = u.id
+         ${uJoin}
          LEFT JOIN customers c ON p.customer_id = c.id
          WHERE p.id = ?`,
         [id]
-      ),
-      pool.query('SELECT * FROM project_costs WHERE project_id = ? ORDER BY id', [id]),
-      pool.query('SELECT * FROM project_materials WHERE project_id = ? ORDER BY id', [id]),
-      pool.query('SELECT * FROM project_checklist WHERE project_id = ? ORDER BY category, id', [id]),
-      pool.query(
+      );
+      proj = rows;
+    } catch (e) {
+      if (isBadFieldError(e)) {
+        const [rows] = await pool.query('SELECT p.* FROM projects p WHERE p.id = ?', [id]);
+        proj = rows;
+      } else {
+        throw e;
+      }
+    }
+
+    const [costs, materials, checklist, photos, lead, customer] = await Promise.all([
+      safeChildQuery(pool, 'SELECT * FROM project_costs WHERE project_id = ? ORDER BY id', [id]),
+      safeChildQuery(pool, 'SELECT * FROM project_materials WHERE project_id = ? ORDER BY id', [id]),
+      safeChildQuery(pool, 'SELECT * FROM project_checklist WHERE project_id = ? ORDER BY category, id', [id]),
+      safeChildQuery(
+        pool,
         `SELECT id, project_id, phase, filename, original_name, file_path, file_size, mime_type, caption, taken_at, uploaded_by, created_at
          FROM project_photos WHERE project_id = ? ORDER BY id`,
         [id]
       ),
-      pool.query(
+      safeChildQuery(
+        pool,
         `SELECT l.*, ps.slug AS pipeline_stage_slug
          FROM projects p LEFT JOIN leads l ON p.lead_id = l.id
          LEFT JOIN pipeline_stages ps ON l.pipeline_stage_id = ps.id
          WHERE p.id = ?`,
         [id]
       ),
-      pool.query(
+      safeChildQuery(
+        pool,
         `SELECT c.* FROM projects p LEFT JOIN customers c ON p.customer_id = c.id WHERE p.id = ?`,
         [id]
       ),
@@ -943,16 +1031,16 @@ router.get('/:id', ...allAuthed, requirePermission('projects.view'), async (req,
     const p = proj[0];
 
     let estRows = [];
-    if (p.estimate_id != null) {
+    if (hasCol('estimate_id') && p.estimate_id != null) {
       const [byId] = await pool.query('SELECT e.* FROM estimates e WHERE e.id = ? LIMIT 1', [p.estimate_id]);
       estRows = byId || [];
     }
     if (!estRows.length) {
-      const [byProj] = await pool.query(
+      estRows = await safeChildQuery(
+        pool,
         'SELECT e.* FROM estimates e WHERE e.project_id = ? ORDER BY e.id DESC LIMIT 1',
         [id]
       );
-      estRows = byProj || [];
     }
 
     const photoMeta = photos.map((ph) => ({
