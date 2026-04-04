@@ -4,6 +4,7 @@
 import { Router } from 'express';
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import { getDBConnection } from '../config/db.js';
 import { requireAuth, requirePermission } from '../middleware/auth.js';
 import { setLeadPipelineBySlug } from '../lib/pipelineAutomation.js';
