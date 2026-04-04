@@ -1319,7 +1319,27 @@ function renderDashboardStats() {
     if (row2) {
         const lv = Math.min(100, Math.max(0, parseFloat(conv.lead_to_visit_rate) || 0));
         const pw = Math.min(100, Math.max(0, parseFloat(conv.proposal_win_rate) || 0));
+        const fPending = Number(pl.followups_pending) || 0;
+        const fOverdue = Number(pl.followups_overdue) || 0;
+        const fDueToday = Number(pl.followups_due_today) || 0;
+        const fuBadge =
+            fOverdue > 0
+                ? `${fOverdue} atrasado(s)`
+                : fDueToday > 0
+                  ? `${fDueToday} hoje`
+                  : 'pendentes';
+        const fuCardClass = fOverdue > 0 ? 'sf-card sf-warn' : 'sf-card';
         row2.innerHTML = `
+            <div class="${fuCardClass} sf-card--clickable" role="button" tabindex="0" title="Abrir CRM" onclick="showPage('crm')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();showPage('crm');}">
+                <div class="sf-card__head">
+                    <div class="sf-card-ic" aria-hidden="true"><span class="sf-card-ic-emoji">📌</span></div>
+                    <span class="sf-card-badge">${escapeHtmlCrm(fuBadge)}</span>
+                </div>
+                <div class="sf-card-val">${fPending}</div>
+                <div class="sf-card-lbl">Follow-ups</div>
+                <div class="sf-card-sub">Tarefas abertas com lead · clique para o pipeline</div>
+                <div class="sf-card-prog"><div class="sf-card-pf" style="width:${dashKpiProgPct(fPending, 25)}%"></div></div>
+            </div>
             <div class="sf-card">
                 <div class="sf-card__head">
                     <div class="sf-card-ic" aria-hidden="true"><span class="sf-card-ic-emoji">📈</span></div>
@@ -1501,7 +1521,14 @@ function renderSfMobileDashboardBlocks() {
     const closedVal = formatDashboardCompact(pl.closed_won_value);
     const kpiGrid = document.getElementById('sfMobileKpiGrid');
     if (kpiGrid) {
+        const mFu = Number(pl.followups_pending) || 0;
+        const mFuOd = Number(pl.followups_overdue) || 0;
         kpiGrid.innerHTML = `
+            <div class="sf-kpi-card touchable" onclick="showPage('crm')">
+                <div class="sf-kpi-card__value">${mFu}</div>
+                <div class="sf-kpi-card__label">Follow-ups</div>
+                <div class="sf-kpi-card__meta">${mFuOd > 0 ? mFuOd + ' atras.' : 'abertos'}</div>
+            </div>
             <div class="sf-kpi-card touchable">
                 <div class="sf-kpi-card__value">${pl.leads_received}</div>
                 <div class="sf-kpi-card__label">Leads (período)</div>

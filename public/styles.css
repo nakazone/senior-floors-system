@@ -2486,6 +2486,13 @@ input.score-auto {
 .sf-card.sf-gold::before {
     background: var(--sf-gold3, #c9a882);
 }
+.sf-card--clickable {
+    cursor: pointer;
+}
+.sf-card--clickable:focus-visible {
+    outline: 2px solid var(--sf-gold3, #c9a882);
+    outline-offset: 2px;
+}
 
 /* Dashboard: grid de gráficos (donuts + cards) */
 .dash-charts-section {
@@ -2881,6 +2888,9 @@ input.score-auto {
 .sf-dash-kpi-row--4 {
     grid-template-columns: repeat(4, minmax(0, 1fr));
 }
+.sf-dash-kpi-row--5 {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+}
 .sf-dash-kpi-row--7 {
     grid-template-columns: repeat(7, minmax(0, 1fr));
 }
@@ -2896,6 +2906,9 @@ input.score-auto {
     .sf-dash-kpi-row--4 {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
+    .sf-dash-kpi-row--5 {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
     .sf-dash-kpi-row--7 {
         grid-template-columns: repeat(3, minmax(0, 1fr));
     }
@@ -2903,6 +2916,7 @@ input.score-auto {
 @media (max-width: 640px) {
     .sf-dash-kpi-row,
     .sf-dash-kpi-row--4,
+    .sf-dash-kpi-row--5,
     .sf-dash-kpi-row--7 {
         grid-template-columns: 1fr;
     }

@@ -64,6 +64,41 @@ function firstRow(rows) {
   return rows[0];
 }
 
+/** Follow-ups em `tasks` com lead (schema novo: due_date/status; legado: due_at/completed_at). */
+async function queryFollowupKpis(pool) {
+  const fallback = { pending: 0, overdue: 0, due_today: 0 };
+  try {
+    const [colRows] = await pool.query(
+      `SELECT COLUMN_NAME AS n FROM information_schema.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tasks'`
+    );
+    const cols = new Set((colRows || []).map((r) => r.n));
+    if (!cols.has('lead_id')) return fallback;
+    const dueCol = cols.has('due_date') ? 't.due_date' : cols.has('due_at') ? 't.due_at' : null;
+    if (!dueCol) return fallback;
+    const openCond = cols.has('status')
+      ? `LOWER(TRIM(COALESCE(t.status,''))) IN ('pending','in_progress')`
+      : 't.completed_at IS NULL';
+    const sql = `SELECT
+      COUNT(*) AS pending,
+      COALESCE(SUM(CASE WHEN ${dueCol} < NOW() THEN 1 ELSE 0 END), 0) AS overdue,
+      COALESCE(SUM(CASE WHEN DATE(${dueCol}) = CURDATE() THEN 1 ELSE 0 END), 0) AS due_today
+     FROM tasks t
+     WHERE t.lead_id IS NOT NULL AND (${openCond})`;
+    const [rows] = await pool.query(sql);
+    const r = rows[0] || {};
+    return {
+      pending: Number(r.pending) || 0,
+      overdue: Number(r.overdue) || 0,
+      due_today: Number(r.due_today) || 0,
+    };
+  } catch (e) {
+    if (isNoSuchTableError(e)) return fallback;
+    console.warn('[dashboard] followup kpis:', e.message);
+    return fallback;
+  }
+}
+
 /** Ordem canónica dos slugs (alinhada ao pipeline_stages típico). */
 const FUNNEL_STAGE_ORDER = [
   'lead_received',
@@ -327,6 +362,7 @@ export async function getDashboardStats(req, res) {
       monthlyRevenueRows,
       revenueByServiceData,
       leadsTrendRows,
+      followupKpis,
     ] = await Promise.all([
       safeQuery(
         pool,
@@ -718,6 +754,7 @@ export async function getDashboardStats(req, res) {
          ORDER BY day_key ASC`,
         []
       ),
+      queryFollowupKpis(pool),
     ]);
 
     const lr = Number(firstRow(leadsReceived).c) || 0;
@@ -735,6 +772,10 @@ export async function getDashboardStats(req, res) {
     const cwv = toFiniteNumber(firstRow(closedWonValue).s);
     const clc = Number(firstRow(closedLost).c) || 0;
     const iprod = Number(firstRow(inProduction).c) || 0;
+
+    const fPending = followupKpis?.pending ?? 0;
+    const fOverdue = followupKpis?.overdue ?? 0;
+    const fDueToday = followupKpis?.due_today ?? 0;
 
     const denomL = Number(firstRow(convLeadsTotal).c) || 0;
     const numLV = Number(firstRow(convLeadsReachedVisit).c) || 0;
@@ -881,6 +922,9 @@ export async function getDashboardStats(req, res) {
         closed_won_value: Math.round(cwv * 100) / 100,
         closed_lost_count: clc,
         in_production: iprod,
+        followups_pending: fPending,
+        followups_overdue: fOverdue,
+        followups_due_today: fDueToday,
       },
       conversion: {
         lead_to_visit_rate: leadToVisit,
