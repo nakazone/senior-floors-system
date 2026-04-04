@@ -5,6 +5,7 @@ import { getDBConnection, isDatabaseConfigured } from '../config/db.js';
 import { getLeadsTableColumns } from '../lib/leadColumns.js';
 import { extractMarketingFromBody, MARKETING_KEYS } from '../lib/marketingLeadFields.js';
 import { ensureClientFromLead } from '../modules/clients/leadToClient.js';
+import { ensureProjectFromWonLead } from '../modules/projects/fromWonLead.js';
 
 export async function listLeads(req, res) {
   if (!isDatabaseConfigured()) return res.status(503).json({ success: false, error: 'Database not configured' });
@@ -353,7 +354,28 @@ export async function updateLead(req, res) {
       console.error('ensureClientFromLead:', convErr);
     }
 
-    return res.json({ success: true, data: rows[0], client_conversion });
+    let project_auto = null;
+    try {
+      const pr = await ensureProjectFromWonLead(
+        pool,
+        id,
+        req.session?.userId != null ? parseInt(String(req.session.userId), 10) || null : null
+      );
+      if (pr && pr.reason !== 'not_won') {
+        project_auto = {
+          ok: !!pr.ok,
+          skipped: !!pr.skipped,
+          created: !!pr.created,
+          reason: pr.reason || null,
+          project_id: pr.project_id ?? null,
+          error: pr.error || null,
+        };
+      }
+    } catch (projErr) {
+      console.error('ensureProjectFromWonLead:', projErr);
+    }
+
+    return res.json({ success: true, data: rows[0], client_conversion, project_auto });
   } catch (e) {
     console.error('Update lead error:', e);
     return res.status(500).json({ success: false, error: e.message });

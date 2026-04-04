@@ -11,6 +11,15 @@ export function moneyRound(n, d = 2) {
   return Math.round(x * p) / p;
 }
 
+/** Colunas atuais da tabela `projects` (schema novo ou legado). */
+export async function getProjectsTableColumnSet(pool) {
+  const [rows] = await pool.query(
+    `SELECT COLUMN_NAME AS n FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'projects'`
+  );
+  return new Set((rows || []).map((r) => r.n));
+}
+
 /**
  * @param {import('mysql2/promise').Pool} pool
  * @param {number} projectId
