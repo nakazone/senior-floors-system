@@ -2,7 +2,7 @@
  * Quando um orçamento fica aprovado/aceite, garante um registo em `projects` e liga `quotes.project_id`.
  */
 import { ensureClientFromLead } from '../clients/leadToClient.js';
-import { nextProjectNumber } from '../projects/projectHelpers.js';
+import { nextProjectNumber, getProjectsTableColumnSet } from '../projects/projectHelpers.js';
 
 const APPROVED = new Set(['approved', 'accepted']);
 
@@ -99,24 +99,35 @@ export async function ensureProjectForApprovedQuote(pool, quoteId) {
       }
     }
 
+    const pcols = await getProjectsTableColumnSet(conn);
     const pn = await nextProjectNumber(conn);
     const contractVal = estimated != null && Number.isFinite(estimated) ? estimated : 0;
     const oid = ownerId && ownerId > 0 ? ownerId : null;
+    const fields = [];
+    const insVals = [];
+    const addI = (col, val) => {
+      if (!pcols.has(col)) return;
+      fields.push(`\`${col}\``);
+      insVals.push(val);
+    };
+    addI('customer_id', customerId);
+    addI('lead_id', leadIdIns && leadIdIns > 0 ? leadIdIns : null);
+    addI('name', name.slice(0, 255));
+    if (pn) addI('project_number', pn);
+    if (pcols.has('project_type')) addI('project_type', 'installation');
+    if (pcols.has('status')) addI('status', 'scheduled');
+    if (pcols.has('contract_value')) addI('contract_value', contractVal);
+    else if (pcols.has('estimated_cost')) addI('estimated_cost', contractVal);
+    addI('assigned_to', oid);
+    addI('owner_id', oid);
+    addI('notes', notes);
+    if (fields.length < 3) {
+      await conn.rollback();
+      return { ok: false, reason: 'projects_schema_incompatible' };
+    }
     const [ins] = await conn.execute(
-      `INSERT INTO projects (
-        customer_id, lead_id, name, project_number, project_type, status,
-        contract_value, assigned_to, owner_id, notes
-      ) VALUES (?, ?, ?, ?, 'installation', 'scheduled', ?, ?, ?, ?)`,
-      [
-        customerId,
-        leadIdIns && leadIdIns > 0 ? leadIdIns : null,
-        name.slice(0, 255),
-        pn,
-        contractVal,
-        oid,
-        oid,
-        notes,
-      ]
+      `INSERT INTO projects (${fields.join(', ')}) VALUES (${fields.map(() => '?').join(', ')})`,
+      insVals
     );
     const newProjectId = ins.insertId;
     await conn.execute('UPDATE quotes SET project_id = ? WHERE id = ?', [newProjectId, id]);

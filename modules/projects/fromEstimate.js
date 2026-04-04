@@ -1,6 +1,11 @@
 import { setLeadPipelineBySlug } from '../../lib/pipelineAutomation.js';
 import { ensureClientFromLead } from '../clients/leadToClient.js';
-import { nextProjectNumber, seedChecklistIfEmpty, moneyRound, money } from './projectHelpers.js';
+import {
+  nextProjectNumber,
+  seedChecklistIfEmpty,
+  money,
+  getProjectsTableColumnSet,
+} from './projectHelpers.js';
 
 /**
  * Quando um estimate é aceite: cria projeto se necessário ou sincroniza o existente.
@@ -82,25 +87,33 @@ export async function createOrSyncProjectFromAcceptedEstimate(pool, estimateId, 
     const floorLabel = (flooringType || 'Piso').toString();
     const name = `${leadName} - ${floorLabel} - ${addr}`.slice(0, 255);
     const finalPrice = money(est.final_price);
+    const pcols = await getProjectsTableColumnSet(pool);
     const pn = await nextProjectNumber(pool);
-
+    const fields = [];
+    const insVals = [];
+    const addI = (col, val) => {
+      if (!pcols.has(col)) return;
+      fields.push(`\`${col}\``);
+      insVals.push(val);
+    };
+    addI('customer_id', customerId);
+    addI('lead_id', leadId);
+    addI('estimate_id', eid);
+    addI('name', name);
+    if (pn) addI('project_number', pn);
+    addI('address', String(est.lead_address || '').trim() || null);
+    addI('flooring_type', flooringType);
+    addI('total_sqft', totalSqft);
+    if (pcols.has('contract_value')) addI('contract_value', finalPrice);
+    else if (pcols.has('estimated_cost')) addI('estimated_cost', finalPrice);
+    if (pcols.has('status')) addI('status', 'scheduled');
+    addI('created_by', userId || null);
+    if (fields.length < 3) {
+      return { ok: false, error: 'projects_schema_incompatible' };
+    }
     const [ins] = await pool.execute(
-      `INSERT INTO projects (
-        customer_id, lead_id, estimate_id, name, project_number, address,
-        flooring_type, total_sqft, contract_value, status, created_by
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'scheduled', ?)`,
-      [
-        customerId,
-        leadId,
-        eid,
-        name,
-        pn,
-        String(est.lead_address || '').trim() || null,
-        flooringType,
-        totalSqft,
-        finalPrice,
-        userId || null,
-      ]
+      `INSERT INTO projects (${fields.join(', ')}) VALUES (${fields.map(() => '?').join(', ')})`,
+      insVals
     );
     projectId = ins.insertId;
     await pool.execute('UPDATE estimates SET project_id = ? WHERE id = ?', [projectId, eid]);
@@ -148,19 +161,43 @@ export async function createOrSyncProjectFromAcceptedEstimate(pool, estimateId, 
 
   const name = `${leadName} - ${floorLabel} - ${addr}`.slice(0, 255);
   const finalPrice = money(est.final_price);
+  const ucols = await getProjectsTableColumnSet(pool);
   const pn = await nextProjectNumber(pool);
-
-  await pool.execute(
-    `UPDATE projects SET
-      estimate_id = ?,
-      contract_value = ?,
-      total_sqft = COALESCE(?, total_sqft),
-      flooring_type = COALESCE(?, flooring_type),
-      name = ?,
-      project_number = IF(project_number IS NULL OR TRIM(project_number) = '', ?, project_number)
-     WHERE id = ?`,
-    [eid, finalPrice, totalSqft, flooringType, name, pn, projectId]
-  );
+  const sets = [];
+  const uvals = [];
+  if (ucols.has('estimate_id')) {
+    sets.push('estimate_id = ?');
+    uvals.push(eid);
+  }
+  if (ucols.has('contract_value')) {
+    sets.push('contract_value = ?');
+    uvals.push(finalPrice);
+  } else if (ucols.has('estimated_cost')) {
+    sets.push('estimated_cost = ?');
+    uvals.push(finalPrice);
+  }
+  if (ucols.has('total_sqft')) {
+    sets.push('total_sqft = COALESCE(?, total_sqft)');
+    uvals.push(totalSqft);
+  }
+  if (ucols.has('flooring_type')) {
+    sets.push('flooring_type = COALESCE(?, flooring_type)');
+    uvals.push(flooringType);
+  }
+  if (ucols.has('name')) {
+    sets.push('name = ?');
+    uvals.push(name);
+  }
+  if (pn && ucols.has('project_number')) {
+    sets.push(
+      'project_number = IF(project_number IS NULL OR TRIM(COALESCE(project_number,\'\')) = \'\', ?, project_number)'
+    );
+    uvals.push(pn);
+  }
+  if (sets.length) {
+    uvals.push(projectId);
+    await pool.execute(`UPDATE projects SET ${sets.join(', ')} WHERE id = ?`, uvals);
+  }
 
   if (userId) {
     await pool.execute('UPDATE projects SET created_by = COALESCE(created_by, ?) WHERE id = ?', [

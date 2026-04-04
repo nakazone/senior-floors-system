@@ -19,6 +19,7 @@ import {
   mapListProjectRow,
   money,
   moneyRound,
+  getProjectsTableColumnSet,
 } from '../modules/projects/projectHelpers.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -417,40 +418,46 @@ router.post('/', ...allAuthed, requirePermission('projects.create'), async (req,
       endEst = d.toISOString().slice(0, 10);
     }
 
+    const pcols = await getProjectsTableColumnSet(pool);
+    const rowMap = {
+      customer_id: customerId,
+      lead_id: leadId || null,
+      estimate_id: b.estimate_id != null ? parseInt(String(b.estimate_id), 10) || null : null,
+      name: name.slice(0, 255),
+      project_number: pn,
+      client_type: b.client_type === 'builder' ? 'builder' : 'customer',
+      builder_id: b.builder_id != null ? parseInt(String(b.builder_id), 10) || null : null,
+      builder_name: b.builder_name != null ? String(b.builder_name).slice(0, 255) : null,
+      flooring_type: b.flooring_type != null ? String(b.flooring_type).slice(0, 100) : null,
+      total_sqft: b.total_sqft != null ? money(b.total_sqft) : null,
+      service_type: serviceType,
+      contract_value: b.contract_value != null ? money(b.contract_value) : 0,
+      supply_value: b.supply_value != null ? money(b.supply_value) : 0,
+      installation_value: b.installation_value != null ? money(b.installation_value) : 0,
+      sand_finish_value: b.sand_finish_value != null ? money(b.sand_finish_value) : 0,
+      start_date: start,
+      end_date_estimated: endEst,
+      days_estimated: daysEst,
+      crew_id: b.crew_id != null ? parseInt(String(b.crew_id), 10) || null : null,
+      assigned_to: b.assigned_to != null ? parseInt(String(b.assigned_to), 10) || null : null,
+      status: 'scheduled',
+      created_by: uid,
+      notes: b.notes != null ? String(b.notes) : null,
+    };
+    const fields = [];
+    const insVals = [];
+    for (const [col, val] of Object.entries(rowMap)) {
+      if (!pcols.has(col)) continue;
+      if (col === 'project_number' && (val == null || val === '')) continue;
+      fields.push(`\`${col}\``);
+      insVals.push(val);
+    }
+    if (fields.length < 3) {
+      return res.status(500).json({ success: false, error: 'Tabela projects incompatível com esta versão da API' });
+    }
     const [ins] = await pool.execute(
-      `INSERT INTO projects (
-        customer_id, lead_id, estimate_id, name, project_number,
-        client_type, builder_id, builder_name,
-        flooring_type, total_sqft, service_type,
-        contract_value, supply_value, installation_value, sand_finish_value,
-        start_date, end_date_estimated, days_estimated,
-        crew_id, assigned_to, status, created_by, notes
-      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [
-        customerId,
-        leadId || null,
-        b.estimate_id != null ? parseInt(String(b.estimate_id), 10) || null : null,
-        name.slice(0, 255),
-        pn,
-        b.client_type === 'builder' ? 'builder' : 'customer',
-        b.builder_id != null ? parseInt(String(b.builder_id), 10) || null : null,
-        b.builder_name != null ? String(b.builder_name).slice(0, 255) : null,
-        b.flooring_type != null ? String(b.flooring_type).slice(0, 100) : null,
-        b.total_sqft != null ? money(b.total_sqft) : null,
-        serviceType,
-        b.contract_value != null ? money(b.contract_value) : 0,
-        b.supply_value != null ? money(b.supply_value) : 0,
-        b.installation_value != null ? money(b.installation_value) : 0,
-        b.sand_finish_value != null ? money(b.sand_finish_value) : 0,
-        start,
-        endEst,
-        daysEst,
-        b.crew_id != null ? parseInt(String(b.crew_id), 10) || null : null,
-        b.assigned_to != null ? parseInt(String(b.assigned_to), 10) || null : null,
-        'scheduled',
-        uid,
-        b.notes != null ? String(b.notes) : null,
-      ]
+      `INSERT INTO projects (${fields.join(', ')}) VALUES (${fields.map(() => '?').join(', ')})`,
+      insVals
     );
 
     const projectId = ins.insertId;

@@ -38,9 +38,13 @@ export async function recalcProjectActualCosts(pool, projectId) {
 }
 
 /**
+ * Gera PRJ-YYYY-NNN se existir coluna `project_number`; caso contrário devolve `null` (schemas legados).
  * @param {import('mysql2/promise').Pool} pool
+ * @returns {Promise<string|null>}
  */
 export async function nextProjectNumber(pool) {
+  const cols = await getProjectsTableColumnSet(pool);
+  if (!cols.has('project_number')) return null;
   const year = new Date().getFullYear();
   const prefix = `PRJ-${year}-`;
   const [rows] = await pool.query(
