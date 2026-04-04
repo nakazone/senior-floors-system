@@ -1271,7 +1271,7 @@ function renderDashboardStats() {
                 </div>
                 <div class="sf-card-val">${pl.visits_completed}</div>
                 <div class="sf-card-lbl">Visitas realizadas</div>
-                <div class="sf-card-sub">Status concluída · data de realização</div>
+                <div class="sf-card-sub">Status concluída · por data de atualização</div>
                 <div class="sf-card-prog"><div class="sf-card-pf" style="width:${dashKpiProgPct(pl.visits_completed, 20)}%"></div></div>
             </div>
             <div class="sf-card">
