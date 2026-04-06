@@ -222,6 +222,33 @@ export function getMysqlConnectionConfig() {
     cfg = mysqlPluginConfigFromEnv();
   }
   if (!cfg) return null;
+
+  /*
+   * .env local copiado do Railway: MYSQLHOST / DB_HOST = *.railway.internal não resolve no DNS do Mac/PC.
+   * No painel do MySQL, a Railway expõe DATABASE_PUBLIC_URL (ou MYSQL_PUBLIC_URL) — usar para scripts locais.
+   */
+  if (isRailwayInternalHost(cfg.host) && !isLikelyRailwayAppContainer()) {
+    const rawPublicUrl =
+      process.env.DATABASE_PUBLIC_URL?.trim() ||
+      process.env.MYSQL_PUBLIC_URL?.trim();
+    const pubParsed = rawPublicUrl ? parseDatabaseUrl(rawPublicUrl) : null;
+    if (
+      pubParsed &&
+      pubParsed.user &&
+      pubParsed.database &&
+      !isRailwayInternalHost(pubParsed.host) &&
+      !isLocalMysqlHost(pubParsed.host)
+    ) {
+      cfg = {
+        ...pubParsed,
+        password:
+          pubParsed.password !== undefined && pubParsed.password !== ''
+            ? pubParsed.password
+            : cfg.password,
+      };
+    }
+  }
+
   let h = (cfg.host || '').trim();
   if (h === 'localhost' || h === '::1') cfg = { ...cfg, host: '127.0.0.1' };
 

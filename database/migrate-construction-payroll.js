@@ -111,5 +111,20 @@ async function main() {
 
 main().catch((e) => {
   console.error(e);
+  const msg = String(e?.message || e || '');
+  if (e?.code === 'ENOTFOUND' && (msg.includes('railway.internal') || /\.railway\.internal/i.test(msg))) {
+    console.error(`
+→ Host *.railway.internal só resolve dentro da rede Railway (não no seu computador).
+
+  Opção 1 — correr a migração no ambiente Railway (recomendado):
+     cd senior-floors-system && railway run npm run migrate:construction-payroll
+
+  Opção 2 — ligar a partir do Mac: no .env, acrescente DATABASE_PUBLIC_URL
+     (copie do serviço MySQL no Railway → Variables; é a URL pública/TCP).
+     Mantenha MYSQLUSER / MYSQLPASSWORD / MYSQLDATABASE coerentes com essa URL.
+
+  Opção 3 — TCP Proxy: veja database/RAILWAY_TCP_PROXY.md (RAILWAY_TCP_PROXY_DOMAIN + PORT).
+`);
+  }
   process.exit(1);
 });
