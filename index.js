@@ -592,7 +592,9 @@ app.use((err, req, res, next) => {
         : 'Erro interno do servidor',
       ...(infraDb
         ? {
-            hint: 'Railway: serviço Node → DATABASE_URL ligado ao MySQL; GET /api/health/db',
+            hint:
+              'Railway: no serviço Node, ligue o plugin MySQL (Variables → DATABASE_URL) ou MYSQLHOST/MYSQLUSER/MYSQLPASSWORD/MYSQLDATABASE. Remova DB_HOST/DB_* em conflito.',
+            check: '/api/health/db',
           }
         : {}),
     });
