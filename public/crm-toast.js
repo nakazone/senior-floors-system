@@ -53,6 +53,12 @@
     show(message, { type: t });
   }
 
-  window.crmToast = { show, notify };
+  window.crmToast = {
+    show,
+    notify,
+    success: (message) => show(message, { type: 'success' }),
+    error: (message) => show(message, { type: 'error' }),
+    info: (message) => show(message, { type: 'info' }),
+  };
   window.crmNotify = notify;
 })();

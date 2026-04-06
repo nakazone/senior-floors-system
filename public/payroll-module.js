@@ -659,7 +659,7 @@ function collectLinesFromGrid() {
     const regEl = tr.querySelector('.ts-reg');
     const otEl = tr.querySelector('.ts-ot');
     const notesEl = tr.querySelector('.ts-notes');
-    if (!dateEl || !empEl || !daysEl || !regEl || !otEl || !notesEl) return;
+    if (!dateEl || !empEl || !daysEl || !regEl || !otEl) return;
 
     const work_date = formatWorkDateForInput(dateEl.value);
     const employee_id = empEl.value;
@@ -667,7 +667,7 @@ function collectLinesFromGrid() {
     const days_worked = daysEl.value;
     const regular_hours = regEl.value;
     const overtime_hours = otEl.value;
-    const notes = (notesEl.value || '').trim();
+    const notes = (notesEl?.value || '').trim();
     const drRaw = (tr.querySelector('.ts-daily-override')?.value || '').trim();
 
     const lidRaw = tr.dataset.lineId;
@@ -1407,8 +1407,9 @@ document.getElementById('btnAddTimesheetRow')?.addEventListener('click', () => {
   updatePeriodRunningTotalFromDom();
 });
 document.getElementById('btnSaveTimesheet')?.addEventListener('click', async () => {
-  if (!selectedPeriodId) {
-    window.crmToast?.error?.('Escolha um período antes de guardar.');
+  const pid = periodIdNum(selectedPeriodId);
+  if (pid == null) {
+    window.crmToast?.error?.('Escolha um período válido antes de guardar.');
     return;
   }
   if (!canEditTimesheetGrid()) {
@@ -1432,11 +1433,11 @@ document.getElementById('btnSaveTimesheet')?.addEventListener('click', async () 
     return;
   }
   try {
-    const j = await api('POST', `/periods/${selectedPeriodId}/timesheets/bulk`, { lines });
+    const j = await api('POST', `/periods/${pid}/timesheets/bulk`, { lines });
     const saved = Array.isArray(j.data) ? j.data.length : 0;
     if (saved < lines.length) {
-      window.crmToast?.success?.(
-        `Guardado ${saved} de ${lines.length} linha(s). Verifique datas dentro do período e funcionário em cada linha.`
+      window.crmToast?.error?.(
+        `Só ${saved} de ${lines.length} linha(s) foram gravadas. Confirme funcionário, data no período e que não há duplicados (mesmo dia e projeto).`
       );
     } else {
       window.crmToast?.success?.('Quadro guardado');
