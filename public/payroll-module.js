@@ -13,6 +13,18 @@ let employeesById = {};
 let periods = [];
 let projects = [];
 let selectedPeriodId = null;
+/** Última data definida no quadro — novas linhas e cópia para a linha seguinte (mesmo bloco). */
+let lastTimesheetDateYmd = null;
+
+const TIMESHEET_DATA_ROW_SEL = '#timesheetTable tr.payroll-ts-line';
+
+function allTimesheetDataRows() {
+  return document.querySelectorAll(TIMESHEET_DATA_ROW_SEL);
+}
+
+function clearTimesheetDataRows() {
+  allTimesheetDataRows().forEach((tr) => tr.remove());
+}
 
 /** IDs vindos da API podem ser string/número — comparar sempre normalizado */
 function periodIdNum(v) {
@@ -145,16 +157,24 @@ function refreshPeriodActions() {
   const p = selectedPeriodRecord();
   const delBtn = document.getElementById('btnDeletePeriod');
   if (!p) {
-    ['btnPreviewClose', 'btnReopenPeriod', 'btnAddTimesheetRow', 'btnSaveTimesheet'].forEach((id) =>
-      document.getElementById(id)?.classList.add('hidden')
-    );
+    [
+      'btnPreviewClose',
+      'btnReopenPeriod',
+      'btnAddTimesheetRowInstallation',
+      'btnAddTimesheetRowSandFinish',
+      'btnAddTimesheetRowOther',
+      'btnSaveTimesheet',
+    ].forEach((id) => document.getElementById(id)?.classList.add('hidden'));
     delBtn?.classList.add('hidden');
     return;
   }
   const showSave = canEditTimesheetGrid();
   const showAdd = canAddTimesheetRows();
   document.getElementById('btnSaveTimesheet')?.classList.toggle('hidden', !showSave);
-  document.getElementById('btnAddTimesheetRow')?.classList.toggle('hidden', !showAdd);
+  document.getElementById('btnAddTimesheetRowInstallation')?.classList.toggle('hidden', !showAdd);
+  document.getElementById('btnAddTimesheetRowSandFinish')?.classList.toggle('hidden', !showAdd);
+  const showOther = showAdd && employees.some((e) => e.is_active && (!e.sector || String(e.sector).trim() === ''));
+  document.getElementById('btnAddTimesheetRowOther')?.classList.toggle('hidden', !showOther);
   const periodClosed = p.status === 'closed';
   document.getElementById('btnPreviewClose')?.classList.toggle('hidden', !(canManage && !periodClosed));
   document.getElementById('btnReopenPeriod')?.classList.toggle('hidden', !(canManage && periodClosed));
@@ -214,6 +234,7 @@ async function loadEmployees() {
   });
   renderEmployeeTable();
   updateEmployeeEmptyState();
+  refreshPeriodActions();
 }
 
 function updateEmployeeEmptyState() {
@@ -226,7 +247,7 @@ function updateEmployeeEmptyState() {
 function aggregateDaysAndOtByEmployeeFromGrid() {
   const map = new Map();
   if (!selectedPeriodId) return map;
-  document.querySelectorAll('#timesheetBody tr').forEach((tr) => {
+  allTimesheetDataRows().forEach((tr) => {
     const empEl = tr.querySelector('.ts-emp');
     if (!empEl) return;
     const eid = parseInt(empEl.value, 10);
@@ -314,23 +335,100 @@ function escapeHtml(s) {
   return d.innerHTML;
 }
 
-function employeeOptionsHtml(selectedId) {
-  const active = employees.filter((e) => e.is_active);
+/**
+ * @param {number|string|null|undefined} selectedId
+ * @param {'installation'|'sand_finish'|'other'} sectorFilter — restringe ativos ao setor do bloco do quadro
+ */
+function employeeOptionsHtml(selectedId, sectorFilter) {
   const sel = selectedId != null && selectedId !== '' ? String(selectedId) : '';
+  let active = employees.filter((e) => e.is_active);
+  if (sectorFilter === 'installation') active = active.filter((e) => e.sector === 'installation');
+  else if (sectorFilter === 'sand_finish') active = active.filter((e) => e.sector === 'sand_finish');
+  else if (sectorFilter === 'other') active = active.filter((e) => !e.sector || String(e.sector).trim() === '');
+
   const activeIds = new Set(active.map((e) => String(e.id)));
-  let inactiveSelected = null;
-  if (sel && !activeIds.has(sel)) {
-    inactiveSelected = employeesById[sel] || employees.find((e) => String(e.id) === sel) || null;
+  const selectedEmp = sel ? employeesById[sel] || employees.find((e) => String(e.id) === sel) : null;
+  let extra = null;
+  if (sel && !activeIds.has(sel) && selectedEmp) {
+    const wrong =
+      (sectorFilter === 'installation' && selectedEmp.sector !== 'installation') ||
+      (sectorFilter === 'sand_finish' && selectedEmp.sector !== 'sand_finish') ||
+      (sectorFilter === 'other' && selectedEmp.sector && String(selectedEmp.sector).trim() !== '');
+    const tag = wrong ? ' (outro setor)' : !selectedEmp.is_active ? ' (inativo)' : '';
+    extra = `<option value="${selectedEmp.id}" selected>${escapeHtml(selectedEmp.name)}${escapeHtml(tag)}</option>`;
   }
+
   let html =
     '<option value="">—</option>' +
     active
       .map((e) => `<option value="${e.id}"${String(e.id) === sel ? ' selected' : ''}>${escapeHtml(e.name)}</option>`)
       .join('');
-  if (inactiveSelected) {
-    html += `<option value="${inactiveSelected.id}" selected>${escapeHtml(inactiveSelected.name)} (inativo)</option>`;
-  }
+  if (extra) html += extra;
   return html;
+}
+
+function getTimesheetTbody(sectorKey) {
+  if (sectorKey === 'installation') return document.getElementById('timesheetTbodyInstallation');
+  if (sectorKey === 'sand_finish') return document.getElementById('timesheetTbodySandFinish');
+  return document.getElementById('timesheetTbodyOther');
+}
+
+function employeeSectorKeyFromEmpId(empId) {
+  if (!Number.isFinite(empId)) return 'other';
+  const emp = employeesById[empId];
+  if (!emp) return 'other';
+  if (emp.sector === 'installation') return 'installation';
+  if (emp.sector === 'sand_finish') return 'sand_finish';
+  return 'other';
+}
+
+function sectorKeyFromApiTimesheetRow(row) {
+  const es = row?.employee_sector;
+  if (es === 'installation') return 'installation';
+  if (es === 'sand_finish') return 'sand_finish';
+  if (row?.employee_id != null) return employeeSectorKeyFromEmpId(Number(row.employee_id));
+  return 'other';
+}
+
+function lastWorkDateInTbody(tb) {
+  if (!tb) return '';
+  let last = '';
+  tb.querySelectorAll('tr.payroll-ts-line .ts-date').forEach((inp) => {
+    const v = formatWorkDateForInput(inp.value);
+    if (v) last = v;
+  });
+  return last;
+}
+
+function refreshEmployeeSelectForSector(tr, sectorKey) {
+  const sel = tr.querySelector('.ts-emp');
+  if (!sel) return;
+  const cur = sel.value;
+  sel.innerHTML = employeeOptionsHtml(cur ? parseInt(cur, 10) : null, sectorKey);
+  syncDailyOverrideHint(tr);
+  refreshRowAmount(tr);
+}
+
+function relocateTimesheetRowForEmployee(tr) {
+  const empId = parseInt(tr.querySelector('.ts-emp')?.value, 10);
+  const key = employeeSectorKeyFromEmpId(empId);
+  const target = getTimesheetTbody(key);
+  if (target && tr.parentElement !== target) target.appendChild(tr);
+  refreshEmployeeSelectForSector(tr, key);
+}
+
+function syncNextRowDateFromChange(tr, ymd) {
+  if (!ymd) return;
+  let sib = tr.nextElementSibling;
+  while (sib && !sib.classList.contains('payroll-ts-line')) {
+    sib = sib.nextElementSibling;
+  }
+  if (!sib) return;
+  const nd = sib.querySelector('.ts-date');
+  if (nd && !nd.disabled) {
+    nd.value = ymd;
+    refreshRowAmount(sib);
+  }
 }
 
 function projectOptionsHtml(selectedId) {
@@ -453,11 +551,23 @@ function tsTap(ev, fn) {
 }
 
 function bindRowEvents(tr) {
-  tr.querySelectorAll('.ts-date, .ts-emp, .ts-days, .ts-reg, .ts-ot, .ts-daily-override').forEach((el) => {
+  tr.querySelectorAll('.ts-emp, .ts-days, .ts-reg, .ts-ot, .ts-daily-override').forEach((el) => {
     el.addEventListener('change', () => refreshRowAmount(tr));
     el.addEventListener('input', () => refreshRowAmount(tr));
   });
-  tr.querySelector('.ts-emp')?.addEventListener('change', () => syncDailyOverrideHint(tr));
+  const dateInp = tr.querySelector('.ts-date');
+  if (dateInp) {
+    dateInp.addEventListener('change', () => {
+      const ymd = formatWorkDateForInput(dateInp.value);
+      if (ymd) lastTimesheetDateYmd = ymd;
+      refreshRowAmount(tr);
+      syncNextRowDateFromChange(tr, ymd);
+    });
+    dateInp.addEventListener('input', () => refreshRowAmount(tr));
+  }
+  tr.querySelector('.ts-emp')?.addEventListener('change', () => {
+    relocateTimesheetRowForEmployee(tr);
+  });
   tr.querySelector('.ts-days-dec')?.addEventListener('click', (e) => tsTap(e, () => bumpInput(tr, '.ts-days', -0.25)));
   tr.querySelector('.ts-days-inc')?.addEventListener('click', (e) => tsTap(e, () => bumpInput(tr, '.ts-days', 0.25)));
   tr.querySelector('.ts-reg-dec')?.addEventListener('click', (e) => tsTap(e, () => bumpInput(tr, '.ts-reg', -0.25)));
@@ -504,10 +614,12 @@ function bindRowEvents(tr) {
   });
 }
 
-function appendTimesheetRow(data) {
-  const tb = document.getElementById('timesheetBody');
+function appendTimesheetRow(data, sectorKey) {
+  const sk = sectorKey ?? sectorKeyFromApiTimesheetRow(data || {});
+  const tb = getTimesheetTbody(sk);
+  if (!tb) return;
   const tr = document.createElement('tr');
-  tr.className = 'border-t border-slate-100';
+  tr.className = 'border-t border-slate-100 payroll-ts-line';
   const id = data?.id;
   if (id) tr.dataset.lineId = String(id);
   const grid = canEditTimesheetGrid();
@@ -519,10 +631,15 @@ function appendTimesheetRow(data) {
     data?.daily_rate_override != null && data?.daily_rate_override !== ''
       ? formatQtyForInput(data.daily_rate_override) || String(data.daily_rate_override)
       : '';
-  const wDate = formatWorkDateForInput(data?.work_date);
+  const wDateRaw =
+    data?.work_date != null && data.work_date !== ''
+      ? data.work_date
+      : lastWorkDateInTbody(tb) || lastTimesheetDateYmd || defaultWorkDate();
+  const wDate = formatWorkDateForInput(wDateRaw);
+  if (wDate) lastTimesheetDateYmd = wDate;
   tr.innerHTML = `
     <td class="px-2 py-1 align-top"><input type="date" class="ts-date w-full border rounded px-2 py-2 text-sm"${dis} value="${wDate}" /></td>
-    <td class="px-2 py-1 align-top"><select class="ts-emp w-full border rounded px-2 py-2 text-sm"${dis}>${employeeOptionsHtml(data?.employee_id)}</select></td>
+    <td class="px-2 py-1 align-top"><select class="ts-emp w-full border rounded px-2 py-2 text-sm"${dis}>${employeeOptionsHtml(data?.employee_id, sk)}</select></td>
     <td class="px-2 py-1 align-top"><select class="ts-proj w-full border rounded px-2 py-2 text-sm"${dis}>${projectOptionsHtml(data?.project_id)}</select></td>
     <td class="px-1 py-1 align-top"><input type="number" inputmode="decimal" step="any" min="0" class="ts-daily-override payroll-num-input w-[4.5rem] border rounded px-1 py-2 text-sm"${dis} value="${drOv}" /></td>
     <td class="px-1 py-1 align-top">
@@ -573,7 +690,7 @@ function appendTimesheetRow(data) {
 
 function updatePeriodRunningTotalFromDom() {
   let sum = 0;
-  document.querySelectorAll('#timesheetBody tr').forEach((tr) => {
+  allTimesheetDataRows().forEach((tr) => {
     const empId = parseInt(tr.querySelector('.ts-emp').value, 10);
     const row = {
       days_worked: parseNumInput(tr.querySelector('.ts-days').value),
@@ -613,7 +730,7 @@ function applyPeriodMetaBanner(p) {
 }
 
 async function loadTimesheetsForPeriod() {
-  document.getElementById('timesheetBody').innerHTML = '';
+  clearTimesheetDataRows();
   if (!selectedPeriodId) {
     currentPeriod = null;
     document.getElementById('periodMeta').textContent = '';
@@ -637,7 +754,7 @@ async function loadTimesheetsForPeriod() {
   const p = selectedPeriodRecord();
   applyPeriodMetaBanner(p);
 
-  timesheetRows.forEach((row) => appendTimesheetRow(row));
+  timesheetRows.forEach((row) => appendTimesheetRow(row, sectorKeyFromApiTimesheetRow(row)));
   updatePeriodRunningTotalFromDom();
   renderEmployeeTable();
   refreshPeriodActions();
@@ -651,7 +768,7 @@ async function onPeriodChange() {
 
 function collectLinesFromGrid() {
   const lines = [];
-  document.querySelectorAll('#timesheetBody tr').forEach((tr) => {
+  allTimesheetDataRows().forEach((tr) => {
     const dateEl = tr.querySelector('.ts-date');
     const empEl = tr.querySelector('.ts-emp');
     const projEl = tr.querySelector('.ts-proj');
@@ -701,7 +818,7 @@ function timesheetGridValidationIssues() {
   const issues = [];
   let idx = 0;
   const seenKeys = new Map();
-  document.querySelectorAll('#timesheetBody tr').forEach((tr) => {
+  allTimesheetDataRows().forEach((tr) => {
     idx += 1;
     const work_date = formatWorkDateForInput(tr.querySelector('.ts-date')?.value);
     const employee_id = tr.querySelector('.ts-emp')?.value;
@@ -754,6 +871,7 @@ function openEmployeeModal(editId) {
   document.getElementById('empFormErr').classList.add('hidden');
   document.getElementById('empEditId').value = editId || '';
   document.getElementById('empModalTitle').textContent = editId ? 'Editar funcionário' : 'Novo funcionário';
+  document.getElementById('empDelete')?.classList.toggle('hidden', !(editId && canManage));
   document.getElementById('empActiveWrap').classList.toggle('hidden', !editId);
   if (editId) {
     const e = employeesById[editId];
@@ -1365,6 +1483,27 @@ document.getElementById('btnReloadAll')?.addEventListener('click', () => reloadA
 document.getElementById('periodSelect')?.addEventListener('change', () => onPeriodChange());
 document.getElementById('btnNewEmployee')?.addEventListener('click', () => openEmployeeModal(null));
 document.getElementById('empCancel')?.addEventListener('click', () => closeEmployeeModal());
+document.getElementById('empDelete')?.addEventListener('click', async () => {
+  const editId = document.getElementById('empEditId').value;
+  if (!editId || !canManage) return;
+  if (
+    !window.confirm(
+      'Excluir permanentemente este funcionário da equipa? Só é possível se não existirem linhas de quadro de horas associadas a ele em nenhum período.'
+    )
+  ) {
+    return;
+  }
+  try {
+    await api('DELETE', `/employees/${editId}`);
+    window.crmToast?.success?.('Funcionário removido');
+    closeEmployeeModal();
+    await loadEmployees();
+    await loadTimesheetsForPeriod();
+    await loadDashboard();
+  } catch (e) {
+    window.crmToast?.error?.(e.message || 'Erro ao excluir.');
+  }
+});
 document.getElementById('empSave')?.addEventListener('click', () => saveEmployee());
 document.getElementById('btnNewPeriod')?.addEventListener('click', () => openPeriodModal());
 document.getElementById('btnDeletePeriod')?.addEventListener('click', async () => {
@@ -1390,7 +1529,7 @@ document.getElementById('btnDeletePeriod')?.addEventListener('click', async () =
 });
 document.getElementById('perCancel')?.addEventListener('click', () => closePeriodModal());
 document.getElementById('perSave')?.addEventListener('click', () => savePeriod());
-document.getElementById('btnAddTimesheetRow')?.addEventListener('click', () => {
+function tryAddTimesheetRowForSector(sectorKey) {
   if (!canAddTimesheetRows()) {
     window.crmToast?.error?.(
       selectedPeriodRecord()?.status === 'closed'
@@ -1403,9 +1542,21 @@ document.getElementById('btnAddTimesheetRow')?.addEventListener('click', () => {
     window.crmToast?.error?.('Primeiro escolha um período na lista acima.');
     return;
   }
-  appendTimesheetRow({ work_date: defaultWorkDate() });
+  const tb = getTimesheetTbody(sectorKey);
+  const w = lastWorkDateInTbody(tb) || lastTimesheetDateYmd || defaultWorkDate();
+  appendTimesheetRow({ work_date: w }, sectorKey);
   updatePeriodRunningTotalFromDom();
-});
+}
+
+document.getElementById('btnAddTimesheetRowInstallation')?.addEventListener('click', () =>
+  tryAddTimesheetRowForSector('installation')
+);
+document.getElementById('btnAddTimesheetRowSandFinish')?.addEventListener('click', () =>
+  tryAddTimesheetRowForSector('sand_finish')
+);
+document.getElementById('btnAddTimesheetRowOther')?.addEventListener('click', () =>
+  tryAddTimesheetRowForSector('other')
+);
 document.getElementById('btnSaveTimesheet')?.addEventListener('click', async () => {
   const pid = periodIdNum(selectedPeriodId);
   if (pid == null) {

@@ -379,6 +379,39 @@ export async function updateEmployee(req, res) {
   }
 }
 
+export async function deleteEmployee(req, res) {
+  try {
+    const pool = await getDBConnection();
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isFinite(id) || id <= 0) {
+      return res.status(400).json({ success: false, error: 'ID inválido' });
+    }
+    const existing = await loadEmployee(pool, id);
+    if (!existing) return res.status(404).json({ success: false, error: 'Não encontrado' });
+    const [[cnt]] = await pool.query(
+      'SELECT COUNT(*) AS c FROM construction_payroll_timesheets WHERE employee_id = ?',
+      [id]
+    );
+    if (Number(cnt.c) > 0) {
+      return res.status(409).json({
+        success: false,
+        error:
+          'Não é possível apagar: existem linhas de quadro de horas associadas a este funcionário. Apague ou altere essas linhas nos períodos, ou desative o funcionário (Ativo desmarcado) em vez de excluir.',
+      });
+    }
+    await pool.execute('DELETE FROM construction_payroll_employees WHERE id = ?', [id]);
+    return res.json({ success: true });
+  } catch (err) {
+    if (err.code === 'ER_ROW_IS_REFERENCED_2' || err.code === '1451') {
+      return res.status(409).json({
+        success: false,
+        error: 'Não é possível apagar: ainda há referências na base de dados.',
+      });
+    }
+    return sendDbError(res, err);
+  }
+}
+
 export async function listPeriods(req, res) {
   try {
     const pool = await getDBConnection();

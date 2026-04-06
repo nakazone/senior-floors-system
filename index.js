@@ -498,6 +498,12 @@ app.get('/api/construction-payroll/employees', requireAuth, requirePermission('p
 app.get('/api/construction-payroll/employees/:id', requireAuth, requirePermission('payroll.view'), constructionPayroll.getEmployee);
 app.post('/api/construction-payroll/employees', requireAuth, requirePermission('payroll.manage'), constructionPayroll.createEmployee);
 app.put('/api/construction-payroll/employees/:id', requireAuth, requirePermission('payroll.manage'), constructionPayroll.updateEmployee);
+app.delete(
+  '/api/construction-payroll/employees/:id',
+  requireAuth,
+  requirePermission('payroll.manage'),
+  constructionPayroll.deleteEmployee
+);
 
 app.get('/api/construction-payroll/periods', requireAuth, requirePermission('payroll.view'), constructionPayroll.listPeriods);
 app.post('/api/construction-payroll/periods', requireAuth, requirePermission('payroll.manage'), constructionPayroll.createPeriod);
