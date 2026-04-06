@@ -1,6 +1,7 @@
 /**
  * Construction payroll module — schema + permissions.
  * Idempotent for permissions. Run: npm run migrate:construction-payroll
+ * Na máquina local com MYSQLHOST=*.railway.internal: npm run migrate:construction-payroll:railway
  */
 import dotenv from 'dotenv';
 import fs from 'fs';
@@ -116,14 +117,15 @@ main().catch((e) => {
     console.error(`
 → Host *.railway.internal só resolve dentro da rede Railway (não no seu computador).
 
-  Opção 1 — correr a migração no ambiente Railway (recomendado):
-     cd senior-floors-system && railway run npm run migrate:construction-payroll
+  Opção 1 — atalho npm (precisa Railway CLI ligado a este projeto, na pasta senior-floors-system):
+     npm run migrate:construction-payroll:railway
 
-  Opção 2 — ligar a partir do Mac: no .env, acrescente DATABASE_PUBLIC_URL
-     (copie do serviço MySQL no Railway → Variables; é a URL pública/TCP).
-     Mantenha MYSQLUSER / MYSQLPASSWORD / MYSQLDATABASE coerentes com essa URL.
+     (equivale a: railway run npm run migrate:construction-payroll)
 
-  Opção 3 — TCP Proxy: veja database/RAILWAY_TCP_PROXY.md (RAILWAY_TCP_PROXY_DOMAIN + PORT).
+  Opção 2 — no .env local, acrescente DATABASE_PUBLIC_URL
+     (Railway → serviço MySQL → Variables). Sem isto, o PC não consegue resolver mysql.railway.internal.
+
+  Opção 3 — TCP Proxy: database/RAILWAY_TCP_PROXY.md (RAILWAY_TCP_PROXY_DOMAIN + PORT).
 `);
   }
   process.exit(1);
