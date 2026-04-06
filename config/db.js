@@ -128,6 +128,37 @@ function mysqlPluginConfigFromEnv() {
   };
 }
 
+/**
+ * No container Railway, DATABASE_URL (ou DB_*) por vezes fica com hostname público *.up.railway.app,
+ * que costuma dar ETIMEDOUT entre o Node e o MySQL. Preferir variáveis do plugin (MYSQLHOST=*.railway.internal)
+ * ou qualquer URL cujo host seja *.railway.internal.
+ */
+function preferRailwayInternalMysqlOverPublicHostname(cfg) {
+  if (!cfg || !isLikelyRailwayAppContainer()) return cfg;
+  if (!isRailwayPublicMysqlHostname(cfg.host)) return cfg;
+
+  const plug = mysqlPluginConfigFromEnv();
+  if (plug && isRailwayInternalHost(plug.host)) {
+    return {
+      ...plug,
+      password: plug.password !== '' ? plug.password : cfg.password,
+    };
+  }
+
+  for (const key of ['DATABASE_URL', 'MYSQL_URL']) {
+    const raw = process.env[key]?.trim();
+    if (!raw) continue;
+    const p = parseDatabaseUrl(raw);
+    if (p && p.user && p.database && isRailwayInternalHost(p.host)) {
+      return {
+        ...p,
+        password: p.password !== '' ? p.password : cfg.password,
+      };
+    }
+  }
+  return cfg;
+}
+
 function isDatabaseConfigured() {
   const url = process.env.DATABASE_URL || process.env.DATABASE_PUBLIC_URL || process.env.MYSQL_URL;
   if (url?.trim()) {
@@ -248,6 +279,8 @@ export function getMysqlConnectionConfig() {
       };
     }
   }
+
+  cfg = preferRailwayInternalMysqlOverPublicHostname(cfg);
 
   let h = (cfg.host || '').trim();
   if (h === 'localhost' || h === '::1') cfg = { ...cfg, host: '127.0.0.1' };
