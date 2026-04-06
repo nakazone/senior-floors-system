@@ -77,6 +77,7 @@ CREATE TABLE IF NOT EXISTS `construction_payroll_period_adjustments` (
   `period_id` int(11) NOT NULL,
   `employee_id` int(11) NOT NULL,
   `reimbursement` decimal(12,2) NOT NULL DEFAULT 0.00 COMMENT 'Reembolso no fechamento do período',
+  `discount` decimal(12,2) NOT NULL DEFAULT 0.00 COMMENT 'Desconto no fechamento (subtrai ao total do funcionário)',
   `notes` varchar(500) DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

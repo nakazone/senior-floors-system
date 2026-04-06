@@ -8,12 +8,84 @@ function isMissingTable(err) {
   return err && (err.code === 'ER_NO_SUCH_TABLE' || String(err.message || '').includes('doesn\'t exist'));
 }
 
+/** Por funcionário: somas de dias/horas e repartição base vs HE (alinhada a calcTimesheetLineAmount). */
+function aggregateTimesheetLinesForPreview(lines) {
+  const byEmp = new Map();
+  for (const r of lines || []) {
+    const eid = r.employee_id;
+    const emp = {
+      payment_type: r.payment_type,
+      daily_rate: r.daily_rate,
+      hourly_rate: r.hourly_rate,
+      overtime_rate: r.overtime_rate,
+    };
+    const line = {
+      days_worked: r.days_worked,
+      regular_hours: r.regular_hours,
+      overtime_hours: r.overtime_hours,
+      daily_rate_override: r.daily_rate_override,
+    };
+    const baseAmt = calcTimesheetLineAmount(emp, { ...line, overtime_hours: 0 });
+    const otH = Number(line.overtime_hours) || 0;
+    const ort = Number(emp.overtime_rate) || 0;
+    const otAmt = Math.round(otH * ort * 100) / 100;
+    const cur = byEmp.get(eid) || {
+      days_worked_sum: 0,
+      regular_hours_sum: 0,
+      overtime_hours_sum: 0,
+      amount_sheet_base: 0,
+      amount_overtime: 0,
+    };
+    cur.days_worked_sum += Number(r.days_worked) || 0;
+    cur.regular_hours_sum += Number(r.regular_hours) || 0;
+    cur.overtime_hours_sum += Number(r.overtime_hours) || 0;
+    cur.amount_sheet_base += baseAmt;
+    cur.amount_overtime += otAmt;
+    byEmp.set(eid, cur);
+  }
+  for (const cur of byEmp.values()) {
+    cur.days_worked_sum = Math.round(cur.days_worked_sum * 100) / 100;
+    cur.regular_hours_sum = Math.round(cur.regular_hours_sum * 100) / 100;
+    cur.overtime_hours_sum = Math.round(cur.overtime_hours_sum * 100) / 100;
+    cur.amount_sheet_base = Math.round(cur.amount_sheet_base * 100) / 100;
+    cur.amount_overtime = Math.round(cur.amount_overtime * 100) / 100;
+  }
+  return byEmp;
+}
+
 function isMissingColumn(err, colName) {
   return (
     err &&
     err.code === 'ER_BAD_FIELD_ERROR' &&
     String(err.message || '').includes(String(colName || ''))
   );
+}
+
+/** Bases criadas antes da migração de descontos não tinham a coluna `discount`; o fallback gravava só reembolso. */
+async function ensurePayrollPeriodAdjustmentsDiscountColumn(conn) {
+  const [[t]] = await conn.query(
+    `SELECT COUNT(*) AS c FROM information_schema.TABLES
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'construction_payroll_period_adjustments'`
+  );
+  if (!t || Number(t.c) === 0) return;
+  const [[col]] = await conn.query(
+    `SELECT COUNT(*) AS c FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE()
+       AND TABLE_NAME = 'construction_payroll_period_adjustments'
+       AND COLUMN_NAME = 'discount'`
+  );
+  if (Number(col?.c) > 0) return;
+  try {
+    await conn.execute(
+      `ALTER TABLE construction_payroll_period_adjustments
+       ADD COLUMN discount decimal(12,2) NOT NULL DEFAULT 0.00
+       COMMENT 'Desconto no fechamento (subtrai ao total do funcionário)'
+       AFTER reimbursement`
+    );
+  } catch (e) {
+    if (e && (e.code === 'ER_DUP_FIELDNAME' || String(e.message || '').includes('Duplicate column'))) return;
+    throw e;
+  }
 }
 
 /** Relatórios: garantir from ≤ to e formato YYYY-MM-DD */
@@ -648,6 +720,22 @@ export async function getPeriodPreview(req, res) {
       }
     }
 
+    let detailLines = [];
+    try {
+      const [dl] = await pool.query(
+        `SELECT t.employee_id, t.days_worked, t.regular_hours, t.overtime_hours,
+                t.daily_rate_override, e.payment_type, e.daily_rate, e.hourly_rate, e.overtime_rate
+         FROM construction_payroll_timesheets t
+         INNER JOIN construction_payroll_employees e ON e.id = t.employee_id
+         WHERE t.period_id = ?`,
+        [id]
+      );
+      detailLines = dl || [];
+    } catch (_) {
+      detailLines = [];
+    }
+    const detailMap = aggregateTimesheetLinesForPreview(detailLines);
+
     let adjRows = [];
     try {
       const [ar] = await pool.query(
@@ -681,6 +769,7 @@ export async function getPeriodPreview(req, res) {
       const reim = adj ? Number(adj.reimbursement) || 0 : 0;
       const disc = adj ? Number(adj.discount) || 0 : 0;
       const sub = Number(row.subtotal) || 0;
+      const d = detailMap.get(row.employee_id) || {};
       by_employee.push({
         employee_id: row.employee_id,
         name: row.name,
@@ -688,6 +777,11 @@ export async function getPeriodPreview(req, res) {
         sector: row.sector,
         line_count: Number(row.line_count) || 0,
         subtotal: sub,
+        days_worked_sum: d.days_worked_sum || 0,
+        regular_hours_sum: d.regular_hours_sum || 0,
+        overtime_hours_sum: d.overtime_hours_sum || 0,
+        amount_sheet_base: d.amount_sheet_base || 0,
+        amount_overtime: d.amount_overtime || 0,
         reimbursement: reim,
         discount: disc,
         reimbursement_notes: adj?.notes || null,
@@ -708,6 +802,11 @@ export async function getPeriodPreview(req, res) {
         sector: emp.sector,
         line_count: 0,
         subtotal: 0,
+        days_worked_sum: 0,
+        regular_hours_sum: 0,
+        overtime_hours_sum: 0,
+        amount_sheet_base: 0,
+        amount_overtime: 0,
         reimbursement: reim,
         discount: disc,
         reimbursement_notes: adj.notes || null,
@@ -769,6 +868,7 @@ export async function putPeriodAdjustments(req, res) {
     const conn = await pool.getConnection();
     try {
       await conn.beginTransaction();
+      await ensurePayrollPeriodAdjustmentsDiscountColumn(conn);
       await conn.execute('DELETE FROM construction_payroll_period_adjustments WHERE period_id = ?', [periodId]);
       for (const r of list) {
         if (!r || typeof r !== 'object') continue;
@@ -780,23 +880,11 @@ export async function putPeriodAdjustments(req, res) {
         const disc = Math.round((Number(r.discount) || 0) * 100) / 100;
         const notes = r.notes != null ? String(r.notes).slice(0, 500) : null;
         if (amt === 0 && disc === 0 && (!notes || notes === '')) continue;
-        try {
-          await conn.execute(
-            `INSERT INTO construction_payroll_period_adjustments (period_id, employee_id, reimbursement, discount, notes)
-             VALUES (?,?,?,?,?)`,
-            [periodId, eid, amt, disc, notes]
-          );
-        } catch (insErr) {
-          if (isMissingColumn(insErr, 'discount')) {
-            await conn.execute(
-              `INSERT INTO construction_payroll_period_adjustments (period_id, employee_id, reimbursement, notes)
-               VALUES (?,?,?,?)`,
-              [periodId, eid, amt, notes]
-            );
-          } else {
-            throw insErr;
-          }
-        }
+        await conn.execute(
+          `INSERT INTO construction_payroll_period_adjustments (period_id, employee_id, reimbursement, discount, notes)
+           VALUES (?,?,?,?,?)`,
+          [periodId, eid, amt, disc, notes]
+        );
       }
       await conn.commit();
     } catch (e) {

@@ -1017,11 +1017,15 @@ function bindPreviewAdjustmentsLiveTotals(fixedGrandSheet) {
       const discInp = tr.querySelector('.preview-disc-input');
       const reim = reimInp ? Math.max(0, Number(reimInp.value) || 0) : 0;
       const disc = discInp ? Math.max(0, Number(discInp.value) || 0) : 0;
+      const empTot = Math.round((sub + reim - disc) * 100) / 100;
+      tr.dataset.previewReim = String(reim);
+      tr.dataset.previewDisc = String(disc);
+      tr.dataset.previewTotal = String(empTot);
       sumReim += reim;
       sumDisc += disc;
       const totCell = tr.querySelector('.preview-emp-total');
       if (totCell) {
-        totCell.textContent = money(Math.round((sub + reim - disc) * 100) / 100);
+        totCell.textContent = money(empTot);
       }
     });
     const gEl = document.getElementById('previewGrandSheet');
@@ -1065,15 +1069,28 @@ function fillPreviewModal(data, opts) {
     tr.className = 'border-t border-slate-100';
     tr.dataset.employeeId = String(row.employee_id);
     tr.dataset.subtotal = String(Number(row.subtotal) || 0);
+    tr.dataset.daysWorkedSum = String(Number(row.days_worked_sum) || 0);
+    tr.dataset.regularHoursSum = String(Number(row.regular_hours_sum) || 0);
+    tr.dataset.overtimeHoursSum = String(Number(row.overtime_hours_sum) || 0);
+    tr.dataset.amountSheetBase = String(Number(row.amount_sheet_base) || 0);
+    tr.dataset.amountOvertime = String(Number(row.amount_overtime) || 0);
+    tr.dataset.paymentType = String(row.payment_type || 'daily');
     const reimVal = Number(row.reimbursement) || 0;
     const discVal = Number(row.discount) || 0;
+    const empTotInit =
+      row.employee_total != null
+        ? Number(row.employee_total)
+        : Number(row.subtotal) + reimVal - discVal;
+    tr.dataset.previewReim = String(reimVal);
+    tr.dataset.previewDisc = String(discVal);
+    tr.dataset.previewTotal = String(Math.round(empTotInit * 100) / 100);
     const reimCell = editReim
       ? `<td class="px-2 py-2"><input type="number" step="0.01" min="0" class="preview-reim-input w-full border rounded-lg px-2 py-2 text-sm" value="${reimVal}" /></td>`
       : `<td class="px-3 py-2 text-right">${money(reimVal)}</td>`;
     const discCell = editReim
       ? `<td class="px-2 py-2"><input type="number" step="0.01" min="0" class="preview-disc-input w-full border rounded-lg px-2 py-2 text-sm" value="${discVal}" /></td>`
       : `<td class="px-3 py-2 text-right">${money(discVal)}</td>`;
-    const empTot = row.employee_total != null ? row.employee_total : Number(row.subtotal) + reimVal - discVal;
+    const empTot = empTotInit;
     tr.innerHTML = `<td class="px-3 py-2 font-medium">${escapeHtml(row.name)}</td>
       <td class="px-3 py-2 text-slate-600">${escapeHtml(sectorLabel(row.sector))}</td>
       <td class="px-3 py-2 text-right">${row.line_count}</td>
@@ -1145,6 +1162,94 @@ function closePreviewModal() {
   m.classList.add('hidden');
   m.classList.remove('flex');
   closingPeriodMode = false;
+}
+
+/** Uma página por funcionário: dias/horas normais + total base, HE + total HE, reembolso, total a pagar. */
+function previewNormativoBlock(tr) {
+  const pt = (tr.dataset.paymentType || 'daily').toLowerCase();
+  const days = Number(tr.dataset.daysWorkedSum) || 0;
+  const regH = Number(tr.dataset.regularHoursSum) || 0;
+  const baseAmt = Number(tr.dataset.amountSheetBase) || 0;
+  if (pt === 'hourly') {
+    const h = regH > 0 ? regH : days;
+    return {
+      qtyLabel: 'Horas à taxa normal (soma)',
+      qty: fmtReportQty(h),
+      totalLabel: 'Total (parte normal da folha)',
+      total: baseAmt,
+    };
+  }
+  if (pt === 'mixed') {
+    const parts = [];
+    if (days > 0) parts.push(`${fmtReportQty(days)} dia(s)`);
+    if (regH > 0) parts.push(`${fmtReportQty(regH)} h`);
+    return {
+      qtyLabel: 'Dias / horas normais',
+      qty: parts.length ? parts.join(' · ') : '—',
+      totalLabel: 'Total (parte normal da folha)',
+      total: baseAmt,
+    };
+  }
+  return {
+    qtyLabel: 'Dias trabalhados (soma)',
+    qty: fmtReportQty(days),
+    totalLabel: 'Total (parte normal da folha)',
+    total: baseAmt,
+  };
+}
+
+function printIndividualPayrollReports() {
+  const subtitle = document.getElementById('previewSubtitle')?.textContent?.trim() || '';
+  const title = document.getElementById('previewTitle')?.textContent?.trim() || 'Folha';
+  const rows = Array.from(document.querySelectorAll('#previewTbody tr'));
+  if (!rows.length) {
+    window.crmToast?.error?.('Sem dados para imprimir.');
+    return;
+  }
+
+  const pages = rows.map((tr, i) => {
+    const name = tr.querySelector('td')?.textContent?.trim() || '—';
+    const sector = tr.querySelectorAll('td')[1]?.textContent?.trim() || '—';
+    const norm = previewNormativoBlock(tr);
+    const otH = Number(tr.dataset.overtimeHoursSum) || 0;
+    const otAmt = Number(tr.dataset.amountOvertime) || 0;
+    const sheetTot = Number(tr.dataset.subtotal) || 0;
+    const reimInp = tr.querySelector('.preview-reim-input');
+    const discInp = tr.querySelector('.preview-disc-input');
+    const reim = reimInp ? Math.max(0, Number(reimInp.value) || 0) : Number(tr.dataset.previewReim) || 0;
+    const disc = discInp ? Math.max(0, Number(discInp.value) || 0) : Number(tr.dataset.previewDisc) || 0;
+    const totalPagar = Math.round((sheetTot + reim - disc) * 100) / 100;
+    const brk = i < rows.length - 1 ? 'page-break-after: always;' : '';
+
+    return `<section class="report-page" style="${brk} font-family: system-ui, sans-serif; padding: 1.5rem; max-width: 40rem;">
+      <h1 style="font-size: 1.1rem; margin: 0 0 0.25rem;">Relatório individual — fechamento</h1>
+      <p style="margin: 0 0 1rem; color: #444; font-size: 0.9rem;">${escapeHtml(title)}${subtitle ? ` · ${escapeHtml(subtitle)}` : ''}</p>
+      <p style="margin: 0.35rem 0;"><strong>Funcionário(a):</strong> ${escapeHtml(name)}</p>
+      <p style="margin: 0.35rem 0 1rem;"><strong>Setor:</strong> ${escapeHtml(sector)}</p>
+      <table style="width: 100%; border-collapse: collapse; font-size: 0.95rem;">
+        <tr><td style="padding: 0.35rem 0; border-bottom: 1px solid #ddd;">${escapeHtml(norm.qtyLabel)}</td><td style="padding: 0.35rem 0; border-bottom: 1px solid #ddd; text-align: right;">${escapeHtml(norm.qty)}</td></tr>
+        <tr><td style="padding: 0.35rem 0; border-bottom: 1px solid #ddd;">${escapeHtml(norm.totalLabel)}</td><td style="padding: 0.35rem 0; border-bottom: 1px solid #ddd; text-align: right;">${escapeHtml(money(norm.total))}</td></tr>
+        <tr><td style="padding: 0.35rem 0; border-bottom: 1px solid #ddd;">Horas extraordinárias (soma)</td><td style="padding: 0.35rem 0; border-bottom: 1px solid #ddd; text-align: right;">${escapeHtml(fmtReportQty(otH))} h</td></tr>
+        <tr><td style="padding: 0.35rem 0; border-bottom: 1px solid #ddd;">Total horas extraordinárias</td><td style="padding: 0.35rem 0; border-bottom: 1px solid #ddd; text-align: right;">${escapeHtml(money(otAmt))}</td></tr>
+        <tr><td style="padding: 0.35rem 0; border-bottom: 1px solid #ddd;">Subtotal folha (base + HE)</td><td style="padding: 0.35rem 0; border-bottom: 1px solid #ddd; text-align: right;">${escapeHtml(money(sheetTot))}</td></tr>
+        <tr><td style="padding: 0.35rem 0; border-bottom: 1px solid #ddd;">Reembolso</td><td style="padding: 0.35rem 0; border-bottom: 1px solid #ddd; text-align: right;">${escapeHtml(money(reim))}</td></tr>
+        <tr><td style="padding: 0.35rem 0; border-bottom: 1px solid #ddd;">Desconto</td><td style="padding: 0.35rem 0; border-bottom: 1px solid #ddd; text-align: right;">${escapeHtml(money(disc))}</td></tr>
+        <tr><td style="padding: 0.5rem 0 0; font-weight: 700;">Total a pagar</td><td style="padding: 0.5rem 0 0; text-align: right; font-weight: 700;">${escapeHtml(money(totalPagar))}</td></tr>
+      </table>
+    </section>`;
+  });
+
+  const w = window.open('', '_blank', 'noopener,noreferrer');
+  if (!w) {
+    window.crmToast?.error?.('Permita janelas emergentes para imprimir.');
+    return;
+  }
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Relatórios individuais</title>
+    <style>@media print { body { margin: 0; } .report-page { page-break-inside: avoid; } }</style>
+    </head><body>${pages.join('')}</body></html>`);
+  w.document.close();
+  w.focus();
+  w.print();
 }
 
 async function fetchAndShowPreview(closing) {
@@ -1615,6 +1720,7 @@ document.getElementById('btnSaveTimesheet')?.addEventListener('click', async () 
 document.getElementById('btnPreviewPayroll')?.addEventListener('click', () => fetchAndShowPreview(false));
 document.getElementById('btnPreviewClose')?.addEventListener('click', () => fetchAndShowPreview(true));
 document.getElementById('previewCloseOnly')?.addEventListener('click', () => closePreviewModal());
+document.getElementById('previewPrintIndividualReports')?.addEventListener('click', () => printIndividualPayrollReports());
 document.getElementById('previewCancelClose')?.addEventListener('click', () => closePreviewModal());
 document.getElementById('previewSaveAdjustments')?.addEventListener('click', async () => {
   try {
