@@ -389,6 +389,16 @@ function defaultWorkDate() {
   return s;
 }
 
+/** Data AAAA-MM-DD dentro do período selecionado (validação antes do POST). */
+function workDateInsideSelectedPeriod(ymd) {
+  const p = selectedPeriodRecord();
+  if (!p || !ymd || ymd.length < 10) return false;
+  const s = String(p.start_date || '').slice(0, 10);
+  const e = String(p.end_date || '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s) || !/^\d{4}-\d{2}-\d{2}$/.test(e)) return true;
+  return ymd >= s && ymd <= e;
+}
+
 function bumpInput(tr, sel, delta, min = 0) {
   const input = tr.querySelector(sel);
   if (!input || input.disabled) return;
@@ -642,21 +652,34 @@ async function onPeriodChange() {
 function collectLinesFromGrid() {
   const lines = [];
   document.querySelectorAll('#timesheetBody tr').forEach((tr) => {
-    const work_date = formatWorkDateForInput(tr.querySelector('.ts-date')?.value);
-    const employee_id = tr.querySelector('.ts-emp')?.value;
-    const projectSel = tr.querySelector('.ts-proj').value;
-    const days_worked = tr.querySelector('.ts-days').value;
-    const regular_hours = tr.querySelector('.ts-reg').value;
-    const overtime_hours = tr.querySelector('.ts-ot').value;
-    const notes = (tr.querySelector('.ts-notes').value || '').trim();
+    const dateEl = tr.querySelector('.ts-date');
+    const empEl = tr.querySelector('.ts-emp');
+    const projEl = tr.querySelector('.ts-proj');
+    const daysEl = tr.querySelector('.ts-days');
+    const regEl = tr.querySelector('.ts-reg');
+    const otEl = tr.querySelector('.ts-ot');
+    const notesEl = tr.querySelector('.ts-notes');
+    if (!dateEl || !empEl || !daysEl || !regEl || !otEl || !notesEl) return;
+
+    const work_date = formatWorkDateForInput(dateEl.value);
+    const employee_id = empEl.value;
+    const projectSel = projEl ? projEl.value : '';
+    const days_worked = daysEl.value;
+    const regular_hours = regEl.value;
+    const overtime_hours = otEl.value;
+    const notes = (notesEl.value || '').trim();
     const drRaw = (tr.querySelector('.ts-daily-override')?.value || '').trim();
-    const id = tr.dataset.lineId;
+
+    const lidRaw = tr.dataset.lineId;
+    const lidNum = lidRaw != null && String(lidRaw).trim() !== '' ? parseInt(String(lidRaw), 10) : NaN;
+    const hasPersistedId = Number.isFinite(lidNum) && lidNum > 0;
+
     if (!employee_id || !work_date) return;
     const d = parseNumInput(days_worked);
     const r = parseNumInput(regular_hours);
     const ot = parseNumInput(overtime_hours);
     /* Não gravar linha nova totalmente vazia (evita lixo na BD) */
-    if (!id && d === 0 && r === 0 && ot === 0 && !notes) return;
+    if (!hasPersistedId && d === 0 && r === 0 && ot === 0 && !notes) return;
     const o = {
       employee_id: parseInt(employee_id, 10),
       project_id: projectSel ? parseInt(projectSel, 10) : null,
@@ -667,7 +690,7 @@ function collectLinesFromGrid() {
       notes: notes || null,
       daily_rate_override: drRaw !== '' ? parseNumInput(drRaw) : null,
     };
-    if (id) o.id = parseInt(id, 10);
+    if (hasPersistedId) o.id = lidNum;
     lines.push(o);
   });
   return lines;
@@ -677,6 +700,7 @@ function collectLinesFromGrid() {
 function timesheetGridValidationIssues() {
   const issues = [];
   let idx = 0;
+  const seenKeys = new Map();
   document.querySelectorAll('#timesheetBody tr').forEach((tr) => {
     idx += 1;
     const work_date = formatWorkDateForInput(tr.querySelector('.ts-date')?.value);
@@ -685,10 +709,41 @@ function timesheetGridValidationIssues() {
     const r = parseNumInput(tr.querySelector('.ts-reg')?.value);
     const ot = parseNumInput(tr.querySelector('.ts-ot')?.value);
     const notes = (tr.querySelector('.ts-notes')?.value || '').trim();
-    const hasNums = d > 0 || r > 0 || ot > 0;
-    if (hasNums || notes) {
-      if (!employee_id) issues.push(`Linha ${idx}: escolha o funcionário.`);
-      if (!work_date) issues.push(`Linha ${idx}: escolha a data do trabalho.`);
+    const proj = (tr.querySelector('.ts-proj')?.value || '').trim();
+    const lidRaw = tr.dataset.lineId;
+    const lidNum = lidRaw != null && String(lidRaw).trim() !== '' ? parseInt(String(lidRaw), 10) : NaN;
+    const hasPersistedId = Number.isFinite(lidNum) && lidNum > 0;
+
+    const touched =
+      !!employee_id ||
+      !!work_date ||
+      d > 0 ||
+      r > 0 ||
+      ot > 0 ||
+      !!notes ||
+      !!(tr.querySelector('.ts-daily-override')?.value || '').trim();
+    if (!touched) return;
+
+    if (!employee_id) issues.push(`Linha ${idx}: escolha o funcionário.`);
+    if (!work_date) issues.push(`Linha ${idx}: escolha a data do trabalho.`);
+    if (work_date && !workDateInsideSelectedPeriod(work_date)) {
+      issues.push(
+        `Linha ${idx}: a data ${work_date} está fora do período (${String(selectedPeriodRecord()?.start_date || '').slice(0, 10)} → ${String(selectedPeriodRecord()?.end_date || '').slice(0, 10)}).`
+      );
+    }
+    if (!hasPersistedId && d === 0 && r === 0 && ot === 0 && !notes) {
+      issues.push(
+        `Linha ${idx}: para uma linha nova, preencha diárias (botões 1d/½ ou ±), horas normais/extra ou uma nota.`
+      );
+    }
+    if (employee_id && work_date && Number.isFinite(parseInt(employee_id, 10))) {
+      const dupKey = `${parseInt(employee_id, 10)}|${work_date}|${proj || '0'}`;
+      if (!hasPersistedId && seenKeys.has(dupKey)) {
+        issues.push(
+          `Linha ${idx}: duplicado (mesmo funcionário, data e projeto) — o servidor só aceita uma linha. Junte numa só ou altere projeto/data.`
+        );
+      }
+      if (!hasPersistedId) seenKeys.set(dupKey, idx);
     }
   });
   return issues;
@@ -1402,6 +1457,10 @@ document.getElementById('btnSaveTimesheet')?.addEventListener('click', async () 
     } else if (String(msg).toLowerCase().includes('fora do período')) {
       msg =
         'A data de cada linha tem de estar entre o início e o fim do período. Corrija a coluna Data.';
+    } else if (e.payload?.code === 'BULK_NO_ROWS_SAVED' || String(msg).includes('Nenhuma linha foi gravada')) {
+      msg =
+        e.payload?.error ||
+        'Nenhuma linha foi gravada. Verifique funcionário, data dentro do período e que não há duplicados (mesmo dia + projeto).';
     }
     window.crmToast?.error?.(msg);
   }

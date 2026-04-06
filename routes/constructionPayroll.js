@@ -49,6 +49,13 @@ function serializePeriodForClient(p) {
   };
 }
 
+/** id de linha já gravada (evita Boolean(line.id) falhar com strings / omitir updates). */
+function hasPositiveTimesheetLineId(line) {
+  if (!line || line.id == null || line.id === '') return false;
+  const n = parseInt(String(line.id), 10);
+  return Number.isFinite(n) && n > 0;
+}
+
 function serializeTimesheetRowForClient(row) {
   if (!row || typeof row !== 'object') return row;
   const o = { ...row };
@@ -849,14 +856,19 @@ export async function listTimesheets(req, res) {
 
 async function upsertOneLine(executor, period, line, userId, options = {}) {
   const { allowClosedLineUpdates = false } = options;
-  const employeeId = parseInt(line.employee_id, 10);
+  const employeeId = parseInt(String(line.employee_id), 10);
+  if (!Number.isFinite(employeeId) || employeeId <= 0) {
+    const e = new Error('ID de funcionário inválido');
+    e.statusCode = 400;
+    throw e;
+  }
   const emp = await loadEmployee(executor, employeeId);
   if (!emp) {
     const e = new Error('Funcionário inválido');
     e.statusCode = 400;
     throw e;
   }
-  const isUpdate = Boolean(line.id);
+  const isUpdate = hasPositiveTimesheetLineId(line);
   if (!isUpdate && !emp.is_active) {
     const e = new Error('Funcionário inativo — não é possível criar linhas novas para este funcionário');
     e.statusCode = 400;
@@ -885,8 +897,8 @@ async function upsertOneLine(executor, period, line, userId, options = {}) {
 
   let daily_rate_override_db = null;
   const rawOvr = line.daily_rate_override;
-  if (rawOvr === undefined && line.id) {
-    const tidPre = parseInt(line.id, 10);
+  if (rawOvr === undefined && isUpdate) {
+    const tidPre = parseInt(String(line.id), 10);
     const [ex] = await executor.query(
       'SELECT daily_rate_override FROM construction_payroll_timesheets WHERE id = ? AND period_id = ? LIMIT 1',
       [tidPre, period.id]
@@ -928,8 +940,8 @@ async function upsertOneLine(executor, period, line, userId, options = {}) {
     userId,
   ];
 
-  if (line.id) {
-    const tid = parseInt(line.id, 10);
+  if (isUpdate) {
+    const tid = parseInt(String(line.id), 10);
     const [existing] = await executor.query(
       'SELECT t.id, p.status FROM construction_payroll_timesheets t JOIN construction_payroll_periods p ON p.id = t.period_id WHERE t.id = ?',
       [tid]
@@ -1007,7 +1019,7 @@ export async function bulkTimesheets(req, res) {
         if (!line || typeof line !== 'object') continue;
         const hasEmp = line.employee_id != null && String(line.employee_id).trim() !== '';
         const hasDate = line.work_date != null && String(line.work_date).trim() !== '';
-        if (!line.id && (!hasEmp || !hasDate)) continue;
+        if (!hasPositiveTimesheetLineId(line) && (!hasEmp || !hasDate)) continue;
         try {
           const row = await upsertOneLine(conn, period, line, uid, {
             allowClosedLineUpdates: allowClosedUpdates,
@@ -1020,6 +1032,15 @@ export async function bulkTimesheets(req, res) {
           }
           throw e;
         }
+      }
+      if (lines.length > 0 && out.length === 0) {
+        await conn.rollback();
+        return res.status(400).json({
+          success: false,
+          code: 'BULK_NO_ROWS_SAVED',
+          error:
+            'Nenhuma linha foi gravada. Confirme funcionário e data em cada linha nova, valores (dias/horas ou nota) e que a data está dentro do período.',
+        });
       }
       await conn.commit();
       return res.json({ success: true, data: out });
