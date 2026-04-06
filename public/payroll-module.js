@@ -162,7 +162,6 @@ function refreshPeriodActions() {
       'btnReopenPeriod',
       'btnAddTimesheetRowInstallation',
       'btnAddTimesheetRowSandFinish',
-      'btnAddTimesheetRowOther',
       'btnSaveTimesheet',
     ].forEach((id) => document.getElementById(id)?.classList.add('hidden'));
     delBtn?.classList.add('hidden');
@@ -173,8 +172,6 @@ function refreshPeriodActions() {
   document.getElementById('btnSaveTimesheet')?.classList.toggle('hidden', !showSave);
   document.getElementById('btnAddTimesheetRowInstallation')?.classList.toggle('hidden', !showAdd);
   document.getElementById('btnAddTimesheetRowSandFinish')?.classList.toggle('hidden', !showAdd);
-  const showOther = showAdd && employees.some((e) => e.is_active && (!e.sector || String(e.sector).trim() === ''));
-  document.getElementById('btnAddTimesheetRowOther')?.classList.toggle('hidden', !showOther);
   const periodClosed = p.status === 'closed';
   document.getElementById('btnPreviewClose')?.classList.toggle('hidden', !(canManage && !periodClosed));
   document.getElementById('btnReopenPeriod')?.classList.toggle('hidden', !(canManage && periodClosed));
@@ -337,23 +334,26 @@ function escapeHtml(s) {
 
 /**
  * @param {number|string|null|undefined} selectedId
- * @param {'installation'|'sand_finish'|'other'} sectorFilter — restringe ativos ao setor do bloco do quadro
+ * @param {'installation'|'sand_finish'} sectorFilter — Installation inclui funcionários sem setor no cadastro
  */
 function employeeOptionsHtml(selectedId, sectorFilter) {
   const sel = selectedId != null && selectedId !== '' ? String(selectedId) : '';
   let active = employees.filter((e) => e.is_active);
-  if (sectorFilter === 'installation') active = active.filter((e) => e.sector === 'installation');
-  else if (sectorFilter === 'sand_finish') active = active.filter((e) => e.sector === 'sand_finish');
-  else if (sectorFilter === 'other') active = active.filter((e) => !e.sector || String(e.sector).trim() === '');
+  if (sectorFilter === 'installation') {
+    active = active.filter(
+      (e) => e.sector === 'installation' || !e.sector || String(e.sector).trim() === ''
+    );
+  } else if (sectorFilter === 'sand_finish') {
+    active = active.filter((e) => e.sector === 'sand_finish');
+  }
 
   const activeIds = new Set(active.map((e) => String(e.id)));
   const selectedEmp = sel ? employeesById[sel] || employees.find((e) => String(e.id) === sel) : null;
   let extra = null;
   if (sel && !activeIds.has(sel) && selectedEmp) {
     const wrong =
-      (sectorFilter === 'installation' && selectedEmp.sector !== 'installation') ||
-      (sectorFilter === 'sand_finish' && selectedEmp.sector !== 'sand_finish') ||
-      (sectorFilter === 'other' && selectedEmp.sector && String(selectedEmp.sector).trim() !== '');
+      (sectorFilter === 'installation' && selectedEmp.sector === 'sand_finish') ||
+      (sectorFilter === 'sand_finish' && selectedEmp.sector !== 'sand_finish');
     const tag = wrong ? ' (outro setor)' : !selectedEmp.is_active ? ' (inativo)' : '';
     extra = `<option value="${selectedEmp.id}" selected>${escapeHtml(selectedEmp.name)}${escapeHtml(tag)}</option>`;
   }
@@ -368,26 +368,24 @@ function employeeOptionsHtml(selectedId, sectorFilter) {
 }
 
 function getTimesheetTbody(sectorKey) {
-  if (sectorKey === 'installation') return document.getElementById('timesheetTbodyInstallation');
   if (sectorKey === 'sand_finish') return document.getElementById('timesheetTbodySandFinish');
-  return document.getElementById('timesheetTbodyOther');
+  return document.getElementById('timesheetTbodyInstallation');
 }
 
 function employeeSectorKeyFromEmpId(empId) {
-  if (!Number.isFinite(empId)) return 'other';
+  if (!Number.isFinite(empId)) return 'installation';
   const emp = employeesById[empId];
-  if (!emp) return 'other';
-  if (emp.sector === 'installation') return 'installation';
+  if (!emp) return 'installation';
   if (emp.sector === 'sand_finish') return 'sand_finish';
-  return 'other';
+  return 'installation';
 }
 
 function sectorKeyFromApiTimesheetRow(row) {
   const es = row?.employee_sector;
-  if (es === 'installation') return 'installation';
   if (es === 'sand_finish') return 'sand_finish';
+  if (es === 'installation') return 'installation';
   if (row?.employee_id != null) return employeeSectorKeyFromEmpId(Number(row.employee_id));
-  return 'other';
+  return 'installation';
 }
 
 function lastWorkDateInTbody(tb) {
@@ -1553,9 +1551,6 @@ document.getElementById('btnAddTimesheetRowInstallation')?.addEventListener('cli
 );
 document.getElementById('btnAddTimesheetRowSandFinish')?.addEventListener('click', () =>
   tryAddTimesheetRowForSector('sand_finish')
-);
-document.getElementById('btnAddTimesheetRowOther')?.addEventListener('click', () =>
-  tryAddTimesheetRowForSector('other')
 );
 document.getElementById('btnSaveTimesheet')?.addEventListener('click', async () => {
   const pid = periodIdNum(selectedPeriodId);
