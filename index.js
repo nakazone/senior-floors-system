@@ -85,6 +85,7 @@ import { getHealth } from './routes/health.js';
 import { ensureQuoteInvoicePdfColumn } from './lib/ensureQuoteInvoicePdfColumn.js';
 import { ensureUserModuleColumns } from './lib/ensureUserModuleColumns.js';
 import { ensureCustomersResponsibleNameColumn } from './lib/ensureCustomersResponsibleNameColumn.js';
+import { ensurePayrollTimesheetDailyOverrideColumn } from './lib/ensurePayrollTimesheetDailyOverrideColumn.js';
 import { getUiConfig } from './routes/uiConfig.js';
 
 function validateEnv() {
@@ -670,6 +671,7 @@ async function start() {
       await ensureQuoteInvoicePdfColumn(pool);
       await ensureUserModuleColumns(pool);
       await ensureCustomersResponsibleNameColumn(pool);
+      await ensurePayrollTimesheetDailyOverrideColumn(pool);
     })().catch((e) => console.error('[db] Arranque pós-listen:', e));
   });
 }

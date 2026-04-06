@@ -67,8 +67,7 @@ async function ensureTimesheetDailyRateOverride(conn) {
   await conn.query(
     `ALTER TABLE construction_payroll_timesheets
      ADD COLUMN daily_rate_override decimal(12,2) DEFAULT NULL
-     COMMENT 'Diária só nesta linha; NULL = usar cadastro do funcionário'
-     AFTER days_worked`
+     COMMENT 'Diária só nesta linha; NULL = usar cadastro do funcionário'`
   );
   console.log('  + coluna daily_rate_override em construction_payroll_timesheets');
 }
