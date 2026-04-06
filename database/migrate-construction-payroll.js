@@ -43,6 +43,35 @@ async function ensurePermission(conn, key, name, group, description) {
   console.log('  + permission:', key);
 }
 
+async function columnExists(conn, table, column) {
+  const [rows] = await conn.query(
+    `SELECT COUNT(*) AS c FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?`,
+    [table, column]
+  );
+  return rows[0].c > 0;
+}
+
+/** Bases antigas: a tabela já existia sem esta coluna (CREATE TABLE IF NOT EXISTS não acrescenta colunas). */
+async function ensureTimesheetDailyRateOverride(conn) {
+  const [t] = await conn.query(
+    `SELECT COUNT(*) AS c FROM information_schema.TABLES
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'construction_payroll_timesheets'`
+  );
+  if (!t[0]?.c) return;
+  if (await columnExists(conn, 'construction_payroll_timesheets', 'daily_rate_override')) {
+    console.log('  (skip) daily_rate_override já existe em construction_payroll_timesheets');
+    return;
+  }
+  await conn.query(
+    `ALTER TABLE construction_payroll_timesheets
+     ADD COLUMN daily_rate_override decimal(12,2) DEFAULT NULL
+     COMMENT 'Diária só nesta linha; NULL = usar cadastro do funcionário'
+     AFTER days_worked`
+  );
+  console.log('  + coluna daily_rate_override em construction_payroll_timesheets');
+}
+
 async function main() {
   const base = applyRailwayTcpProxyIfNeeded(getMysqlConnectionConfig());
   if (!base) {
@@ -56,6 +85,9 @@ async function main() {
 
   console.log('migrate-construction-payroll: aplicando DDL…');
   await conn.query(sql);
+
+  console.log('migrate-construction-payroll: colunas em falta (compatibilidade)…');
+  await ensureTimesheetDailyRateOverride(conn);
 
   console.log('migrate-construction-payroll: permissões…');
   await ensurePermission(
