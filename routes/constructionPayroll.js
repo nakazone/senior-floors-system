@@ -24,7 +24,7 @@ function normalizeReportRange(from, to) {
   return a <= b ? [a, b] : [b, a];
 }
 
-/** Resposta JSON: DATE do MySQL vira Date/ISO e desvia o dia no <input type="date"> — fixar AAAA-MM-DD */
+/** Resposta JSON: DATE do MySQL vira Date em UTC — usar componentes UTC (evita dia errado no <input type="date">). */
 function mysqlDateToYmd(v) {
   if (v == null || v === '') return v;
   if (typeof v === 'string') {
@@ -32,7 +32,10 @@ function mysqlDateToYmd(v) {
     if (m) return m[1];
   }
   if (v instanceof Date && !Number.isNaN(v.getTime())) {
-    return v.toISOString().slice(0, 10);
+    const y = v.getUTCFullYear();
+    const mo = String(v.getUTCMonth() + 1).padStart(2, '0');
+    const d = String(v.getUTCDate()).padStart(2, '0');
+    return `${y}-${mo}-${d}`;
   }
   return String(v).match(/^(\d{4}-\d{2}-\d{2})/)?.[1] || String(v).slice(0, 10);
 }
@@ -848,8 +851,14 @@ async function upsertOneLine(executor, period, line, userId, options = {}) {
   const { allowClosedLineUpdates = false } = options;
   const employeeId = parseInt(line.employee_id, 10);
   const emp = await loadEmployee(executor, employeeId);
-  if (!emp || !emp.is_active) {
-    const e = new Error('Funcionário inválido ou inativo');
+  if (!emp) {
+    const e = new Error('Funcionário inválido');
+    e.statusCode = 400;
+    throw e;
+  }
+  const isUpdate = Boolean(line.id);
+  if (!isUpdate && !emp.is_active) {
+    const e = new Error('Funcionário inativo — não é possível criar linhas novas para este funcionário');
     e.statusCode = 400;
     throw e;
   }

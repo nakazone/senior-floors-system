@@ -317,12 +317,20 @@ function escapeHtml(s) {
 function employeeOptionsHtml(selectedId) {
   const active = employees.filter((e) => e.is_active);
   const sel = selectedId != null && selectedId !== '' ? String(selectedId) : '';
-  return (
+  const activeIds = new Set(active.map((e) => String(e.id)));
+  let inactiveSelected = null;
+  if (sel && !activeIds.has(sel)) {
+    inactiveSelected = employeesById[sel] || employees.find((e) => String(e.id) === sel) || null;
+  }
+  let html =
     '<option value="">—</option>' +
     active
       .map((e) => `<option value="${e.id}"${String(e.id) === sel ? ' selected' : ''}>${escapeHtml(e.name)}</option>`)
-      .join('')
-  );
+      .join('');
+  if (inactiveSelected) {
+    html += `<option value="${inactiveSelected.id}" selected>${escapeHtml(inactiveSelected.name)} (inativo)</option>`;
+  }
+  return html;
 }
 
 function projectOptionsHtml(selectedId) {
@@ -634,8 +642,8 @@ async function onPeriodChange() {
 function collectLinesFromGrid() {
   const lines = [];
   document.querySelectorAll('#timesheetBody tr').forEach((tr) => {
-    const work_date = tr.querySelector('.ts-date').value;
-    const employee_id = tr.querySelector('.ts-emp').value;
+    const work_date = formatWorkDateForInput(tr.querySelector('.ts-date')?.value);
+    const employee_id = tr.querySelector('.ts-emp')?.value;
     const projectSel = tr.querySelector('.ts-proj').value;
     const days_worked = tr.querySelector('.ts-days').value;
     const regular_hours = tr.querySelector('.ts-reg').value;
@@ -671,7 +679,7 @@ function timesheetGridValidationIssues() {
   let idx = 0;
   document.querySelectorAll('#timesheetBody tr').forEach((tr) => {
     idx += 1;
-    const work_date = tr.querySelector('.ts-date')?.value;
+    const work_date = formatWorkDateForInput(tr.querySelector('.ts-date')?.value);
     const employee_id = tr.querySelector('.ts-emp')?.value;
     const d = parseNumInput(tr.querySelector('.ts-days')?.value);
     const r = parseNumInput(tr.querySelector('.ts-reg')?.value);
@@ -1369,8 +1377,15 @@ document.getElementById('btnSaveTimesheet')?.addEventListener('click', async () 
     return;
   }
   try {
-    await api('POST', `/periods/${selectedPeriodId}/timesheets/bulk`, { lines });
-    window.crmToast?.success?.('Quadro guardado');
+    const j = await api('POST', `/periods/${selectedPeriodId}/timesheets/bulk`, { lines });
+    const saved = Array.isArray(j.data) ? j.data.length : 0;
+    if (saved < lines.length) {
+      window.crmToast?.success?.(
+        `Guardado ${saved} de ${lines.length} linha(s). Verifique datas dentro do período e funcionário em cada linha.`
+      );
+    } else {
+      window.crmToast?.success?.('Quadro guardado');
+    }
     await loadTimesheetsForPeriod();
     await loadPeriods(selectedPeriodId);
     await loadDashboard();
