@@ -39,14 +39,6 @@ window.addEventListener('DOMContentLoaded', () => {
             window.location.href = '/login.html';
         });
 
-    const logoutBtn = document.getElementById('logoutBtn');
-    if (logoutBtn) {
-        logoutBtn.addEventListener('click', async () => {
-            await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
-            window.location.href = '/login.html';
-        });
-    }
-
     // Tab switching
     document.querySelectorAll('.tab').forEach(tab => {
         tab.addEventListener('click', () => {
@@ -60,13 +52,20 @@ window.addEventListener('DOMContentLoaded', () => {
 
     wireVisitScheduleHalfHourInputs_();
 
-    // Menu lateral fixo: toggle mobile
     const sidebar = document.getElementById('dashboardSidebar');
     const overlay = document.getElementById('mobileOverlay');
     const menuBtn = document.getElementById('mobileMenuToggle');
     if (menuBtn && sidebar && overlay) {
-        menuBtn.addEventListener('click', () => { sidebar.classList.toggle('mobile-open'); overlay.classList.toggle('active'); });
-        overlay.addEventListener('click', () => { sidebar.classList.remove('mobile-open'); overlay.classList.remove('active'); });
+        menuBtn.addEventListener('click', () => {
+            const open = sidebar.classList.toggle('mobile-open');
+            overlay.classList.toggle('active', open);
+            menuBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        });
+        overlay.addEventListener('click', () => {
+            sidebar.classList.remove('mobile-open');
+            overlay.classList.remove('active');
+            menuBtn.setAttribute('aria-expanded', 'false');
+        });
     }
 
     setupLeadImportInvoicePdfForm();

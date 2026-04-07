@@ -121,7 +121,7 @@ body.dashboard-app-body {
 }
 
 .sidebar-header {
-  padding: 1.1rem 0.75rem 1rem;
+  padding: 1.2rem 0.75rem 1.05rem;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   align-items: center;
   justify-content: center;
@@ -135,8 +135,8 @@ body.dashboard-app-body {
 
 .sidebar-header .sidebar-brand-logo,
 .sidebar-header img.sidebar-brand-logo {
-  width: 72px;
-  height: 72px;
+  width: 104px;
+  height: 104px;
   max-width: 100%;
   object-fit: contain;
 }

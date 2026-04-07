@@ -6,7 +6,7 @@
     <title>Lead Details - Senior Floors CRM</title>
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="design-system.css">
-    <link rel="stylesheet" href="crm-shared-nav.css">
+    <link rel="stylesheet" href="crm-shared-nav.css?v=8">
     <link rel="stylesheet" href="crm-toast.css">
     <style>
         .lead-detail-container {
@@ -300,9 +300,39 @@
         }
     </style>
 </head>
-<body class="crm-standalone-page">
-    <div id="crmSharedNavRoot"></div>
+<body class="dashboard-app-body payroll-sidebar-page">
+    <header class="mobile-app-header" id="mobileAppHeader" aria-label="Barra superior">
+        <button type="button" class="mobile-app-header__menu" id="mobileMenuToggle" aria-label="Abrir menu" aria-expanded="false" aria-controls="dashboardSidebar">
+            <span class="mobile-app-header__menu-icon" aria-hidden="true"></span>
+        </button>
+        <div class="mobile-app-header__brand">
+            <img src="/assets/SeniorFloors.png" alt="" class="mobile-app-header__logo" width="28" height="28" onerror="this.style.display='none'" />
+            <h1 class="mobile-app-header__title">Lead</h1>
+        </div>
+    </header>
+
     <div class="dashboard-container">
+        <aside class="dashboard-sidebar sf-sidebar" id="dashboardSidebar" aria-label="Menu">
+            <div class="sidebar-header">
+                <img src="/assets/SeniorFloors.png" alt="Senior Floors" class="sidebar-brand-logo logo-image" width="104" height="104" onerror="this.style.display='none'" />
+            </div>
+            <nav class="sidebar-nav" aria-label="Principal">
+                <div id="crmSharedNavRoot" data-layout="sidebar"></div>
+            </nav>
+            <div class="sidebar-footer">
+                <div class="sidebar-user-bar">
+                    <div class="sidebar-user-bar__avatar" id="sidebarUserAvatar" aria-hidden="true">—</div>
+                    <div class="sidebar-user-bar__text">
+                        <span class="sidebar-user-bar__name" id="sidebarUserName">—</span>
+                        <span class="sidebar-user-bar__role" id="sidebarUserRole"></span>
+                    </div>
+                    <button type="button" id="logoutBtn" class="sidebar-logout-btn" title="Sair" aria-label="Terminar sessão">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+                    </button>
+                </div>
+            </div>
+        </aside>
+        <div class="mobile-overlay" id="mobileOverlay"></div>
         <main class="dashboard-main">
             <div class="lead-detail-container">
                 <div class="lead-header">
@@ -807,7 +837,7 @@
     </div>
 
     <script src="crm-toast.js"></script>
-    <script src="crm-shared-nav.js?v=6"></script>
+    <script src="crm-shared-nav.js?v=8"></script>
     <script src="lead-detail.js?v=20250331-clients"></script>
 </body>
 </html>

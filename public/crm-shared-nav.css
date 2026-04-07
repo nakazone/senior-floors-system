@@ -39,7 +39,7 @@
 .crm-shared-nav__inner {
   max-width: 1600px;
   margin: 0 auto;
-  padding: 0.35rem 0.75rem 0.5rem;
+  padding: 0.5rem 0.75rem 0.55rem;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -72,8 +72,8 @@
 
 .crm-shared-nav__brand img,
 .crm-shared-nav__brand-logo {
-  width: 44px;
-  height: 44px;
+  width: 64px;
+  height: 64px;
   object-fit: contain;
   display: block;
 }

@@ -94,6 +94,9 @@
   function linkActive(item, file, page) {
     const h = item.href || '';
     const base = h.split('?')[0].split('/').pop().toLowerCase();
+    if (file === 'lead-detail.html') {
+      return base === 'dashboard.html' && (item.page || '') === 'leads';
+    }
     if (base === 'marketing.html') {
       return file === 'marketing.html';
     }
@@ -215,7 +218,7 @@
     brand.href = 'dashboard.html';
     brand.setAttribute('aria-label', 'Senior Floors CRM — início');
     brand.innerHTML =
-      '<img src="/assets/SeniorFloors.png" alt="" class="crm-shared-nav__brand-logo" width="44" height="44" onerror="this.style.display=\'none\'" />';
+      '<img src="/assets/SeniorFloors.png" alt="" class="crm-shared-nav__brand-logo" width="64" height="64" onerror="this.style.display=\'none\'" />';
     inner.appendChild(brand);
 
     MAIN_NAV.forEach((item) => {
