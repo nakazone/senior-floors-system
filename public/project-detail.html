@@ -1,59 +1,21 @@
 <!DOCTYPE html>
-<html lang="pt">
+<html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Projeto — Senior Floors CRM</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#1a2036" />
+  <title>Projeto — Senior Floors</title>
   <link rel="icon" type="image/png" href="/assets/SeniorFloors.png" />
   <link rel="stylesheet" href="styles.css" />
   <link rel="stylesheet" href="design-system.css" />
-  <link rel="stylesheet" href="crm-shared-nav.css" />
+  <link rel="stylesheet" href="mobile-design-system.css" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <style>
-    .pd-body { background: var(--sf-gold-bg); min-height: 100vh; }
-    .pd-main { max-width: 1200px; margin: 0 auto; padding: 1rem 1.25rem 2.5rem; }
-    .pd-breadcrumb { font-size: 12px; color: var(--sf-muted); margin-bottom: 8px; }
-    .pd-breadcrumb a { color: var(--sf-navy2); }
-    .pd-head { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; margin-bottom: 16px; }
-    .pd-title { font-size: 1.35rem; font-weight: 700; color: var(--sf-navy); margin: 0; }
-    .pd-actions { display: flex; flex-wrap: wrap; gap: 8px; }
-    .pd-btn { padding: 8px 14px; border-radius: 8px; border: 1px solid var(--sf-border); background: #fff; font-size: 12px; font-weight: 600; cursor: pointer; color: var(--sf-navy); }
-    .pd-btn--primary { background: var(--sf-navy); color: var(--sf-gold); border-color: var(--sf-navy); }
-    button.pd-btn--primary { color: var(--sf-gold); }
-    .pd-progress-wrap { flex: 1; min-width: 200px; max-width: 420px; }
-    .pd-progress-bar { height: 8px; background: rgba(26,32,54,.12); border-radius: 6px; overflow: hidden; }
-    .pd-progress-bar > div { height: 100%; background: var(--sf-gold3); transition: width .3s; }
-    .pd-tabs { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid var(--sf-border); margin-bottom: 16px; }
-    .tab-btn { padding: 10px 14px; border: none; background: transparent; font-size: 13px; font-weight: 600; color: var(--sf-muted); cursor: pointer; border-radius: 8px 8px 0 0; }
-    .tab-btn.active { color: var(--sf-navy); background: rgba(26,32,54,.06); }
-    .tab-pane { display: none; }
-    .pd-collapsible { border: 1px solid var(--sf-border); border-radius: 10px; margin-bottom: 10px; overflow: hidden; background: #fff; }
-    .pd-collapsible-h { padding: 10px 12px; font-weight: 700; font-size: 13px; color: var(--sf-navy); cursor: pointer; display: flex; justify-content: space-between; align-items: center; background: var(--sf-gold-soft); }
-    .pd-collapsible-b { padding: 12px; display: none; }
-    .pd-collapsible.open .pd-collapsible-b { display: block; }
-    .pd-table { width: 100%; border-collapse: collapse; font-size: 12px; }
-    .pd-table th, .pd-table td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #eee; }
-    .pd-inline-form { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--sf-border); }
-    .pd-inline-form input, .pd-inline-form select { padding: 6px 8px; border-radius: 6px; border: 1px solid var(--sf-border); }
-    .pd-gallery-col { flex: 1; min-width: 200px; }
-    .pd-gallery-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
-    .pd-gallery-grid img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 6px; cursor: pointer; }
-    .pd-add-photo { min-height: 72px; border: 2px dashed var(--sf-border); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 24px; color: var(--sf-gold4); cursor: pointer; background: rgba(255,255,255,.5); }
-    .pd-check-cat { margin-bottom: 14px; }
-    .pd-check-cat h4 { font-size: 12px; color: var(--sf-navy); margin: 0 0 8px; }
-    .pd-check-item { display: flex; align-items: flex-start; gap: 8px; padding: 6px 0; border-bottom: 1px solid #f0ebe3; }
-    .pd-banner-ok { background: rgba(45,110,74,.12); color: var(--sf-ok); padding: 10px 14px; border-radius: 8px; font-weight: 600; font-size: 13px; margin-bottom: 12px; }
-    .pd-pl-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; margin-bottom: 12px; }
-    .status-dd { position: relative; }
-    .status-dd select { appearance: auto; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--sf-border); font-weight: 600; }
-    .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
-  </style>
 </head>
-<body class="dashboard-app-body pd-body payroll-sidebar-page">
+<body class="dashboard-app-body pd-body payroll-sidebar-page project-detail-page">
   <header class="mobile-app-header" id="mobileAppHeader" aria-label="Barra superior">
-    <button type="button" class="mobile-app-header__menu" id="mobileMenuToggle" aria-label="Abrir menu" aria-expanded="false" aria-controls="pdSidebar">
+    <button type="button" class="mobile-app-header__menu" id="mobileMenuToggle" aria-label="Abrir menu" aria-expanded="false" aria-controls="dashboardSidebar">
       <span class="mobile-app-header__menu-icon" aria-hidden="true"></span>
     </button>
     <div class="mobile-app-header__brand">
@@ -61,68 +23,159 @@
       <h1 class="mobile-app-header__title">Projeto</h1>
     </div>
   </header>
+
   <div class="dashboard-container">
-    <aside class="dashboard-sidebar" id="pdSidebar" aria-label="Menu lateral">
+    <div class="mobile-overlay" id="mobileOverlay"></div>
+
+    <aside class="dashboard-sidebar sf-sidebar" id="dashboardSidebar" aria-label="Menu lateral CRM">
       <div class="sidebar-header">
         <img src="/assets/SeniorFloors.png" alt="" class="sidebar-brand-logo logo-image" width="48" height="48" onerror="this.style.display='none'" />
         <div class="sidebar-brand-text">
           <span class="sidebar-brand-text__name mobile-hidden">Senior Floors CRM</span>
           <span class="sidebar-brand-text__name mobile-only">CRM</span>
+          <span class="sidebar-brand-text__tagline mobile-hidden">Senior Floors</span>
         </div>
       </div>
-      <nav class="sidebar-nav"><div id="crmSharedNavRoot" data-layout="sidebar"></div></nav>
+
+      <nav class="sidebar-nav" aria-label="Principal">
+        <div class="sidebar-nav-group">
+          <a href="dashboard.html" class="nav-item" data-crm-permission="projects.view">
+            <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>
+            Dashboard
+          </a>
+        </div>
+        <div class="sidebar-nav-group">
+          <p class="sidebar-nav-group-label">Comercial</p>
+          <a href="marketing.html" class="nav-item" data-crm-permission="reports.view">
+            <span class="nav-icon-svg" style="font-size:1.1rem;width:20px;display:inline-flex;justify-content:center" aria-hidden="true">📣</span>
+            Marketing
+          </a>
+          <a href="dashboard.html?page=leads" class="nav-item" data-crm-permission="leads.view">
+            <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><path d="M9 5a2 2 0 012-2h2a2 2 0 012 2v0a2 2 0 01-2 2H9a2 2 0 01-2-2v0z"/><path d="M9 12h6"/><path d="M9 16h6"/></svg>
+            Leads
+          </a>
+          <a href="dashboard.html?page=crm" class="nav-item" data-crm-permission="pipeline.view">
+            <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+            CRM
+          </a>
+          <a href="dashboard.html?page=customers" class="nav-item" data-crm-permission="customers.view">
+            <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+            Clients
+          </a>
+        </div>
+        <div class="sidebar-nav-group">
+          <p class="sidebar-nav-group-label">Operações</p>
+          <a href="dashboard.html?page=quotes" class="nav-item" data-crm-permission="quotes.view">
+            <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>
+            Quotes
+          </a>
+          <a href="dashboard.html?page=schedule" class="nav-item" data-crm-permission="visits.view">
+            <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/></svg>
+            Schedule
+          </a>
+          <a href="projects.html" class="nav-item active" data-crm-permission="projects.view">
+            <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/><path d="M5 3l4 4"/></svg>
+            Projetos
+          </a>
+        </div>
+        <div class="sidebar-nav-group">
+          <p class="sidebar-nav-group-label">Financeiro &amp; registo</p>
+          <a href="dashboard.html?page=financeiro" class="nav-item" data-crm-permission="contracts.view">
+            <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
+            Financeiro
+          </a>
+          <a href="payroll-module.html" class="nav-item" data-crm-permission="payroll.view">
+            <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+            Folha de pagamento
+          </a>
+          <a href="dashboard.html?page=activities" class="nav-item" data-crm-permission="activities.view">
+            <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+            Activities
+          </a>
+        </div>
+        <div class="sidebar-nav-group">
+          <p class="sidebar-nav-group-label">Sistema</p>
+          <a href="dashboard.html?page=users" class="nav-item" data-crm-permission="users.view">
+            <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            Users
+          </a>
+        </div>
+      </nav>
+
       <div class="sidebar-footer">
-        <button type="button" class="btn" id="pdSidebarLogout">Sair da conta</button>
+        <div class="sidebar-user-bar">
+          <div class="sidebar-user-bar__avatar" id="sidebarUserAvatar" aria-hidden="true">—</div>
+          <div class="sidebar-user-bar__text">
+            <span class="sidebar-user-bar__name" id="sidebarUserName">—</span>
+            <span class="sidebar-user-bar__role" id="sidebarUserRole"></span>
+          </div>
+          <button type="button" id="logoutBtn" class="sidebar-logout-btn" title="Sair" aria-label="Terminar sessão">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+          </button>
+        </div>
       </div>
     </aside>
-    <div class="mobile-overlay" id="mobileOverlay"></div>
-    <main class="dashboard-main pd-main">
-      <div class="pd-breadcrumb"><a href="projects.html">Projetos</a> / <span id="pd-crumb-name">…</span></div>
-      <div class="pd-head">
-        <h1 class="pd-title" id="pd-title">…</h1>
-        <div class="status-dd">
-          <label class="visually-hidden" for="pd-status">Status</label>
-          <select id="pd-status" aria-label="Status do projeto"></select>
-        </div>
-      </div>
-      <div class="pd-head">
-        <div class="pd-progress-wrap">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-            <span style="font-size:12px;font-weight:600;color:var(--sf-navy)">Conclusão</span>
-            <input type="number" id="pd-pct" min="0" max="100" style="width:52px;padding:4px 6px;border-radius:6px;border:1px solid var(--sf-border)" /> %
+
+    <main class="dashboard-main pd-main sf-main-content" id="pdMain">
+      <header class="pd-topbar">
+        <div class="pd-topbar-left">
+          <div class="pd-breadcrumb">
+            <a href="projects.html" class="pd-breadcrumb-link">Projetos</a>
+            <span class="pd-breadcrumb-sep">/</span>
+            <span id="pd-crumb-name">Carregando…</span>
           </div>
-          <div class="pd-progress-bar"><div id="pd-progress-fill" style="width:0%"></div></div>
+          <div class="pd-title-row">
+            <h1 class="pd-title" id="pd-title">—</h1>
+            <span class="pd-number" id="pd-number">—</span>
+            <span class="pd-client-type" id="pd-client-type"></span>
+          </div>
         </div>
-        <div class="pd-actions">
-          <button type="button" class="pd-btn" id="btn-sync-payroll">🔄 Folha de pagamento</button>
-          <button type="button" class="pd-btn" id="btn-tab-checklist">Completar Checklist</button>
-          <button type="button" class="pd-btn" id="btn-tab-pl">Ver P&amp;L</button>
-          <button type="button" class="pd-btn pd-btn--primary" id="btn-tab-gallery">Galeria</button>
+        <div class="pd-topbar-right">
+          <div class="pd-status-dropdown pd-status-select-wrap" id="pd-status-wrap">
+            <label class="visually-hidden" for="pd-status">Status</label>
+            <select id="pd-status" class="pd-status-select" aria-label="Status do projeto"></select>
+          </div>
+          <button type="button" class="pd-action-btn" id="btn-sync-payroll">🔄 Folha de pagamento</button>
+          <button type="button" class="pd-action-btn" id="btn-tab-checklist">Checklist</button>
+          <button type="button" class="pd-action-btn" id="btn-tab-pl">P&amp;L</button>
+          <button type="button" class="pd-action-btn pd-action-primary" id="btn-tab-gallery">Galeria</button>
         </div>
+      </header>
+
+      <div class="pd-progress-strip">
+        <span class="pd-prog-label">Progresso da obra</span>
+        <div class="pd-prog-track">
+          <div class="pd-prog-fill" id="pd-progress-fill" style="width:0%"></div>
+        </div>
+        <input type="number" class="pd-prog-input" id="pd-pct" min="0" max="100" value="0" title="Editar progresso" />
+        <span class="pd-prog-pct-label">%</span>
+        <span class="pd-prog-dates" id="pd-prog-dates"></span>
       </div>
 
-      <div class="pd-tabs" role="tablist">
-        <button type="button" class="tab-btn active" data-tab="overview" role="tab">Visão geral</button>
-        <button type="button" class="tab-btn" data-tab="costs" role="tab">Custos</button>
-        <button type="button" class="tab-btn" data-tab="checklist" role="tab">Checklist</button>
-        <button type="button" class="tab-btn" data-tab="gallery" role="tab">Galeria</button>
-        <button type="button" class="tab-btn" data-tab="builder" role="tab" id="tab-btn-builder" style="display:none">Builder</button>
-      </div>
+      <nav class="pd-tabs" role="tablist" aria-label="Secções do projeto">
+        <button type="button" class="tab-btn pd-tab active" data-tab="overview" role="tab" aria-selected="true">Visão geral</button>
+        <button type="button" class="tab-btn pd-tab" data-tab="costs" role="tab">Custos</button>
+        <button type="button" class="tab-btn pd-tab" data-tab="checklist" role="tab">Checklist</button>
+        <button type="button" class="tab-btn pd-tab" data-tab="gallery" role="tab">Galeria &amp; portfólio</button>
+        <button type="button" class="tab-btn pd-tab" data-tab="builder" role="tab" id="tab-btn-builder" style="display:none">Builder</button>
+      </nav>
 
-      <div id="tab-overview" class="tab-pane" style="display:block"></div>
-      <div id="tab-costs" class="tab-pane"></div>
-      <div id="tab-checklist" class="tab-pane"></div>
-      <div id="tab-gallery" class="tab-pane"></div>
-      <div id="tab-builder" class="tab-pane"></div>
+      <!-- Conteúdo das abas é injetado por project-detail.js (innerHTML). -->
+      <div id="tab-overview" class="tab-pane pd-tab-pane" style="display:block"></div>
+      <div id="tab-costs" class="tab-pane pd-tab-pane" style="display:none"></div>
+      <div id="tab-checklist" class="tab-pane pd-tab-pane" style="display:none"></div>
+      <div id="tab-gallery" class="tab-pane pd-tab-pane" style="display:none"></div>
+      <div id="tab-builder" class="tab-pane pd-tab-pane" style="display:none"></div>
     </main>
   </div>
+
   <input type="file" id="pd-file-input" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif" capture="environment" style="position:fixed;left:-9999px;width:1px;height:1px;opacity:0" />
-  <script src="crm-shared-nav.js?v=4"></script>
+
   <script src="project-detail.js?v=1"></script>
   <script>
     (function () {
       var t = document.getElementById('mobileMenuToggle');
-      var s = document.getElementById('pdSidebar');
+      var s = document.getElementById('dashboardSidebar');
       var o = document.getElementById('mobileOverlay');
       if (t && s && o) {
         t.addEventListener('click', function () {
@@ -136,7 +189,7 @@
           t.setAttribute('aria-expanded', 'false');
         });
       }
-      document.getElementById('pdSidebarLogout')?.addEventListener('click', async function () {
+      document.getElementById('logoutBtn')?.addEventListener('click', async function () {
         try { await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }); } catch (e) {}
         window.location.href = 'login.html';
       });
