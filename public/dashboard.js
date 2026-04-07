@@ -487,6 +487,11 @@ if (dashboardSidebarEl) {
 function showPage(pageName) {
     if (!pageName || typeof pageName !== 'string') return;
 
+    if (pageName === 'financeiro') {
+        window.location.href = 'financial.html';
+        return;
+    }
+
     const contentRoot = document.querySelector('.dashboard-main .dashboard-content');
     if (contentRoot) {
         contentRoot.querySelectorAll(':scope > .page-content').forEach((p) => {

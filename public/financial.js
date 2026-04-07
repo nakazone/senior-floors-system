@@ -1,0 +1,716 @@
+/**
+ * Painel financeiro completo — Senior Floors CRM
+ */
+let currentPeriod = 'month';
+let currentWeek = getMonday(new Date());
+let plData = null;
+let _cfChart = null;
+let vendorsCache = [];
+let editingOpId = null;
+let editingVendorId = null;
+
+const fmt$ = (v) =>
+  new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(parseFloat(v) || 0);
+const fmt$Compact = (v) => {
+  const n = parseFloat(v) || 0;
+  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1000) return `$${(n / 1000).toFixed(0)}k`;
+  return fmt$(n);
+};
+const fmtPct = (v) => `${(parseFloat(v) || 0).toFixed(1)}%`;
+
+function getMonday(d) {
+  const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const day = x.getDay();
+  const diff = x.getDate() - day + (day === 0 ? -6 : 1);
+  x.setDate(diff);
+  return x.toISOString().slice(0, 10);
+}
+
+function showToast(msg, type = 'success') {
+  const bg = { success: 'var(--sf-ok, #2d6e4a)', error: 'var(--sf-bad, #b33a3a)', info: 'var(--sf-navy, #1a2036)' };
+  const t = document.createElement('div');
+  t.style.cssText = `position:fixed;bottom:20px;right:20px;padding:10px 18px;border-radius:8px;font-size:12px;font-weight:600;color:#fff;z-index:9999;background:${bg[type] || bg.success};max-width:320px`;
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 3500);
+}
+
+function showSkeletons(section) {
+  document.querySelectorAll(`[data-skeleton="${section}"]`).forEach((e) => e.classList.add('sf-skeleton'));
+}
+function hideSkeletons(section) {
+  document.querySelectorAll(`[data-skeleton="${section}"]`).forEach((e) => e.classList.remove('sf-skeleton'));
+}
+
+function switchFinancialTab(tab) {
+  document.querySelectorAll('.fin-tab').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab));
+  document.querySelectorAll('.fin-pane').forEach((p) => p.classList.toggle('on', p.dataset.pane === tab));
+  if (tab === 'operational') loadOperationalCosts();
+  if (tab === 'vendors') loadVendors();
+  if (tab === 'receipts') loadPaymentReceipts();
+}
+
+async function loadPL() {
+  showSkeletons('pl');
+  const customS = document.getElementById('finCustomStart')?.value;
+  const customE = document.getElementById('finCustomEnd')?.value;
+  const params = new URLSearchParams();
+  if (customS && customE) {
+    params.set('start', customS);
+    params.set('end', customE);
+  } else {
+    params.set('period', currentPeriod);
+  }
+  const [plRes, cfRes] = await Promise.all([
+    fetch(`/api/financial/pl?${params}`, { credentials: 'include' }).then((r) => r.json()),
+    fetch('/api/financial/cash-flow?months=6', { credentials: 'include' }).then((r) => r.json()),
+  ]);
+  hideSkeletons('pl');
+  if (!plRes.success) {
+    showToast(plRes.error || 'Erro P&L', 'error');
+    return;
+  }
+  plData = plRes.data;
+  const c = plData.costs || {};
+  const totalC = parseFloat(c.total) || 0;
+  document.getElementById('pl-revenue').textContent = fmt$(plData.revenue);
+  document.getElementById('pl-received').textContent = fmt$(plData.received);
+  document.getElementById('pl-cost-total').textContent = fmt$(totalC);
+  document.getElementById('pl-gross').textContent = fmt$(plData.gross_profit);
+  document.getElementById('pl-net').textContent = fmt$(plData.net_profit);
+  const m = parseFloat(plData.net_margin_pct) || 0;
+  document.getElementById('pl-margin').textContent = fmtPct(m);
+  const marginEl = document.getElementById('kpi-margin');
+  marginEl.classList.remove('fin-card--ok', 'fin-card--warn', 'fin-card--bad');
+  marginEl.classList.add(m >= 15 ? 'fin-card--ok' : m >= 5 ? 'fin-card--warn' : 'fin-card--bad');
+
+  const pct = (x) => (totalC > 0 ? ((parseFloat(x) || 0) / totalC) * 100 : 0);
+  document.getElementById('bd-payroll').textContent = `${fmt$(c.payroll)} (${fmtPct(pct(c.payroll))})`;
+  document.getElementById('bd-project').textContent = `${fmt$(c.project)} (${fmtPct(pct(c.project))})`;
+  document.getElementById('bd-op').textContent = `${fmt$(c.operational)} (${fmtPct(pct(c.operational))})`;
+  document.getElementById('bd-mkt').textContent = `${fmt$(c.marketing)} (${fmtPct(pct(c.marketing))})`;
+  document.getElementById('bd-total').textContent = fmt$(totalC);
+
+  const tbody = document.getElementById('pl-projects-body');
+  const top = plData.top_projects || [];
+  tbody.innerHTML = top.length
+    ? top
+        .map(
+          (r) => `<tr>
+        <td>${escapeHtml(r.project_label)}</td>
+        <td>${fmt$(r.contract_value)}</td>
+        <td>${fmt$(r.cost_total)}</td>
+        <td>${fmt$(r.profit)}</td>
+        <td>${fmtPct(r.margin_pct)}</td>
+        <td>${escapeHtml(r.status)}</td>
+      </tr>`
+        )
+        .join('')
+    : '<tr><td colspan="6" style="color:var(--text-muted)">Sem projetos no período</td></tr>';
+
+  if (cfRes.success && cfRes.data) renderCashFlowChart(cfRes.data);
+}
+
+function escapeHtml(s) {
+  return String(s || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/"/g, '&quot;');
+}
+
+function renderCashFlowChart(months) {
+  if (_cfChart) {
+    _cfChart.destroy();
+    _cfChart = null;
+  }
+  const canvas = document.getElementById('chart-cashflow');
+  if (!canvas || !months?.length || typeof Chart === 'undefined') return;
+  _cfChart = new Chart(canvas.getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: months.map((m) => m.label),
+      datasets: [
+        {
+          label: 'Receita',
+          data: months.map((m) => parseFloat(m.revenue) || 0),
+          backgroundColor: '#c9a882',
+          borderRadius: 4,
+          order: 2,
+        },
+        {
+          label: 'Custos',
+          data: months.map((m) => parseFloat(m.costs) || 0),
+          backgroundColor: 'rgba(143, 80, 16, 0.4)',
+          borderRadius: 4,
+          order: 2,
+        },
+        {
+          label: 'Lucro Líquido',
+          data: months.map((m) => parseFloat(m.net_profit) || 0),
+          type: 'line',
+          borderColor: '#2d6e4a',
+          backgroundColor: 'rgba(45, 110, 74, 0.08)',
+          borderWidth: 2,
+          pointRadius: 4,
+          fill: true,
+          tension: 0.3,
+          order: 1,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: true, position: 'bottom' },
+        tooltip: { callbacks: { label: (c) => ` ${fmt$(c.parsed.y)}` } },
+      },
+      scales: {
+        x: { grid: { display: false } },
+        y: { ticks: { callback: (v) => fmt$Compact(v) } },
+      },
+    },
+  });
+}
+
+async function loadWeeklyForecast(week) {
+  const w = week || currentWeek;
+  const res = await fetch(`/api/financial/weekly-forecast?week=${encodeURIComponent(w)}`, { credentials: 'include' }).then((r) =>
+    r.json()
+  );
+  if (!res.success) {
+    showToast(res.error || 'Erro previsão', 'error');
+    return;
+  }
+  const d = res.data;
+  currentWeek = d.week_start;
+  document.getElementById('finWeekLabel').textContent = `${d.week_start} → ${d.week_end}`;
+  const f = d.forecast;
+  document.getElementById('fc-payroll').textContent = fmt$(f.payroll.amount);
+  document.getElementById('fc-op').textContent = fmt$(f.operational.amount);
+  document.getElementById('fc-mat').textContent = fmt$(f.materials.amount);
+  document.getElementById('fc-mkt').textContent = fmt$(f.marketing.amount);
+  document.getElementById('fc-total').textContent = fmt$(f.total);
+
+  const rows = [];
+  (f.payroll.items || []).forEach((i) =>
+    rows.push(['Payroll', `${escapeHtml(i.project_name)} · ${escapeHtml(i.crew_name)} · ${i.days_overlap}d`, fmt$((i.days_overlap || 0) * (parseFloat(i.daily_rate_avg) || 0))])
+  );
+  (f.operational.items || []).forEach((i) =>
+    rows.push(['Operacional', escapeHtml(i.description), fmt$(i.total_amount)])
+  );
+  (f.materials.items || []).forEach((i) =>
+    rows.push(['Material', escapeHtml(i.product_name) + ' · ' + escapeHtml(i.project_name || ''), fmt$(i.total_cost)])
+  );
+  document.getElementById('fc-detail-body').innerHTML = rows.length
+    ? rows.map((r) => `<tr><td>${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td></tr>`).join('')
+    : '<tr><td colspan="3">Sem itens</td></tr>';
+}
+
+async function importMarketing() {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+  const end = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10);
+  const res = await fetch('/api/financial/import-marketing', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ period_start: start, period_end: end }),
+  }).then((r) => r.json());
+  showToast(
+    res.imported > 0 ? `${res.imported} campanhas importadas` : 'Nada novo para importar',
+    res.success ? 'info' : 'error'
+  );
+  if (res.imported > 0) loadPL();
+}
+
+async function loadOperationalCosts() {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = now.getMonth();
+  const startM = new Date(y, m, 1).toISOString().slice(0, 10);
+  const endM = new Date(y, m + 1, 0).toISOString().slice(0, 10);
+  const startY = `${y}-01-01`;
+  const endY = `${y}-12-31`;
+
+  const recurringOnly = document.getElementById('opToggleRecurring')?.checked;
+  let url = '/api/operational-costs?';
+  if (recurringOnly) url = '/api/operational-costs/recurring';
+  else url += `start_date=${startM}&end_date=${endM}`;
+
+  const [listRes, monthRes, yearRes, recRes] = await Promise.all([
+    fetch(url, { credentials: 'include' }).then((r) => r.json()),
+    fetch(`/api/operational-costs?start_date=${startM}&end_date=${endM}`, { credentials: 'include' }).then((r) => r.json()),
+    fetch(`/api/operational-costs?start_date=${startY}&end_date=${endY}`, { credentials: 'include' }).then((r) => r.json()),
+    fetch('/api/operational-costs/recurring', { credentials: 'include' }).then((r) => r.json()),
+  ]);
+
+  const rows = listRes.success ? listRes.data || [] : [];
+  const sumMonth = (monthRes.data || []).reduce((s, r) => s + (parseFloat(r.total_amount) || 0), 0);
+  const sumYear = (yearRes.data || []).reduce((s, r) => s + (parseFloat(r.total_amount) || 0), 0);
+  document.getElementById('op-kpi-month').textContent = fmt$(sumMonth);
+  document.getElementById('op-kpi-year').textContent = fmt$(sumYear);
+  document.getElementById('op-kpi-rec-n').textContent = String((recRes.data || []).length);
+
+  const byCat = {};
+  (monthRes.data || []).forEach((r) => {
+    const k = r.category || 'other';
+    if (!byCat[k]) byCat[k] = { total: 0, items: [] };
+    byCat[k].total += parseFloat(r.total_amount) || 0;
+    byCat[k].items.push(r);
+  });
+  document.getElementById('op-cat-cards').innerHTML = Object.keys(byCat).length
+    ? Object.entries(byCat)
+        .map(
+          ([k, v]) => `<div class="fin-op-cat-card"><strong>${escapeHtml(k)}</strong><div class="fin-card-val" style="font-size:1.1rem">${fmt$(v.total)}</div><div>${v.items.length} despesas</div><ul style="margin:8px 0 0 14px;font-size:11px;color:var(--text-muted)">${v.items
+            .slice(0, 3)
+            .map((i) => `<li>${escapeHtml(i.description)}</li>`)
+            .join('')}</ul></div>`
+        )
+        .join('')
+    : '<p style="color:var(--text-muted)">Sem dados no mês</p>';
+
+  document.getElementById('op-table-body').innerHTML = rows.length
+    ? rows
+        .map((r) => {
+          const rec = r.is_recurring ? `<span class="fin-badge-rec">🔄 ${escapeHtml(r.recurrence_type || '')}</span>` : '—';
+          const rc = r.receipt_url
+            ? `<a href="${escapeHtml(r.receipt_url)}" target="_blank" rel="noopener">Ver</a>
+               <button type="button" class="fin-btn" data-op-receipt="${r.id}" style="padding:4px 8px;font-size:10px">Upload</button>`
+            : `<button type="button" class="fin-btn" data-op-receipt="${r.id}" style="padding:4px 8px;font-size:10px">Upload</button>`;
+          return `<tr>
+          <td>${escapeHtml(String(r.expense_date).slice(0, 10))}</td>
+          <td>${escapeHtml(r.category)}</td>
+          <td>${escapeHtml(r.description)}</td>
+          <td>${escapeHtml(r.vendor_name || '')}</td>
+          <td>${fmt$(r.total_amount)}</td>
+          <td>${rec}</td>
+          <td>${rc}</td>
+          <td><button type="button" class="fin-btn" data-op-edit="${r.id}" style="padding:4px 8px">Editar</button></td>
+        </tr>`;
+        })
+        .join('')
+    : '<tr><td colspan="8">Sem registos</td></tr>';
+
+  document.querySelectorAll('[data-op-receipt]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const id = btn.getAttribute('data-op-receipt');
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/*,application/pdf';
+      input.onchange = () => uploadOperationalReceipt(id, input.files[0]);
+      input.click();
+    });
+  });
+  document.querySelectorAll('[data-op-edit]').forEach((btn) => {
+    btn.addEventListener('click', () => openOpModal(parseInt(btn.getAttribute('data-op-edit'), 10)));
+  });
+}
+
+async function uploadOperationalReceipt(id, file) {
+  if (!file) return;
+  const form = new FormData();
+  form.append('file', file);
+  const res = await fetch(`/api/operational-costs/${id}/receipt`, { method: 'POST', credentials: 'include', body: form }).then((r) =>
+    r.json()
+  );
+  if (res.success) showToast('Recibo salvo');
+  else showToast(res.error || 'Erro', 'error');
+  loadOperationalCosts();
+}
+
+async function loadVendors() {
+  const q = document.getElementById('vendorSearch')?.value?.trim();
+  const url = q ? `/api/vendors?search=${encodeURIComponent(q)}` : '/api/vendors';
+  const res = await fetch(url, { credentials: 'include' }).then((r) => r.json());
+  vendorsCache = res.data || [];
+  document.getElementById('vendor-grid').innerHTML = vendorsCache.length
+    ? vendorsCache
+        .map(
+          (v) => `<div class="fin-vendor-card">
+        <span style="font-size:10px;text-transform:uppercase;color:var(--text-muted)">${escapeHtml(v.category)}</span>
+        <h4 style="margin:6px 0;color:var(--sf-navy)">${escapeHtml(v.name)}</h4>
+        <p style="font-size:12px;color:var(--text-light)">${escapeHtml([v.contact_name, v.contact_email].filter(Boolean).join(' · '))}</p>
+        <p style="font-weight:700;margin-top:8px">${fmt$(v.total_spent)}</p>
+        <p style="font-size:12px">${v.rating ? '★'.repeat(v.rating) + '☆'.repeat(5 - v.rating) : '—'}</p>
+        <button type="button" class="fin-btn" data-vendor-hist="${v.id}" style="margin-top:8px">Ver histórico →</button>
+      </div>`
+        )
+        .join('')
+    : '<p>Sem fornecedores</p>';
+
+  document.querySelectorAll('[data-vendor-hist]').forEach((b) => {
+    b.addEventListener('click', () => openVendorDrawer(parseInt(b.getAttribute('data-vendor-hist'), 10)));
+  });
+
+  const sel = document.getElementById('op-vendor-select');
+  if (sel) {
+    sel.innerHTML = '<option value="">— Vendor —</option>' + vendorsCache.map((v) => `<option value="${v.id}">${escapeHtml(v.name)}</option>`).join('');
+  }
+}
+
+async function openVendorDrawer(id) {
+  const v = vendorsCache.find((x) => x.id === id);
+  document.getElementById('vendorDrawerTitle').textContent = v ? v.name : 'Histórico';
+  const res = await fetch(`/api/vendors/${id}/history`, { credentials: 'include' }).then((r) => r.json());
+  const list = res.data || [];
+  let sum = 0;
+  const body = document.getElementById('vendorDrawerBody');
+  body.innerHTML =
+    '<ul style="list-style:none;padding:0">' +
+    list
+      .map((r) => {
+        sum += parseFloat(r.amount) || 0;
+        return `<li style="padding:10px 0;border-bottom:1px solid var(--border-color)">
+        <span style="font-size:11px;color:var(--text-muted)">${escapeHtml(r.type)} · ${escapeHtml(String(r.date).slice(0, 10))}</span><br/>
+        ${escapeHtml(r.description)} — <strong>${fmt$(r.amount)}</strong>
+      </li>`;
+      })
+      .join('') +
+    `</ul><p style="margin-top:12px;font-weight:700">Total (amostra): ${fmt$(sum)}</p>`;
+  document.getElementById('vendorDrawer').classList.add('on');
+}
+
+async function loadPaymentReceipts() {
+  const [pr, pend, proj] = await Promise.all([
+    fetch('/api/payment-receipts', { credentials: 'include' }).then((r) => r.json()),
+    fetch('/api/payment-receipts/pending-summary', { credentials: 'include' }).then((r) => r.json()),
+    fetch('/api/projects?limit=100', { credentials: 'include' }).then((r) => r.json()),
+  ]);
+
+  const rows = pr.success ? pr.data || [] : [];
+  document.getElementById('payrecv-body').innerHTML = rows.length
+    ? rows
+        .map(
+          (r) => `<tr>
+      <td>${escapeHtml(r.project_label)}</td>
+      <td>${escapeHtml(r.payment_type)}</td>
+      <td>${fmt$(r.amount)}</td>
+      <td>${escapeHtml(String(r.payment_date).slice(0, 10))}</td>
+      <td>${escapeHtml(r.payment_method)}</td>
+      <td>${escapeHtml(r.reference_number || '')}</td>
+      <td><button type="button" class="fin-btn" data-del-pr="${r.id}" style="padding:4px 8px">✕</button></td>
+    </tr>`
+        )
+        .join('')
+    : '<tr><td colspan="7">Sem recebimentos</td></tr>';
+
+  document.querySelectorAll('[data-del-pr]').forEach((b) => {
+    b.addEventListener('click', async () => {
+      if (!confirm('Eliminar recebimento?')) return;
+      await fetch(`/api/payment-receipts/${b.getAttribute('data-del-pr')}`, { method: 'DELETE', credentials: 'include' });
+      loadPaymentReceipts();
+      loadPL();
+    });
+  });
+
+  const pendRows = pend.success ? pend.data || [] : [];
+  document.getElementById('payrecv-pending').innerHTML = pendRows.length
+    ? pendRows
+        .map(
+          (r) => `<div style="padding:8px 0;border-bottom:1px solid var(--border-color)">
+      <strong>${escapeHtml(r.project_label)}</strong><br/>
+      Contrato ${fmt$(r.contract_value)} · Recebido ${fmt$(r.received_total)} · <span style="color:#c9781a">Pendente ${fmt$(r.pending)}</span>
+    </div>`
+        )
+        .join('')
+    : '<span style="color:var(--text-muted)">Nenhum saldo pendente listado</span>';
+
+  const projects = proj.success && proj.data ? proj.data : [];
+  const sel = document.getElementById('pr-project');
+  if (sel) {
+    sel.innerHTML =
+      '<option value="">— Projeto —</option>' +
+      projects
+        .map((p) => {
+          const label = p.project_number || `PRJ-${p.id}`;
+          return `<option value="${p.id}">${escapeHtml(label)}</option>`;
+        })
+        .join('');
+  }
+
+  const ex = await fetch('/api/expenses', { credentials: 'include' }).then((r) => r.json());
+  const exRows = ex.success ? ex.data || [] : [];
+  const withReceipt = exRows.filter((e) => e.receipt_url || e.receipt_file_path);
+  document.getElementById('expense-receipt-grid').innerHTML = withReceipt.length
+    ? withReceipt
+        .slice(0, 48)
+        .map((e) => {
+          const src = e.receipt_url || (e.receipt_file_path ? `/uploads/${String(e.receipt_file_path).replace(/^\/?uploads\/?/, '')}` : '');
+          if (!src) return '';
+          return `<div class="fin-receipt-thumb" data-lightbox="${escapeHtml(src)}"><img src="${escapeHtml(src)}" alt="" loading="lazy" /></div>`;
+        })
+        .join('')
+    : '<p style="color:var(--text-muted)">Sem miniaturas</p>';
+
+  document.querySelectorAll('[data-lightbox]').forEach((el) => {
+    el.addEventListener('click', () => {
+      document.getElementById('lightboxImg').src = el.getAttribute('data-lightbox');
+      document.getElementById('lightboxReceipt').classList.add('on');
+    });
+  });
+}
+
+function openModal(id) {
+  document.getElementById(id)?.classList.add('on');
+}
+function closeModal(id) {
+  document.getElementById(id)?.classList.remove('on');
+}
+
+async function openOpModal(id) {
+  editingOpId = id || null;
+  document.getElementById('op-is-rec').checked = false;
+  document.getElementById('op-rec-type').style.display = 'none';
+  document.getElementById('op-rec-day').style.display = 'none';
+  document.getElementById('op-rec-end').style.display = 'none';
+  if (id) {
+    const res = await fetch(`/api/operational-costs/${id}`, { credentials: 'include' }).then((r) => r.json());
+    const row = res.success ? res.data : null;
+    if (row) {
+      document.getElementById('op-cat').value = row.category;
+      document.getElementById('op-sub').value = row.subcategory || '';
+      document.getElementById('op-vendor-select').value = row.vendor_id || '';
+      document.getElementById('op-desc').value = row.description;
+      document.getElementById('op-amount').value = row.amount;
+      document.getElementById('op-date').value = String(row.expense_date).slice(0, 10);
+      document.getElementById('op-pay').value = row.payment_method || 'credit_card';
+      document.getElementById('op-is-rec').checked = !!row.is_recurring;
+      if (row.is_recurring) {
+        document.getElementById('op-rec-type').style.display = 'block';
+        document.getElementById('op-rec-day').style.display = 'block';
+        document.getElementById('op-rec-end').style.display = 'block';
+        document.getElementById('op-rec-type').value = row.recurrence_type || 'monthly';
+        document.getElementById('op-rec-day').value = row.recurrence_day ?? '';
+        document.getElementById('op-rec-end').value = row.recurrence_end_date ? String(row.recurrence_end_date).slice(0, 10) : '';
+      }
+    }
+  } else {
+    document.getElementById('op-desc').value = '';
+    document.getElementById('op-amount').value = '';
+    document.getElementById('op-date').value = new Date().toISOString().slice(0, 10);
+  }
+  openModal('modalOpCost');
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  fetch('/api/auth/session', { credentials: 'include' })
+    .then((r) => r.json())
+    .then((j) => {
+      if (!j.authenticated) window.location.href = 'login.html';
+    })
+    .catch(() => {});
+
+  document.querySelectorAll('.fin-tab').forEach((b) => {
+    b.addEventListener('click', () => switchFinancialTab(b.dataset.tab));
+  });
+
+  document.getElementById('finPeriodType')?.addEventListener('change', (e) => {
+    currentPeriod = e.target.value;
+    document.getElementById('finCustomStart').value = '';
+    document.getElementById('finCustomEnd').value = '';
+    loadPL();
+  });
+  document.getElementById('btnFinApplyPeriod')?.addEventListener('click', () => loadPL());
+  document.getElementById('btnImportMarketing')?.addEventListener('click', importMarketing);
+  document.getElementById('btnAddExpense')?.addEventListener('click', () => openModal('modalExpense'));
+  document.getElementById('btnSaveExpense')?.addEventListener('click', async () => {
+    const body = {
+      category: document.getElementById('exp-cat').value,
+      description: document.getElementById('exp-desc').value,
+      amount: document.getElementById('exp-amount').value,
+      expense_date: document.getElementById('exp-date').value,
+      vendor: document.getElementById('exp-vendor').value || null,
+    };
+    if (!body.description || !body.amount || !body.expense_date) {
+      showToast('Preencha descrição, valor e data', 'error');
+      return;
+    }
+    const res = await fetch('/api/expenses', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }).then((r) => r.json());
+    if (res.success) {
+      showToast('Despesa criada');
+      closeModal('modalExpense');
+      loadPL();
+    } else showToast(res.error || 'Erro', 'error');
+  });
+
+  document.getElementById('btnPrevWeek')?.addEventListener('click', () => {
+    const d = new Date(`${currentWeek}T12:00:00`);
+    d.setDate(d.getDate() - 7);
+    currentWeek = d.toISOString().slice(0, 10);
+    loadWeeklyForecast(currentWeek);
+  });
+  document.getElementById('btnNextWeek')?.addEventListener('click', () => {
+    const d = new Date(`${currentWeek}T12:00:00`);
+    d.setDate(d.getDate() + 7);
+    currentWeek = d.toISOString().slice(0, 10);
+    loadWeeklyForecast(currentWeek);
+  });
+
+  document.getElementById('opToggleRecurring')?.addEventListener('change', () => loadOperationalCosts());
+  document.getElementById('btnAddOpCost')?.addEventListener('click', () => openOpModal(null));
+  document.getElementById('op-is-rec')?.addEventListener('change', (e) => {
+    const on = e.target.checked;
+    document.getElementById('op-rec-type').style.display = on ? 'block' : 'none';
+    document.getElementById('op-rec-day').style.display = on ? 'block' : 'none';
+    document.getElementById('op-rec-end').style.display = on ? 'block' : 'none';
+  });
+
+  document.getElementById('btnSaveOpCost')?.addEventListener('click', async () => {
+    const rec = document.getElementById('op-is-rec').checked;
+    const body = {
+      category: document.getElementById('op-cat').value,
+      subcategory: document.getElementById('op-sub').value || null,
+      vendor_id: document.getElementById('op-vendor-select').value || null,
+      description: document.getElementById('op-desc').value,
+      amount: document.getElementById('op-amount').value,
+      expense_date: document.getElementById('op-date').value,
+      payment_method: document.getElementById('op-pay').value,
+      is_recurring: rec,
+      recurrence_type: rec ? document.getElementById('op-rec-type').value : null,
+      recurrence_day: rec ? document.getElementById('op-rec-day').value || null : null,
+      recurrence_end_date: rec ? document.getElementById('op-rec-end').value || null : null,
+      status: rec ? 'recurring' : 'pending',
+    };
+    const url = editingOpId ? `/api/operational-costs/${editingOpId}` : '/api/operational-costs';
+    const method = editingOpId ? 'PUT' : 'POST';
+    const res = await fetch(url, {
+      method,
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }).then((r) => r.json());
+    if (res.success) {
+      showToast('Guardado');
+      closeModal('modalOpCost');
+      editingOpId = null;
+      loadOperationalCosts();
+      loadPL();
+    } else showToast(res.error || 'Erro', 'error');
+  });
+
+  document.getElementById('vendorSearch')?.addEventListener(
+    'input',
+    debounce(() => loadVendors(), 300)
+  );
+  document.getElementById('btnNewVendor')?.addEventListener('click', () => {
+    editingVendorId = null;
+    ['v-name', 'v-contact', 'v-email', 'v-phone', 'v-web', 'v-addr', 'v-terms', 'v-tax', 'v-rating', 'v-notes'].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) el.value = '';
+    });
+    openModal('modalVendor');
+  });
+  document.getElementById('btnSaveVendor')?.addEventListener('click', async () => {
+    const body = {
+      name: document.getElementById('v-name').value,
+      category: document.getElementById('v-cat').value,
+      contact_name: document.getElementById('v-contact').value || null,
+      contact_email: document.getElementById('v-email').value || null,
+      contact_phone: document.getElementById('v-phone').value || null,
+      website: document.getElementById('v-web').value || null,
+      address: document.getElementById('v-addr').value || null,
+      payment_terms: document.getElementById('v-terms').value || null,
+      tax_id: document.getElementById('v-tax').value || null,
+      rating: document.getElementById('v-rating').value || null,
+      notes: document.getElementById('v-notes').value || null,
+    };
+    if (!body.name) {
+      showToast('Nome obrigatório', 'error');
+      return;
+    }
+    const url = editingVendorId ? `/api/vendors/${editingVendorId}` : '/api/vendors';
+    const method = editingVendorId ? 'PUT' : 'POST';
+    const res = await fetch(url, {
+      method,
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }).then((r) => r.json());
+    if (res.success) {
+      showToast('Fornecedor guardado');
+      closeModal('modalVendor');
+      loadVendors();
+    } else showToast(res.error || 'Erro', 'error');
+  });
+
+  document.getElementById('btnAddPaymentRecv')?.addEventListener('click', () => {
+    document.getElementById('pr-date').value = new Date().toISOString().slice(0, 10);
+    openModal('modalPayRecv');
+  });
+  document.getElementById('btnSavePayRecv')?.addEventListener('click', async () => {
+    const body = {
+      project_id: document.getElementById('pr-project').value,
+      payment_type: document.getElementById('pr-type').value,
+      amount: document.getElementById('pr-amount').value,
+      payment_date: document.getElementById('pr-date').value,
+      payment_method: document.getElementById('pr-method').value,
+      reference_number: document.getElementById('pr-ref').value || null,
+    };
+    if (!body.project_id || !body.amount || !body.payment_date) {
+      showToast('Projeto, valor e data obrigatórios', 'error');
+      return;
+    }
+    const res = await fetch('/api/payment-receipts', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }).then((r) => r.json());
+    if (res.success) {
+      showToast('Recebimento registado');
+      closeModal('modalPayRecv');
+      loadPaymentReceipts();
+      loadPL();
+    } else showToast(res.error || 'Erro', 'error');
+  });
+
+  document.getElementById('vendorDrawerClose')?.addEventListener('click', () => {
+    document.getElementById('vendorDrawer').classList.remove('on');
+  });
+
+  document.querySelectorAll('[data-close]').forEach((b) => {
+    b.addEventListener('click', () => closeModal(b.getAttribute('data-close')));
+  });
+
+  document.getElementById('finLogout')?.addEventListener('click', async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+    } catch (_) {}
+    window.location.href = 'login.html';
+  });
+
+  const mt = document.getElementById('mobileMenuToggle');
+  const sb = document.getElementById('finSidebar');
+  const ov = document.getElementById('mobileOverlay');
+  if (mt && sb && ov) {
+    mt.addEventListener('click', () => {
+      const open = sb.classList.toggle('mobile-open');
+      ov.classList.toggle('active', open);
+      mt.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+    ov.addEventListener('click', () => {
+      sb.classList.remove('mobile-open');
+      ov.classList.remove('active');
+    });
+  }
+
+  currentWeek = getMonday(new Date());
+  loadPL();
+  loadWeeklyForecast(currentWeek);
+  loadVendors();
+});
+
+function debounce(fn, ms) {
+  let t;
+  return (...a) => {
+    clearTimeout(t);
+    t = setTimeout(() => fn(...a), ms);
+  };
+}

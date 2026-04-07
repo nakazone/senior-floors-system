@@ -24,6 +24,7 @@
     "migrate:payroll-sector-reimbursement": "node database/migrate-payroll-sector-reimbursement.js",
     "migrate:payroll-timesheet-allow-double-lines": "node database/migrate-payroll-timesheet-allow-double-lines.js",
     "migrate:projects-complete": "node database/migrate-projects-complete.js",
+    "migrate:financial-complete": "node database/migrate-financial-complete.js",
     "google-calendar:token": "node scripts/google-oauth-token.mjs"
   },
   "engines": {

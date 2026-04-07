@@ -70,6 +70,12 @@ import {
   googleCalendarOAuthCallback,
 } from './routes/googleCalendarIntegration.js';
 import { getProjectFinancial, updateProjectFinancial, listExpenses, createExpense, approveExpense, listPayrollEntries, createPayrollEntry, approvePayrollEntry, getFinancialDashboard } from './routes/financials.js';
+import {
+  financialPlRouter,
+  vendorsRouter,
+  operationalCostsRouter,
+  paymentReceiptsRouter,
+} from './routes/financial-complete.js';
 import * as constructionPayroll from './routes/constructionPayroll.js';
 import {
   getDBConnection,
@@ -486,6 +492,10 @@ app.get('/api/payroll', requireAuth, listPayrollEntries);
 app.post('/api/payroll', requireAuth, createPayrollEntry);
 app.put('/api/payroll/:id/approve', requireAuth, approvePayrollEntry);
 app.get('/api/financial/dashboard', requireAuth, getFinancialDashboard);
+app.use('/api/financial', financialPlRouter);
+app.use('/api/vendors', vendorsRouter);
+app.use('/api/operational-costs', operationalCostsRouter);
+app.use('/api/payment-receipts', paymentReceiptsRouter);
 
 // Construction payroll v2 (field employees + timesheets + periods)
 app.get(
