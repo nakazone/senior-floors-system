@@ -554,10 +554,13 @@
     </div>
   </div>
 
-  <!-- Tailwind no fim: evita o preflight a sobrepor o layout da sidebar antes do paint -->
+  <!-- Tailwind no fim: sem preflight para não alterar tipografia/larguras do menu (igual dashboard) -->
   <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = { corePlugins: { preflight: false } };
+  </script>
   <style id="payrollShellLayoutLock">
-    /* Menu lateral visível em tela larga e modo gaveta + barra superior até 1024px */
+    /* Largura alinhada a design-system.css (--crm-sidebar-width, hoje 264px) */
     @media (min-width: 1025px) {
       body.payroll-sidebar-page #payrollSidebar.dashboard-sidebar {
         position: fixed !important;
@@ -567,10 +570,11 @@
         visibility: visible !important;
         opacity: 1 !important;
         z-index: 1000 !important;
-        width: 240px !important;
+        width: var(--crm-sidebar-width, 264px) !important;
+        box-sizing: border-box !important;
       }
       body.payroll-sidebar-page .dashboard-main {
-        margin-left: 240px !important;
+        margin-left: var(--crm-sidebar-width, 264px) !important;
       }
       body.payroll-sidebar-page #mobileAppHeader.mobile-app-header {
         display: none !important;
@@ -584,7 +588,8 @@
       body.payroll-sidebar-page #payrollSidebar.dashboard-sidebar {
         transform: translateX(-100%) !important;
         transition: transform 0.3s ease !important;
-        width: min(280px, 86vw) !important;
+        width: min(288px, 92vw) !important;
+        box-sizing: border-box !important;
         z-index: 1100 !important;
       }
       body.payroll-sidebar-page #payrollSidebar.dashboard-sidebar.mobile-open {
