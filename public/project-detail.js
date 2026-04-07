@@ -528,6 +528,10 @@ function laborFormFields(employees) {
 
 function materialGeneralFormFields() {
   return `
+    <select data-f="general_is_projected" style="grid-column:1/-1">
+      <option value="0">Custo real</option>
+      <option value="1">Projetado</option>
+    </select>
     <input type="number" data-f="general_total" placeholder="Valor total ($)" step="0.01" min="0" />
     <select data-f="general_category"><option value="general">general</option><option value="supply">supply</option><option value="installation">installation</option><option value="sand_finish">sand_finish</option></select>
     <input type="text" data-f="general_notes" placeholder="Notas (opcional)" style="grid-column:1/-1" />`;
@@ -535,6 +539,10 @@ function materialGeneralFormFields() {
 
 function materialFormFields() {
   return `
+    <select data-f="is_projected" style="grid-column:1/-1">
+      <option value="0">Custo real</option>
+      <option value="1">Projetado</option>
+    </select>
     <input type="text" data-f="product_name" placeholder="Produto" />
     <input type="text" data-f="supplier" placeholder="Fornecedor" />
     <input type="number" data-f="qty_ordered" placeholder="Qtd pedida" step="0.01" />
@@ -559,8 +567,9 @@ function additionalFormFields() {
 
 function costRowHtml(r, isMat) {
   if (isMat) {
+    const proj = r.is_projected === 1 || r.is_projected === true ? ' <small>(proj.)</small>' : '';
     return `<tr>
-      <td>${escapeHtml(r.product_name)}</td><td>${escapeHtml(r.service_category)}</td>
+      <td>${escapeHtml(r.product_name)}${proj}</td><td>${escapeHtml(r.service_category)}</td>
       <td>${r.qty_ordered}</td><td>${escapeHtml(r.unit || '')}</td><td>${fmt$(r.unit_cost)}</td><td>${fmt$(r.total_cost)}</td>
       <td>${escapeHtml(r.status)}</td>
       <td></td></tr>`;
@@ -627,6 +636,7 @@ function wireCostForms(root) {
         unit_cost: total,
         service_category: get('general_category') || 'general',
         notes: get('general_notes')?.trim() || null,
+        is_projected: get('general_is_projected') === '1',
       };
       const res = await fetch(`/api/projects/${projectId}/materials`, {
         method: 'POST',
@@ -659,6 +669,7 @@ function wireCostForms(root) {
           qty_used: get('qty_used') || 0,
           unit_cost: get('unit_cost') || 0,
           service_category: get('service_category') || 'general',
+          is_projected: get('is_projected') === '1',
         };
         const res = await fetch(`/api/projects/${projectId}/materials`, {
           method: 'POST',

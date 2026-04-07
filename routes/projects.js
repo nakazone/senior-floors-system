@@ -888,33 +888,68 @@ router.post('/:id/materials', ...allAuthed, requirePermission('projects.edit'), 
     const qo = b.qty_ordered != null ? nf(b.qty_ordered) : 0;
     const uc = b.unit_cost != null ? nf(b.unit_cost) : 0;
     const total = moneyRound(qo * uc, 2);
-    const [ins] = await pool.execute(
-      `INSERT INTO project_materials (
-        project_id, product_name, sku, supplier, unit, qty_ordered, qty_received, qty_used,
-        unit_cost, total_cost, service_category, status, order_date, received_date, notes
-      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [
-        id,
-        String(b.product_name || 'Material').slice(0, 255),
-        b.sku != null ? String(b.sku).slice(0, 100) : null,
-        b.supplier != null ? String(b.supplier).slice(0, 255) : null,
-        b.unit != null ? String(b.unit).slice(0, 50) : null,
-        qo,
-        b.qty_received != null ? nf(b.qty_received) : 0,
-        b.qty_used != null ? nf(b.qty_used) : 0,
-        uc,
-        total,
-        b.service_category && ['supply', 'installation', 'sand_finish', 'general'].includes(b.service_category)
-          ? b.service_category
-          : 'general',
-        b.status && ['pending', 'ordered', 'received', 'partial', 'returned'].includes(b.status)
-          ? b.status
-          : 'pending',
-        b.order_date || null,
-        b.received_date || null,
-        b.notes != null ? String(b.notes) : null,
-      ]
-    );
+    const hasMatProj = await columnExists(pool, 'project_materials', 'is_projected');
+    const isProj = !!(b.is_projected === true || b.is_projected === 1 || b.is_projected === '1');
+    let ins;
+    if (hasMatProj) {
+      [ins] = await pool.execute(
+        `INSERT INTO project_materials (
+          project_id, product_name, sku, supplier, unit, qty_ordered, qty_received, qty_used,
+          unit_cost, total_cost, service_category, status, order_date, received_date, notes, is_projected
+        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        [
+          id,
+          String(b.product_name || 'Material').slice(0, 255),
+          b.sku != null ? String(b.sku).slice(0, 100) : null,
+          b.supplier != null ? String(b.supplier).slice(0, 255) : null,
+          b.unit != null ? String(b.unit).slice(0, 50) : null,
+          qo,
+          b.qty_received != null ? nf(b.qty_received) : 0,
+          b.qty_used != null ? nf(b.qty_used) : 0,
+          uc,
+          total,
+          b.service_category && ['supply', 'installation', 'sand_finish', 'general'].includes(b.service_category)
+            ? b.service_category
+            : 'general',
+          b.status && ['pending', 'ordered', 'received', 'partial', 'returned'].includes(b.status)
+            ? b.status
+            : 'pending',
+          b.order_date || null,
+          b.received_date || null,
+          b.notes != null ? String(b.notes) : null,
+          isProj ? 1 : 0,
+        ]
+      );
+    } else {
+      [ins] = await pool.execute(
+        `INSERT INTO project_materials (
+          project_id, product_name, sku, supplier, unit, qty_ordered, qty_received, qty_used,
+          unit_cost, total_cost, service_category, status, order_date, received_date, notes
+        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        [
+          id,
+          String(b.product_name || 'Material').slice(0, 255),
+          b.sku != null ? String(b.sku).slice(0, 100) : null,
+          b.supplier != null ? String(b.supplier).slice(0, 255) : null,
+          b.unit != null ? String(b.unit).slice(0, 50) : null,
+          qo,
+          b.qty_received != null ? nf(b.qty_received) : 0,
+          b.qty_used != null ? nf(b.qty_used) : 0,
+          uc,
+          total,
+          b.service_category && ['supply', 'installation', 'sand_finish', 'general'].includes(b.service_category)
+            ? b.service_category
+            : 'general',
+          b.status && ['pending', 'ordered', 'received', 'partial', 'returned'].includes(b.status)
+            ? b.status
+            : 'pending',
+          b.order_date || null,
+          b.received_date || null,
+          b.notes != null ? String(b.notes) : null,
+        ]
+      );
+    }
+    await recalculateProjectCosts(pool, id);
     const [rows] = await pool.query('SELECT * FROM project_materials WHERE id = ?', [ins.insertId]);
     res.status(201).json({
       success: true,
@@ -938,41 +973,84 @@ router.put('/:id/materials/:materialId', ...allAuthed, requirePermission('projec
     const qo = b.qty_ordered != null ? nf(b.qty_ordered) : nf(ex[0].qty_ordered);
     const uc = b.unit_cost != null ? nf(b.unit_cost) : nf(ex[0].unit_cost);
     const total = moneyRound(qo * uc, 2);
-    await pool.execute(
-      `UPDATE project_materials SET
-        product_name = COALESCE(?, product_name),
-        sku = COALESCE(?, sku),
-        supplier = COALESCE(?, supplier),
-        unit = COALESCE(?, unit),
-        qty_ordered = ?,
-        qty_received = COALESCE(?, qty_received),
-        qty_used = COALESCE(?, qty_used),
-        unit_cost = ?,
-        total_cost = ?,
-        service_category = COALESCE(?, service_category),
-        status = COALESCE(?, status),
-        order_date = COALESCE(?, order_date),
-        received_date = COALESCE(?, received_date),
-        notes = COALESCE(?, notes)
-      WHERE id = ?`,
-      [
-        b.product_name != null ? String(b.product_name).slice(0, 255) : null,
-        b.sku !== undefined ? b.sku : null,
-        b.supplier !== undefined ? b.supplier : null,
-        b.unit !== undefined ? b.unit : null,
-        qo,
-        b.qty_received != null ? nf(b.qty_received) : null,
-        b.qty_used != null ? nf(b.qty_used) : null,
-        uc,
-        total,
-        b.service_category || null,
-        b.status || null,
-        b.order_date !== undefined ? b.order_date : null,
-        b.received_date !== undefined ? b.received_date : null,
-        b.notes !== undefined ? b.notes : null,
-        mid,
-      ]
-    );
+    const hasMatProj = await columnExists(pool, 'project_materials', 'is_projected');
+    if (hasMatProj && b.is_projected !== undefined) {
+      const isProj = !!(b.is_projected === true || b.is_projected === 1 || b.is_projected === '1');
+      await pool.execute(
+        `UPDATE project_materials SET
+          product_name = COALESCE(?, product_name),
+          sku = COALESCE(?, sku),
+          supplier = COALESCE(?, supplier),
+          unit = COALESCE(?, unit),
+          qty_ordered = ?,
+          qty_received = COALESCE(?, qty_received),
+          qty_used = COALESCE(?, qty_used),
+          unit_cost = ?,
+          total_cost = ?,
+          service_category = COALESCE(?, service_category),
+          status = COALESCE(?, status),
+          order_date = COALESCE(?, order_date),
+          received_date = COALESCE(?, received_date),
+          notes = COALESCE(?, notes),
+          is_projected = ?
+        WHERE id = ?`,
+        [
+          b.product_name != null ? String(b.product_name).slice(0, 255) : null,
+          b.sku !== undefined ? b.sku : null,
+          b.supplier !== undefined ? b.supplier : null,
+          b.unit !== undefined ? b.unit : null,
+          qo,
+          b.qty_received != null ? nf(b.qty_received) : null,
+          b.qty_used != null ? nf(b.qty_used) : null,
+          uc,
+          total,
+          b.service_category || null,
+          b.status || null,
+          b.order_date !== undefined ? b.order_date : null,
+          b.received_date !== undefined ? b.received_date : null,
+          b.notes !== undefined ? b.notes : null,
+          isProj ? 1 : 0,
+          mid,
+        ]
+      );
+    } else {
+      await pool.execute(
+        `UPDATE project_materials SET
+          product_name = COALESCE(?, product_name),
+          sku = COALESCE(?, sku),
+          supplier = COALESCE(?, supplier),
+          unit = COALESCE(?, unit),
+          qty_ordered = ?,
+          qty_received = COALESCE(?, qty_received),
+          qty_used = COALESCE(?, qty_used),
+          unit_cost = ?,
+          total_cost = ?,
+          service_category = COALESCE(?, service_category),
+          status = COALESCE(?, status),
+          order_date = COALESCE(?, order_date),
+          received_date = COALESCE(?, received_date),
+          notes = COALESCE(?, notes)
+        WHERE id = ?`,
+        [
+          b.product_name != null ? String(b.product_name).slice(0, 255) : null,
+          b.sku !== undefined ? b.sku : null,
+          b.supplier !== undefined ? b.supplier : null,
+          b.unit !== undefined ? b.unit : null,
+          qo,
+          b.qty_received != null ? nf(b.qty_received) : null,
+          b.qty_used != null ? nf(b.qty_used) : null,
+          uc,
+          total,
+          b.service_category || null,
+          b.status || null,
+          b.order_date !== undefined ? b.order_date : null,
+          b.received_date !== undefined ? b.received_date : null,
+          b.notes !== undefined ? b.notes : null,
+          mid,
+        ]
+      );
+    }
+    await recalculateProjectCosts(pool, id);
     const [rows] = await pool.query('SELECT * FROM project_materials WHERE id = ?', [mid]);
     res.json({
       success: true,

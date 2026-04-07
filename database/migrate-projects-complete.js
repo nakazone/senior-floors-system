@@ -377,6 +377,7 @@ async function migrateChildTableColumns(conn) {
   }
   if (await tableExists(conn, 'project_materials')) {
     const pm = [
+      ['is_projected', '`is_projected` TINYINT(1) NOT NULL DEFAULT 0'],
       ['unit_cost_projected', '`unit_cost_projected` DECIMAL(10,2) NOT NULL DEFAULT 0.00'],
       ['qty_returned', '`qty_returned` DECIMAL(10,2) NOT NULL DEFAULT 0'],
     ];
