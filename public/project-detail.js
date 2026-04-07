@@ -85,20 +85,84 @@ function groupChecklist(items) {
   return g;
 }
 
+const STATUS_LABELS = {
+  scheduled: 'Agendado',
+  in_progress: 'Em andamento',
+  on_hold: 'Pausado',
+  completed: 'Concluído',
+  cancelled: 'Cancelado',
+};
+
+function fmtShortPt(iso) {
+  if (!iso) return '—';
+  try {
+    return new Date(`${String(iso).slice(0, 10)}T12:00:00`).toLocaleDateString('pt-BR', {
+      day: '2-digit',
+      month: 'short',
+    });
+  } catch {
+    return '—';
+  }
+}
+
+function updateProgressDatesLine(p) {
+  const el = document.getElementById('pd-prog-dates');
+  if (!el) return;
+  const parts = [];
+  const a = fmtShortPt(p.start_date);
+  const b = fmtShortPt(p.end_date_estimated);
+  if (p.start_date || p.end_date_estimated) parts.push(`${a} → ${b}`);
+  if (p.days_estimated != null && p.days_estimated !== '') {
+    parts.push(`${parseInt(p.days_estimated, 10)} dias est.`);
+  }
+  const daysEst = p.days_estimated != null ? parseInt(p.days_estimated, 10) : null;
+  const start = p.start_date ? new Date(`${String(p.start_date).slice(0, 10)}T12:00:00`) : null;
+  if (start && daysEst) {
+    const now = new Date();
+    const elapsed = Math.max(1, Math.ceil((now - start) / 86400000));
+    parts.push(`Dia ${elapsed}`);
+  }
+  el.textContent = parts.join(' · ');
+}
+
 function renderHeader(p) {
   document.getElementById('pd-title').textContent = p.name || `Projeto #${p.id}`;
-  document.getElementById('pd-crumb-name').textContent = p.name || `#${p.id}`;
+  const crumb = document.getElementById('pd-crumb-name');
+  if (crumb) crumb.textContent = 'Detalhe';
+
+  const numEl = document.getElementById('pd-number');
+  if (numEl) {
+    const pn = p.project_number != null && String(p.project_number).trim() !== '' ? String(p.project_number).trim() : null;
+    numEl.textContent = pn || `PRJ-${p.id}`;
+  }
+
+  const typeEl = document.getElementById('pd-client-type');
+  if (typeEl) {
+    const t = (p.client_type || '').toLowerCase();
+    if (t === 'builder') {
+      typeEl.textContent = 'Builder';
+      typeEl.style.display = '';
+    } else if (t === 'customer' || t) {
+      typeEl.textContent = 'Cliente';
+      typeEl.style.display = '';
+    } else {
+      typeEl.textContent = '';
+      typeEl.style.display = 'none';
+    }
+  }
+
   const sel = document.getElementById('pd-status');
   if (sel && sel.options.length === 0) {
     ['scheduled', 'in_progress', 'on_hold', 'completed', 'cancelled'].forEach((st) => {
       const o = document.createElement('option');
       o.value = st;
-      o.textContent = st;
+      o.textContent = STATUS_LABELS[st] || st;
       sel.appendChild(o);
     });
     sel.addEventListener('change', () => updateStatus(sel.value));
   }
   if (sel) sel.value = p.status || 'scheduled';
+
   const pct = document.getElementById('pd-pct');
   const fill = document.getElementById('pd-progress-fill');
   if (pct) {
@@ -106,6 +170,7 @@ function renderHeader(p) {
     pct.onchange = () => updateCompletion(pct.value);
   }
   if (fill) fill.style.width = `${parseInt(p.completion_percentage, 10) || 0}%`;
+  updateProgressDatesLine(p);
 }
 
 async function updateStatus(newStatus) {
@@ -141,69 +206,220 @@ async function updateCompletion(v) {
   }, 400);
 }
 
+function allocProjectedForService(pr, contractVal, serviceRevenue) {
+  const c = parseFloat(contractVal) || 0;
+  const rev = parseFloat(serviceRevenue) || 0;
+  if (!pr?.projected || c <= 0) return 0;
+  return (rev / c) * (parseFloat(pr.projected.total) || 0);
+}
+
+function varianceCellClass(diff, projectedLine) {
+  const d = parseFloat(diff) || 0;
+  const base = parseFloat(projectedLine) || 0;
+  if (d <= 0.005) return 'pd-var pd-var-ok';
+  if (base > 0 && d < base * 0.1) return 'pd-var pd-var-warn';
+  return 'pd-var pd-var-bad';
+}
+
+function formatCostVariance(diff, projectedLine) {
+  const d = parseFloat(diff) || 0;
+  const base = parseFloat(projectedLine) || 0;
+  const sign = d > 0 ? '+' : '';
+  const pct = base > 0 ? (d / base) * 100 : 0;
+  return `${sign}${fmt$(d)} (${sign}${Math.abs(pct).toFixed(1)}%)`;
+}
+
+function serviceCardHtml(key, title, svc, pr, contractVal) {
+  const rev = parseFloat(svc.revenue) || 0;
+  const actual = parseFloat(svc.total_cost) || 0;
+  const projected = pr ? allocProjectedForService(pr, contractVal, rev) : null;
+  const profit = parseFloat(svc.gross_profit) != null ? parseFloat(svc.gross_profit) : rev - actual;
+  const margin = svc.margin_pct != null ? svc.margin_pct : rev > 0 ? ((profit / rev) * 100).toFixed(1) : 0;
+  const projLabel = pr && contractVal > 0 ? fmt$(projected) : '—';
+  const cls =
+    key === 'supply' ? 'pd-svc-card pd-svc-supply' : key === 'installation' ? 'pd-svc-card pd-svc-install' : 'pd-svc-card pd-svc-sand';
+  const id =
+    key === 'installation' ? 'installation' : key === 'sand_finish' ? 'sand' : 'supply';
+  return `
+    <div class="${cls}" id="svc-${id}">
+      <div class="pd-svc-title">${title}</div>
+      <div class="pd-svc-rows">
+        <div class="pd-svc-row"><span>Receita</span><strong>${fmt$(rev)}</strong></div>
+        <div class="pd-svc-row"><span>Custo proj.</span><strong>${projLabel}</strong></div>
+        <div class="pd-svc-row"><span>Custo real</span><strong>${fmt$(actual)}</strong></div>
+        <div class="pd-svc-row"><span>Lucro</span><strong class="pd-profit-val">${fmt$(profit)}</strong></div>
+      </div>
+      <div class="pd-svc-margin">Margem: <strong>${fmtPct(margin)}</strong></div>
+    </div>`;
+}
+
 function renderOverviewTab(p, pl) {
   const el = document.getElementById('tab-overview');
   if (!el) return;
-  const daysEst = p.days_estimated != null ? parseInt(p.days_estimated, 10) : null;
-  const start = p.start_date ? new Date(`${p.start_date}T12:00:00`) : null;
-  let dayLine = '';
-  if (start && daysEst) {
-    const now = new Date();
-    const elapsed = Math.max(1, Math.ceil((now - start) / 86400000));
-    dayLine = `<p style="font-size:13px;color:var(--sf-navy2)">Dia <strong>${elapsed}</strong> de <strong>${daysEst}</strong> estimados</p>`;
-  }
+  const pr = pl?.profitability || null;
+  const contractVal = parseFloat(pl?.contract_value) || parseFloat(pl?.totals?.total_revenue) || 0;
   const bs = pl?.by_service || {};
   const supply = bs.supply || {};
   const inst = bs.installation || {};
   const sand = bs.sand_finish || {};
   const totals = pl?.totals || {};
+  const revenueDisplay = contractVal > 0 ? contractVal : parseFloat(totals.total_revenue) || 0;
+  const gross = parseFloat(totals.gross_profit) || 0;
+  const marginPct = totals.margin_pct != null ? totals.margin_pct : revenueDisplay > 0 ? ((gross / revenueDisplay) * 100).toFixed(1) : 0;
+  const marginSub =
+    parseFloat(marginPct) >= 35 ? 'acima da meta' : parseFloat(marginPct) >= 25 ? 'no alvo' : 'abaixo da meta';
+  const profitSub = (p.status || '') === 'completed' ? 'fechado' : 'em andamento';
+
+  let compareBlock = '';
+  let daysBar = '';
+  if (pr) {
+    const row = (label, pj, ac) => {
+      const diff = ac - pj;
+      const vc = varianceCellClass(diff, pj);
+      return `<div class="pd-compare-row">
+        <span>${label}</span>
+        <span>${fmt$(pj)}</span>
+        <span>${fmt$(ac)}</span>
+        <span class="${vc}">${formatCostVariance(diff, pj)}</span>
+      </div>`;
+    };
+    compareBlock = `
+    <div class="pd-compare-wrap">
+      <div class="pd-compare-title">
+        <span class="pd-section-dot"></span>
+        Projeção vs custo real
+      </div>
+      <div class="pd-compare-table">
+        <div class="pd-compare-header">
+          <span>Item de custo</span>
+          <span>Projetado</span>
+          <span>Real</span>
+          <span>Variação</span>
+        </div>
+        ${row('Labor (mão de obra)', pr.projected.labor, pr.actual.labor)}
+        ${row('Material', pr.projected.material, pr.actual.material)}
+        ${row('Custos adicionais', pr.projected.additional, pr.actual.additional)}
+        <div class="pd-compare-row pd-compare-total">
+          <span>Total</span>
+          <span>${fmt$(pr.projected.total)}</span>
+          <span>${fmt$(pr.actual.total)}</span>
+          <span class="${varianceCellClass(pr.variance.cost_diff, pr.projected.total)}">${formatCostVariance(pr.variance.cost_diff, pr.projected.total)}</span>
+        </div>
+      </div>
+    </div>`;
+
+    const dEst = pr.days_estimated != null ? parseInt(pr.days_estimated, 10) : null;
+    const dAct = pr.days_actual != null ? parseInt(pr.days_actual, 10) : null;
+    const dVar = pr.days_variance != null ? parseInt(pr.days_variance, 10) : null;
+    let varText = '—';
+    let varClass = 'pd-days-num';
+    if (dVar === 0) {
+      varText = 'No prazo';
+    } else if (dVar > 0) {
+      varText = `+${dVar} dia${dVar > 1 ? 's' : ''}`;
+      varClass += ' pd-days-num--warn';
+    } else if (dVar < 0) {
+      varText = `${dVar} dia${dVar < -1 ? 's' : ''}`;
+    }
+    const estRange = `${fmtShortPt(p.start_date)} → ${fmtShortPt(p.end_date_estimated)} <strong>estimado</strong>`;
+    let realRange = '—';
+    if (p.start_date && dAct != null && !Number.isNaN(dAct)) {
+      try {
+        const start = new Date(`${String(p.start_date).slice(0, 10)}T12:00:00`);
+        const end = new Date(start);
+        end.setDate(end.getDate() + Math.max(0, dAct - 1));
+        realRange = `${fmtShortPt(p.start_date)} → ${end.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })} <strong>real</strong>`;
+      } catch {
+        realRange = `—`;
+      }
+    }
+
+    daysBar = `
+    <div class="pd-days-bar">
+      <div class="pd-days-item">
+        <div class="pd-days-num" id="days-estimated">${dEst != null ? dEst : '—'}</div>
+        <div class="pd-days-label">Dias estimados</div>
+      </div>
+      <div class="pd-days-div"></div>
+      <div class="pd-days-item">
+        <div class="pd-days-num pd-days-num--accent" id="days-actual">${dAct != null ? dAct : '—'}</div>
+        <div class="pd-days-label">Dias reais</div>
+      </div>
+      <div class="pd-days-div"></div>
+      <div class="pd-days-item">
+        <div class="${varClass}" id="days-variance">${varText}</div>
+        <div class="pd-days-label">Variação</div>
+      </div>
+      <div class="pd-days-div"></div>
+      <div class="pd-days-detail" id="days-detail">${estRange}<br />${realRange}</div>
+    </div>`;
+  } else if (pl && (pl.days_estimated != null || pl.days_actual != null)) {
+    const dEst = pl.days_estimated != null ? parseInt(pl.days_estimated, 10) : null;
+    const dAct = pl.days_actual != null ? parseInt(pl.days_actual, 10) : null;
+    const dVar = pl.days_variance != null ? parseInt(pl.days_variance, 10) : null;
+    let varText = '—';
+    let varClass = 'pd-days-num';
+    if (dVar === 0) varText = 'No prazo';
+    else if (dVar > 0) {
+      varText = `+${dVar} dia${dVar > 1 ? 's' : ''}`;
+      varClass += ' pd-days-num--warn';
+    } else if (dVar < 0) varText = `${dVar} dia${dVar < -1 ? 's' : ''}`;
+    const estRange = `${fmtShortPt(p.start_date)} → ${fmtShortPt(p.end_date_estimated)} <strong>estimado</strong>`;
+    daysBar = `
+    <div class="pd-days-bar">
+      <div class="pd-days-item">
+        <div class="pd-days-num">${dEst != null ? dEst : '—'}</div>
+        <div class="pd-days-label">Dias estimados</div>
+      </div>
+      <div class="pd-days-div"></div>
+      <div class="pd-days-item">
+        <div class="pd-days-num pd-days-num--accent">${dAct != null ? dAct : '—'}</div>
+        <div class="pd-days-label">Dias reais</div>
+      </div>
+      <div class="pd-days-div"></div>
+      <div class="pd-days-item">
+        <div class="${varClass}">${varText}</div>
+        <div class="pd-days-label">Variação</div>
+      </div>
+      <div class="pd-days-div"></div>
+      <div class="pd-days-detail">${estRange}</div>
+    </div>`;
+  }
+
   el.innerHTML = `
-    <div class="sf-card" style="margin-bottom:12px">
-      <p style="margin:0 0 8px;font-size:13px;color:var(--sf-muted)">${escapeHtml(p.address || 'Sem endereço')} · ${escapeHtml(p.flooring_type || '—')} · ${p.total_sqft != null ? `${p.total_sqft} sqft` : '—'}</p>
-      <p style="margin:0;font-size:12px;color:var(--sf-muted)">Início: ${p.start_date || '—'} · Fim previsto: ${p.end_date_estimated || '—'}</p>
-      ${dayLine}
+    <div class="pd-overview-meta">
+      <p class="pd-overview-meta__line">${escapeHtml(p.address || 'Sem endereço')} · ${escapeHtml(p.flooring_type || '—')} · ${p.total_sqft != null ? `${p.total_sqft} sqft` : '—'}</p>
+      <p class="pd-overview-meta__line">Início: ${p.start_date || '—'} · Fim previsto: ${p.end_date_estimated || '—'}</p>
     </div>
-    <div class="pd-pl-grid">
-      <div class="sf-card"><div class="sf-card-badge">Supply</div><div class="sf-card-val">${fmt$(supply.revenue)}</div><div style="font-size:11px;color:var(--sf-muted)">Custo ${fmt$(supply.total_cost)} · Margem ${fmtPct(supply.margin_pct)}</div></div>
-      <div class="sf-card"><div class="sf-card-badge">Installation</div><div class="sf-card-val">${fmt$(inst.revenue)}</div><div style="font-size:11px;color:var(--sf-muted)">Custo ${fmt$(inst.total_cost)} · Margem ${fmtPct(inst.margin_pct)}</div></div>
-      <div class="sf-card"><div class="sf-card-badge">Sand &amp; finish</div><div class="sf-card-val">${fmt$(sand.revenue)}</div><div style="font-size:11px;color:var(--sf-muted)">Custo ${fmt$(sand.total_cost)} · Margem ${fmtPct(sand.margin_pct)}</div></div>
+    <div class="pd-service-grid" id="service-cards-grid">
+      ${serviceCardHtml('supply', 'Supply', supply, pr, contractVal)}
+      ${serviceCardHtml('installation', 'Installation', inst, pr, contractVal)}
+      ${serviceCardHtml('sand_finish', 'Sand &amp; Finish', sand, pr, contractVal)}
     </div>
-    <div class="sf-card sf-ok">
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;font-size:13px;font-weight:600;color:var(--sf-navy)">
-        <div>Receita total<br><span style="font-size:1.1rem">${fmt$(totals.total_revenue)}</span></div>
-        <div>Custo total<br><span style="font-size:1.1rem">${fmt$(totals.total_cost)}</span></div>
-        <div>Lucro bruto<br><span style="font-size:1.1rem">${fmt$(totals.gross_profit)}</span></div>
-        <div>Margem %<br><span style="font-size:1.1rem">${fmtPct(totals.margin_pct)}</span></div>
+    <div class="pd-totals-card">
+      <div class="pd-total-item">
+        <div class="pd-total-label">Receita total</div>
+        <div class="pd-total-val" id="total-revenue">${fmt$(revenueDisplay)}</div>
+        <div class="pd-total-sub">valor do contrato</div>
+      </div>
+      <div class="pd-total-item">
+        <div class="pd-total-label">Custo total</div>
+        <div class="pd-total-val" id="total-cost">${fmt$(totals.total_cost)}</div>
+        <div class="pd-total-sub" id="total-cost-sub">real até agora</div>
+      </div>
+      <div class="pd-total-item">
+        <div class="pd-total-label">Lucro bruto</div>
+        <div class="pd-total-val pd-total-ok" id="total-profit">${fmt$(gross)}</div>
+        <div class="pd-total-sub" id="total-profit-sub">${profitSub}</div>
+      </div>
+      <div class="pd-total-item">
+        <div class="pd-total-label">Margem</div>
+        <div class="pd-total-val pd-total-ok" id="total-margin">${fmtPct(marginPct)}</div>
+        <div class="pd-total-sub" id="total-margin-sub">${marginSub}</div>
       </div>
     </div>
-    ${
-      pl?.profitability
-        ? (() => {
-            const pr = pl.profitability;
-            const row = (label, pj, ac) => {
-              const diff = ac - pj;
-              const warn = diff > 0.005 ? ' ⚠' : '';
-              return `<tr><td>${label}</td><td>${fmt$(pj)}</td><td>${fmt$(ac)}</td><td style="font-weight:600">${fmt$(diff)}${warn}</td></tr>`;
-            };
-            return `
-    <div class="sf-card" style="margin-top:12px">
-      <div class="sf-card-badge">Projetado vs real</div>
-      <table class="pd-table" style="margin-top:8px">
-        <thead><tr><th></th><th>Projetado</th><th>Real</th><th>Variação</th></tr></thead>
-        <tbody>
-          ${row('Labor', pr.projected.labor, pr.actual.labor)}
-          ${row('Material', pr.projected.material, pr.actual.material)}
-          ${row('Adicional', pr.projected.additional, pr.actual.additional)}
-          <tr style="font-weight:700"><td>Total</td><td>${fmt$(pr.projected.total)}</td><td>${fmt$(pr.actual.total)}</td><td>${fmt$(pr.variance.cost_diff)} (${fmtPct(pr.variance.cost_diff_pct)})</td></tr>
-          <tr><td>Lucro</td><td>${fmt$(pr.projected.profit)}</td><td>${fmt$(pr.actual.profit)}</td><td>${fmt$(pr.actual.profit - pr.projected.profit)}</td></tr>
-          <tr><td>Margem</td><td>${fmtPct(pr.projected.margin_pct)}</td><td>${fmtPct(pr.actual.margin_pct)}</td><td>${fmtPct(pr.actual.margin_pct - pr.projected.margin_pct)} pp</td></tr>
-        </tbody>
-      </table>
-      <p style="font-size:12px;margin-top:10px;color:var(--sf-muted)">Duração: <strong>${pr.days_estimated || '—'}</strong> dias estimados / <strong>${pr.days_actual || '—'}</strong> reais → <strong>${pr.days_variance >= 0 ? '+' : ''}${pr.days_variance}</strong> dia(s)</p>
-    </div>`;
-          })()
-        : ''
-    }
+    ${compareBlock}
+    ${daysBar}
   `;
 }
 
@@ -459,24 +675,37 @@ function renderGalleryTab() {
   const el = document.getElementById('tab-gallery');
   if (!el) return;
   el.innerHTML = `
-    <div style="display:flex;flex-wrap:wrap;gap:16px">
+    <div class="pd-gallery-page-grid">
       ${galleryCol('before', 'Antes')}
       ${galleryCol('during', 'Durante')}
       ${galleryCol('after', 'Depois')}
     </div>
-    <div class="sf-card" style="margin-top:20px">
-      <h3 style="margin:0 0 10px;font-size:15px;color:var(--sf-navy)">Publicar no portfólio Senior Floors</h3>
-      <input type="text" id="portfolio-title" placeholder="Título" style="width:100%;box-sizing:border-box;margin-bottom:8px;padding:8px;border-radius:6px;border:1px solid var(--sf-border)" />
-      <textarea id="portfolio-desc" placeholder="Descrição" style="width:100%;box-sizing:border-box;min-height:64px;margin-bottom:8px;padding:8px;border-radius:6px;border:1px solid var(--sf-border)"></textarea>
-      <p style="font-size:12px;color:var(--sf-muted)" id="portfolio-selected-count">Fotos para portfólio: 0</p>
-      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px">
-        <button type="button" class="pd-btn pd-btn--primary" id="btn-publish-portfolio">🌐 Publicar no site</button>
-        <button type="button" class="pd-btn" id="btn-copy-photo-urls">Copiar URLs</button>
+    <div class="pd-portfolio-panel" id="portfolio-panel">
+      <div class="pd-section-header" style="margin-bottom:14px">
+        <div class="pd-section-title-row">
+          <span class="pd-section-dot"></span>
+          <span class="pd-section-title">Publicar no portfólio Senior Floors</span>
+        </div>
       </div>
-      <p id="portfolio-live-status" style="font-size:12px;font-weight:600;color:var(--sf-ok);margin-top:10px;min-height:1em"></p>
-      <p style="font-size:11px;color:var(--sf-muted);margin-top:12px;line-height:1.4" id="portfolio-hint">
-        Sem webhook: copie as URLs e publique manualmente em <a href="https://senior-floors.com" target="_blank" rel="noopener">senior-floors.com</a>. Configure <code>PORTFOLIO_WEBHOOK_URL</code> no servidor para sync automático.
-      </p>
+      <div class="pd-portfolio-form">
+        <div class="pd-portfolio-form-row">
+          <label class="pd-label" for="portfolio-title">Título</label>
+          <input type="text" class="pd-input" id="portfolio-title" placeholder="Ex.: Hardwood Installation — Naples, FL" />
+        </div>
+        <div class="pd-portfolio-form-row">
+          <label class="pd-label" for="portfolio-desc">Descrição</label>
+          <textarea class="pd-input pd-textarea" id="portfolio-desc" placeholder="Descreva o projeto para o portfólio…"></textarea>
+        </div>
+        <p class="pd-portfolio-info" id="portfolio-selected-count">Fotos para portfólio: 0</p>
+        <div class="pd-portfolio-actions">
+          <button type="button" class="pd-btn-primary" id="btn-publish-portfolio">🌐 Publicar no site</button>
+          <button type="button" class="pd-action-btn" id="btn-copy-photo-urls">📋 Copiar URLs</button>
+        </div>
+        <p id="portfolio-live-status" style="font-size:12px;font-weight:600;color:var(--sf-ok);min-height:1.25em"></p>
+        <p class="pd-portfolio-webhook-note" id="portfolio-hint">
+          Sem webhook: copie as URLs e publique manualmente em <a href="https://senior-floors.com" target="_blank" rel="noopener">senior-floors.com</a>. Configure <code>PORTFOLIO_WEBHOOK_URL</code> no servidor para sync automático.
+        </p>
+      </div>
     </div>`;
   el.querySelectorAll('.pd-add-photo').forEach((box) => {
     box.addEventListener('click', () => {
@@ -484,7 +713,7 @@ function renderGalleryTab() {
       document.getElementById('pd-file-input').click();
     });
   });
-  el.querySelectorAll('.pd-gallery-grid img').forEach((img) => {
+  el.querySelectorAll('.pd-gallery-photos img').forEach((img) => {
     img.addEventListener('click', () => {
       const all = flattenPhotos();
       const idx = all.findIndex((x) => x.url === img.getAttribute('src'));
@@ -524,9 +753,13 @@ function galleryCol(phase, label) {
       </div>`;
     })
     .join('');
-  return `<div class="pd-gallery-col">
-    <h3 style="font-size:14px;color:var(--sf-navy);margin:0 0 8px">${label}</h3>
-    <div class="pd-gallery-grid">${thumbs}<div class="pd-add-photo" data-phase="${phase}">+</div></div>
+  return `<div class="pd-gallery-col" id="gallery-${phase}">
+    <div class="pd-gallery-col-header">
+      <span class="pd-gallery-col-title">${label}</span>
+      <span class="pd-gallery-count">${list.length} foto${list.length !== 1 ? 's' : ''}</span>
+    </div>
+    <div class="pd-gallery-photos">${thumbs}</div>
+    <div class="pd-add-photo" data-phase="${phase}" role="button" tabindex="0">+ Adicionar foto</div>
   </div>`;
 }
 
@@ -644,7 +877,7 @@ async function syncPayroll() {
   } finally {
     if (btn) {
       btn.disabled = false;
-      btn.textContent = '🔄 Folha de pagamento';
+      btn.textContent = '🔄 Payroll';
     }
     if (tabBtn) {
       tabBtn.disabled = false;
@@ -779,12 +1012,18 @@ document.querySelectorAll('.tab-btn').forEach((b) => {
   b.addEventListener('click', () => switchTab(b.dataset.tab));
 });
 
-document.getElementById('btn-tab-checklist')?.addEventListener('click', () => switchTab('checklist'));
-document.getElementById('btn-tab-pl')?.addEventListener('click', () => switchTab('overview'));
 document.getElementById('btn-tab-gallery')?.addEventListener('click', () => switchTab('gallery'));
+
+function goToPublishPanel() {
+  switchTab('gallery');
+  requestAnimationFrame(() => {
+    document.getElementById('portfolio-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+}
 
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btn-sync-payroll')?.addEventListener('click', syncPayroll);
+  document.getElementById('btn-pd-publish')?.addEventListener('click', goToPublishPanel);
   fetch('/api/auth/session', { credentials: 'include' }).then(async (r) => {
     const j = await r.json();
     if (!j.authenticated) {
