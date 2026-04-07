@@ -2024,13 +2024,6 @@ function initPayrollMobileNav() {
     if (t && isDrawerMode()) setOpen(false);
   });
 
-  document.getElementById('payrollSidebarLogout')?.addEventListener('click', async () => {
-    try {
-      await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
-    } catch (_) {}
-    window.location.href = 'login.html';
-  });
-
   function syncMobileHeaderAria() {
     const header = document.getElementById('mobileAppHeader');
     if (!header) return;

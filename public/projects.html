@@ -64,7 +64,16 @@
         <div id="crmSharedNavRoot" data-layout="sidebar"></div>
       </nav>
       <div class="sidebar-footer">
-        <button type="button" class="btn" id="projectsSidebarLogout">Sair da conta</button>
+        <div class="sidebar-user-bar">
+          <div class="sidebar-user-bar__avatar" id="sidebarUserAvatar" aria-hidden="true">—</div>
+          <div class="sidebar-user-bar__text">
+            <span class="sidebar-user-bar__name" id="sidebarUserName">—</span>
+            <span class="sidebar-user-bar__role" id="sidebarUserRole"></span>
+          </div>
+          <button type="button" id="logoutBtn" class="sidebar-logout-btn" title="Sair" aria-label="Terminar sessão">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+          </button>
+        </div>
       </div>
     </aside>
     <div class="mobile-overlay" id="mobileOverlay"></div>
@@ -158,7 +167,7 @@
     </div>
   </div>
 
-  <script src="crm-shared-nav.js?v=4"></script>
+  <script src="crm-shared-nav.js?v=5"></script>
   <script src="projects.js?v=1"></script>
   <script>
     (function () {
@@ -175,13 +184,6 @@
           s.classList.remove('mobile-open');
           o.classList.remove('active');
           t.setAttribute('aria-expanded', 'false');
-        });
-      }
-      var lo = document.getElementById('projectsSidebarLogout');
-      if (lo) {
-        lo.addEventListener('click', async function () {
-          try { await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }); } catch (e) {}
-          window.location.href = 'login.html';
         });
       }
     })();

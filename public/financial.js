@@ -679,13 +679,6 @@ document.addEventListener('DOMContentLoaded', () => {
     b.addEventListener('click', () => closeModal(b.getAttribute('data-close')));
   });
 
-  document.getElementById('finLogout')?.addEventListener('click', async () => {
-    try {
-      await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
-    } catch (_) {}
-    window.location.href = 'login.html';
-  });
-
   const mt = document.getElementById('mobileMenuToggle');
   const sb = document.getElementById('finSidebar');
   const ov = document.getElementById('mobileOverlay');

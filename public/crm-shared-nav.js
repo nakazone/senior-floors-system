@@ -1,23 +1,75 @@
 /**
- * Menu CRM padrão (mesmas entradas que dashboard.html sidebar) em páginas standalone.
+ * Menu CRM padrão (mesma estrutura, grupos e ícones que dashboard.html) em páginas standalone.
  * Respeita permissões via GET /api/auth/session.
  */
 (function () {
-  /** Mesma ordem e itens que o sidebar do dashboard.html (sem «Ferramentas» no lateral). */
-  const MAIN_NAV = [
-    { href: 'dashboard.html', label: 'Dashboard', perm: null, page: '' },
-    { href: 'marketing.html', label: 'Marketing', perm: 'reports.view', page: '' },
-    { href: 'dashboard.html?page=leads', label: 'Leads', perm: 'leads.view', page: 'leads' },
-    { href: 'dashboard.html?page=crm', label: 'CRM', perm: 'pipeline.view', page: 'crm' },
-    { href: 'dashboard.html?page=customers', label: 'Clients', perm: 'customers.view', page: 'customers' },
-    { href: 'dashboard.html?page=quotes', label: 'Quotes', perm: 'quotes.view', page: 'quotes' },
-    { href: 'dashboard.html?page=schedule', label: 'Schedule', perm: 'visits.view', page: 'schedule' },
-    { href: 'projects.html', label: 'Projetos', perm: 'projects.view', page: '' },
-    { href: 'financial.html', label: 'Financeiro', perm: 'contracts.view', page: '' },
-    { href: 'payroll-module.html', label: 'Folha de pagamento', perm: 'payroll.view', page: '' },
-    { href: 'dashboard.html?page=activities', label: 'Activities', perm: 'activities.view', page: 'activities' },
-    { href: 'dashboard.html?page=users', label: 'Users', perm: 'users.view', page: 'users' },
+  const ICONS = {
+    dashboard:
+      '<svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>',
+    marketing:
+      '<svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M3 11v2a1 1 0 001 1h2l4 9V4L6 11H4a1 1 0 00-1 1z"/><path d="M16 9a4 4 0 010 8"/><path d="M19 6a8 8 0 010 12"/></svg>',
+    leads:
+      '<svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><path d="M9 5a2 2 0 012-2h2a2 2 0 012 2v0a2 2 0 01-2 2H9a2 2 0 01-2-2v0z"/><path d="M9 12h6"/><path d="M9 16h6"/></svg>',
+    crm:
+      '<svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>',
+    customers:
+      '<svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>',
+    quotes:
+      '<svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>',
+    schedule:
+      '<svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/></svg>',
+    projects:
+      '<svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/><path d="M5 3l4 4"/></svg>',
+    financial:
+      '<svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>',
+    payroll:
+      '<svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>',
+    activities:
+      '<svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>',
+    users:
+      '<svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>',
+  };
+
+  /** Grupos alinhados a dashboard.html */
+  const SIDEBAR_GROUPS = [
+    {
+      label: null,
+      items: [
+        { href: 'dashboard.html', label: 'Dashboard', perm: null, page: '', iconKey: 'dashboard' },
+      ],
+    },
+    {
+      label: 'Comercial',
+      items: [
+        { href: 'marketing.html', label: 'Marketing', perm: 'reports.view', page: '', iconKey: 'marketing' },
+        { href: 'dashboard.html?page=leads', label: 'Leads', perm: 'leads.view', page: 'leads', iconKey: 'leads' },
+        { href: 'dashboard.html?page=crm', label: 'CRM', perm: 'pipeline.view', page: 'crm', iconKey: 'crm' },
+        { href: 'dashboard.html?page=customers', label: 'Clients', perm: 'customers.view', page: 'customers', iconKey: 'customers' },
+      ],
+    },
+    {
+      label: 'Operações',
+      items: [
+        { href: 'dashboard.html?page=quotes', label: 'Quotes', perm: 'quotes.view', page: 'quotes', iconKey: 'quotes' },
+        { href: 'dashboard.html?page=schedule', label: 'Schedule', perm: 'visits.view', page: 'schedule', iconKey: 'schedule' },
+        { href: 'projects.html', label: 'Projetos', perm: 'projects.view', page: '', iconKey: 'projects' },
+      ],
+    },
+    {
+      label: 'Financeiro & registo',
+      items: [
+        { href: 'financial.html', label: 'Financeiro', perm: 'contracts.view', page: '', iconKey: 'financial' },
+        { href: 'payroll-module.html', label: 'Folha de pagamento', perm: 'payroll.view', page: '', iconKey: 'payroll' },
+        { href: 'dashboard.html?page=activities', label: 'Activities', perm: 'activities.view', page: 'activities', iconKey: 'activities' },
+      ],
+    },
+    {
+      label: 'Sistema',
+      items: [{ href: 'dashboard.html?page=users', label: 'Users', perm: 'users.view', page: 'users', iconKey: 'users' }],
+    },
   ];
+
+  const MAIN_NAV = SIDEBAR_GROUPS.flatMap((g) => g.items);
 
   /** Só na barra horizontal (páginas sem sidebar); não aparece no menu lateral fixo. */
   const TOOL_NAV = [
@@ -66,16 +118,76 @@
     return keys.has(perm);
   }
 
+  function createSidebarLink(item, file, page) {
+    const a = document.createElement('a');
+    a.href = item.href;
+    a.className = 'nav-item' + (linkActive(item, file, page) ? ' active' : '');
+    if (item.perm) a.setAttribute('data-crm-permission', item.perm);
+    const tpl = document.createElement('template');
+    tpl.innerHTML = ICONS[item.iconKey].trim();
+    a.appendChild(tpl.content);
+    a.appendChild(document.createTextNode(item.label));
+    return a;
+  }
+
+  function mountSidebarNav(host, perms, role) {
+    const keys = new Set(perms);
+    const file = currentFile();
+    const page = pageParam();
+    SIDEBAR_GROUPS.forEach((group) => {
+      const visible = group.items.filter((item) => canSee(item.perm, role, keys));
+      if (visible.length === 0) return;
+      const wrap = document.createElement('div');
+      wrap.className = 'sidebar-nav-group';
+      if (group.label) {
+        const lab = document.createElement('p');
+        lab.className = 'sidebar-nav-group-label';
+        lab.textContent = group.label;
+        wrap.appendChild(lab);
+      }
+      visible.forEach((item) => {
+        wrap.appendChild(createSidebarLink(item, file, page));
+      });
+      host.appendChild(wrap);
+    });
+  }
+
+  function initSidebarUserFooter(user, role) {
+    const logoutBtn = document.getElementById('logoutBtn');
+    if (logoutBtn && !logoutBtn.dataset.crmNavBound) {
+      logoutBtn.dataset.crmNavBound = '1';
+      logoutBtn.addEventListener('click', async () => {
+        try {
+          await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+        } catch (_) {}
+        window.location.href = 'login.html';
+      });
+    }
+    const sn = document.getElementById('sidebarUserName');
+    if (!sn || !user) return;
+    const disp = (user.name && String(user.name).trim()) || user.email || 'Utilizador';
+    sn.textContent = disp;
+    const sr = document.getElementById('sidebarUserRole');
+    if (sr) sr.textContent = role ? String(role) : '';
+    const sa = document.getElementById('sidebarUserAvatar');
+    if (sa) {
+      const ch = disp.trim().charAt(0).toUpperCase();
+      sa.textContent = ch && /[A-Z0-9]/.test(ch) ? ch : '?';
+    }
+  }
+
   async function init() {
     const host = document.getElementById('crmSharedNavRoot');
     if (!host) return;
 
+    let user = null;
     let perms = [];
     let role = '';
     try {
       const r = await fetch('/api/auth/session', { credentials: 'include' });
       const j = await r.json();
       if (j.authenticated && j.user) {
+        user = j.user;
         perms = Array.isArray(j.user.permissions) ? j.user.permissions : [];
         role = j.user.role || '';
       }
@@ -86,19 +198,8 @@
     const page = pageParam();
 
     if (host.dataset.layout === 'sidebar') {
-      const stack = document.createElement('div');
-      stack.className = 'crm-sidebar-nav-stack';
-
-      MAIN_NAV.forEach((item) => {
-        if (!canSee(item.perm, role, keys)) return;
-        const a = document.createElement('a');
-        a.href = item.href;
-        a.className = 'nav-item' + (linkActive(item, file, page) ? ' active' : '');
-        a.textContent = item.label;
-        stack.appendChild(a);
-      });
-
-      host.appendChild(stack);
+      mountSidebarNav(host, perms, role);
+      initSidebarUserFooter(user, role);
       return;
     }
 
