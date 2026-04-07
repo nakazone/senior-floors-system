@@ -514,6 +514,18 @@ app.get(
   requirePermission('payroll.view'),
   constructionPayroll.getEmployeePaySlipPdf
 );
+app.get(
+  '/api/construction-payroll/periods/:id/individual-reports.pdf',
+  requireAuth,
+  requirePermission('payroll.view'),
+  constructionPayroll.getIndividualReportsPdf
+);
+app.post(
+  '/api/construction-payroll/periods/:id/individual-reports.pdf',
+  requireAuth,
+  requirePermission('payroll.view'),
+  constructionPayroll.postIndividualReportsPdf
+);
 app.post(
   '/api/construction-payroll/periods/:id/slips/email',
   requireAuth,

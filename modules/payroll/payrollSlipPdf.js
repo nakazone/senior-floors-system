@@ -1,5 +1,6 @@
 /**
  * Recibo individual de folha (pdf-lib) — mesma paleta e cabeçalho que quotePdf.js (Senior Floors).
+ * Relatórios individuais multi-página reutilizam o mesmo layout (painel direito com título distinto).
  */
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import fs from 'fs';
@@ -26,6 +27,10 @@ const PAL = {
   rule: rgb(0.86, 0.88, 0.92),
   white: rgb(1, 1, 1),
 };
+
+const PAGE_W = 612;
+const PAGE_H = 520;
+const MARGIN = 48;
 
 function moneyFmt(n) {
   const x = Number(n) || 0;
@@ -78,7 +83,7 @@ async function tryEmbedLogo(pdf) {
 function sectorLabel(sector) {
   if (sector === 'installation') return 'Installation';
   if (sector === 'sand_finish') return 'Sand & Finish';
-  return '—';
+  return '-';
 }
 
 /** Igual à lógica de previewNormativoBlock em payroll-module.js */
@@ -102,7 +107,7 @@ function normativeBlockFromRow(row) {
     if (regH > 0) parts.push(`${fmtQty(regH)} h`);
     return {
       qtyLabel: 'Dias / horas normais',
-      qty: parts.length ? parts.join(' · ') : '—',
+      qty: parts.length ? parts.join(' · ') : '-',
       totalLabel: 'Valor (parte normal)',
       total: baseAmt,
     };
@@ -116,22 +121,21 @@ function normativeBlockFromRow(row) {
 }
 
 /**
+ * @param {import('pdf-lib').PDFDocument} pdf
+ * @param {import('pdf-lib').PDFFont} font
+ * @param {import('pdf-lib').PDFFont} fontBold
  * @param {object} opts
- * @param {object} opts.period — linha construction_payroll_periods
- * @param {object} opts.employeeRow — item de by_employee do preview
+ * @param {object} opts.period
+ * @param {object} opts.row — linha by_employee
+ * @param {string} opts.rightTitle — ex.: PAY SLIP, RELATORIO INDIVIDUAL
+ * @param {number} [opts.pageIndex]
+ * @param {number} [opts.pageTotal]
  */
-export async function buildPayrollSlipPdfBuffer(opts) {
-  const { period, employeeRow: row } = opts;
-  const pdf = await PDFDocument.create();
-  const font = await pdf.embedFont(StandardFonts.Helvetica);
-  const fontBold = await pdf.embedFont(StandardFonts.HelveticaBold);
-
-  const pageW = 612;
-  const pageH = 520;
-  const margin = 48;
-  const contentW = pageW - 2 * margin;
-  let page = pdf.addPage([pageW, pageH]);
-  let y = pageH - 48;
+async function drawPayrollSlipStyledPage(pdf, font, fontBold, opts) {
+  const { period, row, rightTitle, pageIndex, pageTotal } = opts;
+  const contentW = PAGE_W - 2 * MARGIN;
+  const page = pdf.addPage([PAGE_W, PAGE_H]);
+  let y = PAGE_H - 48;
   const lineH = 13;
   const textColor = PAL.primary;
 
@@ -145,25 +149,25 @@ export async function buildPayrollSlipPdfBuffer(opts) {
   const gapBelowAccent = 14;
   page.drawRectangle({
     x: 0,
-    y: pageH - accentBarH,
-    width: pageW,
+    y: PAGE_H - accentBarH,
+    width: PAGE_W,
     height: accentBarH,
     color: PAL.secondary,
   });
 
-  const contentTopY = pageH - accentBarH - gapBelowAccent;
+  const contentTopY = PAGE_H - accentBarH - gapBelowAccent;
   const logoTopY = contentTopY;
   const logo = await tryEmbedLogo(pdf);
   const lw = logo ? 56 : 0;
   const lh = logo ? (logo.height / logo.width) * lw : 0;
   const logoBottomY = logoTopY - lh;
   if (logo) {
-    page.drawImage(logo, { x: margin, y: logoBottomY, width: lw, height: lh });
+    page.drawImage(logo, { x: MARGIN, y: logoBottomY, width: lw, height: lh });
   }
 
   const nameSize = 15;
   const tagSize = 8;
-  const textColumnX = margin + (logo ? lw + 14 : 0);
+  const textColumnX = MARGIN + (logo ? lw + 14 : 0);
   const nameBaselineY = logoTopY - nameSize * 0.72;
   const tagBaselineY = nameBaselineY - 14;
   const contactBaselineY = tagBaselineY - 12;
@@ -194,8 +198,9 @@ export async function buildPayrollSlipPdfBuffer(opts) {
   const headerLowY = lh > 0 ? Math.min(logoBottomY, textBlockLowY) : textBlockLowY;
 
   const rightW = 168;
-  const rightX = pageW - margin - rightW;
-  const panelH = 76;
+  const rightX = PAGE_W - MARGIN - rightW;
+  const panelExtra = pageTotal > 1 ? 14 : 0;
+  const panelH = 76 + panelExtra;
   const panelTopY = contentTopY + 2;
   const panelBottomY = panelTopY - panelH;
   page.drawRectangle({
@@ -217,7 +222,8 @@ export async function buildPayrollSlipPdfBuffer(opts) {
   const d0 = period?.start_date ? String(period.start_date).slice(0, 10) : '';
   const d1 = period?.end_date ? String(period.end_date).slice(0, 10) : '';
   let ry = panelTopY - 14;
-  page.drawText('PAY SLIP', { x: rightX, y: ry, size: 10, font: fontBold, color: PAL.primary });
+  const rt = winAnsiSafe(rightTitle, 28);
+  page.drawText(rt, { x: rightX, y: ry, size: 10, font: fontBold, color: PAL.primary });
   ry -= lineH;
   page.drawText(perName, { x: rightX, y: ry, size: 9, font: fontBold, color: PAL.secondaryDark });
   ry -= lineH;
@@ -232,14 +238,30 @@ export async function buildPayrollSlipPdfBuffer(opts) {
     font,
     color: PAL.lineMuted,
   });
+  if (pageTotal > 1 && pageIndex >= 1) {
+    ry -= lineH * 0.95;
+    page.drawText(`Pag. ${pageIndex} de ${pageTotal}`, {
+      x: rightX,
+      y: ry,
+      size: 7,
+      font,
+      color: PAL.lineMuted,
+    });
+  }
 
   y = Math.min(headerLowY - 8, panelBottomY - 6) - 10;
 
-  page.drawText('Funcionário(a)', { x: margin, y, size: 9, font: fontBold, color: PAL.secondaryDark });
+  page.drawText('Funcionário(a)', { x: MARGIN, y, size: 9, font: fontBold, color: PAL.secondaryDark });
   y -= lineH;
-  page.drawText(winAnsiSafe(row.name || '-', 80), { x: margin, y, size: 11, font: fontBold, color: PAL.primary });
+  page.drawText(winAnsiSafe(row.name || '-', 80), { x: MARGIN, y, size: 11, font: fontBold, color: PAL.primary });
   y -= lineH;
-  page.drawText(`Setor: ${sectorLabel(row.sector)}`, { x: margin, y, size: 8.5, font, color: PAL.lineMuted });
+  page.drawText(`Setor: ${winAnsiSafe(sectorLabel(row.sector), 40)}`, {
+    x: MARGIN,
+    y,
+    size: 8.5,
+    font,
+    color: PAL.lineMuted,
+  });
   y -= 16;
 
   const drawSectionTitle = (label) => {
@@ -251,7 +273,7 @@ export async function buildPayrollSlipPdfBuffer(opts) {
     const barBottom = barTop - barH;
     const baselineY = baselineCenteredInBar(barBottom, barH, fs);
     page.drawRectangle({
-      x: margin,
+      x: MARGIN,
       y: barBottom,
       width: contentW,
       height: barH,
@@ -259,14 +281,14 @@ export async function buildPayrollSlipPdfBuffer(opts) {
       opacity: 0.22,
     });
     page.drawRectangle({
-      x: margin,
+      x: MARGIN,
       y: barBottom,
       width: 3,
       height: barH,
       color: PAL.primary,
     });
     page.drawText(label.toUpperCase(), {
-      x: margin + 10,
+      x: MARGIN + 10,
       y: baselineY,
       size: fs,
       font: fontBold,
@@ -276,10 +298,11 @@ export async function buildPayrollSlipPdfBuffer(opts) {
   };
 
   const drawKV = (label, value, { boldValue = false } = {}) => {
-    page.drawText(label, { x: margin, y, size: 9, font, color: PAL.lineMuted });
-    const vw = (boldValue ? fontBold : font).widthOfTextAtSize(value, 9);
-    page.drawText(value, {
-      x: pageW - margin - vw,
+    page.drawText(winAnsiSafe(label, 80), { x: MARGIN, y, size: 9, font, color: PAL.lineMuted });
+    const vStr = winAnsiSafe(value, 40);
+    const vw = (boldValue ? fontBold : font).widthOfTextAtSize(vStr, 9);
+    page.drawText(vStr, {
+      x: PAGE_W - MARGIN - vw,
       y,
       size: 9,
       font: boldValue ? fontBold : font,
@@ -295,8 +318,8 @@ export async function buildPayrollSlipPdfBuffer(opts) {
   drawKV('Horas extras (soma)', `${fmtQty(row.overtime_hours_sum || 0)} h`);
   drawKV('Valor horas extras', moneyFmt(row.amount_overtime || 0));
   page.drawLine({
-    start: { x: margin, y: y + 4 },
-    end: { x: pageW - margin, y: y + 4 },
+    start: { x: MARGIN, y: y + 4 },
+    end: { x: PAGE_W - MARGIN, y: y + 4 },
     thickness: 0.5,
     color: PAL.rule,
   });
@@ -323,21 +346,21 @@ export async function buildPayrollSlipPdfBuffer(opts) {
   const baselineLabel = baselineVal - (fsVal - fsLabel) * 0.32;
 
   page.drawRectangle({
-    x: margin,
+    x: MARGIN,
     y: barBottom,
     width: contentW,
     height: barH,
     color: PAL.primary,
   });
   page.drawRectangle({
-    x: margin,
+    x: MARGIN,
     y: barBottom,
     width: 4,
     height: barH,
     color: PAL.secondary,
   });
   page.drawText('TOTAL A PAGAR', {
-    x: margin + 12,
+    x: MARGIN + 12,
     y: baselineLabel,
     size: fsLabel,
     font: fontBold,
@@ -345,7 +368,7 @@ export async function buildPayrollSlipPdfBuffer(opts) {
   });
   const valW = fontBold.widthOfTextAtSize(totalVal, fsVal);
   page.drawText(totalVal, {
-    x: pageW - margin - valW,
+    x: PAGE_W - MARGIN - valW,
     y: baselineVal,
     size: fsVal,
     font: fontBold,
@@ -354,12 +377,53 @@ export async function buildPayrollSlipPdfBuffer(opts) {
   y = barBottom - 12;
 
   page.drawText('Documento confidencial - uso interno / funcionário.', {
-    x: margin,
+    x: MARGIN,
     y: Math.max(36, y),
     size: 7,
     font,
     color: PAL.lineMuted,
   });
+}
 
+/**
+ * @param {object} opts
+ * @param {object} opts.period — linha construction_payroll_periods
+ * @param {object} opts.employeeRow — item de by_employee do preview
+ */
+export async function buildPayrollSlipPdfBuffer(opts) {
+  const { period, employeeRow: row } = opts;
+  const pdf = await PDFDocument.create();
+  const font = await pdf.embedFont(StandardFonts.Helvetica);
+  const fontBold = await pdf.embedFont(StandardFonts.HelveticaBold);
+  await drawPayrollSlipStyledPage(pdf, font, fontBold, {
+    period,
+    row,
+    rightTitle: 'PAY SLIP',
+  });
+  return Buffer.from(await pdf.save());
+}
+
+/**
+ * Um PDF com uma página por funcionário (mesmo layout que o recibo).
+ * @param {object} opts
+ * @param {object} opts.period
+ * @param {object[]} opts.employeeRows — by_employee
+ */
+export async function buildIndividualPayrollReportsPdfBuffer(opts) {
+  const { period, employeeRows } = opts;
+  const rows = Array.isArray(employeeRows) ? employeeRows : [];
+  const pdf = await PDFDocument.create();
+  const font = await pdf.embedFont(StandardFonts.Helvetica);
+  const fontBold = await pdf.embedFont(StandardFonts.HelveticaBold);
+  const n = rows.length;
+  for (let i = 0; i < n; i++) {
+    await drawPayrollSlipStyledPage(pdf, font, fontBold, {
+      period,
+      row: rows[i],
+      rightTitle: 'RELATORIO INDIVIDUAL',
+      pageIndex: i + 1,
+      pageTotal: n,
+    });
+  }
   return Buffer.from(await pdf.save());
 }

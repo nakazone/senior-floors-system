@@ -1240,165 +1240,74 @@ function previewNormativoBlock(tr) {
   });
 }
 
-function trToIndividualReportRowModel(tr) {
-  const reimInp = tr.querySelector('.preview-reim-input');
-  const discInp = tr.querySelector('.preview-disc-input');
-  const reim = reimInp ? Math.max(0, Number(reimInp.value) || 0) : Number(tr.dataset.previewReim) || 0;
-  const disc = discInp ? Math.max(0, Number(discInp.value) || 0) : Number(tr.dataset.previewDisc) || 0;
-  const sheetTot = Number(tr.dataset.subtotal) || 0;
-  return {
-    name: tr.dataset.employeeName || '',
-    sector: null,
-    sectorDisplay: tr.dataset.sectorLabel || '—',
-    payment_type: tr.dataset.paymentType,
-    days_worked_sum: Number(tr.dataset.daysWorkedSum) || 0,
-    regular_hours_sum: Number(tr.dataset.regularHoursSum) || 0,
-    overtime_hours_sum: Number(tr.dataset.overtimeHoursSum) || 0,
-    amount_sheet_base: Number(tr.dataset.amountSheetBase) || 0,
-    amount_overtime: Number(tr.dataset.amountOvertime) || 0,
-    subtotal: sheetTot,
-    reimbursement: reim,
-    discount: disc,
-    employee_total: Math.round((sheetTot + reim - disc) * 100) / 100,
-  };
-}
-
-function apiRowToIndividualReportRowModel(row) {
-  const sheetTot = Number(row.subtotal) || 0;
-  const reim = Number(row.reimbursement) || 0;
-  const disc = Number(row.discount) || 0;
-  return {
-    name: row.name,
-    sector: row.sector,
-    sectorDisplay: undefined,
-    payment_type: row.payment_type,
-    days_worked_sum: Number(row.days_worked_sum) || 0,
-    regular_hours_sum: Number(row.regular_hours_sum) || 0,
-    overtime_hours_sum: Number(row.overtime_hours_sum) || 0,
-    amount_sheet_base: Number(row.amount_sheet_base) || 0,
-    amount_overtime: Number(row.amount_overtime) || 0,
-    subtotal: sheetTot,
-    reimbursement: reim,
-    discount: disc,
-    employee_total:
-      row.employee_total != null ? Number(row.employee_total) : Math.round((sheetTot + reim - disc) * 100) / 100,
-  };
-}
-
-function sectorLineFromRowModel(m) {
-  if (m.sectorDisplay != null && String(m.sectorDisplay).trim() !== '') return String(m.sectorDisplay).trim();
-  return sectorLabel(m.sector);
-}
-
-function buildIndividualReportPageHtml(rowModel, i, totalPages, heading, titleLine, subtitle) {
-  const norm = previewNormativoBlockFromRow(rowModel);
-  const name = escapeHtml(String(rowModel.name || '—'));
-  const sector = escapeHtml(sectorLineFromRowModel(rowModel));
-  const otH = Number(rowModel.overtime_hours_sum) || 0;
-  const otAmt = Number(rowModel.amount_overtime) || 0;
-  const sheetTot = Number(rowModel.subtotal) || 0;
-  const reim = Number(rowModel.reimbursement) || 0;
-  const disc = Number(rowModel.discount) || 0;
-  const totalPagar =
-    rowModel.employee_total != null
-      ? Number(rowModel.employee_total)
-      : Math.round((sheetTot + reim - disc) * 100) / 100;
-  const brk = i < totalPages - 1 ? 'page-break-after: always;' : '';
-
-  return `<section class="report-page" style="${brk} font-family: system-ui, sans-serif; padding: 1.5rem; max-width: 40rem;">
-      <h1 style="font-size: 1.1rem; margin: 0 0 0.25rem;">${escapeHtml(heading)}</h1>
-      <p style="margin: 0 0 1rem; color: #444; font-size: 0.9rem;">${escapeHtml(titleLine)}${subtitle ? ` · ${escapeHtml(subtitle)}` : ''}</p>
-      <p style="margin: 0.35rem 0;"><strong>Funcionário(a):</strong> ${name}</p>
-      <p style="margin: 0.35rem 0 1rem;"><strong>Setor:</strong> ${sector}</p>
-      <table style="width: 100%; border-collapse: collapse; font-size: 0.95rem;">
-        <tr><td style="padding: 0.35rem 0; border-bottom: 1px solid #ddd;">${escapeHtml(norm.qtyLabel)}</td><td style="padding: 0.35rem 0; border-bottom: 1px solid #ddd; text-align: right;">${escapeHtml(norm.qty)}</td></tr>
-        <tr><td style="padding: 0.35rem 0; border-bottom: 1px solid #ddd;">${escapeHtml(norm.totalLabel)}</td><td style="padding: 0.35rem 0; border-bottom: 1px solid #ddd; text-align: right;">${escapeHtml(money(norm.total))}</td></tr>
-        <tr><td style="padding: 0.35rem 0; border-bottom: 1px solid #ddd;">Horas extras (soma)</td><td style="padding: 0.35rem 0; border-bottom: 1px solid #ddd; text-align: right;">${escapeHtml(fmtReportQty(otH))} h</td></tr>
-        <tr><td style="padding: 0.35rem 0; border-bottom: 1px solid #ddd;">Valor horas extras</td><td style="padding: 0.35rem 0; border-bottom: 1px solid #ddd; text-align: right;">${escapeHtml(money(otAmt))}</td></tr>
-        <tr><td style="padding: 0.35rem 0; border-bottom: 1px solid #ddd;">Valor (base + horas extras)</td><td style="padding: 0.35rem 0; border-bottom: 1px solid #ddd; text-align: right;">${escapeHtml(money(sheetTot))}</td></tr>
-        <tr><td style="padding: 0.35rem 0; border-bottom: 1px solid #ddd;">Reembolso</td><td style="padding: 0.35rem 0; border-bottom: 1px solid #ddd; text-align: right;">${escapeHtml(money(reim))}</td></tr>
-        <tr><td style="padding: 0.35rem 0; border-bottom: 1px solid #ddd;">Desconto</td><td style="padding: 0.35rem 0; border-bottom: 1px solid #ddd; text-align: right;">${escapeHtml(money(disc))}</td></tr>
-        <tr><td style="padding: 0.5rem 0 0; font-weight: 700;">Total a pagar</td><td style="padding: 0.5rem 0 0; text-align: right; font-weight: 700;">${escapeHtml(money(totalPagar))}</td></tr>
-      </table>
-    </section>`;
-}
-
-function wrapIndividualReportsDocument(innerBody) {
-  const hint =
-    '<div style="background:#f1f5f9;padding:12px 16px;font:14px system-ui,sans-serif;border-bottom:1px solid #e2e8f0;color:#334155;">Copie o texto ou use captura de ecrã para enviar por mensagem. (Impressão automática desativada.)</div>';
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Relatórios individuais</title>
-    <style>body{margin:0;} .report-page{page-break-inside:avoid;padding:1rem 1.25rem;}</style>
-    </head><body>${hint}${innerBody}</body></html>`;
-}
-
-/** Se pop-ups estiverem bloqueados, mostra o mesmo HTML nesta página. */
-function openIndividualReportsInPageOverlay(html) {
-  const prev = document.getElementById('individualReportsOverlay');
-  if (prev) prev.remove();
-  const wrap = document.createElement('div');
-  wrap.id = 'individualReportsOverlay';
-  wrap.className =
-    'fixed inset-0 z-[2000] flex items-stretch justify-center bg-black/50 p-2 sm:p-4';
-  wrap.setAttribute('role', 'dialog');
-  wrap.setAttribute('aria-label', 'Relatórios individuais');
-  wrap.innerHTML = `<div class="flex flex-col bg-white rounded-xl shadow-xl w-full max-w-4xl max-h-[96vh] overflow-hidden border border-slate-200">
-    <div class="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-b bg-slate-50 shrink-0">
-      <p class="text-sm text-slate-700 pr-2">Selecione e copie o texto para enviar por mensagem.</p>
-      <button type="button" class="px-3 py-1.5 rounded-lg bg-slate-200 text-sm font-semibold text-slate-900" data-close-iro>Fechar</button>
-    </div>
-    <iframe class="flex-1 w-full min-h-[50vh] border-0 bg-white" title="Relatórios individuais"></iframe>
-  </div>`;
-  document.body.appendChild(wrap);
-  const iframe = wrap.querySelector('iframe');
-  iframe.srcdoc = html;
-  const close = () => wrap.remove();
-  wrap.querySelector('[data-close-iro]').addEventListener('click', close);
-  wrap.addEventListener('click', (ev) => {
-    if (ev.target === wrap) close();
-  });
-}
-
-function buildIndividualPayrollReportsFullHtml(data, heading, titleLineOverride) {
-  const period = data.period;
-  const subtitle = period ? `${period.name} (${period.start_date} → ${period.end_date})` : '';
-  const titleLine =
-    titleLineOverride != null
-      ? titleLineOverride
-      : document.getElementById('previewTitle')?.textContent?.trim() || 'Pré-visualização da folha';
-  const by = (data.by_employee || []).map(apiRowToIndividualReportRowModel);
-  const n = by.length;
-  const pages = by.map((m, i) =>
-    buildIndividualReportPageHtml(m, i, n, heading, titleLine, subtitle)
-  );
-  return wrapIndividualReportsDocument(pages.join(''));
-}
-
-/** Abre o HTML num separador (sem diálogo de impressão). Usa o período já carregado no ecrã. */
-function openIndividualReportsDocument(html, existingWindow) {
-  const loadInto = (w) => {
-    w.document.open();
-    w.document.write(html);
-    w.document.close();
-    w.focus();
-  };
-  if (existingWindow && !existingWindow.closed) {
-    try {
-      loadInto(existingWindow);
-      return;
-    } catch (_) {
-      try {
-        existingWindow.close();
-      } catch (__) {}
-    }
+/**
+ * PDF multi-página (layout = recibo). `adjustments`: null = GET (BD); array = POST (valores do modal preview).
+ */
+async function openIndividualReportsPdfFromApi(adjustments) {
+  if (!selectedPeriodId) {
+    window.crmToast?.error?.('Selecione um período.');
+    return;
   }
-  const w = window.open('about:blank', '_blank');
-  if (w) {
+  const preOpened = window.open('about:blank', '_blank');
+  if (preOpened) {
     try {
-      loadInto(w);
-      return;
+      preOpened.document.write(
+        '<!DOCTYPE html><html><head><meta charset="utf-8"><title>A carregar…</title></head><body><p style="font-family:system-ui,sans-serif;padding:2rem">A gerar PDF…</p></body></html>'
+      );
+      preOpened.document.close();
     } catch (_) {}
   }
-  openIndividualReportsInPageOverlay(html);
+  try {
+    const url = `${CP}/periods/${selectedPeriodId}/individual-reports.pdf`;
+    const usePost = adjustments != null;
+    const r = await fetch(url, {
+      method: usePost ? 'POST' : 'GET',
+      credentials: 'include',
+      headers: {
+        Accept: 'application/pdf',
+        ...(usePost ? { 'Content-Type': 'application/json' } : {}),
+      },
+      ...(usePost ? { body: JSON.stringify({ adjustments }) } : {}),
+    });
+    const ct = r.headers.get('content-type') || '';
+    if (!r.ok) {
+      if (preOpened && !preOpened.closed) {
+        try {
+          preOpened.close();
+        } catch (_) {}
+      }
+      if (ct.includes('application/json')) {
+        const j = await r.json().catch(() => ({}));
+        throw new Error(j.error || `Erro (${r.status})`);
+      }
+      throw new Error(`PDF (${r.status})`);
+    }
+    if (!ct.includes('pdf') && !ct.includes('octet-stream')) {
+      const j = await r.json().catch(() => ({}));
+      throw new Error(j.error || 'Resposta inválida');
+    }
+    const blob = await r.blob();
+    const objUrl = URL.createObjectURL(blob);
+    if (preOpened && !preOpened.closed) {
+      preOpened.location.href = objUrl;
+    } else {
+      const w = window.open(objUrl, '_blank');
+      if (!w) {
+        URL.revokeObjectURL(objUrl);
+        window.crmToast?.error?.('Pop-up bloqueado.');
+        return;
+      }
+    }
+    setTimeout(() => URL.revokeObjectURL(objUrl), 120_000);
+    window.crmToast?.success?.('PDF aberto (mesmo layout do recibo).');
+  } catch (e) {
+    if (preOpened && !preOpened.closed) {
+      try {
+        preOpened.close();
+      } catch (_) {}
+    }
+    window.crmToast?.error?.(e.message || 'Erro ao gerar PDF');
+  }
 }
 
 async function fetchAndShowPreview(closing) {
@@ -1617,66 +1526,19 @@ async function sendPaySlipsEmail() {
   }
 }
 
-/**
- * Relatórios individuais do período já selecionado no quadro (dropdown «Período»).
- * Abre `about:blank` no clique (antes do fetch) para reduzir bloqueio de pop-ups.
- */
+/** Relatórios individuais em PDF (layout = recibo), dados gravados na BD. */
 async function fetchAndOpenIndividualReports() {
-  if (!selectedPeriodId) {
-    window.crmToast?.error?.('Selecione um período no quadro.');
-    return;
-  }
-  const preOpened = window.open('about:blank', '_blank');
-  if (preOpened) {
-    preOpened.document.write(
-      '<!DOCTYPE html><html><head><meta charset="utf-8"><title>A carregar…</title></head><body><p style="font-family:system-ui,sans-serif;padding:2rem">A carregar relatórios…</p></body></html>'
-    );
-    preOpened.document.close();
-  }
-  try {
-    const j = await api('GET', `/periods/${selectedPeriodId}/preview`);
-    const by = j.data?.by_employee;
-    if (!Array.isArray(by) || !by.length) {
-      if (preOpened && !preOpened.closed) {
-        try {
-          preOpened.close();
-        } catch (_) {}
-      }
-      window.crmToast?.error?.('Não há dados de folha neste período.');
-      return;
-    }
-    const html = buildIndividualPayrollReportsFullHtml(
-      j.data || {},
-      'Relatório individual',
-      'Pré-visualização da folha'
-    );
-    openIndividualReportsDocument(html, preOpened);
-    window.crmToast?.success?.('Relatórios abertos — copie o texto para enviar por mensagem.');
-  } catch (e) {
-    if (preOpened && !preOpened.closed) {
-      try {
-        preOpened.close();
-      } catch (_) {}
-    }
-    window.crmToast?.error?.(e.message || 'Erro ao gerar relatórios individuais.');
-  }
+  await openIndividualReportsPdfFromApi(null);
 }
 
-function openIndividualPayrollReportsFromPreview() {
-  const subtitle = document.getElementById('previewSubtitle')?.textContent?.trim() || '';
-  const titleLine = document.getElementById('previewTitle')?.textContent?.trim() || 'Folha';
+/** A partir do modal de pré-visualização: PDF com reembolsos/descontos dos campos (ainda não guardados). */
+async function openIndividualPayrollReportsFromPreview() {
   const trs = Array.from(document.querySelectorAll('#previewTbody tr'));
   if (!trs.length) {
     window.crmToast?.error?.('Sem dados para mostrar.');
     return;
   }
-  const models = trs.map(trToIndividualReportRowModel);
-  const n = models.length;
-  const pages = models.map((m, i) =>
-    buildIndividualReportPageHtml(m, i, n, 'Relatório individual — fechamento', titleLine, subtitle)
-  );
-  openIndividualReportsDocument(wrapIndividualReportsDocument(pages.join('')), null);
-  window.crmToast?.success?.('Relatórios abertos — copie o texto para enviar por mensagem.');
+  await openIndividualReportsPdfFromApi(collectAdjustmentsFromPreview());
 }
 
 async function confirmClosePeriod() {

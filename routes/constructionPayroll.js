@@ -3,7 +3,10 @@
  */
 import { getDBConnection } from '../config/db.js';
 import { calcTimesheetLineAmount } from '../modules/payroll/constructionPayrollCalc.js';
-import { buildPayrollSlipPdfBuffer } from '../modules/payroll/payrollSlipPdf.js';
+import {
+  buildIndividualPayrollReportsPdfBuffer,
+  buildPayrollSlipPdfBuffer,
+} from '../modules/payroll/payrollSlipPdf.js';
 import { sendQuoteEmail } from '../modules/quotes/quoteMail.js';
 
 function isMissingTable(err) {
@@ -249,12 +252,34 @@ function safePaySlipFilenamePart(s) {
   return String(s || 'recibo').replace(/[^\w.\-]+/g, '_').slice(0, 48);
 }
 
+/** Aplica reembolso/desconto vindos do body (ex.: PDF alinhado ao preview antes de guardar). */
+function applyAdjustmentOverridesToPreviewData(data, list) {
+  if (!list || !list.length || !data?.by_employee) return;
+  const m = new Map();
+  for (const x of list) {
+    const eid = parseInt(String(x.employee_id), 10);
+    if (!eid) continue;
+    m.set(eid, {
+      reimbursement: Math.max(0, Number(x.reimbursement) || 0),
+      discount: Math.max(0, Number(x.discount) || 0),
+    });
+  }
+  for (const row of data.by_employee) {
+    const o = m.get(row.employee_id);
+    if (!o) continue;
+    row.reimbursement = o.reimbursement;
+    row.discount = o.discount;
+    row.employee_total = Math.round((Number(row.subtotal) + o.reimbursement - o.discount) * 100) / 100;
+  }
+}
+
 /**
  * Mesmos dados que GET /periods/:id/preview (para PDF, e-mail e ferramentas no CRM).
  * @param {import('mysql2/promise').Pool} pool
  * @param {number} id — period id
+ * @param {{ adjustmentOverrides?: { employee_id: number, reimbursement?: number, discount?: number }[] }} [options]
  */
-async function computePeriodPreviewData(pool, id) {
+async function computePeriodPreviewData(pool, id, options = {}) {
   const p = await loadPeriod(pool, id);
   if (!p) {
     const e = new Error('Não encontrado');
@@ -415,7 +440,7 @@ async function computePeriodPreviewData(pool, id) {
   const grand_timesheet = Number(grandTs.s) || 0;
   const grand_total = Math.round((grand_timesheet + grandReim - grandDisc) * 100) / 100;
 
-  return {
+  const result = {
     period: serializePeriodForClient(p),
     by_employee,
     grand_timesheet,
@@ -423,6 +448,10 @@ async function computePeriodPreviewData(pool, id) {
     grand_discount: grandDisc,
     grand_total,
   };
+  if (Array.isArray(options.adjustmentOverrides) && options.adjustmentOverrides.length > 0) {
+    applyAdjustmentOverridesToPreviewData(result, options.adjustmentOverrides);
+  }
+  return result;
 }
 
 /** @param {unknown} v */
@@ -895,6 +924,69 @@ export async function getEmployeePaySlipPdf(req, res) {
     const fn = `Senior-Floors-Pay-Slip-${safePaySlipFilenamePart(row.name)}-${periodId}.pdf`;
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `inline; filename="${fn}"`);
+    res.send(buf);
+  } catch (err) {
+    if (err.statusCode === 404) {
+      return res.status(404).json({ success: false, error: err.message || 'Não encontrado' });
+    }
+    return sendDbError(res, err);
+  }
+}
+
+/** PDF multi-página: um relatório individual por funcionário (layout = recibo). */
+export async function getIndividualReportsPdf(req, res) {
+  try {
+    const pool = await getDBConnection();
+    const periodId = parseInt(req.params.id, 10);
+    if (!periodId) {
+      return res.status(400).json({ success: false, error: 'Período inválido' });
+    }
+    const data = await computePeriodPreviewData(pool, periodId);
+    if (!data.by_employee.length) {
+      return res.status(404).json({ success: false, error: 'Não há dados neste período' });
+    }
+    const p = await loadPeriod(pool, periodId);
+    const buf = await buildIndividualPayrollReportsPdfBuffer({ period: p, employeeRows: data.by_employee });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader(
+      'Content-Disposition',
+      `inline; filename="Senior-Floors-relatorios-individuais-${periodId}.pdf"`
+    );
+    res.send(buf);
+  } catch (err) {
+    if (err.statusCode === 404) {
+      return res.status(404).json({ success: false, error: err.message || 'Não encontrado' });
+    }
+    return sendDbError(res, err);
+  }
+}
+
+/**
+ * Igual ao GET, mas aceita body.adjustments para refletir valores do modal de pré-visualização (não guardados).
+ */
+export async function postIndividualReportsPdf(req, res) {
+  try {
+    const pool = await getDBConnection();
+    const periodId = parseInt(req.params.id, 10);
+    if (!periodId) {
+      return res.status(400).json({ success: false, error: 'Período inválido' });
+    }
+    const adj = Array.isArray(req.body?.adjustments) ? req.body.adjustments : [];
+    const data = await computePeriodPreviewData(
+      pool,
+      periodId,
+      adj.length ? { adjustmentOverrides: adj } : {}
+    );
+    if (!data.by_employee.length) {
+      return res.status(404).json({ success: false, error: 'Não há dados neste período' });
+    }
+    const p = await loadPeriod(pool, periodId);
+    const buf = await buildIndividualPayrollReportsPdfBuffer({ period: p, employeeRows: data.by_employee });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader(
+      'Content-Disposition',
+      `inline; filename="Senior-Floors-relatorios-individuais-${periodId}.pdf"`
+    );
     res.send(buf);
   } catch (err) {
     if (err.statusCode === 404) {

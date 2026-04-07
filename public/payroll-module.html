@@ -327,7 +327,7 @@
               Partilhar recibos (mensagem)
             </button>
             <button type="button" id="btnPreviewPayroll" class="px-4 py-2 rounded-lg bg-slate-100 text-sm font-medium">Ver folha deste período</button>
-            <button type="button" id="btnPrintIndividualReports" class="px-4 py-2 rounded-lg border border-slate-300 text-[#1a2036] text-sm font-semibold bg-white">Relatórios individuais</button>
+            <button type="button" id="btnPrintIndividualReports" class="px-4 py-2 rounded-lg border border-slate-300 text-[#1a2036] text-sm font-semibold bg-white" title="PDF com o mesmo layout do recibo (uma página por funcionário)">Relatórios individuais</button>
           </div>
           <details id="paySlipsMoreDetails" class="hidden text-sm">
             <summary class="cursor-pointer text-slate-500 font-medium py-1 select-none">Mais opções · ZIP no computador · e-mail</summary>
@@ -451,7 +451,7 @@
         Informe <strong>reembolsos</strong> e <strong>descontos</strong> por funcionário antes de fechar. Total por linha = folha + reembolso − desconto; total geral = folha + reembolsos − descontos.
       </p>
       <div class="flex justify-end">
-        <button type="button" id="previewPrintIndividualReports" class="px-4 py-2 rounded-lg bg-slate-100 text-sm font-semibold text-slate-800">
+        <button type="button" id="previewPrintIndividualReports" class="px-4 py-2 rounded-lg bg-slate-100 text-sm font-semibold text-slate-800" title="PDF no layout do recibo; usa reembolsos/descontos deste ecrã">
           Relatórios individuais
         </button>
       </div>
@@ -599,6 +599,6 @@
   </script>
   <script src="crm-toast.js?v=2"></script>
   <script src="crm-shared-nav.js?v=2"></script>
-  <script src="payroll-module.js?v=32"></script>
+  <script src="payroll-module.js?v=33"></script>
 </body>
 </html>
