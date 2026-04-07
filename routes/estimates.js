@@ -11,7 +11,7 @@ import {
   generateEstimateNumber,
   calculateMarginPercentage
 } from '../services/estimateCalculator.js';
-import { createOrSyncProjectFromAcceptedEstimate } from '../modules/projects/fromEstimate.js';
+import { autoCreateProjectFromEstimate } from '../lib/projectAutomation.js';
 
 /**
  * Listar estimativas
@@ -384,17 +384,23 @@ export async function updateEstimate(req, res) {
 
     const newStatus = String(updated[0].status || '');
     if (newStatus === 'accepted' && oldStatus !== 'accepted') {
-      try {
-        const uid = req.session?.userId != null ? parseInt(String(req.session.userId), 10) : null;
-        const projRes = await createOrSyncProjectFromAcceptedEstimate(pool, estimateId, uid);
-        if (projRes.ok) {
-          console.log('[AUTO] Projeto criado/atualizado:', projRes.data?.project_number || projRes.data?.id);
-        } else {
-          console.warn('[AUTO] Projeto não sincronizado:', projRes.error);
+      const uid = req.session?.userId != null ? parseInt(String(req.session.userId), 10) : null;
+      setImmediate(async () => {
+        try {
+          const result = await autoCreateProjectFromEstimate(
+            pool,
+            estimateId,
+            Number.isFinite(uid) ? uid : null
+          );
+          if (result.ok) {
+            console.log('[AUTO] Projeto criado/atualizado:', result.project_number || result.project_id);
+          } else {
+            console.warn('[AUTO] Projeto não sincronizado:', result.error);
+          }
+        } catch (e) {
+          console.error('[AUTO] Erro ao criar projeto:', e.message);
         }
-      } catch (e) {
-        console.error('[AUTO] Erro ao criar projeto:', e.message);
-      }
+      });
     }
 
     return res.json({ success: true, data: updated[0] });

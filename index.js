@@ -508,6 +508,18 @@ app.delete(
 app.get('/api/construction-payroll/periods', requireAuth, requirePermission('payroll.view'), constructionPayroll.listPeriods);
 app.post('/api/construction-payroll/periods', requireAuth, requirePermission('payroll.manage'), constructionPayroll.createPeriod);
 app.get('/api/construction-payroll/periods/:id/preview', requireAuth, requirePermission('payroll.view'), constructionPayroll.getPeriodPreview);
+app.get(
+  '/api/construction-payroll/periods/:id/slips/:employeeId/pdf',
+  requireAuth,
+  requirePermission('payroll.view'),
+  constructionPayroll.getEmployeePaySlipPdf
+);
+app.post(
+  '/api/construction-payroll/periods/:id/slips/email',
+  requireAuth,
+  requirePermission('payroll.manage'),
+  constructionPayroll.postDistributePaySlips
+);
 app.put(
   '/api/construction-payroll/periods/:id/adjustments',
   requireAuth,

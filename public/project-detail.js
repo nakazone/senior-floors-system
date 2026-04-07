@@ -16,13 +16,13 @@ const fmt$ = (v) =>
 const fmtPct = (v) => `${(parseFloat(v) || 0).toFixed(1)}%`;
 
 function showToast(msg, type = 'success') {
+  const bg =
+    type === 'error' ? 'var(--sf-bad)' : type === 'info' ? 'var(--sf-navy)' : 'var(--sf-ok)';
   const t = document.createElement('div');
-  t.style.cssText = `position:fixed;bottom:20px;right:20px;padding:10px 18px;border-radius:8px;font-size:12px;font-weight:600;color:#fff;z-index:9999;background:${
-    type === 'error' ? 'var(--sf-bad)' : 'var(--sf-ok)'
-  }`;
+  t.style.cssText = `position:fixed;bottom:20px;right:20px;padding:10px 18px;border-radius:8px;font-size:12px;font-weight:600;color:#fff;z-index:9999;background:${bg};max-width:320px`;
   t.textContent = msg;
   document.body.appendChild(t);
-  setTimeout(() => t.remove(), 3000);
+  setTimeout(() => t.remove(), 4000);
 }
 
 function switchTab(tab) {
@@ -67,6 +67,7 @@ async function loadProject() {
   renderCostsTab(project);
   renderChecklistTab();
   renderGalleryTab();
+  loadPortfolioStatusLine();
   const tb = document.getElementById('tab-btn-builder');
   if (project.client_type === 'builder' && project.builder_id) {
     if (tb) tb.style.display = '';
@@ -175,6 +176,34 @@ function renderOverviewTab(p, pl) {
         <div>Margem %<br><span style="font-size:1.1rem">${fmtPct(totals.margin_pct)}</span></div>
       </div>
     </div>
+    ${
+      pl?.profitability
+        ? (() => {
+            const pr = pl.profitability;
+            const row = (label, pj, ac) => {
+              const diff = ac - pj;
+              const warn = diff > 0.005 ? ' ⚠' : '';
+              return `<tr><td>${label}</td><td>${fmt$(pj)}</td><td>${fmt$(ac)}</td><td style="font-weight:600">${fmt$(diff)}${warn}</td></tr>`;
+            };
+            return `
+    <div class="sf-card" style="margin-top:12px">
+      <div class="sf-card-badge">Projetado vs real</div>
+      <table class="pd-table" style="margin-top:8px">
+        <thead><tr><th></th><th>Projetado</th><th>Real</th><th>Variação</th></tr></thead>
+        <tbody>
+          ${row('Labor', pr.projected.labor, pr.actual.labor)}
+          ${row('Material', pr.projected.material, pr.actual.material)}
+          ${row('Adicional', pr.projected.additional, pr.actual.additional)}
+          <tr style="font-weight:700"><td>Total</td><td>${fmt$(pr.projected.total)}</td><td>${fmt$(pr.actual.total)}</td><td>${fmt$(pr.variance.cost_diff)} (${fmtPct(pr.variance.cost_diff_pct)})</td></tr>
+          <tr><td>Lucro</td><td>${fmt$(pr.projected.profit)}</td><td>${fmt$(pr.actual.profit)}</td><td>${fmt$(pr.actual.profit - pr.projected.profit)}</td></tr>
+          <tr><td>Margem</td><td>${fmtPct(pr.projected.margin_pct)}</td><td>${fmtPct(pr.actual.margin_pct)}</td><td>${fmtPct(pr.actual.margin_pct - pr.projected.margin_pct)} pp</td></tr>
+        </tbody>
+      </table>
+      <p style="font-size:12px;margin-top:10px;color:var(--sf-muted)">Duração: <strong>${pr.days_estimated || '—'}</strong> dias estimados / <strong>${pr.days_actual || '—'}</strong> reais → <strong>${pr.days_variance >= 0 ? '+' : ''}${pr.days_variance}</strong> dia(s)</p>
+    </div>`;
+          })()
+        : ''
+    }
   `;
 }
 
@@ -197,6 +226,7 @@ function renderCostsTab(p) {
   const sumMat = materials.reduce((a, x) => a + (parseFloat(x.total_cost) || 0), 0);
   const grand = sumLabor + sumAdd + sumMat;
   el.innerHTML = `
+    <button type="button" class="pd-btn pd-btn--primary" id="btn-sync-payroll-tab" style="margin-bottom:14px">🔄 Importar do Payroll</button>
     <p style="font-weight:700;color:var(--sf-navy);margin-bottom:12px">Total custos: ${fmt$(grand)}</p>
     ${costSection('labor', 'Mão de obra (labor)', labor, sumLabor, 'labor')}
     ${costSection('material', 'Materiais (stock)', [], sumMat, 'material', materials)}
@@ -206,6 +236,7 @@ function renderCostsTab(p) {
     h.addEventListener('click', () => h.closest('.pd-collapsible').classList.toggle('open'));
   });
   wireCostForms(el, p);
+  document.getElementById('btn-sync-payroll-tab')?.addEventListener('click', syncPayroll);
 }
 
 function costSection(key, title, rows, sum, type, matRows) {
@@ -231,6 +262,10 @@ function costSection(key, title, rows, sum, type, matRows) {
 
 function laborFormFields() {
   return `
+    <select data-f="is_projected" style="grid-column:1/-1">
+      <option value="0">Custo real</option>
+      <option value="1">Projetado</option>
+    </select>
     <input type="text" data-f="description" placeholder="Descrição" />
     <input type="number" data-f="quantity" placeholder="Qtd" step="0.01" value="1" />
     <input type="text" data-f="unit" placeholder="Unidade (dias, h…)" />
@@ -251,6 +286,10 @@ function materialFormFields() {
 
 function additionalFormFields() {
   return `
+    <select data-f="is_projected" style="grid-column:1/-1">
+      <option value="0">Custo real</option>
+      <option value="1">Projetado</option>
+    </select>
     <input type="text" data-f="description" placeholder="Descrição" style="grid-column:span 2" />
     <input type="number" data-f="quantity" placeholder="Qtd" step="0.01" value="1" />
     <input type="number" data-f="unit_cost" placeholder="Valor total como unit*qtd" step="0.01" />
@@ -266,8 +305,9 @@ function costRowHtml(r, isMat) {
       <td>${escapeHtml(r.status)}</td>
       <td></td></tr>`;
   }
+  const proj = r.is_projected === 1 || r.is_projected === true ? ' <small>(proj.)</small>' : '';
   return `<tr>
-    <td>${escapeHtml(r.description)}</td><td>${escapeHtml(r.service_category)}</td>
+    <td>${escapeHtml(r.description)}${proj}</td><td>${escapeHtml(r.service_category)}</td>
     <td>${r.quantity}</td><td>${escapeHtml(r.unit || '')}</td><td>${fmt$(r.unit_cost)}</td><td>${fmt$(r.total_cost)}</td>
     <td>${r.paid ? 'Sim' : 'Não'}</td>
     <td><button type="button" class="pd-btn" data-del-cost="${r.id}">✕</button></td></tr>`;
@@ -307,6 +347,7 @@ function wireCostForms(root) {
           unit_cost: get('unit_cost') || 0,
           service_category: get('service_category') || 'general',
           vendor: get('vendor') || null,
+          is_projected: get('is_projected') === '1',
         };
         const res = await fetch(`/api/projects/${projectId}/costs`, {
           method: 'POST',
@@ -422,6 +463,20 @@ function renderGalleryTab() {
       ${galleryCol('before', 'Antes')}
       ${galleryCol('during', 'Durante')}
       ${galleryCol('after', 'Depois')}
+    </div>
+    <div class="sf-card" style="margin-top:20px">
+      <h3 style="margin:0 0 10px;font-size:15px;color:var(--sf-navy)">Publicar no portfólio Senior Floors</h3>
+      <input type="text" id="portfolio-title" placeholder="Título" style="width:100%;box-sizing:border-box;margin-bottom:8px;padding:8px;border-radius:6px;border:1px solid var(--sf-border)" />
+      <textarea id="portfolio-desc" placeholder="Descrição" style="width:100%;box-sizing:border-box;min-height:64px;margin-bottom:8px;padding:8px;border-radius:6px;border:1px solid var(--sf-border)"></textarea>
+      <p style="font-size:12px;color:var(--sf-muted)" id="portfolio-selected-count">Fotos para portfólio: 0</p>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px">
+        <button type="button" class="pd-btn pd-btn--primary" id="btn-publish-portfolio">🌐 Publicar no site</button>
+        <button type="button" class="pd-btn" id="btn-copy-photo-urls">Copiar URLs</button>
+      </div>
+      <p id="portfolio-live-status" style="font-size:12px;font-weight:600;color:var(--sf-ok);margin-top:10px;min-height:1em"></p>
+      <p style="font-size:11px;color:var(--sf-muted);margin-top:12px;line-height:1.4" id="portfolio-hint">
+        Sem webhook: copie as URLs e publique manualmente em <a href="https://senior-floors.com" target="_blank" rel="noopener">senior-floors.com</a>. Configure <code>PORTFOLIO_WEBHOOK_URL</code> no servidor para sync automático.
+      </p>
     </div>`;
   el.querySelectorAll('.pd-add-photo').forEach((box) => {
     box.addEventListener('click', () => {
@@ -436,15 +491,38 @@ function renderGalleryTab() {
       openLightbox(all, idx >= 0 ? idx : 0);
     });
   });
+  function refreshPortfolioCount() {
+    const n = el.querySelectorAll('.photo-select:checked').length;
+    const c = document.getElementById('portfolio-selected-count');
+    if (c) c.textContent = `Fotos para portfólio: ${n}`;
+  }
+  el.querySelectorAll('.photo-select').forEach((cb) => {
+    cb.addEventListener('change', refreshPortfolioCount);
+  });
+  refreshPortfolioCount();
+  el.querySelectorAll('.pd-set-cover').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      setCoverPhoto(btn.getAttribute('data-photo-id'));
+    });
+  });
+  document.getElementById('btn-publish-portfolio')?.addEventListener('click', publishPortfolio);
+  document.getElementById('btn-copy-photo-urls')?.addEventListener('click', copyPhotoUrls);
 }
 
 function galleryCol(phase, label) {
   const list = photosByPhase[phase] || [];
   const thumbs = list
-    .map(
-      (ph) =>
-        `<img src="${escapeHtml(ph.url)}" alt="" data-photo-id="${ph.id}" loading="lazy" />`
-    )
+    .map((ph) => {
+      const sel = ph.is_portfolio === 1 || ph.is_portfolio === true ? ' checked' : '';
+      return `<div style="display:flex;flex-direction:column;gap:4px">
+        <img src="${escapeHtml(ph.url)}" alt="" data-photo-id="${ph.id}" loading="lazy" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:6px;cursor:pointer" />
+        <label style="font-size:10px;display:flex;align-items:center;gap:4px;color:var(--sf-muted)">
+          <input type="checkbox" class="photo-select" data-photo-id="${ph.id}"${sel} /> Portfólio
+        </label>
+        <button type="button" class="pd-btn pd-set-cover" data-photo-id="${ph.id}" style="font-size:10px;padding:4px 6px">⭐ Capa</button>
+      </div>`;
+    })
     .join('');
   return `<div class="pd-gallery-col">
     <h3 style="font-size:14px;color:var(--sf-navy);margin:0 0 8px">${label}</h3>
@@ -526,14 +604,135 @@ async function uploadPhoto(file, phase) {
   const form = new FormData();
   form.append('file', file);
   form.append('phase', phase);
+  showToast(`A enviar ${file.name}…`, 'info');
   const res = await fetch(`/api/projects/${projectId}/photos`, { method: 'POST', credentials: 'include', body: form });
   if (res.ok) {
-    showToast('Foto enviada');
+    showToast('Foto enviada ✓');
     loadProject();
   } else {
     const j = await res.json().catch(() => ({}));
     showToast(j.error || 'Erro ao enviar foto', 'error');
   }
+}
+
+async function syncPayroll() {
+  const btn = document.getElementById('btn-sync-payroll');
+  const tabBtn = document.getElementById('btn-sync-payroll-tab');
+  const busy = btn || tabBtn;
+  if (busy) {
+    busy.disabled = true;
+    busy.textContent = 'A sincronizar…';
+  }
+  try {
+    const res = await fetch(`/api/projects/${projectId}/costs/sync-payroll`, {
+      method: 'POST',
+      credentials: 'include',
+    });
+    const j = await res.json();
+    if (res.ok && j.success) {
+      if (j.synced > 0) {
+        showToast(`${j.synced} entrada(s) importada(s) do payroll`);
+        loadProject();
+      } else {
+        showToast('Nenhuma entrada nova no payroll', 'info');
+      }
+    } else {
+      showToast(j.error || 'Erro ao sincronizar', 'error');
+    }
+  } catch (e) {
+    showToast('Erro de rede', 'error');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = '🔄 Payroll';
+    }
+    if (tabBtn) {
+      tabBtn.disabled = false;
+      tabBtn.textContent = '🔄 Importar do Payroll';
+    }
+  }
+}
+
+async function setCoverPhoto(photoId) {
+  const id = parseInt(String(photoId), 10);
+  if (!id) return;
+  const res = await fetch(`/api/projects/${projectId}/photos/${id}/cover`, {
+    method: 'PUT',
+    credentials: 'include',
+  });
+  const j = await res.json();
+  if (!res.ok || !j.success) {
+    showToast(j.error || 'Erro ao definir capa', 'error');
+    return;
+  }
+  showToast('Foto de capa atualizada');
+}
+
+async function publishPortfolio() {
+  const selected = [...document.querySelectorAll('.photo-select:checked')].map((c) =>
+    parseInt(c.getAttribute('data-photo-id'), 10)
+  );
+  const title = document.getElementById('portfolio-title')?.value?.trim() || `Project #${projectId}`;
+  const description = document.getElementById('portfolio-desc')?.value?.trim() || '';
+  if (!selected.length) {
+    showToast('Selecione ao menos uma foto', 'error');
+    return;
+  }
+  const btn = document.getElementById('btn-publish-portfolio');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'A publicar…';
+  }
+  try {
+    const res = await fetch(`/api/projects/${projectId}/portfolio/publish`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ photo_ids: selected, title, description }),
+    });
+    const j = await res.json();
+    if (res.ok && j.success) {
+      showToast(
+        j.data?.webhook_sent ? 'Publicado (webhook enviado) ✓' : 'Fotos marcadas — configure o webhook para sync automático',
+        j.data?.webhook_sent ? 'success' : 'info'
+      );
+      loadProject();
+    } else {
+      showToast(j.error || 'Erro ao publicar', 'error');
+    }
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = '🌐 Publicar no site';
+    }
+  }
+}
+
+async function copyPhotoUrls() {
+  const all = flattenPhotos();
+  const urls = all.map((p) => `${location.origin}${p.url}`).join('\n');
+  try {
+    await navigator.clipboard.writeText(urls);
+    showToast('URLs copiadas');
+  } catch (_) {
+    showToast('Não foi possível copiar', 'error');
+  }
+}
+
+async function loadPortfolioStatusLine() {
+  const live = document.getElementById('portfolio-live-status');
+  if (!live) return;
+  try {
+    const r = await fetch(`/api/projects/${projectId}/portfolio/status`, { credentials: 'include' });
+    const j = await r.json();
+    const d = j.data || {};
+    if (d.portfolio_published) {
+      const when = d.portfolio_published_at ? String(d.portfolio_published_at).slice(0, 10) : '';
+      live.textContent = when ? `🌐 Publicado em ${when}` : '🌐 Publicado no portfólio';
+    } else {
+      live.textContent = project?.portfolio_published ? '🌐 Publicado no portfólio' : '';
+    }
+  } catch (_) {}
 }
 
 async function renderBuilderTab() {
@@ -585,6 +784,7 @@ document.getElementById('btn-tab-pl')?.addEventListener('click', () => switchTab
 document.getElementById('btn-tab-gallery')?.addEventListener('click', () => switchTab('gallery'));
 
 document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('btn-sync-payroll')?.addEventListener('click', syncPayroll);
   fetch('/api/auth/session', { credentials: 'include' }).then(async (r) => {
     const j = await r.json();
     if (!j.authenticated) {

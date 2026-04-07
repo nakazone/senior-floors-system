@@ -13,7 +13,6 @@ import { uploadProjectPhoto } from '../lib/projectPhotoUpload.js';
 import { createOrSyncProjectFromAcceptedEstimate } from '../modules/projects/fromEstimate.js';
 import {
   nextProjectNumber,
-  recalcProjectActualCosts,
   seedChecklistIfEmpty,
   refreshChecklistCompletedFlag,
   mapListProjectRow,
@@ -21,6 +20,12 @@ import {
   moneyRound,
   getProjectsTableColumnSet,
 } from '../modules/projects/projectHelpers.js';
+import {
+  calculateProfitability,
+  syncPayrollToProjectCosts,
+  publishToPortfolio,
+  recalculateProjectCosts,
+} from '../lib/projectAutomation.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const router = Router();
@@ -157,16 +162,20 @@ router.get('/', ...allAuthed, requirePermission('projects.view'), async (req, re
       : '0';
 
     const uJoin = usersJoinSql(hasCol);
+    const crewJoin = hasCol('crew_id') ? 'LEFT JOIN crews cr ON p.crew_id = cr.id' : '';
+    const crewSel = hasCol('crew_id') ? 'cr.name AS crew_name' : 'NULL AS crew_name';
     const sqlList = `
       SELECT p.*,
         u.name AS assigned_to_name,
         c.name AS customer_name,
+        ${crewSel},
         ${photosSel} AS photos_count,
         ${chkTotalSel} AS checklist_total,
         ${chkDoneSel} AS checklist_done
       FROM projects p
       ${uJoin}
       LEFT JOIN customers c ON p.customer_id = c.id
+      ${crewJoin}
       WHERE ${where}
       ORDER BY p.created_at DESC
       LIMIT ? OFFSET ?`;
@@ -179,7 +188,10 @@ router.get('/', ...allAuthed, requirePermission('projects.view'), async (req, re
     ]);
 
     const total = Number(cntRows[0]?.total) || 0;
-    const data = rows.map((r) => mapListProjectRow(r));
+    const data = rows.map((r) => {
+      const mapped = mapListProjectRow(r);
+      return { ...mapped, profitability: calculateProfitability(mapped) };
+    });
     res.json({ success: true, data, total, page, limit });
   } catch (e) {
     console.error('listProjects', e);
@@ -332,7 +344,10 @@ router.get('/builder/:builderId', ...allAuthed, requirePermission('projects.view
       success: true,
       data: {
         builder: cust[0] || null,
-        projects: projects.map((p) => mapListProjectRow(p)),
+        projects: projects.map((p) => {
+          const mapped = mapListProjectRow(p);
+          return { ...mapped, profitability: calculateProfitability(mapped) };
+        }),
         aggregates: {
           project_count: projects.length,
           total_sqft: moneyRound(totalSqft, 2),
@@ -483,10 +498,12 @@ router.get('/:id/profitability', ...allAuthed, requirePermission('projects.view'
     if (!pr.length) return res.status(404).json({ success: false, error: 'Project not found' });
     const p = pr[0];
 
+    const exclProj = await columnExists(pool, 'project_costs', 'is_projected');
+    const projClause = exclProj ? 'AND IFNULL(is_projected,0)=0' : '';
     const [costRows] = await pool.query(
       `SELECT service_category, cost_type,
         COALESCE(SUM(total_cost), 0) AS s
-       FROM project_costs WHERE project_id = ?
+       FROM project_costs WHERE project_id = ? ${projClause}
        GROUP BY service_category, cost_type`,
       [id]
     );
@@ -550,6 +567,22 @@ router.get('/:id/profitability', ...allAuthed, requirePermission('projects.view'
     const days_variance =
       days_estimated != null && days_actual != null ? days_actual - days_estimated : null;
 
+    const costsByService = { supply: {}, installation: {}, sand_finish: {}, general: {} };
+    for (const cat of Object.keys(costsByService)) {
+      const catCosts = allCosts.filter(
+        (c) => c.service_category === cat && !Number(c.is_projected)
+      );
+      costsByService[cat] = {
+        labor: catCosts.filter((c) => c.cost_type === 'labor').reduce((s, c) => s + (+c.total_cost || 0), 0),
+        material: catCosts.filter((c) => c.cost_type === 'material').reduce((s, c) => s + (+c.total_cost || 0), 0),
+        additional: catCosts
+          .filter((c) => c.cost_type === 'additional')
+          .reduce((s, c) => s + (+c.total_cost || 0), 0),
+      };
+      costsByService[cat].total =
+        costsByService[cat].labor + costsByService[cat].material + costsByService[cat].additional;
+    }
+
     res.json({
       success: true,
       data: {
@@ -566,6 +599,9 @@ router.get('/:id/profitability', ...allAuthed, requirePermission('projects.view'
           margin_pct,
         },
         cost_breakdown: allCosts.map((c) => floatMoneyFields(c, ['quantity', 'unit_cost', 'total_cost'])),
+        cost_items: allCosts.map((c) => floatMoneyFields(c, ['quantity', 'unit_cost', 'total_cost'])),
+        costs_by_service: costsByService,
+        profitability: calculateProfitability(p),
         days_estimated,
         days_actual,
         days_variance,
@@ -573,6 +609,17 @@ router.get('/:id/profitability', ...allAuthed, requirePermission('projects.view'
     });
   } catch (e) {
     console.error('profitability', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+router.post('/:id/costs/sync-payroll', ...allAuthed, requirePermission('projects.edit'), async (req, res) => {
+  try {
+    const pool = await getDBConnection();
+    if (!pool) return res.status(503).json({ success: false, error: 'Database not available' });
+    const result = await syncPayrollToProjectCosts(pool, req.params.id);
+    res.json({ success: true, ...result });
+  } catch (e) {
     res.status(500).json({ success: false, error: e.message });
   }
 });
@@ -620,28 +667,56 @@ router.post('/:id/costs', ...allAuthed, requirePermission('projects.edit'), asyn
     const unitCost = b.unit_cost != null ? nf(b.unit_cost) : 0;
     const total = moneyRound(qty * unitCost, 2);
     const uid = req.session?.userId || null;
-    const [ins] = await pool.execute(
-      `INSERT INTO project_costs (
-        project_id, cost_type, service_category, description, quantity, unit, unit_cost, total_cost,
-        vendor, notes, created_by
-      ) VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
-      [
-        id,
-        costType,
-        b.service_category && ['supply', 'installation', 'sand_finish', 'general'].includes(b.service_category)
-          ? b.service_category
-          : 'general',
-        String(b.description || '').slice(0, 255) || 'Item',
-        qty,
-        b.unit != null ? String(b.unit).slice(0, 50) : null,
-        unitCost,
-        total,
-        b.vendor != null ? String(b.vendor).slice(0, 255) : null,
-        b.notes != null ? String(b.notes) : null,
-        uid,
-      ]
-    );
-    await recalcProjectActualCosts(pool, id);
+    const hasProj = await columnExists(pool, 'project_costs', 'is_projected');
+    const isProj = !!(b.is_projected === true || b.is_projected === 1 || b.is_projected === '1');
+    let ins;
+    if (hasProj) {
+      [ins] = await pool.execute(
+        `INSERT INTO project_costs (
+          project_id, cost_type, service_category, description, quantity, unit, unit_cost, total_cost,
+          vendor, notes, created_by, is_projected
+        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+        [
+          id,
+          costType,
+          b.service_category && ['supply', 'installation', 'sand_finish', 'general'].includes(b.service_category)
+            ? b.service_category
+            : 'general',
+          String(b.description || '').slice(0, 255) || 'Item',
+          qty,
+          b.unit != null ? String(b.unit).slice(0, 50) : null,
+          unitCost,
+          total,
+          b.vendor != null ? String(b.vendor).slice(0, 255) : null,
+          b.notes != null ? String(b.notes) : null,
+          uid,
+          isProj ? 1 : 0,
+        ]
+      );
+    } else {
+      [ins] = await pool.execute(
+        `INSERT INTO project_costs (
+          project_id, cost_type, service_category, description, quantity, unit, unit_cost, total_cost,
+          vendor, notes, created_by
+        ) VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+        [
+          id,
+          costType,
+          b.service_category && ['supply', 'installation', 'sand_finish', 'general'].includes(b.service_category)
+            ? b.service_category
+            : 'general',
+          String(b.description || '').slice(0, 255) || 'Item',
+          qty,
+          b.unit != null ? String(b.unit).slice(0, 50) : null,
+          unitCost,
+          total,
+          b.vendor != null ? String(b.vendor).slice(0, 255) : null,
+          b.notes != null ? String(b.notes) : null,
+          uid,
+        ]
+      );
+    }
+    await recalculateProjectCosts(pool, id);
     const [rows] = await pool.query('SELECT * FROM project_costs WHERE id = ?', [ins.insertId]);
     res.status(201).json({ success: true, data: floatMoneyFields(rows[0], ['quantity', 'unit_cost', 'total_cost']) });
   } catch (e) {
@@ -667,36 +742,73 @@ router.put('/:id/costs/:costId', ...allAuthed, requirePermission('projects.edit'
     const unitCost = b.unit_cost != null ? nf(b.unit_cost) : nf(ex[0].unit_cost);
     const total = moneyRound(qty * unitCost, 2);
 
-    await pool.execute(
-      `UPDATE project_costs SET
-        cost_type = COALESCE(?, cost_type),
-        service_category = COALESCE(?, service_category),
-        description = COALESCE(?, description),
-        quantity = ?,
-        unit = COALESCE(?, unit),
-        unit_cost = ?,
-        total_cost = ?,
-        vendor = COALESCE(?, vendor),
-        notes = COALESCE(?, notes),
-        paid = COALESCE(?, paid),
-        paid_at = COALESCE(?, paid_at)
-      WHERE id = ?`,
-      [
-        b.cost_type || null,
-        b.service_category || null,
-        b.description != null ? String(b.description).slice(0, 255) : null,
-        qty,
-        b.unit != null ? String(b.unit).slice(0, 50) : null,
-        unitCost,
-        total,
-        b.vendor != null ? String(b.vendor).slice(0, 255) : null,
-        b.notes !== undefined ? b.notes : null,
-        b.paid !== undefined ? (b.paid ? 1 : 0) : null,
-        b.paid_at !== undefined ? b.paid_at : null,
-        costId,
-      ]
-    );
-    await recalcProjectActualCosts(pool, id);
+    const hasProj = await columnExists(pool, 'project_costs', 'is_projected');
+    const isProjVal =
+      b.is_projected === undefined ? null : b.is_projected === true || b.is_projected === 1 || b.is_projected === '1';
+    if (hasProj && isProjVal !== null) {
+      await pool.execute(
+        `UPDATE project_costs SET
+          cost_type = COALESCE(?, cost_type),
+          service_category = COALESCE(?, service_category),
+          description = COALESCE(?, description),
+          quantity = ?,
+          unit = COALESCE(?, unit),
+          unit_cost = ?,
+          total_cost = ?,
+          vendor = COALESCE(?, vendor),
+          notes = COALESCE(?, notes),
+          paid = COALESCE(?, paid),
+          paid_at = COALESCE(?, paid_at),
+          is_projected = ?
+        WHERE id = ?`,
+        [
+          b.cost_type || null,
+          b.service_category || null,
+          b.description != null ? String(b.description).slice(0, 255) : null,
+          qty,
+          b.unit != null ? String(b.unit).slice(0, 50) : null,
+          unitCost,
+          total,
+          b.vendor != null ? String(b.vendor).slice(0, 255) : null,
+          b.notes !== undefined ? b.notes : null,
+          b.paid !== undefined ? (b.paid ? 1 : 0) : null,
+          b.paid_at !== undefined ? b.paid_at : null,
+          isProjVal ? 1 : 0,
+          costId,
+        ]
+      );
+    } else {
+      await pool.execute(
+        `UPDATE project_costs SET
+          cost_type = COALESCE(?, cost_type),
+          service_category = COALESCE(?, service_category),
+          description = COALESCE(?, description),
+          quantity = ?,
+          unit = COALESCE(?, unit),
+          unit_cost = ?,
+          total_cost = ?,
+          vendor = COALESCE(?, vendor),
+          notes = COALESCE(?, notes),
+          paid = COALESCE(?, paid),
+          paid_at = COALESCE(?, paid_at)
+        WHERE id = ?`,
+        [
+          b.cost_type || null,
+          b.service_category || null,
+          b.description != null ? String(b.description).slice(0, 255) : null,
+          qty,
+          b.unit != null ? String(b.unit).slice(0, 50) : null,
+          unitCost,
+          total,
+          b.vendor != null ? String(b.vendor).slice(0, 255) : null,
+          b.notes !== undefined ? b.notes : null,
+          b.paid !== undefined ? (b.paid ? 1 : 0) : null,
+          b.paid_at !== undefined ? b.paid_at : null,
+          costId,
+        ]
+      );
+    }
+    await recalculateProjectCosts(pool, id);
     const [rows] = await pool.query('SELECT * FROM project_costs WHERE id = ?', [costId]);
     res.json({ success: true, data: floatMoneyFields(rows[0], ['quantity', 'unit_cost', 'total_cost']) });
   } catch (e) {
@@ -712,7 +824,7 @@ router.delete('/:id/costs/:costId', ...allAuthed, requirePermission('projects.ed
     const id = parseInt(req.params.id, 10);
     const costId = parseInt(req.params.costId, 10);
     await pool.execute('DELETE FROM project_costs WHERE id = ? AND project_id = ?', [costId, id]);
-    await recalcProjectActualCosts(pool, id);
+    await recalculateProjectCosts(pool, id);
     res.json({ success: true });
   } catch (e) {
     console.error('delete cost', e);
@@ -847,7 +959,7 @@ router.get('/:id/checklist', ...allAuthed, requirePermission('projects.view'), a
     if (!pool) return res.status(503).json({ success: false, error: 'Database not available' });
     const id = parseInt(req.params.id, 10);
     const [rows] = await pool.query(
-      'SELECT * FROM project_checklist WHERE project_id = ? ORDER BY category, id',
+      'SELECT * FROM project_checklist WHERE project_id = ? ORDER BY category, sort_order, id',
       [id]
     );
     const grouped = {};
@@ -907,23 +1019,46 @@ router.post(
       if (!req.file) return res.status(400).json({ success: false, error: 'file required' });
       const phase = ['before', 'during', 'after'].includes(req.body?.phase) ? req.body.phase : 'during';
       const rel = path.join('projects', String(id), req.file.filename).replace(/\\/g, '/');
+      const fileUrl = `/uploads/${rel}`;
       const uid = req.session?.userId || null;
-      const [ins] = await pool.execute(
-        `INSERT INTO project_photos (
-          project_id, phase, filename, original_name, file_path, file_size, mime_type, caption, uploaded_by
-        ) VALUES (?,?,?,?,?,?,?,?,?)`,
-        [
-          id,
-          phase,
-          req.file.filename,
-          req.file.originalname || null,
-          rel,
-          req.file.size || null,
-          req.file.mimetype || null,
-          req.body?.caption != null ? String(req.body.caption).slice(0, 255) : null,
-          uid,
-        ]
-      );
+      const hasFileUrl = await columnExists(pool, 'project_photos', 'file_url');
+      let ins;
+      if (hasFileUrl) {
+        [ins] = await pool.execute(
+          `INSERT INTO project_photos (
+            project_id, phase, filename, original_name, file_path, file_url, file_size, mime_type, caption, uploaded_by
+          ) VALUES (?,?,?,?,?,?,?,?,?,?)`,
+          [
+            id,
+            phase,
+            req.file.filename,
+            req.file.originalname || null,
+            rel,
+            fileUrl,
+            req.file.size || null,
+            req.file.mimetype || null,
+            req.body?.caption != null ? String(req.body.caption).slice(0, 255) : null,
+            uid,
+          ]
+        );
+      } else {
+        [ins] = await pool.execute(
+          `INSERT INTO project_photos (
+            project_id, phase, filename, original_name, file_path, file_size, mime_type, caption, uploaded_by
+          ) VALUES (?,?,?,?,?,?,?,?,?)`,
+          [
+            id,
+            phase,
+            req.file.filename,
+            req.file.originalname || null,
+            rel,
+            req.file.size || null,
+            req.file.mimetype || null,
+            req.body?.caption != null ? String(req.body.caption).slice(0, 255) : null,
+            uid,
+          ]
+        );
+      }
       const [rows] = await pool.query('SELECT * FROM project_photos WHERE id = ?', [ins.insertId]);
       res.status(201).json({ success: true, data: rows[0] });
     } catch (e) {
@@ -943,8 +1078,14 @@ router.get('/:id/photos', ...allAuthed, requirePermission('projects.view'), asyn
     const during = [];
     const after = [];
     for (const r of rows) {
-      const url = `/uploads/${String(r.file_path || '').replace(/^\//, '')}`;
-      const row = { ...r, url };
+      const fu = r.file_url != null ? String(r.file_url).trim() : '';
+      const url =
+        fu && fu.startsWith('/')
+          ? fu
+          : fu
+            ? `/uploads/${fu.replace(/^\//, '')}`
+            : `/uploads/${String(r.file_path || '').replace(/^\//, '')}`;
+      const row = { ...r, url, file_url: url };
       if (r.phase === 'before') before.push(row);
       else if (r.phase === 'after') after.push(row);
       else during.push(row);
@@ -973,6 +1114,75 @@ router.delete('/:id/photos/:photoId', ...allAuthed, requirePermission('projects.
     res.json({ success: true });
   } catch (e) {
     console.error('photo delete', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+router.put('/:id/photos/:photoId/cover', ...allAuthed, requirePermission('projects.edit'), async (req, res) => {
+  try {
+    const pool = await getDBConnection();
+    if (!pool) return res.status(503).json({ success: false, error: 'Database not available' });
+    const id = parseInt(req.params.id, 10);
+    const photoId = parseInt(req.params.photoId, 10);
+    const hasCoverCol = await columnExists(pool, 'project_photos', 'is_cover');
+    if (hasCoverCol) {
+      await pool.execute('UPDATE project_photos SET is_cover = 0 WHERE project_id = ?', [id]);
+      await pool.execute('UPDATE project_photos SET is_cover = 1 WHERE id = ? AND project_id = ?', [
+        photoId,
+        id,
+      ]);
+    }
+    if (await columnExists(pool, 'projects', 'portfolio_cover_photo_id')) {
+      await pool.execute('UPDATE projects SET portfolio_cover_photo_id = ? WHERE id = ?', [photoId, id]);
+    }
+    res.json({ success: true });
+  } catch (e) {
+    console.error('photo cover', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+router.post('/:id/portfolio/publish', ...allAuthed, requirePermission('projects.edit'), async (req, res) => {
+  try {
+    const pool = await getDBConnection();
+    if (!pool) return res.status(503).json({ success: false, error: 'Database not available' });
+    const id = parseInt(req.params.id, 10);
+    const { photo_ids, title, description } = req.body || {};
+    if (!photo_ids?.length) {
+      return res.status(400).json({ success: false, error: 'Selecione ao menos uma foto' });
+    }
+    const result = await publishToPortfolio(pool, id, photo_ids, { title, description });
+    res.json({ success: true, data: result });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+router.get('/:id/portfolio/status', ...allAuthed, requirePermission('projects.view'), async (req, res) => {
+  try {
+    const pool = await getDBConnection();
+    if (!pool) return res.status(503).json({ success: false, error: 'Database not available' });
+    const id = parseInt(req.params.id, 10);
+    const cols = await projectsColumnSet(pool);
+    const pick = {};
+    for (const c of [
+      'portfolio_published',
+      'portfolio_published_at',
+      'portfolio_title',
+      'portfolio_description',
+      'portfolio_external_id',
+      'portfolio_cover_photo_id',
+    ]) {
+      if (cols.has(c)) pick[c] = true;
+    }
+    if (!Object.keys(pick).length) {
+      return res.json({ success: true, data: {} });
+    }
+    const fields = Object.keys(pick).join(', ');
+    const [rows] = await pool.query(`SELECT ${fields} FROM projects WHERE id = ?`, [id]);
+    res.json({ success: true, data: rows[0] || {} });
+  } catch (e) {
+    console.error('portfolio status', e);
     res.status(500).json({ success: false, error: e.message });
   }
 });
@@ -1012,7 +1222,7 @@ router.get('/:id', ...allAuthed, requirePermission('projects.view'), async (req,
     const [costs, materials, checklist, photos, lead, customer] = await Promise.all([
       safeChildQuery(pool, 'SELECT * FROM project_costs WHERE project_id = ? ORDER BY id', [id]),
       safeChildQuery(pool, 'SELECT * FROM project_materials WHERE project_id = ? ORDER BY id', [id]),
-      safeChildQuery(pool, 'SELECT * FROM project_checklist WHERE project_id = ? ORDER BY category, id', [id]),
+      safeChildQuery(pool, 'SELECT * FROM project_checklist WHERE project_id = ? ORDER BY category, sort_order, id', [id]),
       safeChildQuery(
         pool,
         `SELECT id, project_id, phase, filename, original_name, file_path, file_size, mime_type, caption, taken_at, uploaded_by, created_at

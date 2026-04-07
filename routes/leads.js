@@ -6,6 +6,7 @@ import { getLeadsTableColumns } from '../lib/leadColumns.js';
 import { extractMarketingFromBody, MARKETING_KEYS } from '../lib/marketingLeadFields.js';
 import { ensureClientFromLead } from '../modules/clients/leadToClient.js';
 import { ensureProjectFromWonLead } from '../modules/projects/fromWonLead.js';
+import { autoCreateProjectFromEstimate } from '../lib/projectAutomation.js';
 
 export async function listLeads(req, res) {
   if (!isDatabaseConfigured()) return res.status(503).json({ success: false, error: 'Database not configured' });
@@ -249,6 +250,14 @@ export async function updateLead(req, res) {
   
   try {
     const pool = await getDBConnection();
+    const [oldLeadRows] = await pool.query(
+      `SELECT ps.slug AS stage_slug, l.status FROM leads l
+       LEFT JOIN pipeline_stages ps ON l.pipeline_stage_id = ps.id
+       WHERE l.id = ?`,
+      [id]
+    );
+    const oldStageSlug = String(oldLeadRows[0]?.stage_slug || oldLeadRows[0]?.status || '').toLowerCase();
+
     const colSet = await getLeadsTableColumns(pool);
     const allowed = [
       'name',
@@ -354,25 +363,33 @@ export async function updateLead(req, res) {
       console.error('ensureClientFromLead:', convErr);
     }
 
+    const newSlug = String(rows[0].pipeline_stage_slug || rows[0].status || '').toLowerCase();
+    const transitionedToClosedWon = newSlug === 'closed_won' && oldStageSlug !== 'closed_won';
+
     let project_auto = null;
-    try {
-      const pr = await ensureProjectFromWonLead(
-        pool,
-        id,
-        req.session?.userId != null ? parseInt(String(req.session.userId), 10) || null : null
-      );
-      if (pr && pr.reason !== 'not_won') {
-        project_auto = {
-          ok: !!pr.ok,
-          skipped: !!pr.skipped,
-          created: !!pr.created,
-          reason: pr.reason || null,
-          project_id: pr.project_id ?? null,
-          error: pr.error || null,
-        };
-      }
-    } catch (projErr) {
-      console.error('ensureProjectFromWonLead:', projErr);
+    if (transitionedToClosedWon) {
+      project_auto = { scheduled: true };
+      const uid = req.session?.userId != null ? parseInt(String(req.session.userId), 10) || null : null;
+      const leadIdForJob = id;
+      setImmediate(async () => {
+        try {
+          const p = await getDBConnection();
+          if (!p) return;
+          const [acc] = await p.query(
+            `SELECT id FROM estimates WHERE lead_id = ?
+             AND LOWER(TRIM(status)) = 'accepted'
+             ORDER BY COALESCE(updated_at, created_at) DESC LIMIT 1`,
+            [leadIdForJob]
+          );
+          if (acc.length) {
+            await autoCreateProjectFromEstimate(p, acc[0].id, uid);
+          } else {
+            await ensureProjectFromWonLead(p, leadIdForJob, uid);
+          }
+        } catch (projErr) {
+          console.error('[AUTO] lead closed_won project:', projErr);
+        }
+      });
     }
 
     return res.json({ success: true, data: rows[0], client_conversion, project_auto });

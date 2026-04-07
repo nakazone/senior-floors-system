@@ -6,6 +6,7 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
+    "deploy:push": "git push origin HEAD",
     "dev": "node --watch index.js",
     "migrate:marketing": "node database/migrate-marketing-analytics.js",
     "migrate:marketing-complete": "node database/migrate-marketing-complete.js",

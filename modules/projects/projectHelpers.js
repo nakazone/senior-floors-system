@@ -27,11 +27,16 @@ export async function getProjectsTableColumnSet(pool) {
 export async function recalcProjectActualCosts(pool, projectId) {
   const id = parseInt(String(projectId), 10);
   if (!Number.isFinite(id) || id <= 0) return;
+  const [[h]] = await pool.query(
+    `SELECT COUNT(*) AS c FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'project_costs' AND COLUMN_NAME = 'is_projected'`
+  );
+  const projFilter = Number(h?.c) > 0 ? 'AND IFNULL(c.is_projected,0)=0' : '';
   await pool.execute(
     `UPDATE projects p SET
-      labor_cost_actual = COALESCE((SELECT SUM(c.total_cost) FROM project_costs c WHERE c.project_id = p.id AND c.cost_type = 'labor'), 0),
-      material_cost_actual = COALESCE((SELECT SUM(c.total_cost) FROM project_costs c WHERE c.project_id = p.id AND c.cost_type = 'material'), 0),
-      additional_cost_actual = COALESCE((SELECT SUM(c.total_cost) FROM project_costs c WHERE c.project_id = p.id AND c.cost_type = 'additional'), 0)
+      labor_cost_actual = COALESCE((SELECT SUM(c.total_cost) FROM project_costs c WHERE c.project_id = p.id AND c.cost_type = 'labor' ${projFilter}), 0),
+      material_cost_actual = COALESCE((SELECT SUM(c.total_cost) FROM project_costs c WHERE c.project_id = p.id AND c.cost_type = 'material' ${projFilter}), 0),
+      additional_cost_actual = COALESCE((SELECT SUM(c.total_cost) FROM project_costs c WHERE c.project_id = p.id AND c.cost_type = 'additional' ${projFilter}), 0)
      WHERE p.id = ?`,
     [id]
   );

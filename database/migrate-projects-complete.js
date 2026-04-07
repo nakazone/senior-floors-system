@@ -317,6 +317,104 @@ CREATE TABLE IF NOT EXISTS \`project_photos\` (
   console.log('  + tabelas project_costs, project_materials, project_checklist, project_photos (IF NOT EXISTS)');
 }
 
+async function migrateProjectsExtendedColumns(conn) {
+  const extras = [
+    ['lead_id', '`lead_id` INT NULL'],
+    ['builder_contact', '`builder_contact` VARCHAR(255) NULL'],
+    ['builder_email', '`builder_email` VARCHAR(255) NULL'],
+    ['address', '`address` TEXT NULL'],
+    ['labor_cost_projected', '`labor_cost_projected` DECIMAL(12,2) NOT NULL DEFAULT 0.00'],
+    ['material_cost_projected', '`material_cost_projected` DECIMAL(12,2) NOT NULL DEFAULT 0.00'],
+    ['additional_cost_projected', '`additional_cost_projected` DECIMAL(12,2) NOT NULL DEFAULT 0.00'],
+    ['portfolio_published', '`portfolio_published` TINYINT(1) NOT NULL DEFAULT 0'],
+    ['portfolio_published_at', '`portfolio_published_at` TIMESTAMP NULL'],
+    ['portfolio_cover_photo_id', '`portfolio_cover_photo_id` INT NULL'],
+    ['portfolio_title', '`portfolio_title` VARCHAR(255) NULL'],
+    ['portfolio_description', '`portfolio_description` TEXT NULL'],
+    ['portfolio_external_id', '`portfolio_external_id` VARCHAR(100) NULL'],
+    ['notes', '`notes` TEXT NULL'],
+  ];
+  for (const [name, ddl] of extras) {
+    if (!(await columnExists(conn, 'projects', name))) {
+      await addColumn(conn, 'projects', ddl);
+      console.log('  + column projects.', name);
+    }
+  }
+}
+
+async function migrateChildTableColumns(conn) {
+  if (await tableExists(conn, 'project_costs')) {
+    const pc = [
+      ['is_projected', '`is_projected` TINYINT(1) NOT NULL DEFAULT 0'],
+      ['payroll_entry_id', '`payroll_entry_id` INT NULL'],
+    ];
+    for (const [name, ddl] of pc) {
+      if (!(await columnExists(conn, 'project_costs', name))) {
+        await tryQuery(conn, `ALTER TABLE \`project_costs\` ADD COLUMN ${ddl}`, `project_costs.${name}`);
+      }
+    }
+  }
+  if (await tableExists(conn, 'project_photos')) {
+    const ph = [
+      ['file_url', '`file_url` VARCHAR(500) NULL'],
+      ['is_portfolio', '`is_portfolio` TINYINT(1) NOT NULL DEFAULT 0'],
+      ['is_cover', '`is_cover` TINYINT(1) NOT NULL DEFAULT 0'],
+    ];
+    for (const [name, ddl] of ph) {
+      if (!(await columnExists(conn, 'project_photos', name))) {
+        await tryQuery(conn, `ALTER TABLE \`project_photos\` ADD COLUMN ${ddl}`, `project_photos.${name}`);
+      }
+    }
+  }
+  if (await tableExists(conn, 'project_checklist')) {
+    if (!(await columnExists(conn, 'project_checklist', 'sort_order'))) {
+      await tryQuery(
+        conn,
+        'ALTER TABLE `project_checklist` ADD COLUMN `sort_order` INT NOT NULL DEFAULT 0',
+        'project_checklist.sort_order'
+      );
+    }
+  }
+  if (await tableExists(conn, 'project_materials')) {
+    const pm = [
+      ['unit_cost_projected', '`unit_cost_projected` DECIMAL(10,2) NOT NULL DEFAULT 0.00'],
+      ['qty_returned', '`qty_returned` DECIMAL(10,2) NOT NULL DEFAULT 0'],
+    ];
+    for (const [name, ddl] of pm) {
+      if (!(await columnExists(conn, 'project_materials', name))) {
+        await tryQuery(conn, `ALTER TABLE \`project_materials\` ADD COLUMN ${ddl}`, `project_materials.${name}`);
+      }
+    }
+  }
+}
+
+async function createAutomationLogsTable(conn) {
+  await conn.query(`
+CREATE TABLE IF NOT EXISTS \`project_automation_logs\` (
+  \`id\` INT NOT NULL AUTO_INCREMENT,
+  \`project_id\` INT NULL,
+  \`trigger_type\` VARCHAR(100) NOT NULL,
+  \`trigger_id\` INT NULL,
+  \`status\` ENUM('success','error','pending') NOT NULL DEFAULT 'pending',
+  \`details\` JSON NULL,
+  \`error_message\` TEXT NULL,
+  \`created_at\` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (\`id\`),
+  KEY \`idx_pal_project\` (\`project_id\`),
+  KEY \`idx_pal_trigger\` (\`trigger_type\`, \`trigger_id\`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+`);
+  console.log('  + tabela project_automation_logs (IF NOT EXISTS)');
+  if ((await tableExists(conn, 'projects')) && !(await indexExists(conn, 'project_automation_logs', 'fk_pal_project'))) {
+    await tryQuery(
+      conn,
+      `ALTER TABLE \`project_automation_logs\`
+       ADD CONSTRAINT \`fk_pal_project\` FOREIGN KEY (\`project_id\`) REFERENCES \`projects\` (\`id\`) ON DELETE SET NULL`,
+      'FK project_automation_logs.project_id'
+    );
+  }
+}
+
 async function main() {
   const base = applyRailwayTcpProxyIfNeeded(getMysqlConnectionConfig());
   if (!base) {
@@ -326,7 +424,10 @@ async function main() {
   const conn = await mysql.createConnection({ ...base, multipleStatements: true });
   console.log('[migrate:projects-complete] projects + filhos…');
   await migrateProjectsTable(conn);
+  await migrateProjectsExtendedColumns(conn);
   await createChildTables(conn);
+  await migrateChildTableColumns(conn);
+  await createAutomationLogsTable(conn);
   await conn.end();
   console.log('[migrate:projects-complete] concluído.');
 }

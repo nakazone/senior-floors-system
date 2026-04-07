@@ -318,11 +318,25 @@
           </table>
           </div>
         </div>
-        <div class="flex flex-wrap gap-2 items-center">
-          <button type="button" id="btnAddTimesheetRowInstallation" class="hidden px-4 py-2 rounded-lg border border-slate-200 text-sm font-medium">+ Linha · Installation</button>
-          <button type="button" id="btnAddTimesheetRowSandFinish" class="hidden px-4 py-2 rounded-lg border border-amber-200 bg-amber-50/50 text-sm font-medium text-amber-950">+ Linha · Sand &amp; Finish</button>
-          <button type="button" id="btnSaveTimesheet" class="hidden px-4 py-2 rounded-lg bg-[#d6b598] text-[#1a2036] text-sm font-bold">Guardar quadro</button>
-          <button type="button" id="btnPreviewPayroll" class="px-4 py-2 rounded-lg bg-slate-100 text-sm font-medium">Ver folha deste período</button>
+        <div class="flex flex-col gap-2">
+          <div class="flex flex-wrap gap-2 items-center">
+            <button type="button" id="btnAddTimesheetRowInstallation" class="hidden px-4 py-2 rounded-lg border border-slate-200 text-sm font-medium">+ Linha · Installation</button>
+            <button type="button" id="btnAddTimesheetRowSandFinish" class="hidden px-4 py-2 rounded-lg border border-amber-200 bg-amber-50/50 text-sm font-medium text-amber-950">+ Linha · Sand &amp; Finish</button>
+            <button type="button" id="btnSaveTimesheet" class="hidden px-4 py-2 rounded-lg bg-[#d6b598] text-[#1a2036] text-sm font-bold">Guardar quadro</button>
+            <button type="button" id="btnSharePaySlips" class="hidden w-full sm:w-auto px-4 py-3.5 sm:py-2 rounded-xl sm:rounded-lg bg-[#1a2036] text-[#d6b598] text-sm font-bold shadow-md active:opacity-90 order-first sm:order-none" title="Abre o menu nativo: WhatsApp, Mensagens…">
+              Partilhar recibos (mensagem)
+            </button>
+            <button type="button" id="btnPreviewPayroll" class="px-4 py-2 rounded-lg bg-slate-100 text-sm font-medium">Ver folha deste período</button>
+            <button type="button" id="btnPrintIndividualReports" class="px-4 py-2 rounded-lg border border-slate-300 text-[#1a2036] text-sm font-semibold bg-white">Relatórios individuais</button>
+          </div>
+          <details id="paySlipsMoreDetails" class="hidden text-sm">
+            <summary class="cursor-pointer text-slate-500 font-medium py-1 select-none">Mais opções · ZIP no computador · e-mail</summary>
+            <div class="flex flex-wrap gap-2 pt-2 pb-1">
+              <button type="button" id="btnPaySlipsPdfZip" class="px-3 py-2 rounded-lg bg-slate-100 text-slate-800 text-xs font-semibold" title="Pacote PDF">ZIP PDF</button>
+              <button type="button" id="btnPaySlipsPngZip" class="px-3 py-2 rounded-lg bg-slate-100 text-slate-800 text-xs font-semibold" title="Pacote PNG">ZIP PNG</button>
+              <button type="button" id="btnPaySlipsEmail" class="px-3 py-2 rounded-lg bg-emerald-700 text-white text-xs font-bold">E-mail a todos</button>
+            </div>
+          </details>
         </div>
       </div>
     </section>
@@ -438,7 +452,7 @@
       </p>
       <div class="flex justify-end">
         <button type="button" id="previewPrintIndividualReports" class="px-4 py-2 rounded-lg bg-slate-100 text-sm font-semibold text-slate-800">
-          Imprimir relatórios individuais
+          Relatórios individuais
         </button>
       </div>
       <div class="overflow-x-auto border rounded-lg">
@@ -446,9 +460,9 @@
           <thead class="bg-slate-50 text-left text-xs uppercase text-slate-500">
             <tr>
               <th class="px-3 py-2">Funcionário</th>
-              <th class="px-3 py-2">Setor</th>
-              <th class="px-3 py-2 text-right">Linhas</th>
-              <th class="px-3 py-2 text-right">Folha</th>
+              <th class="px-3 py-2 text-right">Diárias</th>
+              <th class="px-3 py-2 text-right">Horas Extras</th>
+              <th class="px-3 py-2 text-right">Valor</th>
               <th class="px-3 py-2 text-right min-w-[100px]">Reembolso</th>
               <th class="px-3 py-2 text-right min-w-[100px]">Desconto</th>
               <th class="px-3 py-2 text-right">Total</th>
@@ -473,6 +487,38 @@
       </div>
       <div class="flex justify-end">
         <button type="button" id="previewCloseOnly" class="px-4 py-2 border rounded-lg text-sm">Fechar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Partilhar recibos (imagem / menu nativo) -->
+  <div id="shareSlipsModal" class="fixed inset-0 z-[1120] hidden">
+    <div id="shareSlipsModalBackdrop" class="absolute inset-0 bg-black/50" aria-hidden="true"></div>
+    <div class="absolute inset-0 flex items-end sm:items-center justify-center p-0 sm:p-4 pointer-events-none">
+      <div
+        id="shareSlipsModalPanel"
+        class="pointer-events-auto w-full sm:max-w-lg bg-white rounded-t-2xl sm:rounded-xl shadow-xl max-h-[88vh] flex flex-col border border-slate-200/80"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="shareSlipsModalTitle"
+      >
+        <div class="flex items-start justify-between gap-3 px-4 pt-4 pb-2 border-b border-slate-100 shrink-0">
+          <div>
+            <h2 id="shareSlipsModalTitle" class="text-lg font-bold text-[#1a2036]">Partilhar recibos</h2>
+            <p class="text-xs text-slate-500 mt-1 pr-2">
+              Um de cada vez — escolha WhatsApp, Mensagens, etc. Se o menu não aparecer, descarrega-se o PNG para anexar.
+            </p>
+          </div>
+          <button
+            type="button"
+            id="shareSlipsModalClose"
+            class="shrink-0 w-10 h-10 rounded-full border border-slate-200 text-slate-600 text-lg leading-none hover:bg-slate-50"
+            aria-label="Fechar"
+          >
+            ×
+          </button>
+        </div>
+        <div id="shareSlipsList" class="overflow-y-auto flex-1 min-h-0 px-2 pb-6 pt-1"></div>
       </div>
     </div>
   </div>
@@ -543,8 +589,16 @@
       }
     }
   </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" crossorigin="anonymous"></script>
+  <script>
+    if (typeof pdfjsLib !== 'undefined') {
+      pdfjsLib.GlobalWorkerOptions.workerSrc =
+        'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    }
+  </script>
   <script src="crm-toast.js?v=2"></script>
   <script src="crm-shared-nav.js?v=2"></script>
-  <script src="payroll-module.js?v=30"></script>
+  <script src="payroll-module.js?v=32"></script>
 </body>
 </html>

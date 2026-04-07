@@ -113,6 +113,7 @@ function projectCardHTML(p) {
         <div style="display:flex;gap:6px;flex-wrap:wrap">
           <span class="sf-stage" style="background:${statusColors[p.status] || '#ccc'}20;color:${statusColors[p.status] || '#333'}">${statusLabels[p.status] || p.status}</span>
           ${p.flooring_type ? `<span class="sf-stage" style="background:rgba(26,32,54,.08);color:var(--sf-navy)">${p.flooring_type}</span>` : ''}
+          ${p.portfolio_published ? `<span class="sf-stage" style="background:rgba(45,110,74,.12);color:var(--sf-ok)">🌐 Publicado</span>` : ''}
         </div>
         <span style="font-size:11px;font-weight:700;color:var(--sf-gold4)">${p.completion_percentage}%</span>
       </div>

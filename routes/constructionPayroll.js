@@ -3,6 +3,8 @@
  */
 import { getDBConnection } from '../config/db.js';
 import { calcTimesheetLineAmount } from '../modules/payroll/constructionPayrollCalc.js';
+import { buildPayrollSlipPdfBuffer } from '../modules/payroll/payrollSlipPdf.js';
+import { sendQuoteEmail } from '../modules/quotes/quoteMail.js';
 
 function isMissingTable(err) {
   return err && (err.code === 'ER_NO_SUCH_TABLE' || String(err.message || '').includes('doesn\'t exist'));
@@ -241,6 +243,186 @@ async function assertWorkDateInPeriodDb(executor, periodId, workDateYmd) {
 async function loadEmployee(pool, id) {
   const [rows] = await pool.query('SELECT * FROM construction_payroll_employees WHERE id = ?', [id]);
   return rows[0] || null;
+}
+
+function safePaySlipFilenamePart(s) {
+  return String(s || 'recibo').replace(/[^\w.\-]+/g, '_').slice(0, 48);
+}
+
+/**
+ * Mesmos dados que GET /periods/:id/preview (para PDF, e-mail e ferramentas no CRM).
+ * @param {import('mysql2/promise').Pool} pool
+ * @param {number} id — period id
+ */
+async function computePeriodPreviewData(pool, id) {
+  const p = await loadPeriod(pool, id);
+  if (!p) {
+    const e = new Error('Não encontrado');
+    e.statusCode = 404;
+    throw e;
+  }
+
+  let byEmpTs = [];
+  try {
+    const [rows] = await pool.query(
+      `SELECT e.id AS employee_id, e.name, e.payment_type, e.sector,
+        COUNT(t.id) AS line_count,
+        COALESCE(SUM(t.calculated_amount),0) AS subtotal
+       FROM construction_payroll_timesheets t
+       INNER JOIN construction_payroll_employees e ON e.id = t.employee_id
+       WHERE t.period_id = ?
+       GROUP BY e.id, e.name, e.payment_type, e.sector
+       ORDER BY e.name`,
+      [id]
+    );
+    byEmpTs = rows || [];
+  } catch (e) {
+    if (e.code === 'ER_BAD_FIELD_ERROR' && String(e.message || '').includes('sector')) {
+      const [rows] = await pool.query(
+        `SELECT e.id AS employee_id, e.name, e.payment_type,
+          COUNT(t.id) AS line_count,
+          COALESCE(SUM(t.calculated_amount),0) AS subtotal
+         FROM construction_payroll_timesheets t
+         INNER JOIN construction_payroll_employees e ON e.id = t.employee_id
+         WHERE t.period_id = ?
+         GROUP BY e.id, e.name, e.payment_type
+         ORDER BY e.name`,
+        [id]
+      );
+      byEmpTs = (rows || []).map((r) => ({ ...r, sector: null }));
+    } else {
+      throw e;
+    }
+  }
+
+  let detailLines = [];
+  try {
+    const [dl] = await pool.query(
+      `SELECT t.employee_id, t.days_worked, t.regular_hours, t.overtime_hours,
+              t.daily_rate_override, e.payment_type, e.daily_rate, e.hourly_rate, e.overtime_rate
+       FROM construction_payroll_timesheets t
+       INNER JOIN construction_payroll_employees e ON e.id = t.employee_id
+       WHERE t.period_id = ?`,
+      [id]
+    );
+    detailLines = dl || [];
+  } catch (_) {
+    detailLines = [];
+  }
+  const detailMap = aggregateTimesheetLinesForPreview(detailLines);
+
+  let adjRows = [];
+  try {
+    const [ar] = await pool.query(
+      'SELECT employee_id, reimbursement, discount, notes FROM construction_payroll_period_adjustments WHERE period_id = ?',
+      [id]
+    );
+    adjRows = ar || [];
+  } catch (e) {
+    if (isMissingColumn(e, 'discount')) {
+      try {
+        const [ar] = await pool.query(
+          'SELECT employee_id, reimbursement, notes FROM construction_payroll_period_adjustments WHERE period_id = ?',
+          [id]
+        );
+        adjRows = (ar || []).map((x) => ({ ...x, discount: 0 }));
+      } catch (_) {
+        adjRows = [];
+      }
+    } else {
+      adjRows = [];
+    }
+  }
+
+  const adjMap = new Map(adjRows.map((r) => [r.employee_id, r]));
+  const seen = new Set();
+  const by_employee = [];
+
+  for (const row of byEmpTs) {
+    seen.add(row.employee_id);
+    const adj = adjMap.get(row.employee_id);
+    const reim = adj ? Number(adj.reimbursement) || 0 : 0;
+    const disc = adj ? Number(adj.discount) || 0 : 0;
+    const sub = Number(row.subtotal) || 0;
+    const d = detailMap.get(row.employee_id) || {};
+    by_employee.push({
+      employee_id: row.employee_id,
+      name: row.name,
+      payment_type: row.payment_type,
+      sector: row.sector,
+      line_count: Number(row.line_count) || 0,
+      subtotal: sub,
+      days_worked_sum: d.days_worked_sum || 0,
+      regular_hours_sum: d.regular_hours_sum || 0,
+      overtime_hours_sum: d.overtime_hours_sum || 0,
+      amount_sheet_base: d.amount_sheet_base || 0,
+      amount_overtime: d.amount_overtime || 0,
+      reimbursement: reim,
+      discount: disc,
+      reimbursement_notes: adj?.notes || null,
+      employee_total: Math.round((sub + reim - disc) * 100) / 100,
+    });
+  }
+
+  for (const adj of adjRows) {
+    if (seen.has(adj.employee_id)) continue;
+    const emp = await loadEmployee(pool, adj.employee_id);
+    if (!emp) continue;
+    const reim = Number(adj.reimbursement) || 0;
+    const disc = Number(adj.discount) || 0;
+    by_employee.push({
+      employee_id: adj.employee_id,
+      name: emp.name,
+      payment_type: emp.payment_type,
+      sector: emp.sector,
+      line_count: 0,
+      subtotal: 0,
+      days_worked_sum: 0,
+      regular_hours_sum: 0,
+      overtime_hours_sum: 0,
+      amount_sheet_base: 0,
+      amount_overtime: 0,
+      reimbursement: reim,
+      discount: disc,
+      reimbursement_notes: adj.notes || null,
+      employee_total: Math.round((reim - disc) * 100) / 100,
+    });
+  }
+
+  by_employee.sort((a, b) => String(a.name).localeCompare(String(b.name)));
+
+  const [[grandTs]] = await pool.query(
+    'SELECT COALESCE(SUM(calculated_amount),0) AS s FROM construction_payroll_timesheets WHERE period_id = ?',
+    [id]
+  );
+  let grandReim = 0;
+  let grandDisc = 0;
+  try {
+    const [[gr]] = await pool.query(
+      'SELECT COALESCE(SUM(reimbursement),0) AS s FROM construction_payroll_period_adjustments WHERE period_id = ?',
+      [id]
+    );
+    grandReim = Number(gr.s) || 0;
+  } catch (_) {}
+  try {
+    const [[gd]] = await pool.query(
+      'SELECT COALESCE(SUM(discount),0) AS s FROM construction_payroll_period_adjustments WHERE period_id = ?',
+      [id]
+    );
+    grandDisc = Number(gd.s) || 0;
+  } catch (_) {}
+
+  const grand_timesheet = Number(grandTs.s) || 0;
+  const grand_total = Math.round((grand_timesheet + grandReim - grandDisc) * 100) / 100;
+
+  return {
+    period: serializePeriodForClient(p),
+    by_employee,
+    grand_timesheet,
+    grand_reimbursement: grandReim,
+    grand_discount: grandDisc,
+    grand_total,
+  };
 }
 
 /** @param {unknown} v */
@@ -684,176 +866,109 @@ export async function getPeriodPreview(req, res) {
   try {
     const pool = await getDBConnection();
     const id = parseInt(req.params.id, 10);
-    const p = await loadPeriod(pool, id);
-    if (!p) return res.status(404).json({ success: false, error: 'Não encontrado' });
-
-    let byEmpTs = [];
-    try {
-      const [rows] = await pool.query(
-        `SELECT e.id AS employee_id, e.name, e.payment_type, e.sector,
-          COUNT(t.id) AS line_count,
-          COALESCE(SUM(t.calculated_amount),0) AS subtotal
-         FROM construction_payroll_timesheets t
-         INNER JOIN construction_payroll_employees e ON e.id = t.employee_id
-         WHERE t.period_id = ?
-         GROUP BY e.id, e.name, e.payment_type, e.sector
-         ORDER BY e.name`,
-        [id]
-      );
-      byEmpTs = rows || [];
-    } catch (e) {
-      if (e.code === 'ER_BAD_FIELD_ERROR' && String(e.message || '').includes('sector')) {
-        const [rows] = await pool.query(
-          `SELECT e.id AS employee_id, e.name, e.payment_type,
-            COUNT(t.id) AS line_count,
-            COALESCE(SUM(t.calculated_amount),0) AS subtotal
-           FROM construction_payroll_timesheets t
-           INNER JOIN construction_payroll_employees e ON e.id = t.employee_id
-           WHERE t.period_id = ?
-           GROUP BY e.id, e.name, e.payment_type
-           ORDER BY e.name`,
-          [id]
-        );
-        byEmpTs = (rows || []).map((r) => ({ ...r, sector: null }));
-      } else {
-        throw e;
-      }
-    }
-
-    let detailLines = [];
-    try {
-      const [dl] = await pool.query(
-        `SELECT t.employee_id, t.days_worked, t.regular_hours, t.overtime_hours,
-                t.daily_rate_override, e.payment_type, e.daily_rate, e.hourly_rate, e.overtime_rate
-         FROM construction_payroll_timesheets t
-         INNER JOIN construction_payroll_employees e ON e.id = t.employee_id
-         WHERE t.period_id = ?`,
-        [id]
-      );
-      detailLines = dl || [];
-    } catch (_) {
-      detailLines = [];
-    }
-    const detailMap = aggregateTimesheetLinesForPreview(detailLines);
-
-    let adjRows = [];
-    try {
-      const [ar] = await pool.query(
-        'SELECT employee_id, reimbursement, discount, notes FROM construction_payroll_period_adjustments WHERE period_id = ?',
-        [id]
-      );
-      adjRows = ar || [];
-    } catch (e) {
-      if (isMissingColumn(e, 'discount')) {
-        try {
-          const [ar] = await pool.query(
-            'SELECT employee_id, reimbursement, notes FROM construction_payroll_period_adjustments WHERE period_id = ?',
-            [id]
-          );
-          adjRows = (ar || []).map((x) => ({ ...x, discount: 0 }));
-        } catch (_) {
-          adjRows = [];
-        }
-      } else {
-        adjRows = [];
-      }
-    }
-
-    const adjMap = new Map(adjRows.map((r) => [r.employee_id, r]));
-    const seen = new Set();
-    const by_employee = [];
-
-    for (const row of byEmpTs) {
-      seen.add(row.employee_id);
-      const adj = adjMap.get(row.employee_id);
-      const reim = adj ? Number(adj.reimbursement) || 0 : 0;
-      const disc = adj ? Number(adj.discount) || 0 : 0;
-      const sub = Number(row.subtotal) || 0;
-      const d = detailMap.get(row.employee_id) || {};
-      by_employee.push({
-        employee_id: row.employee_id,
-        name: row.name,
-        payment_type: row.payment_type,
-        sector: row.sector,
-        line_count: Number(row.line_count) || 0,
-        subtotal: sub,
-        days_worked_sum: d.days_worked_sum || 0,
-        regular_hours_sum: d.regular_hours_sum || 0,
-        overtime_hours_sum: d.overtime_hours_sum || 0,
-        amount_sheet_base: d.amount_sheet_base || 0,
-        amount_overtime: d.amount_overtime || 0,
-        reimbursement: reim,
-        discount: disc,
-        reimbursement_notes: adj?.notes || null,
-        employee_total: Math.round((sub + reim - disc) * 100) / 100,
-      });
-    }
-
-    for (const adj of adjRows) {
-      if (seen.has(adj.employee_id)) continue;
-      const emp = await loadEmployee(pool, adj.employee_id);
-      if (!emp) continue;
-      const reim = Number(adj.reimbursement) || 0;
-      const disc = Number(adj.discount) || 0;
-      by_employee.push({
-        employee_id: adj.employee_id,
-        name: emp.name,
-        payment_type: emp.payment_type,
-        sector: emp.sector,
-        line_count: 0,
-        subtotal: 0,
-        days_worked_sum: 0,
-        regular_hours_sum: 0,
-        overtime_hours_sum: 0,
-        amount_sheet_base: 0,
-        amount_overtime: 0,
-        reimbursement: reim,
-        discount: disc,
-        reimbursement_notes: adj.notes || null,
-        employee_total: Math.round((reim - disc) * 100) / 100,
-      });
-    }
-
-    by_employee.sort((a, b) => String(a.name).localeCompare(String(b.name)));
-
-    const [[grandTs]] = await pool.query(
-      'SELECT COALESCE(SUM(calculated_amount),0) AS s FROM construction_payroll_timesheets WHERE period_id = ?',
-      [id]
-    );
-    let grandReim = 0;
-    let grandDisc = 0;
-    try {
-      const [[gr]] = await pool.query(
-        'SELECT COALESCE(SUM(reimbursement),0) AS s FROM construction_payroll_period_adjustments WHERE period_id = ?',
-        [id]
-      );
-      grandReim = Number(gr.s) || 0;
-    } catch (_) {}
-    try {
-      const [[gd]] = await pool.query(
-        'SELECT COALESCE(SUM(discount),0) AS s FROM construction_payroll_period_adjustments WHERE period_id = ?',
-        [id]
-      );
-      grandDisc = Number(gd.s) || 0;
-    } catch (_) {}
-
-    const grand_timesheet = Number(grandTs.s) || 0;
-    const grand_total = Math.round((grand_timesheet + grandReim - grandDisc) * 100) / 100;
-
-    return res.json({
-      success: true,
-      data: {
-        period: serializePeriodForClient(p),
-        by_employee,
-        grand_timesheet,
-        grand_reimbursement: grandReim,
-        grand_discount: grandDisc,
-        grand_total,
-      },
-    });
+    const data = await computePeriodPreviewData(pool, id);
+    return res.json({ success: true, data });
   } catch (err) {
+    if (err.statusCode === 404) {
+      return res.status(404).json({ success: false, error: err.message || 'Não encontrado' });
+    }
     return sendDbError(res, err);
   }
+}
+
+/** PDF de um recibo (marca Senior Floors, alinhado ao quote PDF). */
+export async function getEmployeePaySlipPdf(req, res) {
+  try {
+    const pool = await getDBConnection();
+    const periodId = parseInt(req.params.id, 10);
+    const employeeId = parseInt(req.params.employeeId, 10);
+    if (!periodId || !employeeId) {
+      return res.status(400).json({ success: false, error: 'IDs inválidos' });
+    }
+    const data = await computePeriodPreviewData(pool, periodId);
+    const row = data.by_employee.find((e) => e.employee_id === employeeId);
+    if (!row) {
+      return res.status(404).json({ success: false, error: 'Funcionário sem dados neste período' });
+    }
+    const p = await loadPeriod(pool, periodId);
+    const buf = await buildPayrollSlipPdfBuffer({ period: p, employeeRow: row });
+    const fn = `Senior-Floors-Pay-Slip-${safePaySlipFilenamePart(row.name)}-${periodId}.pdf`;
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${fn}"`);
+    res.send(buf);
+  } catch (err) {
+    if (err.statusCode === 404) {
+      return res.status(404).json({ success: false, error: err.message || 'Não encontrado' });
+    }
+    return sendDbError(res, err);
+  }
+}
+
+/**
+ * Envia um PDF por funcionário (e-mail no cadastro). Requer transporte configurado (Resend ou SMTP).
+ * Body opcional: { employee_ids: number[] } — omite para todos com dados no período.
+ */
+export async function postDistributePaySlips(req, res) {
+  try {
+    const pool = await getDBConnection();
+    const periodId = parseInt(req.params.id, 10);
+    if (!periodId) return res.status(400).json({ success: false, error: 'Período inválido' });
+    const data = await computePeriodPreviewData(pool, periodId);
+    const filterIds = Array.isArray(req.body?.employee_ids)
+      ? req.body.employee_ids.map((x) => parseInt(String(x), 10)).filter((n) => n > 0)
+      : null;
+    const rows = filterIds?.length
+      ? data.by_employee.filter((e) => filterIds.includes(e.employee_id))
+      : data.by_employee;
+    const p = await loadPeriod(pool, periodId);
+    const periodLabel = `${p.name} (${String(p.start_date).slice(0, 10)} → ${String(p.end_date).slice(0, 10)})`;
+    const results = [];
+    for (const row of rows) {
+      const emp = await loadEmployee(pool, row.employee_id);
+      const email = emp?.email != null ? String(emp.email).trim() : '';
+      if (!email) {
+        results.push({
+          employee_id: row.employee_id,
+          name: row.name,
+          ok: false,
+          error: 'Sem e-mail no cadastro do funcionário',
+        });
+        continue;
+      }
+      const buf = await buildPayrollSlipPdfBuffer({ period: p, employeeRow: row });
+      const subj = `Senior Floors — recibo de folha (${String(p.name || 'período').slice(0, 42)})`;
+      const first = String(row.name || '').trim().split(/\s+/)[0] || '';
+      const html = `<p>Olá${first ? ` ${escapeHtmlPaySlip(first)}` : ''},</p><p>Segue em anexo o seu recibo de pagamento referente a <strong>${escapeHtmlPaySlip(periodLabel)}</strong>.</p><p>— Senior Floors</p>`;
+      const r = await sendQuoteEmail({
+        to: email,
+        subject: subj,
+        html,
+        pdfBuffer: buf,
+        filename: 'Senior-Floors-Pay-Slip.pdf',
+      });
+      results.push({
+        employee_id: row.employee_id,
+        name: row.name,
+        ok: r.ok,
+        error: r.error || null,
+        transport: r.transport || null,
+      });
+    }
+    const sent = results.filter((x) => x.ok).length;
+    return res.json({ success: true, data: { sent, total: results.length, results } });
+  } catch (err) {
+    if (err.statusCode === 404) {
+      return res.status(404).json({ success: false, error: err.message || 'Não encontrado' });
+    }
+    return sendDbError(res, err);
+  }
+}
+
+function escapeHtmlPaySlip(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/"/g, '&quot;');
 }
 
 export async function putPeriodAdjustments(req, res) {
