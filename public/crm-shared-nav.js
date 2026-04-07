@@ -14,7 +14,7 @@
     { href: 'dashboard.html?page=schedule', label: 'Schedule', perm: 'visits.view', page: 'schedule' },
     { href: 'projects.html', label: 'Projetos', perm: 'projects.view', page: '' },
     { href: 'dashboard.html?page=financeiro', label: 'Financeiro', perm: 'contracts.view', page: 'financeiro' },
-    { href: 'payroll-module.html', label: 'Folha obra', perm: 'payroll.view', page: '' },
+    { href: 'payroll-module.html', label: 'Folha de pagamento', perm: 'payroll.view', page: '' },
     { href: 'dashboard.html?page=activities', label: 'Activities', perm: 'activities.view', page: 'activities' },
     { href: 'dashboard.html?page=users', label: 'Users', perm: 'users.view', page: 'users' },
   ];

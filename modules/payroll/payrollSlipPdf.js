@@ -95,7 +95,7 @@ function normativeBlockFromRow(row) {
   if (pt === 'hourly') {
     const h = regH > 0 ? regH : days;
     return {
-      qtyLabel: 'Horas à taxa normal (soma)',
+      qtyLabel: 'Horas em taxa normal (total)',
       qty: `${fmtQty(h)} h`,
       totalLabel: 'Valor (parte normal)',
       total: baseAmt,
@@ -112,12 +112,12 @@ function normativeBlockFromRow(row) {
       total: baseAmt,
     };
   }
-  return {
-    qtyLabel: 'Diárias (soma)',
-    qty: fmtQty(days),
-    totalLabel: 'Valor (parte normal)',
-    total: baseAmt,
-  };
+    return {
+      qtyLabel: 'Diarias (total)',
+      qty: fmtQty(days),
+      totalLabel: 'Valor (parte normal)',
+      total: baseAmt,
+    };
 }
 
 /**
@@ -240,7 +240,7 @@ async function drawPayrollSlipStyledPage(pdf, font, fontBold, opts) {
   });
   if (pageTotal > 1 && pageIndex >= 1) {
     ry -= lineH * 0.95;
-    page.drawText(`Pag. ${pageIndex} de ${pageTotal}`, {
+    page.drawText(`Pag ${pageIndex} de ${pageTotal}`, {
       x: rightX,
       y: ry,
       size: 7,
@@ -315,7 +315,7 @@ async function drawPayrollSlipStyledPage(pdf, font, fontBold, opts) {
   const norm = normativeBlockFromRow(row);
   drawKV(norm.qtyLabel, norm.qty);
   drawKV(norm.totalLabel, moneyFmt(norm.total));
-  drawKV('Horas extras (soma)', `${fmtQty(row.overtime_hours_sum || 0)} h`);
+  drawKV('Horas extras (total)', `${fmtQty(row.overtime_hours_sum || 0)} h`);
   drawKV('Valor horas extras', moneyFmt(row.amount_overtime || 0));
   page.drawLine({
     start: { x: MARGIN, y: y + 4 },
@@ -398,7 +398,7 @@ export async function buildPayrollSlipPdfBuffer(opts) {
   await drawPayrollSlipStyledPage(pdf, font, fontBold, {
     period,
     row,
-    rightTitle: 'PAY SLIP',
+    rightTitle: 'RECIBO DE PAGAMENTO',
   });
   return Buffer.from(await pdf.save());
 }

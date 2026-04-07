@@ -226,7 +226,7 @@ function renderCostsTab(p) {
   const sumMat = materials.reduce((a, x) => a + (parseFloat(x.total_cost) || 0), 0);
   const grand = sumLabor + sumAdd + sumMat;
   el.innerHTML = `
-    <button type="button" class="pd-btn pd-btn--primary" id="btn-sync-payroll-tab" style="margin-bottom:14px">🔄 Importar do Payroll</button>
+    <button type="button" class="pd-btn pd-btn--primary" id="btn-sync-payroll-tab" style="margin-bottom:14px">🔄 Importar da folha de pagamento</button>
     <p style="font-weight:700;color:var(--sf-navy);margin-bottom:12px">Total custos: ${fmt$(grand)}</p>
     ${costSection('labor', 'Mão de obra (labor)', labor, sumLabor, 'labor')}
     ${costSection('material', 'Materiais (stock)', [], sumMat, 'material', materials)}
@@ -621,7 +621,7 @@ async function syncPayroll() {
   const busy = btn || tabBtn;
   if (busy) {
     busy.disabled = true;
-    busy.textContent = 'A sincronizar…';
+    busy.textContent = 'Sincronizando…';
   }
   try {
     const res = await fetch(`/api/projects/${projectId}/costs/sync-payroll`, {
@@ -631,10 +631,10 @@ async function syncPayroll() {
     const j = await res.json();
     if (res.ok && j.success) {
       if (j.synced > 0) {
-        showToast(`${j.synced} entrada(s) importada(s) do payroll`);
+        showToast(`${j.synced} lançamento(s) importado(s) da folha de pagamento`);
         loadProject();
       } else {
-        showToast('Nenhuma entrada nova no payroll', 'info');
+        showToast('Nenhum lançamento novo na folha de pagamento', 'info');
       }
     } else {
       showToast(j.error || 'Erro ao sincronizar', 'error');
@@ -644,11 +644,11 @@ async function syncPayroll() {
   } finally {
     if (btn) {
       btn.disabled = false;
-      btn.textContent = '🔄 Payroll';
+      btn.textContent = '🔄 Folha de pagamento';
     }
     if (tabBtn) {
       tabBtn.disabled = false;
-      tabBtn.textContent = '🔄 Importar do Payroll';
+      tabBtn.textContent = '🔄 Importar da folha de pagamento';
     }
   }
 }

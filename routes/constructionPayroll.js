@@ -202,7 +202,7 @@ async function assertPeriodAllowsTimesheetMutation(pool, periodId, req) {
   }
   if (p.status === 'closed' && !userHasPayrollManage(req)) {
     const e = new Error(
-      'Período fechado — só quem tem gestão da folha (payroll.manage) pode alterar ou apagar registos.'
+      'Período fechado — só quem tem gestão da folha (payroll.manage) pode alterar ou excluir registros.'
     );
     e.statusCode = 409;
     throw e;
@@ -679,7 +679,7 @@ export async function deleteEmployee(req, res) {
       return res.status(409).json({
         success: false,
         error:
-          'Não é possível apagar: existem linhas de quadro de horas associadas a este funcionário. Apague ou altere essas linhas nos períodos, ou desative o funcionário (Ativo desmarcado) em vez de excluir.',
+          'Não é possível excluir: há linhas na planilha de horas associadas a este funcionário. Exclua ou altere essas linhas nos períodos ou desative o funcionário (desmarque Ativo) em vez de excluir o cadastro.',
       });
     }
     await pool.execute('DELETE FROM construction_payroll_employees WHERE id = ?', [id]);
@@ -688,7 +688,7 @@ export async function deleteEmployee(req, res) {
     if (err.code === 'ER_ROW_IS_REFERENCED_2' || err.code === '1451') {
       return res.status(409).json({
         success: false,
-        error: 'Não é possível apagar: ainda há referências na base de dados.',
+        error: 'Não é possível excluir: ainda há referências no banco de dados.',
       });
     }
     return sendDbError(res, err);
@@ -1013,7 +1013,7 @@ export async function postDistributePaySlips(req, res) {
       ? data.by_employee.filter((e) => filterIds.includes(e.employee_id))
       : data.by_employee;
     const p = await loadPeriod(pool, periodId);
-    const periodLabel = `${p.name} (${String(p.start_date).slice(0, 10)} → ${String(p.end_date).slice(0, 10)})`;
+    const periodLabel = `${p.name} (${String(p.start_date).slice(0, 10)} a ${String(p.end_date).slice(0, 10)})`;
     const results = [];
     for (const row of rows) {
       const emp = await loadEmployee(pool, row.employee_id);
@@ -1028,9 +1028,9 @@ export async function postDistributePaySlips(req, res) {
         continue;
       }
       const buf = await buildPayrollSlipPdfBuffer({ period: p, employeeRow: row });
-      const subj = `Senior Floors — recibo de folha (${String(p.name || 'período').slice(0, 42)})`;
+      const subj = `Senior Floors — recibo de pagamento (${String(p.name || 'período').slice(0, 42)})`;
       const first = String(row.name || '').trim().split(/\s+/)[0] || '';
-      const html = `<p>Olá${first ? ` ${escapeHtmlPaySlip(first)}` : ''},</p><p>Segue em anexo o seu recibo de pagamento referente a <strong>${escapeHtmlPaySlip(periodLabel)}</strong>.</p><p>— Senior Floors</p>`;
+      const html = `<p>Olá${first ? ` ${escapeHtmlPaySlip(first)}` : ''},</p><p>Em anexo está o seu recibo de pagamento referente a <strong>${escapeHtmlPaySlip(periodLabel)}</strong>.</p><p>Atenciosamente,<br>Senior Floors</p>`;
       const r = await sendQuoteEmail({
         to: email,
         subject: subj,
@@ -1356,7 +1356,7 @@ export async function bulkTimesheets(req, res) {
         } catch (e) {
           if (e.code === 'ER_DUP_ENTRY') {
             e.statusCode = 409;
-            e.message = 'Já existe linha para este funcionário, projeto e data neste período';
+            e.message = 'Já existe uma linha para este funcionário, projeto e data neste período';
           }
           throw e;
         }
@@ -1367,7 +1367,7 @@ export async function bulkTimesheets(req, res) {
           success: false,
           code: 'BULK_NO_ROWS_SAVED',
           error:
-            'Nenhuma linha foi gravada. Confirme funcionário e data em cada linha nova, valores (dias/horas ou nota) e que a data está dentro do período.',
+            'Nenhuma linha foi salva. Confira funcionário e data em cada linha nova, valores (dias/horas ou nota) e se a data está dentro do período.',
         });
       }
       await conn.commit();

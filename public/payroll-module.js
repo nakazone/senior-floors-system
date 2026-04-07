@@ -70,6 +70,13 @@ function sectorLabel(s) {
   return '—';
 }
 
+function paymentTypeLabel(pt) {
+  const s = String(pt || 'daily').toLowerCase();
+  if (s === 'hourly') return 'Por hora';
+  if (s === 'mixed') return 'Misto (dia + hora)';
+  return 'Por dia';
+}
+
 function money(n) {
   const x = Number(n) || 0;
   return new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' }).format(x);
@@ -89,7 +96,7 @@ const EMPLOYEE_REPORT_HEADERS = [
   'Horas Extras',
   'Valor',
   'Reembolso',
-  'Descontos',
+  'Desconto',
   'Total',
 ];
 
@@ -210,7 +217,7 @@ async function loadSession() {
   canManage = isAdmin || permissionKeys.includes('payroll.manage');
   canEditTimesheet = hasView;
   if (!hasView) {
-    showAuth('Sem permissão payroll.view para ver esta página.');
+    showAuth('Sem permissão payroll.view para acessar esta página.');
     return false;
   }
   showAuth('');
@@ -290,7 +297,8 @@ async function loadPeriods(preferId) {
   periods.forEach((p) => {
     const opt = document.createElement('option');
     opt.value = String(p.id);
-    opt.textContent = `${p.name} (${p.start_date} → ${p.end_date}) [${p.status}]`;
+    const st = p.status === 'closed' ? 'Fechado' : 'Aberto';
+    opt.textContent = `${p.name} (${p.start_date} a ${p.end_date}) [${st}]`;
     sel.appendChild(opt);
   });
   if (preferred != null && periods.some((p) => periodIdNum(p.id) === preferred)) {
@@ -323,7 +331,7 @@ function renderEmployeeTable() {
       <td class="px-3 py-2">${escapeHtml(sectorLabel(e.sector))}</td>
       <td class="px-3 py-2 text-right tabular-nums">${dPer}</td>
       <td class="px-3 py-2 text-right tabular-nums">${otPer}</td>
-      <td class="px-3 py-2">${escapeHtml(e.payment_type)}</td>
+      <td class="px-3 py-2">${escapeHtml(paymentTypeLabel(e.payment_type))}</td>
       <td class="px-3 py-2 text-right">${money(e.daily_rate)}</td>
       <td class="px-3 py-2 text-right">${money(e.hourly_rate)}</td>
       <td class="px-3 py-2 text-right">${money(e.overtime_rate)}</td>
@@ -366,7 +374,7 @@ function employeeOptionsHtml(selectedId, sectorFilter) {
     const wrong =
       (sectorFilter === 'installation' && selectedEmp.sector === 'sand_finish') ||
       (sectorFilter === 'sand_finish' && selectedEmp.sector !== 'sand_finish');
-    const tag = wrong ? ' (outro setor)' : !selectedEmp.is_active ? ' (inativo)' : '';
+    const tag = wrong ? ' (outro setor)' : !selectedEmp.is_active ? ' (inativo no cadastro)' : '';
     extra = `<option value="${selectedEmp.id}" selected>${escapeHtml(selectedEmp.name)}${escapeHtml(tag)}</option>`;
   }
 
@@ -551,7 +559,7 @@ function syncDailyOverrideHint(tr) {
   inp.placeholder = hourly ? '—' : String(emp.daily_rate ?? '');
   inp.title = hourly
     ? 'Tipo por hora: o valor usa só horas (e HE); este campo não altera o cálculo.'
-    : 'Opcional: diária só neste dia. Vazio = usa a diária do cadastro do funcionário.';
+    : 'Opcional: diária só neste dia. Vazio = usa a diária cadastrada do funcionário.';
 }
 
 function tsTap(ev, fn) {
@@ -613,7 +621,7 @@ function bindRowEvents(tr) {
       return;
     }
     if (!canEditTimesheetGrid()) return;
-    if (!window.confirm('Apagar esta linha do quadro de horas?')) return;
+    if (!window.confirm('Excluir esta linha da planilha de horas?')) return;
     try {
       await api('DELETE', `/timesheets/${id}`);
       window.crmToast?.success?.('Linha removida');
@@ -689,7 +697,7 @@ function appendTimesheetRow(data, sectorKey) {
     <td class="px-2 py-1 align-top"><input type="text" class="ts-notes w-full border rounded px-2 py-2 text-sm"${dis} value="" /></td>
     <td class="px-2 py-1 text-right ts-amt text-sm font-semibold align-middle">${money(data?.calculated_amount ?? 0)}</td>
     <td class="px-2 py-1 align-middle">
-      <button type="button" class="ts-del px-2 py-1 text-sm border border-red-200 text-red-700 rounded${!grid ? ' opacity-40' : ''}" ${!grid ? 'disabled' : ''} title="Apagar linha">×</button>
+      <button type="button" class="ts-del px-2 py-1 text-sm border border-red-200 text-red-700 rounded${!grid ? ' opacity-40' : ''}" ${!grid ? 'disabled' : ''} title="Excluir linha">×</button>
     </td>`;
   tb.appendChild(tr);
   if (data?.notes) tr.querySelector('.ts-notes').value = data.notes;
@@ -732,7 +740,7 @@ function applyPeriodMetaBanner(p) {
           ? 'Mensal'
           : p?.frequency || '';
   document.getElementById('periodMeta').textContent = p
-    ? `${freqPt} · ${p.start_date} → ${p.end_date} · ${p.status === 'closed' ? 'Fechado' : 'Aberto'}`
+    ? `${freqPt} · ${p.start_date} a ${p.end_date} · ${p.status === 'closed' ? 'Fechado' : 'Aberto'}`
     : '';
   const badge = document.getElementById('periodLockBadge');
   if (p?.status === 'closed') badge.classList.remove('hidden');
@@ -755,7 +763,7 @@ async function loadTimesheetsForPeriod() {
     currentPeriod = j.period;
     timesheetRows = j.data || [];
   } catch (e) {
-    window.crmToast?.error?.(e.message || 'Erro ao carregar o quadro.');
+    window.crmToast?.error?.(e.message || 'Erro ao carregar a planilha.');
     timesheetRows = [];
     const fromList = periods.find((x) => periodIdNum(x.id) === periodIdNum(selectedPeriodId));
     currentPeriod = fromList || { id: selectedPeriodId, status: 'open', start_date: null, end_date: null };
@@ -855,7 +863,7 @@ function timesheetGridValidationIssues() {
     if (!work_date) issues.push(`Linha ${idx}: escolha a data do trabalho.`);
     if (work_date && !workDateInsideSelectedPeriod(work_date)) {
       issues.push(
-        `Linha ${idx}: a data ${work_date} está fora do período (${String(selectedPeriodRecord()?.start_date || '').slice(0, 10)} → ${String(selectedPeriodRecord()?.end_date || '').slice(0, 10)}).`
+        `Linha ${idx}: a data ${work_date} está fora do período (${String(selectedPeriodRecord()?.start_date || '').slice(0, 10)} a ${String(selectedPeriodRecord()?.end_date || '').slice(0, 10)}).`
       );
     }
     if (!hasPersistedId && d === 0 && r === 0 && ot === 0 && !notes) {
@@ -955,13 +963,14 @@ async function saveEmployee() {
     await loadEmployees();
     await loadTimesheetsForPeriod();
   } catch (e) {
-    let msg = e.message || 'Erro ao guardar.';
+    let msg = e.message || 'Erro ao salvar.';
     if (e.status === 403) {
       msg =
-        'Sem permissão para criar/editar funcionários (payroll.manage). Atualize a página; se continuar, peça ao administrador para lhe conceder payroll.manage na matriz de permissões.';
+        'Sem permissão para criar ou editar funcionários (payroll.manage). Atualize a página; se continuar, peça ao administrador para conceder payroll.manage na matriz de permissões.';
     }
     if (e.status === 503 && e.payload?.code === 'PAYROLL_SCHEMA_MISSING') {
-      msg = 'Tabelas de folha não instaladas no servidor. Execute as migrações MySQL (construction-payroll + payroll-sector-reimbursement).';
+      msg =
+        'Tabelas de folha não instaladas no servidor. Execute as migrações MySQL (construction-payroll + payroll-sector-reimbursement).';
     }
     err.textContent = msg;
     err.classList.remove('hidden');
@@ -1150,9 +1159,9 @@ function fillPreviewModal(data, opts) {
 
   document.getElementById('previewTitle').textContent = closingPeriodMode
     ? 'Fechamento — reembolsos e descontos'
-    : 'Pré-visualização da folha';
+    : 'Prévia da folha';
   document.getElementById('previewSubtitle').textContent = data.period
-    ? `${data.period.name} (${data.period.start_date} → ${data.period.end_date})`
+    ? `${data.period.name} (${data.period.start_date} a ${data.period.end_date})`
     : '';
   document.getElementById('previewCloseActions').classList.toggle('hidden', !closingPeriodMode);
   document.getElementById('previewCloseOnly').classList.toggle('hidden', closingPeriodMode);
@@ -1252,7 +1261,7 @@ async function openIndividualReportsPdfFromApi(adjustments) {
   if (preOpened) {
     try {
       preOpened.document.write(
-        '<!DOCTYPE html><html><head><meta charset="utf-8"><title>A carregar…</title></head><body><p style="font-family:system-ui,sans-serif;padding:2rem">A gerar PDF…</p></body></html>'
+        '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Carregando…</title></head><body><p style="font-family:system-ui,sans-serif;padding:2rem">Gerando PDF…</p></body></html>'
       );
       preOpened.document.close();
     } catch (_) {}
@@ -1349,7 +1358,7 @@ async function fetchPaySlipPdfBlob(periodId, employeeId) {
 
 async function pdfBlobToPngBlob(pdfBlob, scale = 2) {
   if (typeof pdfjsLib === 'undefined') {
-    throw new Error('pdf.js não carregou (rede / bloqueador de anúncios).');
+    throw new Error('pdf.js não carregou (rede ou bloqueador de anúncios).');
   }
   const buf = await pdfBlob.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
@@ -1393,8 +1402,8 @@ async function downloadPaySlipsZip(format) {
   try {
     window.crmToast?.info?.(
       format === 'png'
-        ? 'A gerar PNG a partir dos PDFs (pode demorar um pouco)…'
-        : 'A descarregar PDFs…'
+        ? 'Gerando PNG a partir dos PDFs (pode levar um pouco)…'
+        : 'Baixando PDFs…'
     );
     const blob = await buildPaySlipsBlobZip(format);
     const ext = format === 'pdf' ? 'pdf' : 'png';
@@ -1441,18 +1450,18 @@ async function openShareSlipsModal() {
       .map(
         (r) => `<div class="flex items-center justify-between gap-2 border-b border-slate-100 py-3 px-2">
         <span class="font-medium text-sm text-slate-900 truncate min-w-0">${escapeHtml(r.name || '—')}</span>
-        <button type="button" class="share-slip-btn shrink-0 px-3 py-2.5 rounded-xl sm:rounded-lg bg-[#1a2036] text-[#d6b598] text-xs font-bold touch-manipulation" data-eid="${r.id}">Partilhar</button>
+        <button type="button" class="share-slip-btn shrink-0 px-3 py-2.5 rounded-xl sm:rounded-lg bg-[#1a2036] text-[#d6b598] text-xs font-bold touch-manipulation" data-eid="${r.id}">Compartilhar</button>
       </div>`
       )
       .join('');
     openShareSlipsModalShell();
   } catch (e) {
-    window.crmToast?.error?.(e.message || 'Erro ao abrir partilha');
+    window.crmToast?.error?.(e.message || 'Erro ao abrir compartilhamento');
   }
 }
 
 /**
- * Partilha um recibo como PNG (Web Share) ou descarrega o ficheiro.
+ * Compartilha um recibo como PNG (Web Share) ou baixa o arquivo.
  * @param {number} employeeId
  * @param {string} [displayName]
  */
@@ -1460,7 +1469,7 @@ async function shareOneSlipAsImage(employeeId, displayName) {
   if (!selectedPeriodId || !Number.isFinite(employeeId)) return;
   const name = displayName || 'Funcionário';
   try {
-    window.crmToast?.info?.('A preparar imagem do recibo…');
+    window.crmToast?.info?.('Preparando imagem do recibo…');
     const pdfBlob = await fetchPaySlipPdfBlob(selectedPeriodId, employeeId);
     const pngBlob = await pdfBlobToPngBlob(pdfBlob);
     const filename = `Recibo-${safeSlipFilePart(name)}-${employeeId}.png`;
@@ -1477,7 +1486,7 @@ async function shareOneSlipAsImage(employeeId, displayName) {
           if (typeof navigator.canShare === 'function' && !navigator.canShare({ files: [file] })) {
             downloadBlob(pngBlob, filename);
             window.crmToast?.success?.(
-              'Este browser não partilha ficheiros daqui. PNG descarregado — anexe nas Mensagens ou WhatsApp.'
+              'Este navegador não compartilha arquivos daqui. PNG baixado — anexe no WhatsApp ou nas mensagens.'
             );
             return;
           }
@@ -1494,10 +1503,10 @@ async function shareOneSlipAsImage(employeeId, displayName) {
     }
     if (!usedShare) {
       downloadBlob(pngBlob, filename);
-      window.crmToast?.success?.('PNG descarregado — envie como anexo na sua app.');
+      window.crmToast?.success?.('PNG baixado — envie como anexo no app.');
     }
   } catch (e) {
-    window.crmToast?.error?.(e.message || 'Erro ao partilhar');
+    window.crmToast?.error?.(e.message || 'Erro ao compartilhar');
   }
 }
 
@@ -1505,19 +1514,19 @@ async function sendPaySlipsEmail() {
   if (!canManage || !selectedPeriodId) return;
   if (
     !confirm(
-      'Enviar um e-mail por funcionário com o recibo em PDF (marca Senior Floors)? Inclui só quem tem e-mail no cadastro e dados neste período. Requer Resend ou SMTP configurado no servidor.'
+      'Enviar um e-mail por funcionário com o recibo em PDF (marca Senior Floors)? Inclui apenas quem tem e-mail no cadastro e dados neste período. É necessário Resend ou SMTP configurado no servidor.'
     )
   ) {
     return;
   }
   try {
-    window.crmToast?.info?.('A enviar e-mails…');
+    window.crmToast?.info?.('Enviando e-mails…');
     const j = await api('POST', `/periods/${selectedPeriodId}/slips/email`, {});
     const d = j.data || {};
     const sent = d.sent ?? 0;
     const results = d.results || [];
     const failed = results.filter((r) => !r.ok);
-    window.crmToast?.success?.(`Enviados: ${sent}. Falhados: ${failed.length}.`);
+    window.crmToast?.success?.(`Enviados: ${sent}. Com falha: ${failed.length}.`);
     if (failed.length) {
       console.warn('Pay slip email failures', failed);
     }
@@ -1531,7 +1540,7 @@ async function fetchAndOpenIndividualReports() {
   await openIndividualReportsPdfFromApi(null);
 }
 
-/** A partir do modal de pré-visualização: PDF com reembolsos/descontos dos campos (ainda não guardados). */
+/** A partir do modal de prévia: PDF com reembolsos e descontos dos campos (ainda não salvos). */
 async function openIndividualPayrollReportsFromPreview() {
   const trs = Array.from(document.querySelectorAll('#previewTbody tr'));
   if (!trs.length) {
@@ -1615,7 +1624,7 @@ function buildTotalReportFragment(d, from, to) {
     <div class="px-4 pb-4">
       <p class="text-2xl font-bold">${money(tot)}</p>
       <p class="text-sm text-slate-300 mt-1">Folha: ${money(sheet)} · Reemb.: ${money(reim)} · Desc.: ${money(disc)}</p>
-      <p class="text-xs text-slate-400 mt-2">${d.line_count != null ? d.line_count : 0} linhas no quadro · ${escapeHtml(from)} → ${escapeHtml(to)}</p>
+      <p class="text-xs text-slate-400 mt-2">${d.line_count != null ? d.line_count : 0} linhas na planilha · ${escapeHtml(from)} a ${escapeHtml(to)}</p>
     </div>
   </div>`;
 }
@@ -1632,9 +1641,9 @@ async function runReportEmployees() {
   const raw = j.data || [];
   if (!raw.length) {
     document.getElementById('reportOut').innerHTML =
-      '<p class="text-sm text-slate-600 py-4">Nenhum lançamento no quadro neste intervalo (<strong>' +
+      '<p class="text-sm text-slate-600 py-4">Nenhum lançamento na planilha neste intervalo (<strong>' +
       escapeHtml(from) +
-      '</strong> → <strong>' +
+      '</strong> a <strong>' +
       escapeHtml(to) +
       '</strong>).</p>';
     return;
@@ -1731,7 +1740,7 @@ async function runReportAll() {
 
     out.innerHTML = `
       ${warn}
-      <p class="text-sm text-slate-600 font-medium">Intervalo: <strong>${escapeHtml(from)}</strong> → <strong>${escapeHtml(to)}</strong></p>
+      <p class="text-sm text-slate-600 font-medium">Intervalo: <strong>${escapeHtml(from)}</strong> a <strong>${escapeHtml(to)}</strong></p>
       <div class="space-y-4 mt-3">
         ${summaryBlock}
         ${buildReportTableFragment('Por funcionário', EMPLOYEE_REPORT_HEADERS, empRows)}
@@ -1772,7 +1781,7 @@ async function quickSaveEmployee() {
     const qd = document.getElementById('empQuickDaily');
     if (qn) qn.value = '';
     if (qd) qd.value = '';
-    window.crmToast?.success?.('Funcionário adicionado — já pode lançar horas.');
+    window.crmToast?.success?.('Funcionário adicionado — você já pode lançar horas.');
     await loadEmployees();
     await loadTimesheetsForPeriod();
     await loadDashboard();
@@ -1866,7 +1875,7 @@ document.getElementById('empDelete')?.addEventListener('click', async () => {
   if (!editId || !canManage) return;
   if (
     !window.confirm(
-      'Excluir permanentemente este funcionário da equipa? Só é possível se não existirem linhas de quadro de horas associadas a ele em nenhum período.'
+      'Excluir permanentemente este funcionário da equipe? Só é possível se não houver linhas na planilha de horas associadas a ele em nenhum período.'
     )
   ) {
     return;
@@ -1889,16 +1898,16 @@ document.getElementById('btnDeletePeriod')?.addEventListener('click', async () =
   const p = selectedPeriodRecord();
   if (!p) return;
   const nm = p.name || `Período #${p.id}`;
-  const dates = `${p.start_date} → ${p.end_date}`;
+  const dates = `${p.start_date} a ${p.end_date}`;
   if (
     !window.confirm(
-      `Apagar o período «${nm}» (${dates})?\n\nTodas as linhas do quadro, reembolsos e descontos deste período serão eliminados. Esta ação não pode ser anulada.`
+      `Excluir o período "${nm}" (${dates})?\n\nTodas as linhas da planilha, reembolsos e descontos deste período serão removidos. Esta ação não pode ser desfeita.`
     )
   )
     return;
   try {
     await api('DELETE', `/periods/${selectedPeriodId}`);
-    window.crmToast?.success?.('Período apagado.');
+    window.crmToast?.success?.('Período excluído.');
     await loadPeriods();
     await loadDashboard();
   } catch (e) {
@@ -1912,12 +1921,12 @@ function tryAddTimesheetRowForSector(sectorKey) {
     window.crmToast?.error?.(
       selectedPeriodRecord()?.status === 'closed'
         ? 'Período fechado — não é possível adicionar linhas novas (só alterar as existentes, com payroll.manage).'
-        : 'Sem permissão para editar o quadro (payroll.view).'
+        : 'Sem permissão para editar a planilha (payroll.view).'
     );
     return;
   }
   if (!selectedPeriodId) {
-    window.crmToast?.error?.('Primeiro escolha um período na lista acima.');
+    window.crmToast?.error?.('Primeiro, escolha um período na lista acima.');
     return;
   }
   const tb = getTimesheetTbody(sectorKey);
@@ -1935,14 +1944,14 @@ document.getElementById('btnAddTimesheetRowSandFinish')?.addEventListener('click
 document.getElementById('btnSaveTimesheet')?.addEventListener('click', async () => {
   const pid = periodIdNum(selectedPeriodId);
   if (pid == null) {
-    window.crmToast?.error?.('Escolha um período válido antes de guardar.');
+    window.crmToast?.error?.('Escolha um período válido antes de salvar.');
     return;
   }
   if (!canEditTimesheetGrid()) {
     window.crmToast?.error?.(
       selectedPeriodRecord()?.status === 'closed'
-        ? 'Período fechado — só quem tem payroll.manage pode guardar alterações ao quadro.'
-        : 'Sem permissão para guardar o quadro (payroll.view).'
+        ? 'Período fechado — só quem tem payroll.manage pode salvar alterações na planilha.'
+        : 'Sem permissão para salvar a planilha (payroll.view).'
     );
     return;
   }
@@ -1954,7 +1963,7 @@ document.getElementById('btnSaveTimesheet')?.addEventListener('click', async () 
   const lines = collectLinesFromGrid();
   if (!lines.length) {
     window.crmToast?.error?.(
-      'Nenhuma linha para guardar. Escolha funcionário e data, e preencha pelo menos diárias (1d/½), horas normais ou horas extra — ou escreva uma nota.'
+      'Nenhuma linha para salvar. Escolha funcionário e data e preencha pelo menos diárias (1d/½), horas normais ou horas extras — ou escreva uma nota.'
     );
     return;
   }
@@ -1963,31 +1972,31 @@ document.getElementById('btnSaveTimesheet')?.addEventListener('click', async () 
     const saved = Array.isArray(j.data) ? j.data.length : 0;
     if (saved < lines.length) {
       window.crmToast?.error?.(
-        `Só ${saved} de ${lines.length} linha(s) foram gravadas. Confirme funcionário, data no período e que não há duplicados (mesmo dia e projeto).`
+        `Só ${saved} de ${lines.length} linha(s) foram salvas. Confira funcionário, data no período e se não há duplicados (mesmo dia e projeto).`
       );
     } else {
-      window.crmToast?.success?.('Quadro guardado');
+      window.crmToast?.success?.('Planilha salva');
     }
     await loadTimesheetsForPeriod();
     await loadPeriods(selectedPeriodId);
     await loadDashboard();
   } catch (e) {
-    let msg = e.message || 'Erro ao guardar.';
+    let msg = e.message || 'Erro ao salvar.';
     if (e.status === 403) {
       msg =
         e.payload?.required === 'payroll.view' || e.payload?.required === 'payroll.manage'
-          ? 'Sem permissão para guardar o quadro. Confirme payroll.view na sua conta.'
+          ? 'Sem permissão para salvar a planilha. Confirme payroll.view na sua conta.'
           : 'Sem permissão para esta ação.';
     } else if (String(msg).includes('Já existe linha')) {
       msg =
         'Já existe uma linha para o mesmo funcionário, data e projeto neste período. Edite a linha existente ou escolha outro projeto/data.';
     } else if (String(msg).toLowerCase().includes('fora do período')) {
       msg =
-        'A data de cada linha tem de estar entre o início e o fim do período. Corrija a coluna Data.';
+        'A data de cada linha precisa estar entre o início e o fim do período. Corrija a coluna Data.';
     } else if (e.payload?.code === 'BULK_NO_ROWS_SAVED' || String(msg).includes('Nenhuma linha foi gravada')) {
       msg =
         e.payload?.error ||
-        'Nenhuma linha foi gravada. Verifique funcionário, data dentro do período e que não há duplicados (mesmo dia + projeto).';
+        'Nenhuma linha foi salva. Verifique funcionário, data dentro do período e se não há duplicados (mesmo dia e projeto).';
     }
     window.crmToast?.error?.(msg);
   }
@@ -2015,7 +2024,7 @@ document.getElementById('previewCancelClose')?.addEventListener('click', () => c
 document.getElementById('previewSaveAdjustments')?.addEventListener('click', async () => {
   try {
     await saveAdjustmentsFromPreview();
-    window.crmToast?.success?.('Reembolsos e descontos guardados');
+    window.crmToast?.success?.('Reembolsos e descontos salvos');
     await fetchAndShowPreview(true);
   } catch (e) {
     window.crmToast?.error?.(e.message);
@@ -2028,7 +2037,7 @@ document.getElementById('btnReopenPeriod')?.addEventListener('click', async () =
   if (!p || p.status !== 'closed') return;
   if (
     !confirm(
-      'Reabrir este período? O quadro volta a poder ser editado (conforme permissões). Confirma?'
+      'Reabrir este período? A planilha volta a poder ser editada (conforme as permissões). Confirma?'
     )
   ) {
     return;
