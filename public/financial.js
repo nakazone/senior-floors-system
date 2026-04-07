@@ -277,8 +277,8 @@ async function loadOperationalCosts() {
           const rec = r.is_recurring ? `<span class="fin-badge-rec">🔄 ${escapeHtml(r.recurrence_type || '')}</span>` : '—';
           const rc = r.receipt_url
             ? `<a href="${escapeHtml(r.receipt_url)}" target="_blank" rel="noopener">Ver</a>
-               <button type="button" class="fin-btn" data-op-receipt="${r.id}" style="padding:4px 8px;font-size:10px">Upload</button>`
-            : `<button type="button" class="fin-btn" data-op-receipt="${r.id}" style="padding:4px 8px;font-size:10px">Upload</button>`;
+               <button type="button" class="btn btn-sm btn-secondary" data-op-receipt="${r.id}" style="padding:4px 8px;font-size:10px">Upload</button>`
+            : `<button type="button" class="btn btn-sm btn-secondary" data-op-receipt="${r.id}" style="padding:4px 8px;font-size:10px">Upload</button>`;
           return `<tr>
           <td>${escapeHtml(String(r.expense_date).slice(0, 10))}</td>
           <td>${escapeHtml(r.category)}</td>
@@ -287,7 +287,7 @@ async function loadOperationalCosts() {
           <td>${fmt$(r.total_amount)}</td>
           <td>${rec}</td>
           <td>${rc}</td>
-          <td><button type="button" class="fin-btn" data-op-edit="${r.id}" style="padding:4px 8px">Editar</button></td>
+          <td><button type="button" class="btn btn-sm btn-secondary" data-op-edit="${r.id}" style="padding:4px 8px">Editar</button></td>
         </tr>`;
         })
         .join('')
@@ -334,7 +334,7 @@ async function loadVendors() {
         <p style="font-size:12px;color:var(--text-light)">${escapeHtml([v.contact_name, v.contact_email].filter(Boolean).join(' · '))}</p>
         <p style="font-weight:700;margin-top:8px">${fmt$(v.total_spent)}</p>
         <p style="font-size:12px">${v.rating ? '★'.repeat(v.rating) + '☆'.repeat(5 - v.rating) : '—'}</p>
-        <button type="button" class="fin-btn" data-vendor-hist="${v.id}" style="margin-top:8px">Ver histórico →</button>
+        <button type="button" class="btn btn-sm btn-secondary" data-vendor-hist="${v.id}" style="margin-top:8px">Ver histórico →</button>
       </div>`
         )
         .join('')
@@ -390,7 +390,7 @@ async function loadPaymentReceipts() {
       <td>${escapeHtml(String(r.payment_date).slice(0, 10))}</td>
       <td>${escapeHtml(r.payment_method)}</td>
       <td>${escapeHtml(r.reference_number || '')}</td>
-      <td><button type="button" class="fin-btn" data-del-pr="${r.id}" style="padding:4px 8px">✕</button></td>
+      <td><button type="button" class="btn btn-sm btn-secondary" data-del-pr="${r.id}" style="padding:4px 8px">✕</button></td>
     </tr>`
         )
         .join('')

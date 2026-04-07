@@ -38,12 +38,7 @@
     $('panelCustomer').classList.toggle('hidden', builder);
     document.querySelectorAll('.catalog-tab').forEach((btn) => {
       const on = btn.getAttribute('data-catalog-tab') === which;
-      btn.classList.toggle('bg-slate-100', on);
-      btn.classList.toggle('text-slate-900', on);
-      btn.classList.toggle('border-slate-200', on);
-      btn.classList.toggle('border-b-0', on);
-      btn.classList.toggle('border-transparent', !on);
-      btn.classList.toggle('text-slate-600', !on);
+      btn.classList.toggle('catalog-tab--active', on);
     });
   }
 
@@ -79,8 +74,8 @@
         <td class="px-4 py-3 text-right font-mono">${money(effectiveCustomer(r))}</td>
         <td class="px-4 py-3">${active ? '<span class="text-green-700 font-medium">Sim</span>' : '<span class="text-slate-400">Não</span>'}</td>
         <td class="px-4 py-3 text-right space-x-2 whitespace-nowrap">
-          <button type="button" class="text-sm font-medium text-blue-600 hover:underline" data-edit="${r.id}">Editar</button>
-          ${active ? `<button type="button" class="text-sm text-red-600 hover:underline" data-del="${r.id}">Desativar</button>` : `<button type="button" class="text-sm text-green-700 hover:underline" data-rest="${r.id}">Reativar</button>`}
+          <button type="button" class="btn btn-sm btn-secondary" data-edit="${r.id}">Editar</button>
+          ${active ? `<button type="button" class="btn btn-sm btn-danger" data-del="${r.id}">Desativar</button>` : `<button type="button" class="btn btn-sm btn-success" data-rest="${r.id}">Reativar</button>`}
         </td>`;
       tb.appendChild(tr);
     });

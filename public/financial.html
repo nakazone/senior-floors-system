@@ -26,11 +26,7 @@
     <div class="mobile-overlay" id="mobileOverlay"></div>
     <aside class="dashboard-sidebar sf-sidebar" id="finSidebar" aria-label="Menu">
       <div class="sidebar-header">
-        <img src="/assets/SeniorFloors.png" alt="" class="sidebar-brand-logo logo-image" width="48" height="48" onerror="this.style.display='none'" />
-        <div class="sidebar-brand-text">
-          <span class="sidebar-brand-text__name mobile-hidden">Senior Floors CRM</span>
-          <span class="sidebar-brand-text__name mobile-only">CRM</span>
-        </div>
+        <img src="/assets/SeniorFloors.png" alt="Senior Floors" class="sidebar-brand-logo logo-image" width="72" height="72" onerror="this.style.display='none'" />
       </div>
       <nav class="sidebar-nav" aria-label="Principal">
         <div id="crmSharedNavRoot" data-layout="sidebar"></div>
@@ -65,9 +61,9 @@
           </select>
           <input type="date" id="finCustomStart" aria-label="Início" />
           <input type="date" id="finCustomEnd" aria-label="Fim" />
-          <button type="button" class="fin-btn fin-btn--ghost" id="btnFinApplyPeriod">Aplicar datas</button>
-          <button type="button" class="fin-btn" id="btnImportMarketing">↓ Importar Marketing</button>
-          <button type="button" class="fin-btn fin-btn--primary" id="btnAddExpense">+ Adicionar Despesa</button>
+          <button type="button" class="btn btn-sm btn-bar-dark-ghost" id="btnFinApplyPeriod">Aplicar datas</button>
+          <button type="button" class="btn btn-sm btn-bar-dark" id="btnImportMarketing">↓ Importar Marketing</button>
+          <button type="button" class="btn btn-sm btn-primary" id="btnAddExpense">+ Adicionar Despesa</button>
         </div>
       </div>
 
@@ -111,9 +107,9 @@
         <!-- Forecast -->
         <section id="pane-forecast" class="fin-pane" data-pane="forecast" role="tabpanel">
           <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-            <button type="button" class="fin-btn" id="btnPrevWeek">‹ Semana</button>
+            <button type="button" class="btn btn-sm btn-secondary" id="btnPrevWeek">‹ Semana</button>
             <span id="finWeekLabel" style="font-weight:600;color:var(--sf-navy)">—</span>
-            <button type="button" class="fin-btn" id="btnNextWeek">Semana ›</button>
+            <button type="button" class="btn btn-sm btn-secondary" id="btnNextWeek">Semana ›</button>
           </div>
           <div class="fin-kpi-grid">
             <div class="fin-card"><div class="fin-card-val" id="fc-payroll">—</div><div class="fin-card-label">Payroll estimado</div></div>
@@ -135,7 +131,7 @@
           <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center">
             <h2 style="font-size:1.1rem;color:var(--sf-navy)">Custos operacionais</h2>
             <label style="font-size:13px;display:flex;align-items:center;gap:6px"><input type="checkbox" id="opToggleRecurring" /> Só recorrentes</label>
-            <button type="button" class="fin-btn fin-btn--primary" id="btnAddOpCost">+ Adicionar</button>
+            <button type="button" class="btn btn-sm btn-primary" id="btnAddOpCost">+ Adicionar</button>
           </div>
           <div class="fin-kpi-grid" id="op-kpis">
             <div class="fin-card"><div class="fin-card-val" id="op-kpi-month">—</div><div class="fin-card-label">Mês (filtrado)</div></div>
@@ -154,8 +150,8 @@
         <!-- Vendors -->
         <section id="pane-vendors" class="fin-pane" data-pane="vendors" role="tabpanel">
           <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center">
-            <input type="search" id="vendorSearch" placeholder="Buscar fornecedor…" style="flex:1;min-width:200px;padding:8px 12px;border-radius:8px;border:1px solid var(--border-color)" />
-            <button type="button" class="fin-btn fin-btn--primary" id="btnNewVendor">+ Novo fornecedor</button>
+            <input type="search" id="vendorSearch" class="fin-vendor-search" placeholder="Buscar fornecedor…" />
+            <button type="button" class="btn btn-sm btn-primary" id="btnNewVendor">+ Novo fornecedor</button>
           </div>
           <div class="fin-vendor-grid" id="vendor-grid"></div>
         </section>
@@ -169,7 +165,7 @@
                 <thead><tr><th>Projeto</th><th>Tipo</th><th>Valor</th><th>Data</th><th>Método</th><th>Ref.</th><th></th></tr></thead>
                 <tbody id="payrecv-body"></tbody>
               </table>
-              <div style="padding:12px"><button type="button" class="fin-btn" id="btnAddPaymentRecv">+ Recebimento</button></div>
+              <div style="padding:12px"><button type="button" class="btn btn-sm btn-secondary" id="btnAddPaymentRecv">+ Recebimento</button></div>
             </div>
             <div class="fin-card" style="flex:1;min-width:240px">
               <div class="fin-card-label">Pendente (contrato − recebido)</div>
@@ -195,8 +191,8 @@
         <input id="exp-vendor" class="fin-form-full" placeholder="Fornecedor (texto)" />
       </div>
       <div style="margin-top:16px;display:flex;gap:10px;justify-content:flex-end">
-        <button type="button" class="fin-btn" data-close="modalExpense">Cancelar</button>
-        <button type="button" class="fin-btn fin-btn--primary" id="btnSaveExpense">Guardar</button>
+        <button type="button" class="btn btn-secondary" data-close="modalExpense">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="btnSaveExpense">Guardar</button>
       </div>
     </div>
   </div>
@@ -225,8 +221,8 @@
         <input id="op-rec-end" type="date" style="display:none" />
       </div>
       <div style="margin-top:16px;display:flex;gap:10px;justify-content:flex-end">
-        <button type="button" class="fin-btn" data-close="modalOpCost">Cancelar</button>
-        <button type="button" class="fin-btn fin-btn--primary" id="btnSaveOpCost">Guardar</button>
+        <button type="button" class="btn btn-secondary" data-close="modalOpCost">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="btnSaveOpCost">Guardar</button>
       </div>
     </div>
   </div>
@@ -252,8 +248,8 @@
         <textarea id="v-notes" class="fin-form-full" rows="2" placeholder="Notas"></textarea>
       </div>
       <div style="margin-top:16px;display:flex;gap:10px;justify-content:flex-end">
-        <button type="button" class="fin-btn" data-close="modalVendor">Cancelar</button>
-        <button type="button" class="fin-btn fin-btn--primary" id="btnSaveVendor">Guardar</button>
+        <button type="button" class="btn btn-secondary" data-close="modalVendor">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="btnSaveVendor">Guardar</button>
       </div>
     </div>
   </div>
@@ -270,8 +266,8 @@
         <input id="pr-ref" class="fin-form-full" placeholder="Referência" />
       </div>
       <div style="margin-top:16px;display:flex;gap:10px;justify-content:flex-end">
-        <button type="button" class="fin-btn" data-close="modalPayRecv">Cancelar</button>
-        <button type="button" class="fin-btn fin-btn--primary" id="btnSavePayRecv">Guardar</button>
+        <button type="button" class="btn btn-secondary" data-close="modalPayRecv">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="btnSavePayRecv">Guardar</button>
       </div>
     </div>
   </div>
@@ -279,7 +275,7 @@
   <div class="fin-drawer" id="vendorDrawer" aria-hidden="true">
     <div class="fin-drawer-h">
       <span id="vendorDrawerTitle">Histórico</span>
-      <button type="button" class="fin-btn fin-btn--ghost" id="vendorDrawerClose">✕</button>
+      <button type="button" class="btn btn-sm btn-bar-dark-ghost" id="vendorDrawerClose">✕</button>
     </div>
     <div class="fin-drawer-b" id="vendorDrawerBody"></div>
   </div>
@@ -287,12 +283,12 @@
   <div class="fin-modal-backdrop" id="lightboxReceipt" style="z-index:950">
     <div class="fin-modal" style="max-width:90vw">
       <img id="lightboxImg" src="" alt="Recibo" style="max-width:100%;height:auto" />
-      <button type="button" class="fin-btn" data-close="lightboxReceipt" style="margin-top:12px">Fechar</button>
+      <button type="button" class="btn btn-secondary" data-close="lightboxReceipt" style="margin-top:12px">Fechar</button>
     </div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-  <script src="crm-shared-nav.js?v=5"></script>
+  <script src="crm-shared-nav.js?v=6"></script>
   <script src="financial.js?v=1"></script>
 </body>
 </html>

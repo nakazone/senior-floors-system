@@ -49,15 +49,20 @@
 .crm-shared-nav__brand {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 0.35rem;
   margin-right: 0.35rem;
   text-decoration: none;
   color: #fff;
   font-weight: 700;
   font-size: 0.8rem;
-  padding: 0.25rem 0.4rem;
-  border-radius: 6px;
+  padding: 0.2rem 0.35rem;
+  border-radius: var(--radius-md, 8px);
   flex-shrink: 0;
+}
+
+.crm-shared-nav__brand--logo-only {
+  padding: 0.25rem 0.45rem;
 }
 
 .crm-shared-nav__brand:hover {
@@ -65,9 +70,12 @@
   color: #fff;
 }
 
-.crm-shared-nav__brand img {
-  height: 26px;
-  width: auto;
+.crm-shared-nav__brand img,
+.crm-shared-nav__brand-logo {
+  width: 44px;
+  height: 44px;
+  object-fit: contain;
+  display: block;
 }
 
 .crm-shared-nav__sep {

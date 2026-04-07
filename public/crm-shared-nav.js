@@ -211,11 +211,11 @@
     inner.className = 'crm-shared-nav__inner';
 
     const brand = document.createElement('a');
-    brand.className = 'crm-shared-nav__brand';
+    brand.className = 'crm-shared-nav__brand crm-shared-nav__brand--logo-only';
     brand.href = 'dashboard.html';
+    brand.setAttribute('aria-label', 'Senior Floors CRM — início');
     brand.innerHTML =
-      '<img src="/assets/SeniorFloors.png" alt="" width="28" height="28" onerror="this.style.display=\'none\'" />';
-    brand.appendChild(document.createTextNode(' CRM'));
+      '<img src="/assets/SeniorFloors.png" alt="" class="crm-shared-nav__brand-logo" width="44" height="44" onerror="this.style.display=\'none\'" />';
     inner.appendChild(brand);
 
     MAIN_NAV.forEach((item) => {

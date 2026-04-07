@@ -89,6 +89,7 @@
   --tablet: 1024px;
 
   --crm-sidebar-width: 264px;
+  --sf-gold-bg: #f8f2ea;
 }
 
 html {
@@ -120,15 +121,23 @@ body.dashboard-app-body {
 }
 
 .sidebar-header {
-  padding: 1.25rem 1rem 1rem;
+  padding: 1.1rem 0.75rem 1rem;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   align-items: center;
-  gap: 0.5rem;
+  justify-content: center;
+  gap: 0;
 }
 
-.sidebar-header .sidebar-brand-logo {
-  width: 48px;
-  height: 48px;
+/* Menu lateral: só logótipo (textos removidos no HTML); fallback se ainda existirem nós antigos */
+.dashboard-sidebar .sidebar-brand-text {
+  display: none !important;
+}
+
+.sidebar-header .sidebar-brand-logo,
+.sidebar-header img.sidebar-brand-logo {
+  width: 72px;
+  height: 72px;
+  max-width: 100%;
   object-fit: contain;
 }
 
@@ -350,7 +359,19 @@ body.dashboard-app-body {
 }
 
 /* ---------- Buttons (global onde design-system está ligado) ---------- */
-.btn {
+.btn,
+.mk-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  line-height: 1.25;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  text-decoration: none;
+  box-sizing: border-box;
+  appearance: none;
+  -webkit-appearance: none;
   border-radius: var(--radius-md);
   padding: 8px 16px;
   font-size: var(--text-sm);
@@ -359,24 +380,28 @@ body.dashboard-app-body {
   box-shadow: none;
 }
 
-.btn-primary {
+.btn-primary,
+.mk-btn--primary {
   background: var(--color-accent);
   color: #fff;
   border-color: transparent;
 }
 
-.btn-primary:hover {
+.btn-primary:hover,
+.mk-btn--primary:hover {
   background: var(--color-accent-hover);
   color: #fff;
 }
 
-.btn-secondary {
+.btn-secondary,
+.mk-btn:not(.mk-btn--primary) {
   background: var(--color-surface);
   color: var(--color-text-primary);
   border: 1px solid var(--color-border);
 }
 
-.btn-secondary:hover {
+.btn-secondary:hover,
+.mk-btn:not(.mk-btn--primary):hover {
   background: var(--color-surface-secondary);
   border-color: var(--color-text-muted);
   color: var(--color-text-primary);
@@ -393,28 +418,70 @@ body.dashboard-app-body {
   color: #fff;
 }
 
+.btn-success {
+  background: var(--color-success);
+  color: #fff;
+  border-color: transparent;
+}
+
+.btn-success:hover {
+  filter: brightness(0.95);
+  color: #fff;
+}
+
+/* Barra superior escura (ex.: Financeiro) */
+.btn-bar-dark {
+  background: var(--sf-gold-bg, #f8f2ea);
+  color: var(--color-primary);
+  border: 1px solid var(--color-accent);
+}
+
+.btn-bar-dark:hover {
+  filter: brightness(0.97);
+  color: var(--color-primary);
+}
+
+.btn-bar-dark-ghost {
+  background: transparent;
+  color: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+}
+
+.btn-bar-dark-ghost:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
 .btn-sm {
   padding: 6px 12px;
   font-size: 12px;
 }
 
-.btn:focus-visible {
+.btn-block {
+  width: 100%;
+}
+
+.btn:focus-visible,
+.mk-btn:focus-visible {
   outline: none;
   box-shadow: var(--focus-ring);
 }
 
-.btn:disabled {
+.btn:disabled,
+.mk-btn:disabled {
   opacity: 0.55;
   cursor: not-allowed;
 }
 
-.btn--loading {
+.btn--loading,
+.mk-btn--loading {
   position: relative;
   color: transparent !important;
   pointer-events: none;
 }
 
-.btn--loading::after {
+.btn--loading::after,
+.mk-btn--loading::after {
   content: '';
   position: absolute;
   width: 1rem;
@@ -429,7 +496,8 @@ body.dashboard-app-body {
 }
 
 .btn-secondary.btn--loading::after,
-.btn--loading.btn-secondary::after {
+.btn--loading.btn-secondary::after,
+.mk-btn:not(.mk-btn--primary).mk-btn--loading::after {
   border-color: rgba(0, 0, 0, 0.12);
   border-top-color: var(--color-accent);
 }
@@ -604,8 +672,11 @@ body.dashboard-app-body {
   background: transparent !important;
 }
 
-/* ---------- Forms ---------- */
-.dashboard-content .form-group label {
+/* ---------- Forms (dashboard + páginas CRM + modais fora do main) ---------- */
+.dashboard-content .form-group label,
+body.dashboard-app-body main .form-group label,
+body.dashboard-app-body .mk-modal .form-group label,
+body.dashboard-app-body .proj-form-row label {
   display: block;
   font-size: 12px;
   font-weight: var(--font-medium);
@@ -613,15 +684,36 @@ body.dashboard-app-body {
   margin-bottom: 6px;
 }
 
-.dashboard-content input[type='text'],
-.dashboard-content input[type='email'],
-.dashboard-content input[type='password'],
-.dashboard-content input[type='number'],
-.dashboard-content input[type='search'],
-.dashboard-content input[type='date'],
-.dashboard-content input[type='tel'],
-.dashboard-content select,
-.dashboard-content textarea {
+:is(
+    .dashboard-content,
+    body.dashboard-app-body main,
+    body.dashboard-app-body .mk-modal,
+    body.dashboard-app-body .proj-modal,
+    body.dashboard-app-body .fin-modal,
+    body.dashboard-app-body #empModal,
+    body.dashboard-app-body #periodPickerModal,
+    body.dashboard-app-body #previewModal,
+    body.dashboard-app-body #shareSlipsModalPanel,
+    body.crm-standalone-page main:not(#mainScroll),
+    body.crm-standalone-page #modal
+  )
+  :is(
+    input[type='text'],
+    input[type='email'],
+    input[type='password'],
+    input[type='number'],
+    input[type='search'],
+    input[type='date'],
+    input[type='datetime-local'],
+    input[type='time'],
+    input[type='tel'],
+    input[type='url'],
+    input[type='month'],
+    input[type='week'],
+    input:not([type]),
+    select,
+    textarea
+  ) {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   padding: 9px 12px;
@@ -632,9 +724,36 @@ body.dashboard-app-body {
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-.dashboard-content input:focus,
-.dashboard-content select:focus,
-.dashboard-content textarea:focus {
+:is(
+    .dashboard-content,
+    body.dashboard-app-body main,
+    body.dashboard-app-body .mk-modal,
+    body.dashboard-app-body .proj-modal,
+    body.dashboard-app-body .fin-modal,
+    body.dashboard-app-body #empModal,
+    body.dashboard-app-body #periodPickerModal,
+    body.dashboard-app-body #previewModal,
+    body.dashboard-app-body #shareSlipsModalPanel,
+    body.crm-standalone-page main:not(#mainScroll),
+    body.crm-standalone-page #modal
+  )
+  :is(
+    input[type='text'],
+    input[type='email'],
+    input[type='password'],
+    input[type='number'],
+    input[type='search'],
+    input[type='date'],
+    input[type='datetime-local'],
+    input[type='time'],
+    input[type='tel'],
+    input[type='url'],
+    input[type='month'],
+    input[type='week'],
+    input:not([type]),
+    select,
+    textarea
+  ):focus {
   outline: none;
   border-color: var(--color-accent);
   box-shadow: var(--focus-ring);
@@ -642,7 +761,19 @@ body.dashboard-app-body {
 
 .dashboard-content .form-group input.is-error,
 .dashboard-content .form-group select.is-error,
-.dashboard-content .form-group textarea.is-error {
+.dashboard-content .form-group textarea.is-error,
+body.dashboard-app-body main .form-group input.is-error,
+body.dashboard-app-body main .form-group select.is-error,
+body.dashboard-app-body main .form-group textarea.is-error,
+body.dashboard-app-body .mk-modal .form-group input.is-error,
+body.dashboard-app-body .mk-modal .form-group select.is-error,
+body.dashboard-app-body .mk-modal .form-group textarea.is-error,
+body.crm-standalone-page main:not(#mainScroll) .form-group input.is-error,
+body.crm-standalone-page main:not(#mainScroll) .form-group select.is-error,
+body.crm-standalone-page main:not(#mainScroll) .form-group textarea.is-error,
+body.crm-standalone-page #modal .form-group input.is-error,
+body.crm-standalone-page #modal .form-group select.is-error,
+body.crm-standalone-page #modal .form-group textarea.is-error {
   border-color: var(--color-danger);
 }
 

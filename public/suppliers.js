@@ -35,8 +35,8 @@
         <td class="px-4 py-3">${esc(r.email)}</td>
         <td class="px-4 py-3">${on ? 'Yes' : 'No'}</td>
         <td class="px-4 py-3 text-right space-x-2">
-          <button type="button" class="text-blue-600 text-sm" data-edit="${r.id}">Edit</button>
-          ${on ? `<button type="button" class="text-red-600 text-sm" data-del="${r.id}">Deactivate</button>` : ''}
+          <button type="button" class="btn btn-sm btn-secondary" data-edit="${r.id}">Edit</button>
+          ${on ? `<button type="button" class="btn btn-sm btn-danger" data-del="${r.id}">Deactivate</button>` : ''}
         </td>`;
       tb.appendChild(tr);
     });

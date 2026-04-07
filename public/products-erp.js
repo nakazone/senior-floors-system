@@ -38,7 +38,7 @@
       div.innerHTML = `<span class="font-medium w-28">${esc(cat)}</span>
         <input type="number" step="0.01" min="0" data-cat="${esc(cat)}" value="${row.margin_percentage}" class="border rounded px-2 py-1 w-24 text-sm" />
         <span class="text-slate-500">%</span>
-        <button type="button" class="text-xs text-blue-600 ml-auto save-margin" data-cat="${esc(cat)}">Save</button>`;
+        <button type="button" class="btn btn-sm btn-primary ml-auto save-margin" data-cat="${esc(cat)}">Save</button>`;
       wrap.appendChild(div);
     });
     wrap.querySelectorAll('.save-margin').forEach((btn) => {
@@ -99,8 +99,8 @@
         <td class="px-3 py-2">${esc(p.sku)}</td>
         <td class="px-3 py-2">${on ? 'Yes' : 'No'}</td>
         <td class="px-3 py-2 text-right space-x-2">
-          <button type="button" class="text-blue-600 text-sm" data-edit="${p.id}">Edit</button>
-          ${on ? `<button type="button" class="text-red-600 text-sm" data-del="${p.id}">Deactivate</button>` : ''}
+          <button type="button" class="btn btn-sm btn-secondary" data-edit="${p.id}">Edit</button>
+          ${on ? `<button type="button" class="btn btn-sm btn-danger" data-del="${p.id}">Deactivate</button>` : ''}
         </td>`;
       tb.appendChild(tr);
     });

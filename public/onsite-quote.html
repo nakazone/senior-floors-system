@@ -6,7 +6,12 @@
   <meta name="theme-color" content="#1a2036" />
   <title>Quick Quote — Senior Floors</title>
   <link rel="icon" type="image/png" href="/assets/SeniorFloors.png" />
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="design-system.css" />
   <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = { corePlugins: { preflight: false } };
+  </script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="crm-shared-nav.css" />
   <link rel="stylesheet" href="design-system.css" />
@@ -32,7 +37,7 @@
     details.os-details:not([open]) > summary::after { transform: rotate(-90deg); display: inline-block; }
   </style>
 </head>
-<body class="bg-slate-100 text-slate-900 min-h-screen">
+<body class="crm-standalone-page bg-slate-100 text-slate-900 min-h-screen">
   <p id="authBanner" class="hidden fixed top-0 left-0 right-0 z-[10060] bg-red-600 text-white text-center text-sm py-2 px-3 os-safe-pt"></p>
 
   <div id="osTopFixed" class="fixed top-0 left-0 right-0 z-[10040] flex flex-col shadow-lg os-safe-pt">
@@ -242,7 +247,7 @@
     <button type="button" id="btnVoice" class="mt-2 w-full py-2 rounded-xl bg-slate-100 text-slate-700 font-semibold text-sm">Try voice</button>
   </div>
 
-  <script src="crm-shared-nav.js?v=2"></script>
+  <script src="crm-shared-nav.js?v=6"></script>
   <script src="crm-toast.js"></script>
   <script src="onsite-quote.js"></script>
 </body>

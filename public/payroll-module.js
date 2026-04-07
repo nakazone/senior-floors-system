@@ -338,7 +338,7 @@ function renderEmployeeTable() {
       <td class="px-3 py-2 text-right">${money(e.overtime_rate)}</td>
       <td class="px-3 py-2">${escapeHtml(e.payment_method || '—')}</td>
       <td class="px-3 py-2 text-right">
-        ${canManage ? `<button type="button" class="text-[#1a2036] font-semibold underline text-xs emp-edit" data-id="${e.id}">Editar</button>` : '—'}
+        ${canManage ? `<button type="button" class="btn btn-sm btn-secondary emp-edit" data-id="${e.id}">Editar</button>` : '—'}
       </td>`;
     tb.appendChild(tr);
   });
@@ -616,11 +616,9 @@ function renderPeriodPickerUi() {
     const inWeek = selMon && selSun && ymd >= selMon && ymd <= selSun;
     const b = document.createElement('button');
     b.type = 'button';
-    b.className = [
-      'rounded-lg text-sm font-medium border min-h-[2.25rem]',
-      inWeek ? 'bg-[#1a2036] text-[#d6b598] border-[#1a2036]' : 'bg-white border-slate-200 text-slate-800 hover:bg-slate-50',
-      inMonth ? '' : 'opacity-35',
-    ].join(' ');
+    b.className = ['btn btn-sm', inWeek ? 'btn-primary' : 'btn-secondary', inMonth ? '' : 'opacity-35']
+      .filter(Boolean)
+      .join(' ');
     b.textContent = String(cell.getDate());
     b.addEventListener('click', () => {
       periodPickerMondayYmd = mondayYmdOfCalendarDate(ymd);
@@ -1631,7 +1629,7 @@ async function openShareSlipsModal() {
       .map(
         (r) => `<div class="flex items-center justify-between gap-2 border-b border-slate-100 py-3 px-2">
         <span class="font-medium text-sm text-slate-900 truncate min-w-0">${escapeHtml(r.name || '—')}</span>
-        <button type="button" class="share-slip-btn shrink-0 px-3 py-2.5 rounded-xl sm:rounded-lg bg-[#1a2036] text-[#d6b598] text-xs font-bold touch-manipulation" data-eid="${r.id}">Compartilhar</button>
+        <button type="button" class="btn btn-sm btn-primary shrink-0 share-slip-btn touch-manipulation" data-eid="${r.id}">Compartilhar</button>
       </div>`
       )
       .join('');

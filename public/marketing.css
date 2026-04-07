@@ -59,38 +59,27 @@ body.marketing-page {
   flex-wrap: wrap;
 }
 .mk-pill {
-  border: 1px solid #e5e7eb;
-  background: #fff;
-  padding: 0.45rem 0.85rem;
-  border-radius: 999px;
-  font-size: 0.8125rem;
-  font-weight: 500;
+  border: 1px solid var(--color-border, #e5e3dd);
+  background: var(--color-surface, #fff);
+  padding: 8px 14px;
+  border-radius: var(--radius-md, 8px);
+  font-family: var(--font-sans, inherit);
+  font-size: var(--text-sm, 13px);
+  font-weight: var(--font-medium, 500);
   cursor: pointer;
-  color: var(--color-text);
+  color: var(--color-text-secondary, #6b6b6b);
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
 }
 .mk-pill:hover {
-  border-color: var(--color-accent);
+  border-color: var(--color-accent, #c8a96e);
+  color: var(--color-text-primary, #1a1a1a);
 }
 .mk-pill--active {
-  background: var(--color-primary);
-  color: #fff;
-  border-color: var(--color-primary);
+  background: var(--sf-gold-bg, #f8f2ea);
+  color: var(--color-primary, #1a1a2e);
+  border-color: var(--color-accent, #c8a96e);
 }
-.mk-btn {
-  border: none;
-  border-radius: var(--radius);
-  padding: 0.5rem 0.9rem;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  cursor: pointer;
-  background: #fff;
-  box-shadow: var(--shadow);
-  color: var(--color-text);
-}
-.mk-btn--primary {
-  background: var(--color-primary);
-  color: #fff;
-}
+/* .mk-btn / .mk-btn--primary → design-system.css (alinhado a .btn) */
 
 .mk-goals-bar {
   display: grid;
@@ -424,10 +413,6 @@ table.mk-trend tbody tr:last-child {
 .mk-form-row textarea {
   width: 100%;
   box-sizing: border-box;
-  padding: 0.5rem 0.65rem;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  font-size: 0.875rem;
 }
 .mk-modal__foot {
   padding: 1rem 1.25rem;
@@ -468,17 +453,29 @@ table.mk-trend tbody tr:last-child {
   gap: 0.75rem;
 }
 .mk-platform-pick button {
-  padding: 1rem;
-  border: 2px solid #e5e7eb;
-  border-radius: var(--radius);
-  background: #fff;
-  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 9px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  font-family: var(--font-sans);
+  font-weight: var(--font-semibold);
+  font-size: var(--text-sm);
+  color: var(--color-text-primary);
   cursor: pointer;
-  font-size: 0.9rem;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.mk-platform-pick button:hover {
+  border-color: var(--color-text-muted);
+  background: var(--color-surface-secondary);
 }
 .mk-platform-pick button.selected {
-  border-color: var(--color-primary);
-  background: rgba(26, 26, 46, 0.04);
+  border-color: var(--color-accent);
+  box-shadow: var(--focus-ring);
+  background: var(--color-surface-secondary);
 }
 
 .skeleton {
