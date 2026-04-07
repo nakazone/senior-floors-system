@@ -37,6 +37,18 @@ function fmtQty(n) {
   return Number.isInteger(x) ? String(x) : String(Math.round(x * 100) / 100);
 }
 
+/** StandardFonts (Helvetica) usam WinAnsi — sem →, — longo, etc. */
+function winAnsiSafe(s, maxLen) {
+  let t = String(s ?? '')
+    .replace(/\u2192/g, '->')
+    .replace(/\u2014/g, '-')
+    .replace(/\u2013/g, '-')
+    .replace(/\u00A0/g, ' ');
+  t = t.replace(/[^\u0020-\u007E\u00A0-\u00FF]/g, '');
+  if (maxLen != null) t = t.slice(0, maxLen);
+  return t;
+}
+
 async function tryEmbedLogo(pdf) {
   const candidates = [
     path.join(__dirname, '../../public/assets/SeniorFloors.png'),
@@ -201,16 +213,16 @@ export async function buildPayrollSlipPdfBuffer(opts) {
     color: PAL.secondaryDark,
   });
 
-  const perName = period?.name ? String(period.name) : 'Período';
+  const perName = winAnsiSafe(period?.name ? String(period.name) : 'Período', 42);
   const d0 = period?.start_date ? String(period.start_date).slice(0, 10) : '';
   const d1 = period?.end_date ? String(period.end_date).slice(0, 10) : '';
   let ry = panelTopY - 14;
   page.drawText('PAY SLIP', { x: rightX, y: ry, size: 10, font: fontBold, color: PAL.primary });
   ry -= lineH;
-  page.drawText(perName.slice(0, 42), { x: rightX, y: ry, size: 9, font: fontBold, color: PAL.secondaryDark });
+  page.drawText(perName, { x: rightX, y: ry, size: 9, font: fontBold, color: PAL.secondaryDark });
   ry -= lineH;
   if (d0 && d1) {
-    page.drawText(`${d0} → ${d1}`, { x: rightX, y: ry, size: 8, font, color: PAL.lineMuted });
+    page.drawText(`${d0} - ${d1}`, { x: rightX, y: ry, size: 8, font, color: PAL.lineMuted });
     ry -= lineH;
   }
   page.drawText(`Emitido: ${new Date().toISOString().slice(0, 10)}`, {
@@ -225,7 +237,7 @@ export async function buildPayrollSlipPdfBuffer(opts) {
 
   page.drawText('Funcionário(a)', { x: margin, y, size: 9, font: fontBold, color: PAL.secondaryDark });
   y -= lineH;
-  page.drawText(String(row.name || '—').slice(0, 80), { x: margin, y, size: 11, font: fontBold, color: PAL.primary });
+  page.drawText(winAnsiSafe(row.name || '-', 80), { x: margin, y, size: 11, font: fontBold, color: PAL.primary });
   y -= lineH;
   page.drawText(`Setor: ${sectorLabel(row.sector)}`, { x: margin, y, size: 8.5, font, color: PAL.lineMuted });
   y -= 16;
@@ -341,7 +353,7 @@ export async function buildPayrollSlipPdfBuffer(opts) {
   });
   y = barBottom - 12;
 
-  page.drawText('Documento confidencial — uso interno / funcionário.', {
+  page.drawText('Documento confidencial - uso interno / funcionário.', {
     x: margin,
     y: Math.max(36, y),
     size: 7,
