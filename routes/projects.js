@@ -487,6 +487,37 @@ router.post('/', ...allAuthed, requirePermission('projects.create'), async (req,
   }
 });
 
+/** Taxas da folha de construção (diária/hora) para projeção de mão-de-obra no projeto — só exige projects.view. */
+router.get(
+  '/lookup/construction-payroll-rates',
+  ...allAuthed,
+  requirePermission('projects.view'),
+  async (req, res) => {
+    try {
+      const pool = await getDBConnection();
+      if (!pool) return res.status(503).json({ success: false, error: 'Database not available' });
+      if (!(await tableExists(pool, 'construction_payroll_employees'))) {
+        return res.json({ success: true, data: [] });
+      }
+      const [rows] = await pool.query(
+        `SELECT id, name, role, payment_type, daily_rate, hourly_rate, overtime_rate
+         FROM construction_payroll_employees
+         WHERE is_active = 1
+         ORDER BY name ASC`
+      );
+      res.json({
+        success: true,
+        data: rows.map((r) =>
+          floatMoneyFields(r, ['daily_rate', 'hourly_rate', 'overtime_rate'])
+        ),
+      });
+    } catch (e) {
+      console.error('lookup construction-payroll-rates', e);
+      res.status(500).json({ success: false, error: e.message });
+    }
+  }
+);
+
 router.get('/:id/profitability', ...allAuthed, requirePermission('projects.view'), async (req, res) => {
   try {
     const pool = await getDBConnection();

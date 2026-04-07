@@ -8,6 +8,8 @@ let checklistGrouped = {};
 let photosByPhase = { before: [], during: [], after: [] };
 let activeTab = 'overview';
 let galleryUploadPhase = 'during';
+/** @type {Array<{id:number,name:string,role?:string,payment_type:string,daily_rate?:number,hourly_rate?:number}>} */
+let constructionPayrollRates = [];
 
 const fmt$ = (v) =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(
@@ -29,7 +31,7 @@ function switchTab(tab) {
   activeTab = tab;
   document.querySelectorAll('.tab-btn').forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
   document.querySelectorAll('.tab-pane').forEach((p) => {
-    p.style.display = p.id === `tab-${tab}` ? 'block' : 'none';
+    p.style.display = p.id === `tab-${tab}` ? 'flex' : 'none';
   });
 }
 
@@ -38,18 +40,22 @@ async function loadProject() {
     window.location.href = 'projects.html';
     return;
   }
-  const [projRes, plRes, checkRes, photoRes] = await Promise.all([
+  const [projRes, plRes, checkRes, photoRes, payrollRes] = await Promise.all([
     fetch(`/api/projects/${projectId}`, { credentials: 'include' }),
     fetch(`/api/projects/${projectId}/profitability`, { credentials: 'include' }),
     fetch(`/api/projects/${projectId}/checklist`, { credentials: 'include' }),
     fetch(`/api/projects/${projectId}/photos`, { credentials: 'include' }),
+    fetch('/api/projects/lookup/construction-payroll-rates', { credentials: 'include' }),
   ]);
-  const [projData, plJson, checkJson, photoJson] = await Promise.all([
+  const [projData, plJson, checkJson, photoJson, payrollJson] = await Promise.all([
     projRes.json(),
     plRes.json(),
     checkRes.json(),
     photoRes.json(),
+    payrollRes.json().catch(() => ({})),
   ]);
+  constructionPayrollRates =
+    payrollJson && payrollJson.success && Array.isArray(payrollJson.data) ? payrollJson.data : [];
   if (!projRes.ok || !projData.success) {
     showToast(projData.error || 'Projeto não encontrado', 'error');
     return;
@@ -444,7 +450,7 @@ function renderCostsTab(p) {
   el.innerHTML = `
     <button type="button" class="pd-btn pd-btn--primary" id="btn-sync-payroll-tab" style="margin-bottom:14px">🔄 Importar da folha de pagamento</button>
     <p style="font-weight:700;color:var(--sf-navy);margin-bottom:12px">Total custos: ${fmt$(grand)}</p>
-    ${costSection('labor', 'Mão de obra (labor)', labor, sumLabor, 'labor')}
+    ${costSection('labor', 'Mão de obra (labor)', labor, sumLabor, 'labor', null, constructionPayrollRates)}
     ${costSection('material', 'Materiais (stock)', [], sumMat, 'material', materials)}
     ${costSection('additional', 'Adicional', additional, sumAdd, 'additional')}
   `;
@@ -455,9 +461,17 @@ function renderCostsTab(p) {
   document.getElementById('btn-sync-payroll-tab')?.addEventListener('click', syncPayroll);
 }
 
-function costSection(key, title, rows, sum, type, matRows) {
+function costSection(key, title, rows, sum, type, matRows, payrollEmployees) {
   const isMat = type === 'material';
   const list = isMat ? matRows : rows;
+  const matExtra =
+    isMat
+      ? `<div class="pd-inline-form pd-mat-general" style="margin-top:14px;padding-top:14px;border-top:1px solid var(--sf-border)">
+    <p style="grid-column:1/-1;font-size:13px;color:var(--sf-muted);margin:0 0 4px">Custos gerais de materiais (valor único, ex. consumíveis diversos)</p>
+    ${materialGeneralFormFields()}
+    <button type="button" class="pd-btn pd-btn--primary" style="grid-column:1/-1" data-submit-general-material>+ Adicionar custo geral</button>
+  </div>`
+      : '';
   return `
     <div class="pd-collapsible open" data-section="${key}">
       <div class="pd-collapsible-h"><span>${title}</span><span>${fmt$(sum)}</span></div>
@@ -469,24 +483,54 @@ function costSection(key, title, rows, sum, type, matRows) {
           </tbody>
         </table>
         <div class="pd-inline-form" data-add="${type}">
-          ${isMat ? materialFormFields() : type === 'labor' ? laborFormFields() : additionalFormFields()}
+          ${isMat ? materialFormFields() : type === 'labor' ? laborFormFields(payrollEmployees || []) : additionalFormFields()}
           <button type="button" class="pd-btn pd-btn--primary" style="grid-column:1/-1" data-submit-cost="${type}">+ Adicionar</button>
         </div>
+        ${matExtra}
       </div>
     </div>`;
 }
 
-function laborFormFields() {
+function laborFormFields(employees) {
+  const opts =
+    employees && employees.length
+      ? employees
+          .map((e) => {
+            const pt = e.payment_type || 'daily';
+            const hint = pt === 'hourly' ? 'hora' : pt === 'mixed' ? 'misto' : 'diária';
+            const label = `${e.name || ''}${e.role ? ' — ' + e.role : ''} (${hint})`;
+            const dr = parseFloat(e.daily_rate) || 0;
+            const hr = parseFloat(e.hourly_rate) || 0;
+            return `<option value="${e.id}" data-payment="${escapeHtml(pt)}" data-daily="${dr}" data-hourly="${hr}" data-name="${escapeHtml(e.name || '')}">${escapeHtml(label)}</option>`;
+          })
+          .join('')
+      : '';
+  const payrollHint =
+    employees && employees.length
+      ? ''
+      : '<p style="grid-column:1/-1;font-size:12px;color:var(--sf-muted);margin:0">Nenhum funcionário ativo na folha de construção — preencha custo e unidade manualmente.</p>';
   return `
+    <select data-f="payroll_pick" style="grid-column:1/-1">
+      <option value="">— Funcionário (folha) / aplicar diária ou hora —</option>
+      ${opts}
+    </select>
+    ${payrollHint}
     <select data-f="is_projected" style="grid-column:1/-1">
       <option value="0">Custo real</option>
       <option value="1">Projetado</option>
     </select>
     <input type="text" data-f="description" placeholder="Descrição" />
-    <input type="number" data-f="quantity" placeholder="Qtd" step="0.01" value="1" />
+    <input type="number" data-f="quantity" placeholder="Qtd (ex. nº de diárias)" step="0.01" value="1" />
     <input type="text" data-f="unit" placeholder="Unidade (dias, h…)" />
-    <input type="number" data-f="unit_cost" placeholder="Custo unit." step="0.01" />
+    <input type="number" data-f="unit_cost" placeholder="Custo unit. (preenche pela folha)" step="0.01" />
     <select data-f="service_category"><option value="general">general</option><option value="supply">supply</option><option value="installation">installation</option><option value="sand_finish">sand_finish</option></select>`;
+}
+
+function materialGeneralFormFields() {
+  return `
+    <input type="number" data-f="general_total" placeholder="Valor total ($)" step="0.01" min="0" />
+    <select data-f="general_category"><option value="general">general</option><option value="supply">supply</option><option value="installation">installation</option><option value="sand_finish">sand_finish</option></select>
+    <input type="text" data-f="general_notes" placeholder="Notas (opcional)" style="grid-column:1/-1" />`;
 }
 
 function materialFormFields() {
@@ -529,7 +573,78 @@ function costRowHtml(r, isMat) {
     <td><button type="button" class="pd-btn" data-del-cost="${r.id}">✕</button></td></tr>`;
 }
 
+function wirePayrollPick(root) {
+  root.querySelectorAll('[data-f="payroll_pick"]').forEach((sel) => {
+    sel.addEventListener('change', () => {
+      const opt = sel.selectedOptions[0];
+      if (!opt || !sel.value) return;
+      const form = sel.closest('.pd-inline-form');
+      if (!form) return;
+      const pt = (opt.getAttribute('data-payment') || 'daily').toLowerCase();
+      const daily = parseFloat(opt.getAttribute('data-daily')) || 0;
+      const hourly = parseFloat(opt.getAttribute('data-hourly')) || 0;
+      const uc = form.querySelector('[data-f="unit_cost"]');
+      const u = form.querySelector('[data-f="unit"]');
+      const desc = form.querySelector('[data-f="description"]');
+      if (pt === 'hourly') {
+        if (uc) uc.value = hourly > 0 ? String(hourly) : '';
+        if (u) u.value = 'h';
+      } else if (pt === 'mixed') {
+        if (daily > 0) {
+          if (uc) uc.value = String(daily);
+          if (u) u.value = 'dias';
+        } else if (hourly > 0) {
+          if (uc) uc.value = String(hourly);
+          if (u) u.value = 'h';
+        }
+      } else {
+        if (uc) uc.value = daily > 0 ? String(daily) : '';
+        if (u) u.value = 'dias';
+      }
+      const name = opt.getAttribute('data-name') || '';
+      if (desc && name && !String(desc.value).trim()) desc.value = name;
+    });
+  });
+}
+
 function wireCostForms(root) {
+  wirePayrollPick(root);
+  root.querySelectorAll('[data-submit-general-material]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const form = btn.closest('.pd-mat-general');
+      const get = (name) => form?.querySelector(`[data-f="${name}"]`)?.value;
+      const total = parseFloat(get('general_total')) || 0;
+      if (total <= 0) {
+        showToast('Informe o valor total dos custos gerais', 'error');
+        return;
+      }
+      const body = {
+        product_name: 'Custos gerais de materiais',
+        unit: 'total',
+        qty_ordered: 1,
+        qty_received: 0,
+        qty_used: 0,
+        unit_cost: total,
+        service_category: get('general_category') || 'general',
+        notes: get('general_notes')?.trim() || null,
+      };
+      const res = await fetch(`/api/projects/${projectId}/materials`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const j = await res.json();
+      if (!res.ok || !j.success) showToast(j.error || 'Erro', 'error');
+      else {
+        showToast('Custo geral de materiais adicionado');
+        form.querySelector('[data-f="general_total"]').value = '';
+        const n = form.querySelector('[data-f="general_notes"]');
+        if (n) n.value = '';
+      }
+      loadProject();
+    });
+  });
   root.querySelectorAll('[data-submit-cost]').forEach((btn) => {
     btn.addEventListener('click', async () => {
       const type = btn.getAttribute('data-submit-cost');
