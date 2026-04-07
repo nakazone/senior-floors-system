@@ -62,7 +62,7 @@ CREATE TABLE IF NOT EXISTS `construction_payroll_timesheets` (
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uniq_period_emp_proj_day` (`period_id`,`employee_id`,`work_date`,`project_id_norm`),
+  KEY `idx_cpt_period_emp_date_proj` (`period_id`,`employee_id`,`work_date`,`project_id_norm`),
   KEY `idx_period` (`period_id`),
   KEY `idx_employee` (`employee_id`),
   KEY `idx_project` (`project_id`),

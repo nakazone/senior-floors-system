@@ -309,6 +309,7 @@ async function loadPeriods(preferId) {
     sel.value = '';
   }
   selectedPeriodId = sel.value ? parseInt(sel.value, 10) : null;
+  syncPeriodSelectedLabel();
   await onPeriodChange();
 }
 
@@ -505,6 +506,166 @@ function defaultWorkDate() {
   return s;
 }
 
+function parseYmdToLocalDate(ymd) {
+  const s = String(ymd || '').slice(0, 10);
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return null;
+  const y = parseInt(m[1], 10);
+  const mo = parseInt(m[2], 10);
+  const d = parseInt(m[3], 10);
+  const dt = new Date(y, mo - 1, d);
+  if (dt.getFullYear() !== y || dt.getMonth() !== mo - 1 || dt.getDate() !== d) return null;
+  return dt;
+}
+
+/** Segunda-feira (YMD) da semana de calendário que contém `ymd`. */
+function mondayYmdOfCalendarDate(ymd) {
+  const dt = parseYmdToLocalDate(ymd);
+  if (!dt) return null;
+  const day = dt.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  dt.setDate(dt.getDate() + diff);
+  return localDateToYMD(dt);
+}
+
+function sundayYmdFromMonday(monYmd) {
+  const dt = parseYmdToLocalDate(monYmd);
+  if (!dt) return null;
+  dt.setDate(dt.getDate() + 6);
+  return localDateToYMD(dt);
+}
+
+function formatYmdBr(ymd) {
+  const s = String(ymd || '').slice(0, 10);
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return s;
+  return `${m[3]}/${m[2]}/${m[1]}`;
+}
+
+function formatPeriodRangeBr(p) {
+  if (!p) return '';
+  const a = String(p.start_date || '').slice(0, 10);
+  const b = String(p.end_date || '').slice(0, 10);
+  return `${formatYmdBr(a)} – ${formatYmdBr(b)}`;
+}
+
+function findPeriodByWeekRange(monYmd, sunYmd) {
+  return periods.find((x) => {
+    const a = String(x.start_date || '').slice(0, 10);
+    const b = String(x.end_date || '').slice(0, 10);
+    return a === monYmd && b === sunYmd;
+  });
+}
+
+function syncPeriodSelectedLabel() {
+  const sel = document.getElementById('periodSelect');
+  const label = document.getElementById('periodSelectedLabel');
+  if (!label || !sel) return;
+  const id = sel.value;
+  if (!id) {
+    label.textContent = 'Nenhum período selecionado';
+    return;
+  }
+  const p = periods.find((x) => String(x.id) === String(id));
+  label.textContent = p ? `${p.name} · ${formatPeriodRangeBr(p)}` : `Período #${id}`;
+}
+
+let periodPickerViewYear = new Date().getFullYear();
+let periodPickerViewMonth = new Date().getMonth();
+let periodPickerMondayYmd = null;
+
+function closePeriodPickerModal() {
+  const m = document.getElementById('periodPickerModal');
+  if (!m) return;
+  m.classList.add('hidden');
+  m.classList.remove('flex');
+}
+
+function startMondayDateForMonthGrid(viewYear, viewMonth) {
+  const first = new Date(viewYear, viewMonth, 1);
+  const dow = first.getDay();
+  const offset = dow === 0 ? -6 : 1 - dow;
+  return new Date(viewYear, viewMonth, 1 + offset);
+}
+
+function renderPeriodPickerUi() {
+  const label = document.getElementById('periodPickerMonthLabel');
+  const grid = document.getElementById('periodPickerGrid');
+  const sumEl = document.getElementById('periodPickerWeekSummary');
+  const stEl = document.getElementById('periodPickerStatus');
+  const btnUse = document.getElementById('periodPickerUse');
+  const btnCreate = document.getElementById('periodPickerCreate');
+  if (!label || !grid || !sumEl || !stEl || !btnUse || !btnCreate) return;
+
+  const d0 = new Date(periodPickerViewYear, periodPickerViewMonth, 1);
+  label.textContent = d0.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+
+  if (!periodPickerMondayYmd) {
+    periodPickerMondayYmd = mondayYmdOfCalendarDate(localTodayISO());
+  }
+
+  const start = startMondayDateForMonthGrid(periodPickerViewYear, periodPickerViewMonth);
+  const selMon = periodPickerMondayYmd;
+  const selSun = sundayYmdFromMonday(selMon);
+  grid.innerHTML = '';
+
+  for (let i = 0; i < 42; i++) {
+    const cell = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
+    const ymd = localDateToYMD(cell);
+    const inMonth = cell.getMonth() === periodPickerViewMonth;
+    const inWeek = selMon && selSun && ymd >= selMon && ymd <= selSun;
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = [
+      'rounded-lg text-sm font-medium border min-h-[2.25rem]',
+      inWeek ? 'bg-[#1a2036] text-[#d6b598] border-[#1a2036]' : 'bg-white border-slate-200 text-slate-800 hover:bg-slate-50',
+      inMonth ? '' : 'opacity-35',
+    ].join(' ');
+    b.textContent = String(cell.getDate());
+    b.addEventListener('click', () => {
+      periodPickerMondayYmd = mondayYmdOfCalendarDate(ymd);
+      renderPeriodPickerUi();
+    });
+    grid.appendChild(b);
+  }
+
+  const sun = selSun || '';
+  sumEl.textContent = selMon ? `Semana: ${formatYmdBr(selMon)} – ${formatYmdBr(sun)}` : '';
+  const existing = selMon && sun ? findPeriodByWeekRange(selMon, sun) : null;
+  if (existing) {
+    stEl.textContent = `Período cadastrado: "${existing.name}" (${existing.status === 'closed' ? 'fechado' : 'aberto'}).`;
+    btnUse.disabled = false;
+    btnCreate.classList.add('hidden');
+  } else {
+    stEl.textContent = 'Nenhum período cadastrado para esta semana.';
+    btnUse.disabled = true;
+    btnCreate.classList.toggle('hidden', !canManage);
+  }
+}
+
+/** @param {{ suggestEmptyWeek?: boolean }} [opts] */
+function openPeriodPickerModal(opts) {
+  const o = opts || {};
+  document.getElementById('periodPickerErr')?.classList.add('hidden');
+  const p = selectedPeriodRecord();
+  const baseYmd = p?.start_date != null ? formatWorkDateForInput(String(p.start_date)) : localTodayISO();
+  const dt0 = parseYmdToLocalDate(baseYmd) || new Date();
+  periodPickerViewYear = dt0.getFullYear();
+  periodPickerViewMonth = dt0.getMonth();
+  if (o.suggestEmptyWeek) {
+    periodPickerMondayYmd = mondayYmdOfCalendarDate(localTodayISO());
+  } else if (p?.start_date != null) {
+    const sd = formatWorkDateForInput(String(p.start_date)).slice(0, 10);
+    periodPickerMondayYmd = mondayYmdOfCalendarDate(sd) || sd;
+  } else {
+    periodPickerMondayYmd = mondayYmdOfCalendarDate(localTodayISO());
+  }
+  renderPeriodPickerUi();
+  const m = document.getElementById('periodPickerModal');
+  m.classList.remove('hidden');
+  m.classList.add('flex');
+}
+
 /** Data AAAA-MM-DD dentro do período selecionado (validação antes do POST). */
 function workDateInsideSelectedPeriod(ymd) {
   const p = selectedPeriodRecord();
@@ -519,7 +680,8 @@ function bumpInput(tr, sel, delta, min = 0) {
   const input = tr.querySelector(sel);
   if (!input || input.disabled) return;
   const cur = Number(String(input.value).replace(',', '.')) || 0;
-  const n = Math.max(min, Math.round((cur + delta) * 100) / 100);
+  let n = Math.max(min, Math.round((cur + delta) * 100) / 100);
+  if (sel === '.ts-days') n = Math.min(2, n);
   input.value = n === 0 ? '' : String(n);
   refreshRowAmount(tr);
 }
@@ -613,6 +775,14 @@ function bindRowEvents(tr) {
       refreshRowAmount(tr);
     })
   );
+  tr.querySelector('.ts-double-2')?.addEventListener('click', (e) =>
+    tsTap(e, () => {
+      const inp = tr.querySelector('.ts-days');
+      if (!inp || inp.disabled) return;
+      inp.value = '2';
+      refreshRowAmount(tr);
+    })
+  );
   tr.querySelector('.ts-del')?.addEventListener('click', async () => {
     const id = tr.dataset.lineId;
     if (!id) {
@@ -666,8 +836,9 @@ function appendTimesheetRow(data, sectorKey) {
         <input type="number" inputmode="decimal" step="any" min="0" class="ts-days payroll-num-input w-[4.25rem] border rounded"${dis} value="${d0 === '' || d0 == null ? '' : d0}" />
         <button type="button" class="ts-numbtn ts-days-inc"${dis} aria-label="Mais dia">+</button>
       </div>
-      <div class="flex justify-center gap-1 mt-1">
+      <div class="flex justify-center gap-1 mt-1 flex-wrap">
         <button type="button" class="ts-short ts-full text-[10px] px-2 py-1 border border-slate-200 rounded${!grid ? ' opacity-40' : ''}" ${!grid ? 'disabled' : ''}>1d</button>
+        <button type="button" class="ts-short ts-double-2 text-[10px] px-2 py-1 border border-slate-200 rounded${!grid ? ' opacity-40' : ''}" ${!grid ? 'disabled' : ''} title="2 diárias no mesmo dia (double)">2d</button>
         <button type="button" class="ts-short ts-half text-[10px] px-2 py-1 border border-slate-200 rounded${!grid ? ' opacity-40' : ''}" ${!grid ? 'disabled' : ''}>½</button>
       </div>
     </td>
@@ -740,7 +911,7 @@ function applyPeriodMetaBanner(p) {
           ? 'Mensal'
           : p?.frequency || '';
   document.getElementById('periodMeta').textContent = p
-    ? `${freqPt} · ${p.start_date} a ${p.end_date} · ${p.status === 'closed' ? 'Fechado' : 'Aberto'}`
+    ? `${freqPt} · ${formatPeriodRangeBr(p)} · ${p.status === 'closed' ? 'Fechado' : 'Aberto'}`
     : '';
   const badge = document.getElementById('periodLockBadge');
   if (p?.status === 'closed') badge.classList.remove('hidden');
@@ -781,6 +952,7 @@ async function loadTimesheetsForPeriod() {
 async function onPeriodChange() {
   const sel = document.getElementById('periodSelect');
   selectedPeriodId = sel.value ? parseInt(sel.value, 10) : null;
+  syncPeriodSelectedLabel();
   await loadTimesheetsForPeriod();
 }
 
@@ -835,7 +1007,7 @@ function collectLinesFromGrid() {
 function timesheetGridValidationIssues() {
   const issues = [];
   let idx = 0;
-  const seenKeys = new Map();
+  const dailySumByEmpDate = new Map();
   allTimesheetDataRows().forEach((tr) => {
     idx += 1;
     const work_date = formatWorkDateForInput(tr.querySelector('.ts-date')?.value);
@@ -844,7 +1016,6 @@ function timesheetGridValidationIssues() {
     const r = parseNumInput(tr.querySelector('.ts-reg')?.value);
     const ot = parseNumInput(tr.querySelector('.ts-ot')?.value);
     const notes = (tr.querySelector('.ts-notes')?.value || '').trim();
-    const proj = (tr.querySelector('.ts-proj')?.value || '').trim();
     const lidRaw = tr.dataset.lineId;
     const lidNum = lidRaw != null && String(lidRaw).trim() !== '' ? parseInt(String(lidRaw), 10) : NaN;
     const hasPersistedId = Number.isFinite(lidNum) && lidNum > 0;
@@ -868,17 +1039,27 @@ function timesheetGridValidationIssues() {
     }
     if (!hasPersistedId && d === 0 && r === 0 && ot === 0 && !notes) {
       issues.push(
-        `Linha ${idx}: para uma linha nova, preencha diárias (botões 1d/½ ou ±), horas normais/extra ou uma nota.`
+        `Linha ${idx}: para uma linha nova, preencha diárias (botões 1d/2d/½ ou ±), horas normais/extra ou uma nota.`
       );
     }
     if (employee_id && work_date && Number.isFinite(parseInt(employee_id, 10))) {
-      const dupKey = `${parseInt(employee_id, 10)}|${work_date}|${proj || '0'}`;
-      if (!hasPersistedId && seenKeys.has(dupKey)) {
-        issues.push(
-          `Linha ${idx}: duplicado (mesmo funcionário, data e projeto) — o servidor só aceita uma linha. Junte numa só ou altere projeto/data.`
-        );
+      const eid = parseInt(employee_id, 10);
+      const emp = employeesById[eid];
+      const pt = String(emp?.payment_type || 'daily').toLowerCase();
+      if (pt !== 'hourly') {
+        const sumKey = `${eid}|${work_date}`;
+        dailySumByEmpDate.set(sumKey, (dailySumByEmpDate.get(sumKey) || 0) + d);
       }
-      if (!hasPersistedId) seenKeys.set(dupKey, idx);
+    }
+  });
+  dailySumByEmpDate.forEach((sum, key) => {
+    if (Math.round(sum * 100) > 200) {
+      const [eid, ymd] = key.split('|');
+      const emp = employeesById[parseInt(eid, 10)];
+      const nm = emp?.name || `ID ${eid}`;
+      issues.push(
+        `${nm}: soma de diárias em ${ymd} acima de 2 (máximo 2 por dia — double: duas linhas de 1 ou uma linha com 2).`
+      );
     }
   });
   return issues;
@@ -978,49 +1159,40 @@ async function saveEmployee() {
   }
 }
 
-function openPeriodModal() {
-  const m = document.getElementById('periodModal');
-  document.getElementById('perFormErr').classList.add('hidden');
-  document.getElementById('perName').value = '';
-  document.getElementById('perFreq').value = 'biweekly';
-  const t = new Date();
-  const start = new Date(t.getFullYear(), t.getMonth(), t.getDate() - 13);
-  document.getElementById('perStart').value = start.toISOString().slice(0, 10);
-  document.getElementById('perEnd').value = t.toISOString().slice(0, 10);
-  m.classList.remove('hidden');
-  m.classList.add('flex');
-}
-
-function closePeriodModal() {
-  const m = document.getElementById('periodModal');
-  m.classList.add('hidden');
-  m.classList.remove('flex');
-}
-
-async function savePeriod() {
-  const err = document.getElementById('perFormErr');
-  err.classList.add('hidden');
-  const body = {
-    name: document.getElementById('perName').value.trim(),
-    frequency: document.getElementById('perFreq').value,
-    start_date: document.getElementById('perStart').value,
-    end_date: document.getElementById('perEnd').value,
-  };
-  if (!body.name) {
-    err.textContent = 'O nome do período é obrigatório.';
-    err.classList.remove('hidden');
-    return;
-  }
+async function periodPickerSubmitCreate() {
+  const errEl = document.getElementById('periodPickerErr');
+  errEl?.classList.add('hidden');
+  if (!periodPickerMondayYmd || !canManage) return;
   try {
-    const j = await api('POST', '/periods', body);
-    closePeriodModal();
+    const j = await api('POST', '/periods', { week_monday: periodPickerMondayYmd });
     const newId = periodIdNum(j.data?.id);
     window.crmToast?.success?.('Período criado');
+    closePeriodPickerModal();
     await loadPeriods(newId);
   } catch (e) {
-    err.textContent = e.message;
-    err.classList.remove('hidden');
+    if (e.status === 409 && e.payload?.code === 'PERIOD_RANGE_EXISTS' && e.payload?.data?.id != null) {
+      const exId = periodIdNum(e.payload.data.id);
+      window.crmToast?.success?.('Este período já existia — selecionado.');
+      closePeriodPickerModal();
+      await loadPeriods(exId);
+      return;
+    }
+    if (errEl) {
+      errEl.textContent = e.message || 'Erro ao criar período.';
+      errEl.classList.remove('hidden');
+    }
+    window.crmToast?.error?.(e.message || 'Erro ao criar período.');
   }
+}
+
+async function periodPickerApplySelection() {
+  const sun = sundayYmdFromMonday(periodPickerMondayYmd);
+  const existing = periodPickerMondayYmd && sun ? findPeriodByWeekRange(periodPickerMondayYmd, sun) : null;
+  if (!existing) return;
+  const sel = document.getElementById('periodSelect');
+  sel.value = String(existing.id);
+  closePeriodPickerModal();
+  await onPeriodChange();
 }
 
 /** Coluna «Diárias» no preview do período (quantidade, não valor). */
@@ -1039,6 +1211,14 @@ function formatPreviewDiariasQty(row) {
     return parts.length ? parts.join(' · ') : '—';
   }
   return fmtReportQty(d);
+}
+
+function formatPreviewDoubleDates(row) {
+  const pt = String(row.payment_type || 'daily').toLowerCase();
+  if (pt === 'hourly') return '—';
+  const arr = Array.isArray(row.double_diaria_dates) ? row.double_diaria_dates : [];
+  if (!arr.length) return '—';
+  return arr.map((ymd) => formatYmdBr(ymd)).join(', ');
 }
 
 function bindPreviewAdjustmentsLiveTotals(fixedGrandSheet) {
@@ -1134,6 +1314,7 @@ function fillPreviewModal(data, opts) {
     const empTot = empTotInit;
     const otH = Number(row.overtime_hours_sum) || 0;
     tr.innerHTML = `<td class="px-3 py-2 font-medium">${escapeHtml(row.name)}<br><span class="text-xs text-slate-500 font-normal">${escapeHtml(sectorLabel(row.sector))}</span></td>
+      <td class="px-3 py-2 text-xs text-amber-900 tabular-nums">${escapeHtml(formatPreviewDoubleDates(row))}</td>
       <td class="px-3 py-2 text-right tabular-nums">${escapeHtml(formatPreviewDiariasQty(row))}</td>
       <td class="px-3 py-2 text-right tabular-nums">${escapeHtml(fmtReportQty(otH))} h</td>
       <td class="px-3 py-2 text-right">${money(row.subtotal)}</td>
@@ -1867,7 +2048,27 @@ async function reloadAll() {
 }
 
 document.getElementById('btnReloadAll')?.addEventListener('click', () => reloadAll());
-document.getElementById('periodSelect')?.addEventListener('change', () => onPeriodChange());
+document.getElementById('periodSelect')?.addEventListener('change', () => void onPeriodChange());
+document.getElementById('btnOpenPeriodPicker')?.addEventListener('click', () => openPeriodPickerModal({}));
+document.getElementById('periodPickerCancel')?.addEventListener('click', () => closePeriodPickerModal());
+document.getElementById('periodPickerUse')?.addEventListener('click', () => void periodPickerApplySelection());
+document.getElementById('periodPickerCreate')?.addEventListener('click', () => void periodPickerSubmitCreate());
+document.getElementById('periodPickerPrevM')?.addEventListener('click', () => {
+  periodPickerViewMonth -= 1;
+  if (periodPickerViewMonth < 0) {
+    periodPickerViewMonth = 11;
+    periodPickerViewYear -= 1;
+  }
+  renderPeriodPickerUi();
+});
+document.getElementById('periodPickerNextM')?.addEventListener('click', () => {
+  periodPickerViewMonth += 1;
+  if (periodPickerViewMonth > 11) {
+    periodPickerViewMonth = 0;
+    periodPickerViewYear += 1;
+  }
+  renderPeriodPickerUi();
+});
 document.getElementById('btnNewEmployee')?.addEventListener('click', () => openEmployeeModal(null));
 document.getElementById('empCancel')?.addEventListener('click', () => closeEmployeeModal());
 document.getElementById('empDelete')?.addEventListener('click', async () => {
@@ -1892,7 +2093,7 @@ document.getElementById('empDelete')?.addEventListener('click', async () => {
   }
 });
 document.getElementById('empSave')?.addEventListener('click', () => saveEmployee());
-document.getElementById('btnNewPeriod')?.addEventListener('click', () => openPeriodModal());
+document.getElementById('btnNewPeriod')?.addEventListener('click', () => openPeriodPickerModal({ suggestEmptyWeek: true }));
 document.getElementById('btnDeletePeriod')?.addEventListener('click', async () => {
   if (!canManage || !selectedPeriodId) return;
   const p = selectedPeriodRecord();
@@ -1914,8 +2115,6 @@ document.getElementById('btnDeletePeriod')?.addEventListener('click', async () =
     window.crmToast?.error?.(e.message);
   }
 });
-document.getElementById('perCancel')?.addEventListener('click', () => closePeriodModal());
-document.getElementById('perSave')?.addEventListener('click', () => savePeriod());
 function tryAddTimesheetRowForSector(sectorKey) {
   if (!canAddTimesheetRows()) {
     window.crmToast?.error?.(
@@ -1926,7 +2125,7 @@ function tryAddTimesheetRowForSector(sectorKey) {
     return;
   }
   if (!selectedPeriodId) {
-    window.crmToast?.error?.('Primeiro, escolha um período na lista acima.');
+    window.crmToast?.error?.('Primeiro, escolha um período em «Selecionar período».');
     return;
   }
   const tb = getTimesheetTbody(sectorKey);
@@ -1963,7 +2162,7 @@ document.getElementById('btnSaveTimesheet')?.addEventListener('click', async () 
   const lines = collectLinesFromGrid();
   if (!lines.length) {
     window.crmToast?.error?.(
-      'Nenhuma linha para salvar. Escolha funcionário e data e preencha pelo menos diárias (1d/½), horas normais ou horas extras — ou escreva uma nota.'
+      'Nenhuma linha para salvar. Escolha funcionário e data e preencha pelo menos diárias (1d/2d/½), horas normais ou horas extras — ou escreva uma nota.'
     );
     return;
   }

@@ -315,6 +315,18 @@ async function drawPayrollSlipStyledPage(pdf, font, fontBold, opts) {
   const norm = normativeBlockFromRow(row);
   drawKV(norm.qtyLabel, norm.qty);
   drawKV(norm.totalLabel, moneyFmt(norm.total));
+  const dd = Array.isArray(row.double_diaria_dates) ? row.double_diaria_dates : [];
+  const ptSlip = String(row.payment_type || 'daily').toLowerCase();
+  if (dd.length && ptSlip !== 'hourly') {
+    const br = dd
+      .map((ymd) => {
+        const s = String(ymd || '').slice(0, 10);
+        const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        return m ? `${m[3]}/${m[2]}/${m[1]}` : s;
+      })
+      .join(', ');
+    drawKV('Dias em double (2 diarias)', winAnsiSafe(br, 120));
+  }
   drawKV('Horas extras (total)', `${fmtQty(row.overtime_hours_sum || 0)} h`);
   drawKV('Valor horas extras', moneyFmt(row.amount_overtime || 0));
   page.drawLine({

@@ -72,6 +72,33 @@ async function ensureTimesheetDailyRateOverride(conn) {
   console.log('  + coluna daily_rate_override em construction_payroll_timesheets');
 }
 
+/** Várias linhas no mesmo dia (double): remove UNIQUE legado e garante índice composto. */
+async function ensureTimesheetAllowDoubleLines(conn) {
+  const [uniqRows] = await conn.query(
+    `SELECT COUNT(*) AS c FROM information_schema.STATISTICS
+     WHERE TABLE_SCHEMA = DATABASE()
+       AND TABLE_NAME = 'construction_payroll_timesheets'
+       AND INDEX_NAME = 'uniq_period_emp_proj_day'`
+  );
+  if (Number(uniqRows[0]?.c) > 0) {
+    await conn.query('ALTER TABLE construction_payroll_timesheets DROP INDEX uniq_period_emp_proj_day');
+    console.log('  - removido UNIQUE uniq_period_emp_proj_day (double / várias linhas por dia)');
+  }
+  const [idxRows] = await conn.query(
+    `SELECT COUNT(*) AS c FROM information_schema.STATISTICS
+     WHERE TABLE_SCHEMA = DATABASE()
+       AND TABLE_NAME = 'construction_payroll_timesheets'
+       AND INDEX_NAME = 'idx_cpt_period_emp_date_proj'`
+  );
+  if (Number(idxRows[0]?.c) === 0) {
+    await conn.query(
+      `ALTER TABLE construction_payroll_timesheets
+       ADD INDEX idx_cpt_period_emp_date_proj (period_id, employee_id, work_date, project_id_norm)`
+    );
+    console.log('  + índice idx_cpt_period_emp_date_proj em construction_payroll_timesheets');
+  }
+}
+
 async function main() {
   const base = applyRailwayTcpProxyIfNeeded(getMysqlConnectionConfig());
   if (!base) {
@@ -88,6 +115,9 @@ async function main() {
 
   console.log('migrate-construction-payroll: colunas em falta (compatibilidade)…');
   await ensureTimesheetDailyRateOverride(conn);
+
+  console.log('migrate-construction-payroll: timesheet — double (várias linhas / mesmo dia)…');
+  await ensureTimesheetAllowDoubleLines(conn);
 
   console.log('migrate-construction-payroll: permissões…');
   await ensurePermission(

@@ -58,6 +58,33 @@ function aggregateTimesheetLinesForPreview(lines) {
   return byEmp;
 }
 
+/** Por funcionário: datas (YYYY-MM-DD) em que a soma de `days_worked` >= 2 (diária/misto). */
+function computeDoubleDiariaDatesByEmployee(detailLines) {
+  const map = new Map();
+  for (const r of detailLines || []) {
+    const pt = String(r.payment_type || 'daily').toLowerCase();
+    if (pt === 'hourly') continue;
+    const eid = r.employee_id;
+    if (!eid) continue;
+    const wd = mysqlDateToYmd(r.work_date);
+    if (!wd || !/^\d{4}-\d{2}-\d{2}$/.test(wd)) continue;
+    const d = Number(r.days_worked) || 0;
+    if (!map.has(eid)) map.set(eid, new Map());
+    const inner = map.get(eid);
+    inner.set(wd, (inner.get(wd) || 0) + d);
+  }
+  const out = new Map();
+  for (const [eid, dateMap] of map) {
+    const dates = [];
+    for (const [date, sum] of dateMap) {
+      if (Math.round(sum * 100) >= 200) dates.push(date);
+    }
+    dates.sort();
+    if (dates.length) out.set(eid, dates);
+  }
+  return out;
+}
+
 function isMissingColumn(err, colName) {
   return (
     err &&
@@ -323,7 +350,7 @@ async function computePeriodPreviewData(pool, id, options = {}) {
   let detailLines = [];
   try {
     const [dl] = await pool.query(
-      `SELECT t.employee_id, t.days_worked, t.regular_hours, t.overtime_hours,
+      `SELECT t.employee_id, t.work_date, t.days_worked, t.regular_hours, t.overtime_hours,
               t.daily_rate_override, e.payment_type, e.daily_rate, e.hourly_rate, e.overtime_rate
        FROM construction_payroll_timesheets t
        INNER JOIN construction_payroll_employees e ON e.id = t.employee_id
@@ -335,6 +362,7 @@ async function computePeriodPreviewData(pool, id, options = {}) {
     detailLines = [];
   }
   const detailMap = aggregateTimesheetLinesForPreview(detailLines);
+  const doubleDatesByEmp = computeDoubleDiariaDatesByEmployee(detailLines);
 
   let adjRows = [];
   try {
@@ -386,6 +414,7 @@ async function computePeriodPreviewData(pool, id, options = {}) {
       discount: disc,
       reimbursement_notes: adj?.notes || null,
       employee_total: Math.round((sub + reim - disc) * 100) / 100,
+      double_diaria_dates: doubleDatesByEmp.get(row.employee_id) || [],
     });
   }
 
@@ -411,6 +440,7 @@ async function computePeriodPreviewData(pool, id, options = {}) {
       discount: disc,
       reimbursement_notes: adj.notes || null,
       employee_total: Math.round((reim - disc) * 100) / 100,
+      double_diaria_dates: [],
     });
   }
 
@@ -780,17 +810,95 @@ export async function getPeriod(req, res) {
   }
 }
 
+/** AAAA-MM-DD → segunda-feira da semana (calendário local do servidor). */
+function mondayYmdFromCalendarYmd(ymd) {
+  const s = String(ymd || '').trim().slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
+  const [y, mo, d] = s.split('-').map((x) => parseInt(x, 10));
+  const dt = new Date(y, mo - 1, d);
+  if (dt.getFullYear() !== y || dt.getMonth() !== mo - 1 || dt.getDate() !== d) return null;
+  const day = dt.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  dt.setDate(dt.getDate() + diff);
+  const yy = dt.getFullYear();
+  const mm = String(dt.getMonth() + 1).padStart(2, '0');
+  const dd = String(dt.getDate()).padStart(2, '0');
+  return `${yy}-${mm}-${dd}`;
+}
+
+function sundayYmdAfterMonday(monYmd) {
+  const s = String(monYmd || '').trim().slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
+  const [y, mo, d] = s.split('-').map((x) => parseInt(x, 10));
+  const dt = new Date(y, mo - 1, d + 6);
+  const yy = dt.getFullYear();
+  const mm = String(dt.getMonth() + 1).padStart(2, '0');
+  const dd = String(dt.getDate()).padStart(2, '0');
+  return `${yy}-${mm}-${dd}`;
+}
+
+function ymdToBrShort(ymd) {
+  const s = String(ymd || '').slice(0, 10);
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return s;
+  return `${m[3]}/${m[2]}/${m[1]}`;
+}
+
 export async function createPeriod(req, res) {
   try {
     const pool = await getDBConnection();
     const b = req.body || {};
-    const name = String(b.name || '').trim() || 'Período';
-    const frequency = ['weekly', 'biweekly', 'monthly'].includes(b.frequency) ? b.frequency : 'biweekly';
-    const start_date = b.start_date;
-    const end_date = b.end_date;
-    if (!start_date || !end_date) {
-      return res.status(400).json({ success: false, error: 'start_date e end_date são obrigatórios' });
+    let start_date = b.start_date;
+    let end_date = b.end_date;
+    let frequency = ['weekly', 'biweekly', 'monthly'].includes(b.frequency) ? b.frequency : 'biweekly';
+    let name = String(b.name || '').trim();
+
+    const weekMonday = String(b.week_monday || '').trim().slice(0, 10);
+    if (weekMonday) {
+      const mon = mondayYmdFromCalendarYmd(weekMonday);
+      if (!mon) {
+        return res.status(400).json({ success: false, error: 'week_monday inválido' });
+      }
+      if (mon !== weekMonday) {
+        return res.status(400).json({
+          success: false,
+          error: 'week_monday deve ser uma segunda-feira (início da semana Seg–Dom)',
+        });
+      }
+      const sun = sundayYmdAfterMonday(mon);
+      if (!sun) {
+        return res.status(400).json({ success: false, error: 'Não foi possível calcular o domingo da semana' });
+      }
+      start_date = mon;
+      end_date = sun;
+      frequency = 'weekly';
+      if (!name) {
+        name = `Semana ${ymdToBrShort(mon)} – ${ymdToBrShort(sun)}`;
+      }
     }
+
+    if (!start_date || !end_date) {
+      return res.status(400).json({
+        success: false,
+        error: 'Informe week_monday (semana Seg–Dom) ou start_date e end_date',
+      });
+    }
+    if (!name) name = 'Período';
+
+    const [[dup]] = await pool.query(
+      'SELECT id FROM construction_payroll_periods WHERE start_date = ? AND end_date = ? LIMIT 1',
+      [start_date, end_date]
+    );
+    if (dup?.id) {
+      const existing = await loadPeriod(pool, dup.id);
+      return res.status(409).json({
+        success: false,
+        code: 'PERIOD_RANGE_EXISTS',
+        error: 'Já existe um período com este intervalo de datas',
+        data: serializePeriodForClient(existing),
+      });
+    }
+
     const [r] = await pool.execute(
       `INSERT INTO construction_payroll_periods (name, frequency, start_date, end_date, status)
        VALUES (?, ?, ?, ?, 'open')`,
@@ -1223,6 +1331,31 @@ async function upsertOneLine(executor, period, line, userId, options = {}) {
   const overtime_hours = Number(line.overtime_hours) || 0;
   const notes = line.notes != null ? String(line.notes) : null;
 
+  const payType = String(emp.payment_type || 'daily').toLowerCase();
+  if (payType === 'daily' || payType === 'mixed') {
+    if (Math.round(days_worked * 100) > 200) {
+      const e = new Error('No máximo 2 diárias por linha (tipos por dia / misto).');
+      e.statusCode = 400;
+      throw e;
+    }
+    const excludeId = isUpdate ? parseInt(String(line.id), 10) : 0;
+    const ex = Number.isFinite(excludeId) && excludeId > 0 ? excludeId : 0;
+    const [sumRows] = await executor.query(
+      `SELECT COALESCE(SUM(days_worked), 0) AS s FROM construction_payroll_timesheets
+       WHERE period_id = ? AND employee_id = ? AND work_date = ? AND id <> ?`,
+      [period.id, employeeId, workDate, ex]
+    );
+    const sumOther = Number(sumRows[0]?.s) || 0;
+    const totalCent = Math.round(sumOther * 100) + Math.round(days_worked * 100);
+    if (totalCent > 200) {
+      const e = new Error(
+        'No mesmo dia, a soma de diárias deste funcionário não pode passar de 2 (double = duas linhas de 1 ou uma linha com 2).'
+      );
+      e.statusCode = 400;
+      throw e;
+    }
+  }
+
   let daily_rate_override_db = null;
   const rawOvr = line.daily_rate_override;
   if (rawOvr === undefined && isUpdate) {
@@ -1356,7 +1489,8 @@ export async function bulkTimesheets(req, res) {
         } catch (e) {
           if (e.code === 'ER_DUP_ENTRY') {
             e.statusCode = 409;
-            e.message = 'Já existe uma linha para este funcionário, projeto e data neste período';
+            e.message =
+              'Conflito ao gravar linha. Se precisar de duas linhas no mesmo dia (double), execute: npm run migrate:payroll-timesheet-allow-double-lines';
           }
           throw e;
         }
