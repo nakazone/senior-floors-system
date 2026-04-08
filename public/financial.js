@@ -446,9 +446,8 @@ async function loadVendors() {
         <p style="font-weight:700;margin-top:8px">${fmt$(v.total_spent)}</p>
         <p style="font-size:12px">${v.rating ? '★'.repeat(v.rating) + '☆'.repeat(5 - v.rating) : '—'}</p>
         <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">
-          <button type="button" class="btn btn-sm btn-secondary" data-vendor-hist="${v.id}">Histórico</button>
+          <button type="button" class="btn btn-sm btn-secondary" data-vendor-hist="${v.id}">Ver detalhes</button>
           <button type="button" class="btn btn-sm btn-primary" data-vendor-edit="${v.id}">Editar</button>
-          <a href="vendors-hub.html?vendor=${v.id}" class="btn btn-sm btn-secondary" style="text-decoration:none;display:inline-flex;align-items:center">Pagamentos &amp; notas</a>
         </div>
       </div>`
         )
@@ -493,26 +492,171 @@ async function openVendorModalForEdit(id) {
   openModal('modalVendor');
 }
 
+let vendorDrawerVendorId = null;
+
+function switchVendorDrawerTab(tab) {
+  const hist = document.getElementById('vd-pane-hist');
+  const pay = document.getElementById('vd-pane-pay');
+  const files = document.getElementById('vd-pane-files');
+  if (hist) hist.style.display = tab === 'hist' ? 'block' : 'none';
+  if (pay) pay.style.display = tab === 'pay' ? 'block' : 'none';
+  if (files) files.style.display = tab === 'files' ? 'block' : 'none';
+  document.querySelectorAll('#vendorDrawer .fin-vtab').forEach((b) => {
+    b.classList.toggle('on', b.getAttribute('data-vtab') === tab);
+  });
+}
+
+function renderVendorDrawerInvoicesList(vendorId, items) {
+  const listEl = document.getElementById('vdFileList');
+  const thumbs = document.getElementById('vdThumbs');
+  if (!listEl) return;
+  if (!items.length) {
+    listEl.innerHTML = '<li style="list-style:none;color:var(--text-muted);padding:8px 0">Nenhum ficheiro</li>';
+    if (thumbs) thumbs.innerHTML = '';
+    return;
+  }
+  listEl.innerHTML = items
+    .map((a) => {
+      const name = escapeHtml(a.original_name || a.file_url || 'ficheiro');
+      const memo = a.memo ? `<div style="font-size:11px;color:var(--text-muted);margin-top:4px">${escapeHtml(a.memo)}</div>` : '';
+      const when = a.created_at ? String(a.created_at).slice(0, 16).replace('T', ' ') : '';
+      const isPdf = /\.pdf$/i.test(a.file_url || '') || String(a.original_name || '')
+        .toLowerCase()
+        .endsWith('.pdf');
+      const open = isPdf
+        ? `<a href="${escapeHtml(a.file_url)}" target="_blank" rel="noopener" class="btn btn-sm btn-secondary" style="padding:4px 8px;font-size:11px">Abrir</a>`
+        : `<button type="button" class="btn btn-sm btn-secondary vd-lightbox" data-vd-src="${escapeHtml(a.file_url)}" style="padding:4px 8px;font-size:11px">Ver</button>`;
+      return `<li style="list-style:none;padding:10px 0;border-bottom:1px solid var(--border-color)">
+        <strong style="font-size:13px">${name}</strong> <span style="font-size:10px;color:var(--text-muted)">${escapeHtml(when)}</span>
+        ${memo}
+        <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">
+          ${open}
+          <button type="button" class="btn btn-sm btn-danger" data-vd-del="${a.id}" data-vd-vendor="${vendorId}" style="padding:4px 8px;font-size:11px">Eliminar</button>
+        </div>
+      </li>`;
+    })
+    .join('');
+  if (thumbs) {
+    thumbs.innerHTML = items
+      .filter((a) => /\.(png|jpe?g|gif|webp)$/i.test(a.file_url || a.original_name || ''))
+      .map(
+        (a) =>
+          `<img class="vd-lightbox" src="${escapeHtml(a.file_url)}" alt="" data-vd-src="${escapeHtml(a.file_url)}" style="width:64px;height:64px;object-fit:cover;border-radius:8px;cursor:pointer;border:1px solid var(--border-color)" />`
+      )
+      .join('');
+  }
+}
+
+async function refreshVendorDrawerInvoices(vendorId) {
+  const res = await fetch(`/api/vendors/${vendorId}/invoices`, { credentials: 'include' }).then((r) => r.json());
+  const items = res.success ? res.data || [] : [];
+  renderVendorDrawerInvoicesList(vendorId, items);
+}
+
 async function openVendorDrawer(id) {
+  vendorDrawerVendorId = id;
   const v = vendorsCache.find((x) => x.id === id);
-  document.getElementById('vendorDrawerTitle').textContent = v ? v.name : 'Histórico';
-  const res = await fetch(`/api/vendors/${id}/history`, { credentials: 'include' }).then((r) => r.json());
-  const list = res.data || [];
-  let sum = 0;
+  document.getElementById('vendorDrawerTitle').textContent = v ? v.name : 'Fornecedor';
   const body = document.getElementById('vendorDrawerBody');
-  body.innerHTML =
-    '<ul style="list-style:none;padding:0">' +
-    list
-      .map((r) => {
-        sum += parseFloat(r.amount) || 0;
-        return `<li style="padding:10px 0;border-bottom:1px solid var(--border-color)">
+  body.innerHTML = '<p style="color:var(--text-muted)">A carregar…</p>';
+  document.getElementById('vendorDrawer').classList.add('on');
+
+  const [histRes, upRes, invRes] = await Promise.all([
+    fetch(`/api/vendors/${id}/history`, { credentials: 'include' }).then((r) => r.json()),
+    fetch(`/api/vendors/${id}/upcoming-payments?days=120`, { credentials: 'include' }).then((r) => r.json()),
+    fetch(`/api/vendors/${id}/invoices`, { credentials: 'include' }).then((r) => r.json()),
+  ]);
+
+  const list = histRes.success ? histRes.data || [] : [];
+  let sum = 0;
+  const histHtml =
+    '<ul style="list-style:none;padding:0;margin:0">' +
+    (list.length
+      ? list
+          .map((r) => {
+            sum += parseFloat(r.amount) || 0;
+            return `<li style="padding:10px 0;border-bottom:1px solid var(--border-color)">
         <span style="font-size:11px;color:var(--text-muted)">${escapeHtml(r.type)} · ${escapeHtml(String(r.date).slice(0, 10))}</span><br/>
         ${escapeHtml(r.description)} — <strong>${fmt$(r.amount)}</strong>
       </li>`;
-      })
-      .join('') +
-    `</ul><p style="margin-top:12px;font-weight:700">Total (amostra): ${fmt$(sum)}</p>`;
-  document.getElementById('vendorDrawer').classList.add('on');
+          })
+          .join('')
+      : '<li style="color:var(--text-muted);list-style:none">Sem movimentos na amostra</li>') +
+    `</ul><p style="margin-top:12px;font-weight:700;font-size:13px">Total (amostra): ${fmt$(sum)}</p>`;
+
+  const upcoming = upRes.success ? upRes.data || [] : [];
+  const payRows = upcoming.length
+    ? upcoming
+        .map((r) => {
+          const tipo = r.kind === 'recurring' ? `Recorrente (${escapeHtml(r.recurrence_type || '')})` : 'Único';
+          const atraso = r.overdue ? '<span style="background:#fde8e8;color:#a32020;font-size:10px;padding:2px 6px;border-radius:4px;margin-right:4px">Atrasado</span>' : '';
+          return `<tr><td>${atraso}${escapeHtml(r.due_date)}</td><td>${escapeHtml(r.description)}</td><td>${fmt$(r.amount)}</td><td>${tipo}</td></tr>`;
+        })
+        .join('')
+    : '<tr><td colspan="4" style="color:var(--text-muted)">Nenhum pagamento previsto (120 dias) ou atraso listado</td></tr>';
+
+  const invItems = invRes.success ? invRes.data || [] : [];
+
+  body.innerHTML = `
+    <div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;border-bottom:1px solid var(--border-color);padding-bottom:10px">
+      <button type="button" class="btn btn-sm btn-secondary fin-vtab on" data-vtab="hist">Histórico</button>
+      <button type="button" class="btn btn-sm btn-secondary fin-vtab" data-vtab="pay">Próximos pagamentos</button>
+      <button type="button" class="btn btn-sm btn-secondary fin-vtab" data-vtab="files">Notas e ficheiros</button>
+    </div>
+    <div id="vd-pane-hist">${histHtml}</div>
+    <div id="vd-pane-pay" style="display:none">
+      <p style="font-size:12px;color:var(--text-muted);margin:0 0 10px">Custos operacionais ligados a este fornecedor (próximos 120 dias e pendentes atrasados).</p>
+      <div class="fin-table-wrap" style="overflow-x:auto">
+        <table class="fin-table" style="font-size:12px">
+          <thead><tr><th>Data</th><th>Descrição</th><th>Valor</th><th>Tipo</th></tr></thead>
+          <tbody>${payRows}</tbody>
+        </table>
+      </div>
+    </div>
+    <div id="vd-pane-files" style="display:none">
+      <p style="font-size:12px;color:var(--text-muted);margin:0 0 10px">Notas fiscais, PDFs ou imagens (até 20 MB).</p>
+      <div style="border:1px dashed var(--border-color);border-radius:10px;padding:12px;margin-bottom:14px">
+        <input type="text" id="vdMemo" class="fin-form-full" placeholder="Nota / descrição (opcional)" style="width:100%;padding:8px;margin-bottom:8px;border-radius:8px;border:1px solid var(--border-color);box-sizing:border-box" />
+        <input type="file" id="vdFile" accept="image/*,.pdf,application/pdf" />
+        <button type="button" class="btn btn-sm btn-primary" id="vdUploadBtn" style="margin-top:10px">Enviar ficheiro</button>
+      </div>
+      <p style="font-size:12px;font-weight:600;color:var(--sf-navy);margin:0 0 6px">Ficheiros guardados</p>
+      <ul id="vdFileList" style="padding:0;margin:0"></ul>
+      <div id="vdThumbs" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px"></div>
+    </div>`;
+
+  renderVendorDrawerInvoicesList(id, invItems);
+
+  body.querySelectorAll('.fin-vtab').forEach((btn) => {
+    btn.addEventListener('click', () => switchVendorDrawerTab(btn.getAttribute('data-vtab')));
+  });
+  document.getElementById('vdUploadBtn')?.addEventListener('click', () => vendorDrawerUploadFile());
+}
+
+async function vendorDrawerUploadFile() {
+  const vid = vendorDrawerVendorId;
+  if (!vid) return;
+  const input = document.getElementById('vdFile');
+  const memoEl = document.getElementById('vdMemo');
+  const memo = memoEl?.value?.trim() || '';
+  if (!input?.files?.length) {
+    showToast('Escolha um ficheiro', 'error');
+    return;
+  }
+  const fd = new FormData();
+  fd.append('file', input.files[0]);
+  if (memo) fd.append('memo', memo);
+  const res = await fetch(`/api/vendors/${vid}/invoices`, {
+    method: 'POST',
+    credentials: 'include',
+    body: fd,
+  }).then((r) => r.json());
+  if (res.success) {
+    showToast('Ficheiro enviado');
+    input.value = '';
+    if (memoEl) memoEl.value = '';
+    await refreshVendorDrawerInvoices(vid);
+  } else showToast(res.error || 'Erro ao enviar', 'error');
 }
 
 async function loadPaymentReceipts() {
@@ -850,6 +994,35 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.getElementById('vendorDrawerClose')?.addEventListener('click', () => {
     document.getElementById('vendorDrawer').classList.remove('on');
+    vendorDrawerVendorId = null;
+  });
+
+  document.getElementById('vendorDrawer')?.addEventListener('click', async (e) => {
+    const lb = e.target.closest?.('.vd-lightbox');
+    if (lb) {
+      const src = lb.getAttribute('data-vd-src');
+      if (src) {
+        document.getElementById('lightboxImg').src = src;
+        document.getElementById('lightboxReceipt').classList.add('on');
+      }
+      e.preventDefault();
+      return;
+    }
+    const del = e.target.closest?.('[data-vd-del]');
+    if (del) {
+      if (!confirm('Eliminar este ficheiro?')) return;
+      const attId = del.getAttribute('data-vd-del');
+      const vid = parseInt(del.getAttribute('data-vd-vendor'), 10);
+      if (!attId || !vid) return;
+      const res = await fetch(`/api/vendors/${vid}/invoices/${attId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      }).then((r) => r.json());
+      if (res.success) {
+        showToast('Ficheiro eliminado');
+        await refreshVendorDrawerInvoices(vid);
+      } else showToast(res.error || 'Erro', 'error');
+    }
   });
 
   document.querySelectorAll('[data-close]').forEach((b) => {
@@ -875,6 +1048,12 @@ document.addEventListener('DOMContentLoaded', () => {
   loadPL();
   loadWeeklyForecast(currentWeek);
   loadVendors();
+
+  if (location.hash === '#vendors') {
+    switchFinancialTab('vendors');
+    const base = location.pathname + location.search;
+    history.replaceState(null, '', base || 'financial.html');
+  }
 });
 
 function debounce(fn, ms) {

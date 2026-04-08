@@ -4895,6 +4895,14 @@ input.score-auto {
 .fin-page .fin-form-full {
     grid-column: 1 / -1;
 }
+.fin-page .fin-drawer--vendor {
+    width: min(560px, 100vw);
+}
+.fin-page .fin-drawer--vendor .fin-vtab.on {
+    background: var(--sf-navy);
+    color: #fff;
+    border-color: var(--sf-navy);
+}
 .fin-page .fin-drawer {
     position: fixed;
     top: 0;

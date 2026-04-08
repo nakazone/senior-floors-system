@@ -333,6 +333,22 @@ vendorsRouter.delete('/:id/invoices/:attId', async (req, res) => {
   }
 });
 
+vendorsRouter.get('/:id/upcoming-payments', async (req, res) => {
+  try {
+    const pool = await getDBConnection();
+    if (!pool) return res.status(503).json({ success: false, error: 'Database not available' });
+    const id = parseInt(req.params.id, 10);
+    if (!id) return res.status(400).json({ success: false, error: 'ID inválido' });
+    const days = Math.min(366, Math.max(1, parseInt(req.query.days, 10) || 120));
+    const all = await getUpcomingVendorPayments(pool, days);
+    const data = (all || []).filter((x) => Number(x.vendor_id) === id);
+    res.json({ success: true, data, horizon_days: days });
+  } catch (e) {
+    console.error('GET /vendors/:id/upcoming-payments', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 vendorsRouter.get('/:id/history', async (req, res) => {
   try {
     const pool = await getDBConnection();
