@@ -494,6 +494,15 @@ async function openVendorModalForEdit(id) {
 
 let vendorDrawerVendorId = null;
 
+function closeVendorDrawer() {
+  const el = document.getElementById('vendorDrawer');
+  if (el) {
+    el.classList.remove('on');
+    el.setAttribute('aria-hidden', 'true');
+  }
+  vendorDrawerVendorId = null;
+}
+
 function switchVendorDrawerTab(tab) {
   const hist = document.getElementById('vd-pane-hist');
   const pay = document.getElementById('vd-pane-pay');
@@ -559,7 +568,9 @@ async function openVendorDrawer(id) {
   document.getElementById('vendorDrawerTitle').textContent = v ? v.name : 'Fornecedor';
   const body = document.getElementById('vendorDrawerBody');
   body.innerHTML = '<p style="color:var(--text-muted)">A carregar…</p>';
-  document.getElementById('vendorDrawer').classList.add('on');
+  const vd = document.getElementById('vendorDrawer');
+  vd.classList.add('on');
+  vd.setAttribute('aria-hidden', 'false');
 
   const [histRes, upRes, invRes] = await Promise.all([
     fetch(`/api/vendors/${id}/history`, { credentials: 'include' }).then((r) => r.json()),
@@ -992,12 +1003,13 @@ document.addEventListener('DOMContentLoaded', () => {
     } else showToast(res.error || 'Erro', 'error');
   });
 
-  document.getElementById('vendorDrawerClose')?.addEventListener('click', () => {
-    document.getElementById('vendorDrawer').classList.remove('on');
-    vendorDrawerVendorId = null;
-  });
+  document.getElementById('vendorDrawerClose')?.addEventListener('click', () => closeVendorDrawer());
 
   document.getElementById('vendorDrawer')?.addEventListener('click', async (e) => {
+    if (e.target.id === 'vendorDrawer') {
+      closeVendorDrawer();
+      return;
+    }
     const lb = e.target.closest?.('.vd-lightbox');
     if (lb) {
       const src = lb.getAttribute('data-vd-src');
@@ -1032,6 +1044,17 @@ document.addEventListener('DOMContentLoaded', () => {
   const mt = document.getElementById('mobileMenuToggle');
   const sb = document.getElementById('finSidebar');
   const ov = document.getElementById('mobileOverlay');
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    const lbEl = document.getElementById('lightboxReceipt');
+    if (lbEl?.classList.contains('on')) {
+      closeModal('lightboxReceipt');
+      return;
+    }
+    const vd = document.getElementById('vendorDrawer');
+    if (vd?.classList.contains('on')) closeVendorDrawer();
+  });
+
   if (mt && sb && ov) {
     mt.addEventListener('click', () => {
       const open = sb.classList.toggle('mobile-open');
