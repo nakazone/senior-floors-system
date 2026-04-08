@@ -59,8 +59,15 @@ export async function resetDbPool() {
 
 export function parseDatabaseUrl(url) {
   if (!url || typeof url !== 'string') return null;
+  let s = url.trim();
+  if (
+    (s.startsWith('"') && s.endsWith('"')) ||
+    (s.startsWith("'") && s.endsWith("'"))
+  ) {
+    s = s.slice(1, -1).trim();
+  }
   try {
-    const u = url.startsWith('mysql') ? url : 'mysql://' + url.replace(/^\/\//, '');
+    const u = s.startsWith('mysql') ? s : 'mysql://' + s.replace(/^\/\//, '');
     const parsed = new URL(u);
     return {
       host: parsed.hostname,
@@ -159,12 +166,44 @@ function preferRailwayInternalMysqlOverPublicHostname(cfg) {
   return cfg;
 }
 
-function isDatabaseConfigured() {
-  const url = process.env.DATABASE_URL || process.env.DATABASE_PUBLIC_URL || process.env.MYSQL_URL;
-  if (url?.trim()) {
-    const fromUrl = parseDatabaseUrl(url);
-    if (fromUrl && fromUrl.user && fromUrl.database) return true;
+/**
+ * URLs MySQL válidas por ordem DATABASE_URL → DATABASE_PUBLIC_URL → MYSQL_URL (dedupe por string).
+ * Fora do container Railway: prefere a primeira URL cujo host não seja *.railway.internal
+ * (evita MYSQL_URL interno quando há DATABASE_PUBLIC_URL completa ou URL pública).
+ */
+function firstParsedMysqlUrlFromEnv() {
+  const rawDbUrl = process.env.DATABASE_URL?.trim();
+  const rawPublicUrl = process.env.DATABASE_PUBLIC_URL?.trim();
+  const rawMysqlUrl = process.env.MYSQL_URL?.trim();
+  const pairs = [
+    ['DATABASE_URL', rawDbUrl],
+    ['DATABASE_PUBLIC_URL', rawPublicUrl],
+    ['MYSQL_URL', rawMysqlUrl],
+  ];
+  const seen = new Set();
+  const parsedList = [];
+  for (const [source, raw] of pairs) {
+    if (!raw || seen.has(raw)) continue;
+    seen.add(raw);
+    const p = parseDatabaseUrl(raw);
+    if (p && p.user && p.database) {
+      parsedList.push({ source, parsed: p });
+    }
   }
+  if (parsedList.length === 0) return { source: null, parsed: null };
+  if (!isLikelyRailwayAppContainer()) {
+    for (const item of parsedList) {
+      if (!isRailwayInternalHost(item.parsed.host)) {
+        return { source: item.source, parsed: item.parsed };
+      }
+    }
+  }
+  return { source: parsedList[0].source, parsed: parsedList[0].parsed };
+}
+
+function isDatabaseConfigured() {
+  const { parsed: fromUrl } = firstParsedMysqlUrlFromEnv();
+  if (fromUrl) return true;
   if (mysqlPluginConfigFromEnv()) return true;
   const user = process.env.DB_USER || '';
   const pass = process.env.DB_PASS || '';
@@ -191,7 +230,8 @@ export function getMysqlConnectionConfig() {
   const rawPublicUrl = process.env.DATABASE_PUBLIC_URL?.trim();
   const rawMysqlUrl = process.env.MYSQL_URL?.trim();
   const url = rawDbUrl || rawPublicUrl || rawMysqlUrl;
-  let fromUrl = parseDatabaseUrl(url);
+
+  let fromUrl = firstParsedMysqlUrlFromEnv().parsed;
 
   if (
     rawDbUrl &&
@@ -278,6 +318,28 @@ export function getMysqlConnectionConfig() {
             : cfg.password,
       };
     }
+    /**
+     * .env copiado do Railway: MYSQL_URL com mysql.railway.internal mas MYSQLHOST já é o TCP público
+     * (*.up.railway.app). Usar plugin quando a URL pública (DATABASE_PUBLIC_URL) está mal formatada.
+     */
+    if (isRailwayInternalHost(cfg.host)) {
+      const plug = mysqlPluginConfigFromEnv();
+      if (
+        plug &&
+        plug.user &&
+        plug.database &&
+        !isRailwayInternalHost(plug.host) &&
+        !isLocalMysqlHost(plug.host)
+      ) {
+        cfg = {
+          ...plug,
+          password:
+            plug.password !== undefined && plug.password !== ''
+              ? plug.password
+              : cfg.password,
+        };
+      }
+    }
   }
 
   cfg = preferRailwayInternalMysqlOverPublicHostname(cfg);
@@ -292,9 +354,19 @@ export function getMysqlConnectionConfig() {
 
 /** Para scripts (migrate): o que falta sem expor segredos. */
 export function getMysqlEnvDiagnostics() {
-  const url =
-    process.env.DATABASE_URL || process.env.DATABASE_PUBLIC_URL || process.env.MYSQL_URL;
-  const fromUrl = parseDatabaseUrl(url);
+  const rawDbUrl = process.env.DATABASE_URL?.trim();
+  const rawPublicUrl = process.env.DATABASE_PUBLIC_URL?.trim();
+  const rawMysqlUrl = process.env.MYSQL_URL?.trim();
+  const url = rawDbUrl || rawPublicUrl || rawMysqlUrl;
+
+  const urlLineParsesOk = (raw) => {
+    if (!raw) return false;
+    const p = parseDatabaseUrl(raw);
+    return Boolean(p && p.user && p.database);
+  };
+
+  const first = firstParsedMysqlUrlFromEnv();
+  const fromUrl = first.parsed;
   const urlLooksLocal = Boolean(fromUrl && isLocalMysqlHost(fromUrl.host));
   const urlLooksInternalRailway = Boolean(fromUrl && isRailwayInternalHost(fromUrl.host));
   const explicitOverridesParsedUrl =
@@ -309,20 +381,22 @@ export function getMysqlEnvDiagnostics() {
     hasExplicitDb &&
     explicitOverridesParsedUrl &&
     (urlLooksLocal || urlLooksInternalRailway);
-  const pubUrlRaw = process.env.DATABASE_PUBLIC_URL?.trim();
-  const pubUrlParsed = pubUrlRaw ? parseDatabaseUrl(pubUrlRaw) : null;
+  const pubUrlParsed = rawPublicUrl ? parseDatabaseUrl(rawPublicUrl) : null;
   const resolved = getMysqlConnectionConfig();
   return {
     urlSet: Boolean(url?.trim()),
-    urlParsesOk: Boolean(fromUrl && fromUrl.user && fromUrl.database),
+    /** True se pelo menos uma das URLs (por ordem) faz parse válido. */
+    urlParsesOk: Boolean(fromUrl),
+    effectiveUrlSource: first.source,
+    databaseUrlParsesOk: urlLineParsesOk(rawDbUrl),
     urlHostLocal: urlLooksLocal,
     urlHostRailwayInternal: urlLooksInternalRailway,
     urlParsedHost: fromUrl?.host ?? null,
     urlOvertakenByDbHost: overtakenByDbHost,
-    databasePublicUrlSet: Boolean(pubUrlRaw),
-    databasePublicUrlParsesOk: Boolean(
-      pubUrlParsed && pubUrlParsed.user && pubUrlParsed.database
-    ),
+    databasePublicUrlSet: Boolean(rawPublicUrl),
+    databasePublicUrlParsesOk: urlLineParsesOk(rawPublicUrl),
+    mysqlUrlSet: Boolean(rawMysqlUrl),
+    mysqlUrlParsesOk: urlLineParsesOk(rawMysqlUrl),
     databasePublicHost: pubUrlParsed?.host ?? null,
     dbHost: Boolean(process.env.DB_HOST?.trim()),
     dbHostEnv: process.env.DB_HOST?.trim() || null,

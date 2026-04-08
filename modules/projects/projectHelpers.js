@@ -116,48 +116,103 @@ function normalizeProjectStatus(s) {
   return v;
 }
 
+/**
+ * Monta uma linha de endereço a partir do cadastro `customers` (address, city, state, zipcode).
+ * @param {Record<string, unknown>|null|undefined} c
+ * @returns {string|null}
+ */
+export function formatAddressFromCustomer(c) {
+  if (!c) return null;
+  const line = String(c.address ?? '').trim();
+  const city = String(c.city ?? '').trim();
+  const state = String(c.state ?? '').trim();
+  const zip = String(c.zipcode ?? '').trim();
+  const cityState = [city, state].filter(Boolean).join(', ');
+  const tail = [cityState, zip].filter(Boolean).join(cityState && zip ? ' ' : '');
+  const parts = [];
+  if (line) parts.push(line);
+  if (tail) parts.push(tail);
+  const s = parts.join(' — ').trim();
+  return s || null;
+}
+
+/**
+ * Usa o endereço do projeto se preenchido; caso contrário, o formatado do cliente.
+ * @param {string|null|undefined} projectAddress
+ * @param {Record<string, unknown>|null|undefined} customerRow
+ * @returns {string}
+ */
+export function resolveProjectAddress(projectAddress, customerRow) {
+  const pa = projectAddress != null ? String(projectAddress).trim() : '';
+  if (pa) return pa;
+  return formatAddressFromCustomer(customerRow) || '';
+}
+
 export function mapListProjectRow(p) {
-  const leadNumeric = p.lead_id != null ? parseInt(String(p.lead_id), 10) : NaN;
+  const {
+    _customer_address,
+    _customer_city,
+    _customer_state,
+    _customer_zipcode,
+    ...rowIn
+  } = p;
+
+  const customerForAddr =
+    _customer_address != null ||
+    _customer_city != null ||
+    _customer_state != null ||
+    _customer_zipcode != null
+      ? {
+          address: _customer_address,
+          city: _customer_city,
+          state: _customer_state,
+          zipcode: _customer_zipcode,
+        }
+      : null;
+
+  const leadNumeric = rowIn.lead_id != null ? parseInt(String(rowIn.lead_id), 10) : NaN;
   const hasLead = Number.isFinite(leadNumeric) && leadNumeric > 0;
-  const contract = money(p.contract_value ?? p.estimated_cost);
-  const labor = money(p.labor_cost_actual);
-  const mat = money(p.material_cost_actual);
-  const add = money(p.additional_cost_actual);
+  const contract = money(rowIn.contract_value ?? rowIn.estimated_cost);
+  const labor = money(rowIn.labor_cost_actual);
+  const mat = money(rowIn.material_cost_actual);
+  const add = money(rowIn.additional_cost_actual);
   let totalCost = labor + mat + add;
-  if (totalCost === 0 && p.actual_cost != null && String(p.actual_cost).trim() !== '') {
-    totalCost = money(p.actual_cost);
+  if (totalCost === 0 && rowIn.actual_cost != null && String(rowIn.actual_cost).trim() !== '') {
+    totalCost = money(rowIn.actual_cost);
   }
   const gross = contract - totalCost;
   const marginPct = contract > 0 ? moneyRound((gross / contract) * 100, 1) : 0;
-  const startDate = p.start_date ?? p.estimated_start_date ?? null;
-  const endEst = p.end_date_estimated ?? p.estimated_end_date ?? null;
+  const startDate = rowIn.start_date ?? rowIn.estimated_start_date ?? null;
+  const endEst = rowIn.end_date_estimated ?? rowIn.estimated_end_date ?? null;
   const completion =
-    p.completion_percentage != null && p.completion_percentage !== ''
-      ? parseInt(String(p.completion_percentage), 10)
-      : p.status === 'completed'
+    rowIn.completion_percentage != null && rowIn.completion_percentage !== ''
+      ? parseInt(String(rowIn.completion_percentage), 10)
+      : rowIn.status === 'completed'
         ? 100
         : 0;
+  const resolvedAddress = resolveProjectAddress(rowIn.address, customerForAddr);
   return {
-    ...p,
-    client_type: hasLead ? 'customer' : p.client_type,
-    status: normalizeProjectStatus(p.status),
+    ...rowIn,
+    address: resolvedAddress || rowIn.address,
+    client_type: hasLead ? 'customer' : rowIn.client_type,
+    status: normalizeProjectStatus(rowIn.status),
     start_date: startDate,
     end_date_estimated: endEst,
-    checklist_completed: !!(p.checklist_completed === 1 || p.checklist_completed === true),
+    checklist_completed: !!(rowIn.checklist_completed === 1 || rowIn.checklist_completed === true),
     contract_value: moneyRound(contract, 2),
-    supply_value: moneyRound(money(p.supply_value), 2),
-    installation_value: moneyRound(money(p.installation_value), 2),
-    sand_finish_value: moneyRound(money(p.sand_finish_value), 2),
+    supply_value: moneyRound(money(rowIn.supply_value), 2),
+    installation_value: moneyRound(money(rowIn.installation_value), 2),
+    sand_finish_value: moneyRound(money(rowIn.sand_finish_value), 2),
     labor_cost_actual: moneyRound(labor, 2),
     material_cost_actual: moneyRound(mat, 2),
     additional_cost_actual: moneyRound(add, 2),
     total_cost_actual: moneyRound(totalCost, 2),
     gross_profit: moneyRound(gross, 2),
     margin_pct: marginPct,
-    total_sqft: p.total_sqft != null ? moneyRound(p.total_sqft, 2) : null,
+    total_sqft: rowIn.total_sqft != null ? moneyRound(rowIn.total_sqft, 2) : null,
     completion_percentage: Number.isFinite(completion) ? completion : 0,
-    photos_count: parseInt(String(p.photos_count ?? 0), 10) || 0,
-    checklist_total: parseInt(String(p.checklist_total ?? 0), 10) || 0,
-    checklist_done: parseInt(String(p.checklist_done ?? 0), 10) || 0,
+    photos_count: parseInt(String(rowIn.photos_count ?? 0), 10) || 0,
+    checklist_total: parseInt(String(rowIn.checklist_total ?? 0), 10) || 0,
+    checklist_done: parseInt(String(rowIn.checklist_done ?? 0), 10) || 0,
   };
 }

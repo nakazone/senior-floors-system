@@ -16,6 +16,8 @@ import {
   seedChecklistIfEmpty,
   refreshChecklistCompletedFlag,
   mapListProjectRow,
+  formatAddressFromCustomer,
+  resolveProjectAddress,
   money,
   moneyRound,
   getProjectsTableColumnSet,
@@ -235,12 +237,15 @@ router.get('/', ...allAuthed, requirePermission('projects.view'), async (req, re
     }
     if (search) {
       const q = `%${search}%`;
+      const custAddr = `IFNULL(CONCAT_WS(' ', c.address, c.city, c.state, c.zipcode),'')`;
       if (hasCol('builder_name')) {
-        parts.push('(p.name LIKE ? OR IFNULL(p.address,\'\') LIKE ? OR IFNULL(p.builder_name,\'\') LIKE ?)');
-        params.push(q, q, q);
+        parts.push(
+          `(p.name LIKE ? OR IFNULL(p.address,'') LIKE ? OR IFNULL(p.builder_name,'') LIKE ? OR ${custAddr} LIKE ?)`
+        );
+        params.push(q, q, q, q);
       } else {
-        parts.push('(p.name LIKE ? OR IFNULL(p.address,\'\') LIKE ?)');
-        params.push(q, q);
+        parts.push(`(p.name LIKE ? OR IFNULL(p.address,'') LIKE ? OR ${custAddr} LIKE ?)`);
+        params.push(q, q, q);
       }
     }
     const where = parts.join(' AND ');
@@ -262,6 +267,10 @@ router.get('/', ...allAuthed, requirePermission('projects.view'), async (req, re
       SELECT p.*,
         u.name AS assigned_to_name,
         c.name AS customer_name,
+        c.address AS _customer_address,
+        c.city AS _customer_city,
+        c.state AS _customer_state,
+        c.zipcode AS _customer_zipcode,
         ${crewSel},
         ${photosSel} AS photos_count,
         ${chkTotalSel} AS checklist_total,
@@ -573,6 +582,18 @@ router.post('/', ...allAuthed, requirePermission('projects.create'), async (req,
       created_by: uid,
       notes: b.notes != null ? String(b.notes) : null,
     };
+    if (pcols.has('address')) {
+      const bodyAddr = b.address != null ? String(b.address).trim() : '';
+      if (bodyAddr) {
+        rowMap.address = bodyAddr;
+      } else {
+        const [custRows] = await pool.query(
+          'SELECT address, city, state, zipcode FROM customers WHERE id = ? LIMIT 1',
+          [customerId]
+        );
+        rowMap.address = custRows[0] ? formatAddressFromCustomer(custRows[0]) || null : null;
+      }
+    }
     const fields = [];
     const insVals = [];
     for (const [col, val] of Object.entries(rowMap)) {
@@ -593,8 +614,18 @@ router.post('/', ...allAuthed, requirePermission('projects.create'), async (req,
     await seedChecklistIfEmpty(pool, projectId);
     if (leadId) await setLeadPipelineBySlug(leadId, 'production');
 
-    const [rows] = await pool.query('SELECT * FROM projects WHERE id = ?', [projectId]);
-    res.status(201).json({ success: true, data: rows[0] });
+    const [rows] = await pool.query(
+      `SELECT p.*,
+        c.address AS _customer_address,
+        c.city AS _customer_city,
+        c.state AS _customer_state,
+        c.zipcode AS _customer_zipcode
+       FROM projects p
+       LEFT JOIN customers c ON p.customer_id = c.id
+       WHERE p.id = ?`,
+      [projectId]
+    );
+    res.status(201).json({ success: true, data: mapListProjectRow(rows[0]) });
   } catch (e) {
     console.error('createProject', e);
     res.status(500).json({ success: false, error: e.message });
@@ -1548,10 +1579,13 @@ router.get('/:id', ...allAuthed, requirePermission('projects.view'), async (req,
     }));
 
     const base = mapListProjectRow(p);
+    const cust = customer[0] && customer[0].id ? customer[0] : null;
+    const address = resolveProjectAddress(base.address, cust) || base.address;
     res.json({
       success: true,
       data: {
         ...base,
+        address,
         costs: costs.map((c) => floatMoneyFields(c, ['quantity', 'unit_cost', 'total_cost'])),
         materials: materials.map((m) =>
           floatMoneyFields(m, ['qty_ordered', 'qty_received', 'qty_used', 'unit_cost', 'total_cost'])
@@ -1628,7 +1662,17 @@ router.put('/:id', ...allAuthed, requirePermission('projects.edit'), async (req,
     vals.push(id);
     await pool.execute(`UPDATE projects SET ${updates.join(', ')} WHERE id = ?`, vals);
 
-    const [rows] = await pool.query('SELECT * FROM projects WHERE id = ?', [id]);
+    const [rows] = await pool.query(
+      `SELECT p.*,
+        c.address AS _customer_address,
+        c.city AS _customer_city,
+        c.state AS _customer_state,
+        c.zipcode AS _customer_zipcode
+       FROM projects p
+       LEFT JOIN customers c ON p.customer_id = c.id
+       WHERE p.id = ?`,
+      [id]
+    );
     res.json({ success: true, data: mapListProjectRow(rows[0]) });
   } catch (e) {
     console.error('put project', e);

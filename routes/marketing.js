@@ -792,7 +792,7 @@ router.get('/stats', async (req, res) => {
           period,
           start,
           end,
-          'Faltam tabelas de marketing. Na Railway: railway run -s senior-floors-system npm run migrate:marketing-complete'
+          'Faltam tabelas de marketing. Na Railway: railway ssh -s senior-floors-system -- npm run migrate:marketing-complete'
         )
       );
     }

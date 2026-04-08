@@ -8,6 +8,7 @@ import {
   money,
   seedChecklistIfEmpty,
   getProjectsTableColumnSet,
+  formatAddressFromCustomer,
 } from './projectHelpers.js';
 
 async function resolveMonetaryValue(pool, leadId, leadRow) {
@@ -168,7 +169,15 @@ export async function ensureProjectFromWonLead(pool, leadId, userId) {
   if (cols.has('project_number')) {
     add('project_number', await nextProjectNumber(pool));
   }
-  add('address', String(lead.address || '').trim() || null);
+  let projectAddress = String(lead.address || '').trim() || null;
+  if (!projectAddress) {
+    const [cr] = await pool.query(
+      'SELECT address, city, state, zipcode FROM customers WHERE id = ? LIMIT 1',
+      [conv.customer_id]
+    );
+    if (cr.length) projectAddress = formatAddressFromCustomer(cr[0]) || null;
+  }
+  add('address', projectAddress);
   if (cols.has('contract_value')) {
     add('contract_value', contractVal);
   }

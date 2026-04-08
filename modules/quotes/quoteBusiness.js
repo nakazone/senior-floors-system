@@ -74,12 +74,13 @@ function moneyEmail(n) {
   return `$${x.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-/** Mesma lógica de secções do PDF (Installation / Sand & Finishing / produtos). */
+/** Mesma lógica de secções do PDF (Installation / Sand & Finishing / Supply / produtos). */
 function lineSectionEmail(it) {
   if (String(it.item_type || '').toLowerCase() === 'product') return 'products';
   const st = String(it.service_type || '').trim();
   if (!st) return 'installation';
   const lower = st.toLowerCase();
+  if (lower === 'supply') return 'supply';
   if (lower.includes('sand') || lower.includes('finishing')) return 'sand_finish';
   return 'installation';
 }
@@ -87,12 +88,13 @@ function lineSectionEmail(it) {
 const EMAIL_SECTIONS = [
   { key: 'installation', label: 'Installation' },
   { key: 'sand_finish', label: 'Sand & Finishing' },
+  { key: 'supply', label: 'Supply' },
   { key: 'products', label: 'Materials & products' },
 ];
 
 function groupItemsForEmail(items) {
   const list = Array.isArray(items) ? items : [];
-  const buckets = { installation: [], sand_finish: [], products: [] };
+  const buckets = { installation: [], sand_finish: [], supply: [], products: [] };
   for (const it of list) {
     const k = lineSectionEmail(it);
     if (buckets[k]) buckets[k].push(it);

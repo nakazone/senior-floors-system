@@ -203,15 +203,18 @@ async function ingestOneLead(req, post, isSheetsSyncRequest) {
     zipClean = zipClean.slice(0, 5);
   }
   if (errors.length > 0) {
-    console.warn('[receive-lead] validation failed', {
-      errors,
-      form_name,
-      isSheetsSyncRequest,
-      nameLen: name.length,
-      emailLen: email.length,
-      phoneLen: phone.length,
-      rawZipLen: (zipcode || '').length,
-    });
+    console.warn(
+      '[receive-lead] validation failed ' +
+        JSON.stringify({
+          errors,
+          form_name,
+          isSheetsSyncRequest,
+          nameLen: name.length,
+          emailLen: email.length,
+          phoneLen: phone.length,
+          rawZipLen: (zipcode || '').length,
+        })
+    );
     return {
       status: 400,
       json: { success: false, errors, api_version: 'receive-lead-system' },
@@ -254,11 +257,14 @@ async function ingestOneLead(req, post, isSheetsSyncRequest) {
             lead_id = dup.existing_id;
             db_saved = true;
             inserted_new = false;
-            console.info('[receive-lead] duplicate skipped (planilha/LP)', {
-              existing_lead_id: lead_id,
-              isSheetsSyncRequest,
-              form_name,
-            });
+            console.info(
+              '[receive-lead] duplicate skipped (planilha/LP) ' +
+                JSON.stringify({
+                  existing_lead_id: lead_id,
+                  isSheetsSyncRequest,
+                  form_name,
+                })
+            );
           } else {
             owner_id = await getNextOwnerRoundRobin(pool);
           }

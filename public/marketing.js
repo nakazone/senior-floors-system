@@ -366,26 +366,42 @@ function renderTable() {
       const p1 = row.period_end || row.spend_date || '—';
       return `<tr>
         <td><span class="mk-plat-pill ${platformPillClass(row.platform)}">${escapeHtml(platformLabel(row.platform))}</span></td>
-        <td>${escapeHtml(row.campaign_name)}</td>
-        <td>${escapeHtml(p0)} → ${escapeHtml(p1)}</td>
-        <td>${fmt$(row.spend)}</td>
-        <td>${fmtN(row.clicks)}</td>
-        <td>${fmtN(row.impressions)}</td>
-        <td>${fmtN(row.conversions)}</td>
-        <td>${cpl != null ? fmt$(cpl) : '—'}</td>
-        <td>
-          <button type="button" class="mk-btn" data-edit="${row.id}" title="Editar">✏️</button>
-          <button type="button" class="mk-btn" data-del="${row.id}" title="Eliminar">🗑️</button>
+        <td class="mk-cell-campaign">${escapeHtml(row.campaign_name)}</td>
+        <td class="mk-cell-period">${escapeHtml(p0)} → ${escapeHtml(p1)}</td>
+        <td class="mk-num">${fmt$(row.spend)}</td>
+        <td class="mk-num">${fmtN(row.clicks)}</td>
+        <td class="mk-num">${fmtN(row.impressions)}</td>
+        <td class="mk-num">${fmtN(row.conversions)}</td>
+        <td class="mk-num">${cpl != null ? fmt$(cpl) : '—'}</td>
+        <td class="mk-actions-col">
+          <div class="mk-row-actions">
+            <button type="button" class="mk-icon-btn" data-edit="${row.id}" title="Editar">✏️</button>
+            <button type="button" class="mk-icon-btn mk-icon-btn--danger" data-del="${row.id}" title="Eliminar">🗑️</button>
+          </div>
         </td>
       </tr>`;
     })
     .join('');
   if (info) info.textContent = `Página ${state.currentPage} de ${totalP} (${state.filteredCampaigns.length} registos)`;
   tbody.querySelectorAll('[data-edit]').forEach((b) =>
-    b.addEventListener('click', () => openEditModal(+b.getAttribute('data-edit')))
+    b.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      const raw = b.getAttribute('data-edit');
+      const nid = raw != null && raw !== '' ? Number(raw) : NaN;
+      if (!Number.isFinite(nid) || nid <= 0) return;
+      openEditModal(nid);
+    })
   );
   tbody.querySelectorAll('[data-del]').forEach((b) =>
-    b.addEventListener('click', () => deleteRow(+b.getAttribute('data-del')))
+    b.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      const raw = b.getAttribute('data-del');
+      const nid = raw != null && raw !== '' ? Number(raw) : NaN;
+      if (!Number.isFinite(nid) || nid <= 0) return;
+      deleteRow(nid);
+    })
   );
 }
 
@@ -668,11 +684,20 @@ function initGoalsModal() {
   });
 }
 
+function closeAllMarketingModals() {
+  ['modalGoals', 'modalManual', 'modalImport', 'modalEdit'].forEach((mid) => {
+    const el = document.getElementById(mid);
+    if (el) el.hidden = true;
+  });
+}
+
 function openEditModal(id) {
-  const row = state.campaigns.find((r) => r.id === id);
+  const nid = Number(id);
+  if (!Number.isFinite(nid) || nid <= 0) return;
+  const row = state.campaigns.find((r) => r.id === nid);
   if (!row) return;
   const modal = document.getElementById('modalEdit');
-  document.getElementById('eId').value = row.id;
+  document.getElementById('eId').value = String(row.id);
   const sel = document.getElementById('ePlatform');
   sel.innerHTML = ['google_ads', 'meta', 'instagram', 'tiktok', 'other']
     .map((p) => `<option value="${p}" ${row.platform === p ? 'selected' : ''}>${platformLabel(p)}</option>`)
@@ -761,6 +786,7 @@ document.getElementById('mkNext')?.addEventListener('click', () => {
 
 document.addEventListener('DOMContentLoaded', async () => {
   if (!(await checkAuth())) return;
+  closeAllMarketingModals();
   loadStats();
   loadAdSpend();
   initImportModal();

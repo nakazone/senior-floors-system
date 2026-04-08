@@ -445,9 +445,10 @@
         : `<span class="text-xs font-semibold text-slate-700 leading-snug block">Serviço${autoTag}</span>`;
       const serviceCell = isProduct
         ? '<span class="text-xs text-slate-400 pt-1 inline-block">—</span>'
-        : `<select data-k="service_type" data-i="${idx}" class="qb-select-compact border border-slate-300 rounded-md">
+        : `<select data-k="service_type" data-i="${idx}" class="qb-select-compact border border-slate-300 rounded-md" title="Tipo de trabalho">
             <option value="Installation">Installation</option>
             <option value="Sand & Finishing">Sand &amp; Finishing</option>
+            <option value="Supply">Supply</option>
           </select>`;
       tr.innerHTML = `
         <td class="align-top">${kindCell}</td>
@@ -479,7 +480,8 @@
       tr.querySelector(`select[data-k="unit_type"][data-i="${idx}"]`).value = it.unit_type || 'sq_ft';
       const stSel = tr.querySelector(`select[data-k="service_type"][data-i="${idx}"]`);
       if (stSel) {
-        stSel.value = st === 'Sand & Finishing' ? 'Sand & Finishing' : 'Installation';
+        const allowed = new Set(['Installation', 'Sand & Finishing', 'Supply']);
+        stSel.value = allowed.has(st) ? st : 'Installation';
       }
     });
 
@@ -914,8 +916,13 @@
         const rate = effectiveCatalogRate(row, src);
         const catNotes = row.notes_customer != null ? String(row.notes_customer).trim() : '';
         const category = row.category || 'Installation';
+        const catStr = String(category);
         const lineSt =
-          category === 'Sand & Finishing' || String(category).includes('Sand') ? 'Sand & Finishing' : 'Installation';
+          catStr === 'Supply' || catStr.toLowerCase() === 'supply'
+            ? 'Supply'
+            : catStr === 'Sand & Finishing' || catStr.includes('Sand')
+              ? 'Sand & Finishing'
+              : 'Installation';
         items.push({
           item_type: 'service',
           name: row.name || '',

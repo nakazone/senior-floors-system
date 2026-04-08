@@ -9,6 +9,9 @@
  * .env prevalece sobre o terminal: ver database/load-dotenv-override.mjs
  */
 import './load-dotenv-override.mjs';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import mysql from 'mysql2/promise';
 import {
   getMysqlConnectionConfig,
@@ -17,6 +20,10 @@ import {
   isRailwayPublicMysqlHostname,
   attachRailwayPublicMysqlSsl,
 } from '../config/db.js';
+
+const MIGRATE_DIR = path.dirname(fileURLToPath(import.meta.url));
+/** Mesmo caminho que database/load-dotenv-override.mjs (senior-floors-system/.env). */
+const PROJECT_ENV_PATH = path.resolve(MIGRATE_DIR, '..', '.env');
 
 function isRailwayInternalHost(host) {
   return typeof host === 'string' && /\.railway\.internal$/i.test(host.trim());
@@ -124,11 +131,27 @@ function printIncompleteMysqlEnvHelp() {
     '[migrate] O .env do senior-floors-system está incompleto: não há DATABASE_URL, DATABASE_PUBLIC_URL, MYSQL_URL nem MYSQLHOST,'
   );
   console.error('  e DB_* ainda parecem o env.example (ex. DB_HOST=localhost, DB_NAME=your_db_name).');
+  console.error(`  Caminho absoluto do .env carregado: ${PROJECT_ENV_PATH}`);
+  if (fs.existsSync(PROJECT_ENV_PATH)) {
+    console.error(
+      '  O ficheiro existe — acrescente DATABASE_URL aqui (não na raiz do monorepo nem noutra pasta).'
+    );
+  } else {
+    console.error('  Crie este ficheiro (pode copiar de .env.example) e defina DATABASE_URL.');
+  }
   console.error('  Corrija um destes cenários:');
   console.error('  A) Copie do Railway → serviço MySQL → Variables a variável DATABASE_URL (referência ao MySQL) para o .env.');
   console.error('     No Mac, acrescente também DATABASE_PUBLIC_URL com a URL "Public network" / TCP (Connect), se o interno não resolver.');
   console.error('  B) Ou preencha DB_HOST (host público do painel), DB_USER, DB_PASS, DB_NAME com valores reais — não localhost nem placeholders.');
-  console.error('  C) Sem editar .env: cd senior-floors-system && railway run -s senior-floors-system npm run migrate:marketing-complete');
+  console.error(
+    '  C) Sem .env local completo: correr o migrate **no container** (rede privada Railway):'
+  );
+  console.error(
+    '     railway ssh -s senior-floors-system -- npm run migrate:marketing-complete'
+  );
+  console.error(
+    '     (Nota: `railway run` corre no seu Mac com env da Railway — não contorna firewall à porta 3306.)'
+  );
 }
 
 function printRailwayInternalHelp(host) {
@@ -136,8 +159,8 @@ function printRailwayInternalHelp(host) {
   console.error('  Opções:');
   console.error('  1) No .env de senior-floors-system, acrescente DATABASE_PUBLIC_URL= com a URL "Public network" / TCP (MySQL → Connect).');
   console.error('     Mantenha DATABASE_URL interno se quiser; no Mac a ligação usa DATABASE_PUBLIC_URL automaticamente.');
-  console.error('  2) railway run (injeta variáveis do serviço): se falhar, adicione DATABASE_PUBLIC_URL também nas Variables do serviço Node na Railway.');
-  console.error('     cd senior-floors-system && railway run -s senior-floors-system npm run migrate:marketing-complete');
+  console.error('  2) Correr o migrate no servidor (recomendado se o WiFi bloqueia TCP 3306):');
+  console.error('     railway ssh -s senior-floors-system -- npm run migrate:marketing-complete');
   console.error('  3) Ou DB_HOST + DB_USER + DB_PASS + DB_NAME com o host/porta TCP do painel (não mysql.railway.internal).');
 }
 
@@ -153,7 +176,9 @@ async function main() {
     console.error('[migrate] MySQL não configurado.');
     console.error('  Defina DATABASE_URL ou DB_HOST + DB_USER + DB_PASS + DB_NAME no .env');
     console.error('  Diagnóstico:', JSON.stringify(getMysqlEnvDiagnostics(), null, 2));
-    console.error('  Na Railway: railway run -s senior-floors-system npm run migrate:marketing-complete');
+    console.error(
+      '  Na Railway (dentro do container): railway ssh -s senior-floors-system -- npm run migrate:marketing-complete'
+    );
     process.exit(1);
   }
 
@@ -185,7 +210,12 @@ async function main() {
       const diag = getMysqlEnvDiagnostics();
       if (isRailwayPublicMysqlHostname(cfg.host)) {
         console.error('  MySQL público da Railway a partir do Mac: muitas redes bloqueiam saída TCP 3306 ou o host/porta do painel mudou.');
-        console.error('  • Melhor opção: railway run -s senior-floors-system npm run migrate:marketing-complete (usa rede interna, sem depender do seu WiFi).');
+        console.error(
+          '  • Melhor opção (migrate no container, rede privada Railway): railway ssh -s senior-floors-system -- npm run migrate:marketing-complete'
+        );
+        console.error(
+          '  • `railway run` corre no seu computador com variáveis da Railway — não evita bloqueio à porta 3306.'
+        );
         if (diag.urlHostRailwayInternal && !diag.databasePublicUrlSet) {
           console.error('  • Adicione DATABASE_PUBLIC_URL ao .env (URL TCP em MySQL → Connect → Public network). Com DATABASE_URL interno, o cliente usa essa URL no Mac em vez de mysql.railway.internal.');
         }
@@ -212,11 +242,15 @@ async function main() {
         console.error('  • No .env: DB_HOST deve ser o host público (Railway → MySQL → Connect → Public network), não localhost.');
         console.error('  • Se DATABASE_URL no terminal (export) tiver localhost, prevalece sobre o .env — faça unset DATABASE_URL ou corrija.');
         console.error('  • DATABASE_PUBLIC_URL também não pode usar localhost para a BD na Railway.');
-        console.error('  • Ou: railway run -s senior-floors-system npm run migrate:marketing-complete');
+        console.error(
+          '  • Ou no container: railway ssh -s senior-floors-system -- npm run migrate:marketing-complete'
+        );
         console.error('  Diagnóstico:', JSON.stringify(getMysqlEnvDiagnostics(), null, 2));
       } else {
         console.error('  • Confirme firewall / IP permitido no painel MySQL e porta', cfg.port || 3306);
-        console.error('  • railway run -s senior-floors-system npm run migrate:marketing-complete');
+        console.error(
+          '  • railway ssh -s senior-floors-system -- npm run migrate:marketing-complete'
+        );
         console.error('  Diagnóstico:', JSON.stringify(getMysqlEnvDiagnostics(), null, 2));
       }
       process.exit(1);

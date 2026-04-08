@@ -65,6 +65,7 @@ function lineSection(it) {
   const st = String(it.service_type || '').trim();
   if (!st) return 'installation';
   const lower = st.toLowerCase();
+  if (lower === 'supply') return 'supply';
   if (lower.includes('sand') || lower.includes('finishing')) return 'sand_finish';
   return 'installation';
 }
@@ -72,12 +73,13 @@ function lineSection(it) {
 const SECTION_DEFS = [
   { key: 'installation', label: 'Installation' },
   { key: 'sand_finish', label: 'Sand & Finishing' },
+  { key: 'supply', label: 'Supply' },
   { key: 'products', label: 'Materials & products' },
 ];
 
 function groupItemsForPdf(items) {
   const list = Array.isArray(items) ? items : [];
-  const buckets = { installation: [], sand_finish: [], products: [] };
+  const buckets = { installation: [], sand_finish: [], supply: [], products: [] };
   for (const it of list) {
     const k = lineSection(it);
     if (buckets[k]) buckets[k].push(it);
