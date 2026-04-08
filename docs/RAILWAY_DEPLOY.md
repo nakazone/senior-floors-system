@@ -89,8 +89,13 @@ Assim a LP poderá enviar leads para o System no Railway.
 - Teste a conexão localmente primeiro com um `.env`
 - Se usar Hostinger, verifique se o IP do Railway está liberado no firewall do MySQL
 
+### Ligar o Node ao MySQL (`${{ MySQL.MYSQL_URL }}`)
+No **serviço Node** (CRM), em **Variables**, podes criar `DATABASE_URL` ou `MYSQL_URL` com o valor de referência que o Railway sugere, por exemplo `${{ MySQL.MYSQL_URL }}` (o nome do serviço MySQL pode variar — usa o picker do painel). A app já lê `DATABASE_URL`, `MYSQL_URL` e as variáveis `MYSQLHOST` / `MYSQLUSER` / … — ver `config/db.js`.
+
+**Tabelas financeiras:** no **arranque** do servidor, o código corre um `CREATE TABLE IF NOT EXISTS` para `vendors`, `operational_costs`, `weekly_forecast`, etc. (ficheiro `lib/ensureFinancialCompleteSchema.js`). Após um deploy com a ligação à BD correta, **não é obrigatório** correr `npm run migrate:financial-complete` à mão; continua disponível para scripts locais ou reparos.
+
 ### `Table '…vendors' doesn't exist` (ou outras tabelas do financeiro)
-O módulo financeiro precisa das tabelas `vendors`, `operational_costs`, `payment_receipts`, `weekly_forecast`, etc. Rode a migração **uma vez** no ambiente que usa esse MySQL:
+Se ainda vires este erro, confirma que o serviço Node tem `DATABASE_URL` / `MYSQL_URL` a apontar para o MySQL do **mesmo** projeto. Depois faz **redeploy** (ou espera o arranque) para o `ensure` correr. Em último caso, rode a migração **uma vez** no ambiente que usa esse MySQL:
 
 1. Na pasta do projeto, com [Railway CLI](https://docs.railway.com/guides/cli) ligado ao serviço:  
    `npm run migrate:financial-complete:railway`  

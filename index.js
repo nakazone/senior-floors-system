@@ -92,6 +92,7 @@ import { ensureQuoteInvoicePdfColumn } from './lib/ensureQuoteInvoicePdfColumn.j
 import { ensureUserModuleColumns } from './lib/ensureUserModuleColumns.js';
 import { ensureCustomersResponsibleNameColumn } from './lib/ensureCustomersResponsibleNameColumn.js';
 import { ensurePayrollTimesheetDailyOverrideColumn } from './lib/ensurePayrollTimesheetDailyOverrideColumn.js';
+import { ensureFinancialCompleteSchema } from './lib/ensureFinancialCompleteSchema.js';
 import { getUiConfig } from './routes/uiConfig.js';
 
 function validateEnv() {
@@ -712,6 +713,12 @@ async function start() {
       await ensureUserModuleColumns(pool);
       await ensureCustomersResponsibleNameColumn(pool);
       await ensurePayrollTimesheetDailyOverrideColumn(pool);
+      try {
+        await ensureFinancialCompleteSchema(pool);
+        console.log('[db] Schema financeiro (vendors, operational_costs, …) verificado no arranque.');
+      } catch (e) {
+        console.warn('[db] ensure financial schema:', e && (e.code || e.message));
+      }
     })().catch((e) => console.error('[db] Arranque pós-listen:', e));
   });
 }
