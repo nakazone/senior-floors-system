@@ -211,7 +211,7 @@
         <select id="op-rec-type" style="display:none" class="fin-form-full">
           <option value="weekly">weekly</option><option value="monthly">monthly</option><option value="biweekly">biweekly</option><option value="quarterly">quarterly</option><option value="annual">annual</option>
         </select>
-        <input id="op-rec-day" type="number" style="display:none" placeholder="Dia (mês 1-31)" />
+        <input id="op-rec-day" type="number" min="1" max="31" style="display:none" placeholder="Dia do mês do pagamento (1–31)" title="Mensal/trimestral: dia em que cai o pagamento. A previsão semanal só mostra esse custo na semana que contém essa data." />
         <input id="op-rec-end" type="date" style="display:none" />
       </div>
       <div style="margin-top:16px;display:flex;gap:10px;justify-content:flex-end">
@@ -283,6 +283,6 @@
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="crm-shared-nav.js?v=8"></script>
-  <script src="financial.js?v=6"></script>
+  <script src="financial.js?v=7"></script>
 </body>
 </html>
