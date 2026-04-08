@@ -220,18 +220,44 @@ async function loadWeeklyForecast(week) {
   }
   const d = res.data;
   currentWeek = d.week_start;
-  document.getElementById('finWeekLabel').textContent = `${d.week_start} → ${d.week_end}`;
+  document.getElementById('finWeekLabel').textContent = `${d.week_start} → ${d.week_end} (semana de pagamento)`;
   const f = d.forecast;
   document.getElementById('fc-payroll').textContent = fmt$(f.payroll.amount);
+  const payLabel = document.getElementById('fcPayrollLabel');
+  if (payLabel) {
+    payLabel.textContent =
+      f.payroll.source === 'construction_payroll' ? 'Folha construção (valor da semana anterior)' : 'Payroll estimado (agendas)';
+  }
+  const ruleEl = document.getElementById('fcWeekPayRule');
+  if (ruleEl) {
+    if (f.payroll.source === 'construction_payroll' && f.payroll.work_week && f.payroll.payment_date) {
+      ruleEl.textContent = `Regra: a folha Seg–Dom de ${f.payroll.work_week.start} a ${f.payroll.work_week.end} é paga no sábado ${f.payroll.payment_date} (semana que está a ver: ${d.week_start} → ${d.week_end}).`;
+    } else {
+      ruleEl.textContent =
+        'Com período Semana (Seg–Dom) na Folha de construção, o valor real aparece aqui na semana de pagamento seguinte (sábado). Sem período coincidente, usa-se estimativa por agendas de obra.';
+    }
+  }
   document.getElementById('fc-op').textContent = fmt$(f.operational.amount);
   document.getElementById('fc-mat').textContent = fmt$(f.materials.amount);
   document.getElementById('fc-mkt').textContent = fmt$(f.marketing.amount);
   document.getElementById('fc-total').textContent = fmt$(f.total);
 
   const rows = [];
-  (f.payroll.items || []).forEach((i) =>
-    rows.push(['Payroll', `${escapeHtml(i.project_name)} · ${escapeHtml(i.crew_name)} · ${i.days_overlap}d`, fmt$((i.days_overlap || 0) * (parseFloat(i.daily_rate_avg) || 0))])
-  );
+  (f.payroll.items || []).forEach((i) => {
+    if (i.source === 'construction_payroll') {
+      rows.push([
+        'Folha constr.',
+        `${escapeHtml(i.period_name || 'Período')} · trabalho ${escapeHtml(i.work_week_start)}–${escapeHtml(i.work_week_end)} · pagamento ${escapeHtml(i.payment_date)}`,
+        fmt$(i.payable_total),
+      ]);
+    } else {
+      rows.push([
+        'Payroll (est.)',
+        `${escapeHtml(i.project_name)} · ${escapeHtml(i.crew_name)} · ${i.days_overlap}d`,
+        fmt$((i.days_overlap || 0) * (parseFloat(i.daily_rate_avg) || 0)),
+      ]);
+    }
+  });
   (f.operational.items || []).forEach((i) =>
     rows.push(['Operacional', escapeHtml(i.description), fmt$(i.total_amount)])
   );
