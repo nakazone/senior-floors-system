@@ -150,6 +150,13 @@
             <input type="search" id="vendorSearch" class="fin-vendor-search" placeholder="Buscar fornecedor…" />
             <button type="button" class="btn btn-sm btn-primary" id="btnNewVendor">+ Novo fornecedor</button>
           </div>
+          <div class="fin-vendor-detail" id="vendorDetail" hidden aria-hidden="true">
+            <div class="fin-vendor-detail__head">
+              <button type="button" class="btn btn-sm btn-secondary" id="vendorDetailBack">← Voltar</button>
+              <h4 class="fin-vendor-detail__title" id="vendorDetailTitle">Fornecedor</h4>
+            </div>
+            <div class="fin-vendor-detail__body" id="vendorDetailBody"></div>
+          </div>
           <div class="fin-vendor-grid" id="vendor-grid"></div>
         </section>
 
@@ -269,17 +276,7 @@
     </div>
   </div>
 
-  <div class="fin-modal-backdrop fin-vendor-sheet" id="vendorDrawer" aria-hidden="true">
-    <div class="fin-vendor-panel" id="vendorDrawerPanel" role="dialog" aria-modal="true" aria-labelledby="vendorDrawerTitle">
-      <div class="fin-vendor-panel__head">
-        <span id="vendorDrawerTitle">Fornecedor</span>
-        <button type="button" class="btn btn-sm btn-bar-dark-ghost" id="vendorDrawerClose" aria-label="Fechar">✕</button>
-      </div>
-      <div class="fin-vendor-panel__body" id="vendorDrawerBody"></div>
-    </div>
-  </div>
-
-  <div class="fin-modal-backdrop" id="lightboxReceipt" style="z-index:1160">
+  <div class="fin-modal-backdrop" id="lightboxReceipt" style="z-index:950">
     <div class="fin-modal" style="max-width:90vw">
       <img id="lightboxImg" src="" alt="Recibo" style="max-width:100%;height:auto" />
       <button type="button" class="btn btn-secondary" data-close="lightboxReceipt" style="margin-top:12px">Fechar</button>
@@ -288,6 +285,6 @@
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="crm-shared-nav.js?v=10"></script>
-  <script src="financial.js?v=11"></script>
+  <script src="financial.js?v=12"></script>
 </body>
 </html>

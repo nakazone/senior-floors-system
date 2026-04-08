@@ -76,6 +76,7 @@ function hideSkeletons(section) {
 }
 
 function switchFinancialTab(tab) {
+  if (tab !== 'vendors') closeVendorDrawer();
   document.querySelectorAll('.fin-tab').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab));
   document.querySelectorAll('.fin-pane').forEach((p) => p.classList.toggle('on', p.dataset.pane === tab));
   if (tab === 'operational') {
@@ -461,6 +462,10 @@ async function loadVendors() {
     b.addEventListener('click', () => openVendorModalForEdit(parseInt(b.getAttribute('data-vendor-edit'), 10)));
   });
 
+  if (vendorDrawerVendorId != null && !vendorsCache.some((v) => v.id === vendorDrawerVendorId)) {
+    closeVendorDrawer();
+  }
+
   const sel = document.getElementById('op-vendor-select');
   if (sel) {
     sel.innerHTML = '<option value="">— Vendor —</option>' + vendorsCache.map((v) => `<option value="${v.id}">${escapeHtml(v.name)}</option>`).join('');
@@ -495,9 +500,9 @@ async function openVendorModalForEdit(id) {
 let vendorDrawerVendorId = null;
 
 function closeVendorDrawer() {
-  const el = document.getElementById('vendorDrawer');
+  const el = document.getElementById('vendorDetail');
   if (el) {
-    el.classList.remove('on');
+    el.hidden = true;
     el.setAttribute('aria-hidden', 'true');
   }
   vendorDrawerVendorId = null;
@@ -510,7 +515,7 @@ function switchVendorDrawerTab(tab) {
   if (hist) hist.style.display = tab === 'hist' ? 'block' : 'none';
   if (pay) pay.style.display = tab === 'pay' ? 'block' : 'none';
   if (files) files.style.display = tab === 'files' ? 'block' : 'none';
-  document.querySelectorAll('#vendorDrawer .fin-vtab').forEach((b) => {
+  document.querySelectorAll('#vendorDetail .fin-vtab').forEach((b) => {
     b.classList.toggle('on', b.getAttribute('data-vtab') === tab);
   });
 }
@@ -565,12 +570,13 @@ async function refreshVendorDrawerInvoices(vendorId) {
 async function openVendorDrawer(id) {
   vendorDrawerVendorId = id;
   const v = vendorsCache.find((x) => x.id === id);
-  document.getElementById('vendorDrawerTitle').textContent = v ? v.name : 'Fornecedor';
-  const body = document.getElementById('vendorDrawerBody');
+  document.getElementById('vendorDetailTitle').textContent = v ? v.name : 'Fornecedor';
+  const body = document.getElementById('vendorDetailBody');
   body.innerHTML = '<p style="color:var(--text-muted)">A carregar…</p>';
-  const vd = document.getElementById('vendorDrawer');
-  vd.classList.add('on');
+  const vd = document.getElementById('vendorDetail');
+  vd.hidden = false;
   vd.setAttribute('aria-hidden', 'false');
+  requestAnimationFrame(() => vd.scrollIntoView({ behavior: 'smooth', block: 'nearest' }));
 
   const [histRes, upRes, invRes] = await Promise.all([
     fetch(`/api/vendors/${id}/history`, { credentials: 'include' }).then((r) => r.json()),
@@ -1003,13 +1009,9 @@ document.addEventListener('DOMContentLoaded', () => {
     } else showToast(res.error || 'Erro', 'error');
   });
 
-  document.getElementById('vendorDrawerClose')?.addEventListener('click', () => closeVendorDrawer());
+  document.getElementById('vendorDetailBack')?.addEventListener('click', () => closeVendorDrawer());
 
-  document.getElementById('vendorDrawer')?.addEventListener('click', async (e) => {
-    if (e.target.id === 'vendorDrawer') {
-      closeVendorDrawer();
-      return;
-    }
+  document.getElementById('vendorDetail')?.addEventListener('click', async (e) => {
     const lb = e.target.closest?.('.vd-lightbox');
     if (lb) {
       const src = lb.getAttribute('data-vd-src');
@@ -1051,8 +1053,8 @@ document.addEventListener('DOMContentLoaded', () => {
       closeModal('lightboxReceipt');
       return;
     }
-    const vd = document.getElementById('vendorDrawer');
-    if (vd?.classList.contains('on')) closeVendorDrawer();
+    const vd = document.getElementById('vendorDetail');
+    if (vd && !vd.hidden) closeVendorDrawer();
   });
 
   if (mt && sb && ov) {
