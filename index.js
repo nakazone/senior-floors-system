@@ -247,20 +247,6 @@ app.use((req, res, next) => {
   return sessionMiddleware(req, res, next);
 });
 
-// Ficheiros HTML/JS sem cache agressivo (evita CRM antigo após deploy)
-app.use(
-  express.static(path.join(__dirname, 'public'), {
-    setHeaders(res, filePath) {
-      const lower = String(filePath).toLowerCase();
-      if (lower.endsWith('.html') || lower.endsWith('.js')) {
-        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-        res.setHeader('Pragma', 'no-cache');
-      }
-    },
-  })
-);
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-
 function shouldSkipGeneralApiRateLimit(req) {
   if (!req.path.startsWith('/api')) return true;
   if (req.method === 'GET' && skipsMysqlSessionMiddleware(req)) return true;
@@ -608,6 +594,20 @@ app.all('/system.php', (req, res) => {
   if (req.query.api === 'db-check' && req.method === 'GET') return handleDbCheck(req, res);
   res.status(404).json({ error: 'Not found' });
 });
+
+// Estático depois de todas as rotas (API tem prioridade; evita POST/PUT em /api/* a serem tratados como ficheiros)
+app.use(
+  express.static(path.join(__dirname, 'public'), {
+    setHeaders(res, filePath) {
+      const lower = String(filePath).toLowerCase();
+      if (lower.endsWith('.html') || lower.endsWith('.js')) {
+        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+      }
+    },
+  })
+);
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 const hideErrorDetailFromClient =
   (process.env.NODE_ENV === 'production' || !!process.env.RAILWAY_ENVIRONMENT) &&

@@ -599,13 +599,33 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.getElementById('btnSaveOpCost')?.addEventListener('click', async () => {
     const rec = document.getElementById('op-is-rec').checked;
+    const desc = document.getElementById('op-desc').value.trim();
+    const amtStr = document.getElementById('op-amount').value;
+    const expDate = document.getElementById('op-date').value;
+    const vSel = document.getElementById('op-vendor-select').value.trim();
+    const vendorId = vSel && /^\d+$/.test(vSel) ? parseInt(vSel, 10) : null;
+
+    if (!desc) {
+      showToast('Preencha a descrição', 'error');
+      return;
+    }
+    if (!expDate) {
+      showToast('Preencha a data', 'error');
+      return;
+    }
+    const amt = parseFloat(amtStr);
+    if (!Number.isFinite(amt)) {
+      showToast('Valor inválido', 'error');
+      return;
+    }
+
     const body = {
       category: document.getElementById('op-cat').value,
-      subcategory: document.getElementById('op-sub').value || null,
-      vendor_id: document.getElementById('op-vendor-select').value || null,
-      description: document.getElementById('op-desc').value,
-      amount: document.getElementById('op-amount').value,
-      expense_date: document.getElementById('op-date').value,
+      subcategory: document.getElementById('op-sub').value.trim() || null,
+      vendor_id: vendorId,
+      description: desc,
+      amount: amt,
+      expense_date: expDate,
       payment_method: document.getElementById('op-pay').value,
       is_recurring: rec,
       recurrence_type: rec ? document.getElementById('op-rec-type').value : null,
@@ -615,25 +635,31 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     const url = editingOpId ? `/api/operational-costs/${editingOpId}` : '/api/operational-costs';
     const method = editingOpId ? 'PUT' : 'POST';
-    const raw = await fetch(url, {
-      method,
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    let res = {};
     try {
-      res = await raw.json();
-    } catch (_) {}
-    if (raw.ok && res.success) {
-      showToast('Guardado');
-      closeModal('modalOpCost');
-      editingOpId = null;
-      const recToggle = document.getElementById('opToggleRecurring');
-      if (!rec && recToggle && recToggle.checked) recToggle.checked = false;
-      loadOperationalCosts();
-      loadPL();
-    } else showToast(res.error || `Erro ao guardar (${raw.status})`, 'error');
+      const raw = await fetch(url, {
+        method,
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      let res = {};
+      try {
+        res = await raw.json();
+      } catch (_) {}
+      if (raw.ok && res.success) {
+        showToast('Guardado');
+        closeModal('modalOpCost');
+        editingOpId = null;
+        const recToggle = document.getElementById('opToggleRecurring');
+        if (!rec && recToggle && recToggle.checked) recToggle.checked = false;
+        loadOperationalCosts();
+        loadPL();
+      } else {
+        showToast(res.error || res.message || `Erro ao guardar (${raw.status})`, 'error');
+      }
+    } catch (e) {
+      showToast(e.message || 'Falha de rede ao guardar', 'error');
+    }
   });
 
   document.getElementById('vendorSearch')?.addEventListener(

@@ -30,6 +30,29 @@ const receiptStorage = multer.diskStorage({
 });
 const uploadReceipt = multer({ storage: receiptStorage, limits: { fileSize: 15 * 1024 * 1024 } });
 
+function optionalPositiveInt(v) {
+  if (v == null || v === '') return null;
+  const n = parseInt(String(v), 10);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+function optionalRecurrenceDay(v) {
+  if (v == null || v === '') return null;
+  const n = parseInt(String(v), 10);
+  return Number.isFinite(n) ? n : null;
+}
+
+function normalizeInsertId(hdr) {
+  const raw = hdr && hdr.insertId;
+  if (raw == null) return null;
+  if (typeof raw === 'bigint') {
+    const n = Number(raw);
+    return Number.isSafeInteger(n) ? n : null;
+  }
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
 function periodBounds(req) {
   const { period = 'month', start, end } = req.query;
   let periodStart;
@@ -363,11 +386,39 @@ operationalCostsRouter.post('/', async (req, res) => {
   try {
     const pool = await getDBConnection();
     if (!pool) return res.status(503).json({ success: false, error: 'Database not available' });
-    const b = req.body || {};
+    const b = req.body && typeof b === 'object' ? req.body : {};
     const uid = req.session?.userId || null;
-    const amount = parseFloat(b.amount) || 0;
+    const desc = String(b.description ?? '').trim();
+    if (!desc) {
+      return res.status(400).json({ success: false, error: 'Descrição é obrigatória' });
+    }
+    const amount = parseFloat(b.amount);
+    if (!Number.isFinite(amount)) {
+      return res.status(400).json({ success: false, error: 'Valor inválido' });
+    }
     const tax = parseFloat(b.tax_amount) || 0;
     const total = b.total_amount != null ? parseFloat(b.total_amount) : amount + tax;
+    if (!Number.isFinite(total)) {
+      return res.status(400).json({ success: false, error: 'Total inválido' });
+    }
+    const expRaw = String(b.expense_date || '').trim().slice(0, 10);
+    const expenseDate = /^\d{4}-\d{2}-\d{2}$/.test(expRaw)
+      ? expRaw
+      : new Date().toISOString().slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(expenseDate)) {
+      return res.status(400).json({ success: false, error: 'Data inválida (YYYY-MM-DD)' });
+    }
+    const isRec =
+      b.is_recurring === true ||
+      b.is_recurring === 1 ||
+      b.is_recurring === '1' ||
+      String(b.status || '').toLowerCase() === 'recurring';
+    const vendorId = optionalPositiveInt(b.vendor_id);
+    const recDay = isRec ? optionalRecurrenceDay(b.recurrence_day) : null;
+    const recType = isRec ? b.recurrence_type || null : null;
+    const recEnd = isRec ? b.recurrence_end_date || null : null;
+    const status = isRec ? 'recurring' : b.status === 'paid' ? 'paid' : 'pending';
+
     const [ins] = await pool.execute(
       `INSERT INTO operational_costs (
         category, subcategory, vendor_id, description, amount, tax_amount, total_amount,
@@ -377,24 +428,29 @@ operationalCostsRouter.post('/', async (req, res) => {
       [
         b.category || 'other',
         b.subcategory || null,
-        b.vendor_id || null,
-        String(b.description || 'Item').slice(0, 255),
+        vendorId,
+        desc.slice(0, 255),
         amount,
         tax,
         total,
-        b.expense_date || new Date().toISOString().slice(0, 10),
+        expenseDate,
         b.payment_method || 'credit_card',
-        b.status || 'pending',
-        b.is_recurring ? 1 : 0,
-        b.recurrence_type || null,
-        b.recurrence_day != null ? parseInt(b.recurrence_day, 10) : null,
-        b.recurrence_end_date || null,
+        status,
+        isRec ? 1 : 0,
+        recType,
+        recDay,
+        recEnd,
         b.notes || null,
         uid,
       ]
     );
-    if (b.vendor_id) await updateVendorTotalSpent(pool, b.vendor_id);
-    const [[row]] = await pool.query('SELECT * FROM operational_costs WHERE id = ?', [ins.insertId]);
+    const insertId = normalizeInsertId(ins);
+    if (!insertId) {
+      console.error('[POST /operational-costs] insertId missing', ins);
+      return res.status(500).json({ success: false, error: 'Insert falhou (sem id)' });
+    }
+    if (vendorId) await updateVendorTotalSpent(pool, vendorId);
+    const [[row]] = await pool.query('SELECT * FROM operational_costs WHERE id = ?', [insertId]);
     res.status(201).json({ success: true, data: row });
   } catch (e) {
     console.error('POST /operational-costs', e);
@@ -454,7 +510,7 @@ operationalCostsRouter.put('/:id', async (req, res) => {
       [
         b.category || null,
         b.subcategory !== undefined ? b.subcategory : ex.subcategory,
-        b.vendor_id !== undefined ? b.vendor_id : ex.vendor_id,
+        b.vendor_id !== undefined ? optionalPositiveInt(b.vendor_id) : ex.vendor_id,
         b.description != null ? String(b.description).slice(0, 255) : null,
         amount,
         tax,
@@ -464,13 +520,13 @@ operationalCostsRouter.put('/:id', async (req, res) => {
         b.status || null,
         b.is_recurring !== undefined ? (b.is_recurring ? 1 : 0) : ex.is_recurring,
         b.recurrence_type !== undefined ? b.recurrence_type : ex.recurrence_type,
-        b.recurrence_day !== undefined ? b.recurrence_day : ex.recurrence_day,
+        b.recurrence_day !== undefined ? optionalRecurrenceDay(b.recurrence_day) : ex.recurrence_day,
         b.recurrence_end_date !== undefined ? b.recurrence_end_date : ex.recurrence_end_date,
         b.notes !== undefined ? b.notes : ex.notes,
         id,
       ]
     );
-    const vid = b.vendor_id !== undefined ? b.vendor_id : ex.vendor_id;
+    const vid = b.vendor_id !== undefined ? optionalPositiveInt(b.vendor_id) : ex.vendor_id;
     if (vid) await updateVendorTotalSpent(pool, vid);
     const [[row]] = await pool.query('SELECT * FROM operational_costs WHERE id = ?', [id]);
     res.json({ success: true, data: row });
