@@ -22,6 +22,7 @@ import {
 } from '../modules/projects/projectHelpers.js';
 import {
   calculateProfitability,
+  profitabilityFromRollup,
   syncPayrollToProjectCosts,
   publishToPortfolio,
   recalculateProjectCosts,
@@ -91,6 +92,99 @@ async function safeChildQuery(pool, sql, params, fallback = []) {
     }
     throw e;
   }
+}
+
+function sumByCat(byCat, field) {
+  return Object.values(byCat).reduce((a, x) => a + nf(x[field]), 0);
+}
+
+const QUOTE_ORDER_SQL = `ORDER BY CASE WHEN status IN ('accepted','approved') THEN 0 WHEN status IN ('sent','viewed') THEN 1 ELSE 2 END, updated_at DESC, id DESC`;
+
+/**
+ * Valor "fechado" para KPIs: `projects.contract_value` → `contracts.closed_amount` → `quotes` (projeto / contrato / lead).
+ */
+async function resolveProjectContractValue(pool, projectId, p) {
+  const base = money(p.contract_value);
+  if (base > 0.005) return { value: base, source: 'project', quoteSplit: null };
+
+  if (await tableExists(pool, 'contracts')) {
+    try {
+      const [cr] = await pool.query(
+        'SELECT closed_amount, quote_id FROM contracts WHERE project_id = ? ORDER BY id DESC LIMIT 1',
+        [projectId]
+      );
+      const row = cr[0];
+      if (row) {
+        const ca = nf(row.closed_amount);
+        if (ca > 0.005) return { value: ca, source: 'contract', quoteSplit: null };
+        if (row.quote_id != null && (await tableExists(pool, 'quotes'))) {
+          const [qr] = await pool.query(
+            'SELECT total_amount, labor_amount, materials_amount FROM quotes WHERE id = ? LIMIT 1',
+            [row.quote_id]
+          );
+          const q = qr[0];
+          if (q) {
+            const ta = nf(q.total_amount);
+            if (ta > 0.005) return { value: ta, source: 'quote', quoteSplit: q };
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[projects] resolveProjectContractValue contracts:', e.message);
+    }
+  }
+
+  if (await tableExists(pool, 'quotes')) {
+    try {
+      const [qr] = await pool.query(
+        `SELECT total_amount, labor_amount, materials_amount, status FROM quotes WHERE project_id = ? ${QUOTE_ORDER_SQL} LIMIT 1`,
+        [projectId]
+      );
+      const q = qr[0];
+      if (q) {
+        const ta = nf(q.total_amount);
+        if (ta > 0.005) return { value: ta, source: 'quote', quoteSplit: q };
+      }
+    } catch (e) {
+      console.warn('[projects] resolveProjectContractValue quotes by project:', e.message);
+    }
+    if (p.lead_id) {
+      try {
+        const [qr] = await pool.query(
+          `SELECT total_amount, labor_amount, materials_amount, status FROM quotes WHERE lead_id = ? ${QUOTE_ORDER_SQL} LIMIT 1`,
+          [p.lead_id]
+        );
+        const q = qr[0];
+        if (q) {
+          const ta = nf(q.total_amount);
+          if (ta > 0.005) return { value: ta, source: 'quote_lead', quoteSplit: q };
+        }
+      } catch (e) {
+        console.warn('[projects] resolveProjectContractValue quotes by lead:', e.message);
+      }
+    }
+  }
+
+  return { value: 0, source: 'none', quoteSplit: null };
+}
+
+/** Receita por serviço na Visão geral: usa colunas do projeto; se vazio, reparte orçamento (quote) ou cai tudo em installation. */
+function serviceRevenuesForProfitability(p, effectiveContract, quoteSplit) {
+  let revSupply = money(p.supply_value);
+  let revInst = money(p.installation_value);
+  let revSand = money(p.sand_finish_value);
+  const sumRev = revSupply + revInst + revSand;
+  if (sumRev > 0.005) return { revSupply, revInst, revSand };
+  if (effectiveContract <= 0.005) return { revSupply: 0, revInst: 0, revSand: 0 };
+  if (quoteSplit) {
+    const la = nf(quoteSplit.labor_amount);
+    const ma = nf(quoteSplit.materials_amount);
+    if (la + ma > 0.01) {
+      const extra = Math.max(0, effectiveContract - la - ma);
+      return { revSupply: ma, revInst: la + extra, revSand: 0 };
+    }
+  }
+  return { revSupply: 0, revInst: effectiveContract, revSand: 0 };
 }
 
 /** Lista com filtros + agregados */
@@ -551,9 +645,17 @@ router.get('/:id/profitability', ...allAuthed, requirePermission('projects.view'
       if (byCat[cat][t] !== undefined) byCat[cat][t] += nf(r.s);
     }
 
-    const revSupply = money(p.supply_value);
-    const revInst = money(p.installation_value);
-    const revSand = money(p.sand_finish_value);
+    const { value: effectiveContract, source: contractValueSource, quoteSplit } = await resolveProjectContractValue(
+      pool,
+      id,
+      p
+    );
+    let { revSupply, revInst, revSand } = serviceRevenuesForProfitability(p, effectiveContract, quoteSplit);
+    let sumServiceRev = revSupply + revInst + revSand;
+    if (effectiveContract > sumServiceRev + 0.01) {
+      revInst += effectiveContract - sumServiceRev;
+      sumServiceRev = effectiveContract;
+    }
 
     function block(revenue, cat) {
       const b = byCat[cat] || byCat.general;
@@ -588,6 +690,51 @@ router.get('/:id/profitability', ...allAuthed, requirePermission('projects.view'
     const gross_profit = total_revenue - total_cost;
     const margin_pct = total_revenue > 0 ? moneyRound((gross_profit / total_revenue) * 100, 1) : 0;
 
+    const laborA = sumByCat(byCat, 'labor');
+    const materialA = sumByCat(byCat, 'material');
+    const additionalA = sumByCat(byCat, 'additional');
+    let laborP = nf(p.labor_cost_projected);
+    let materialP = nf(p.material_cost_projected);
+    let additionalP = nf(p.additional_cost_projected);
+    if (exclProj) {
+      laborP = 0;
+      materialP = 0;
+      additionalP = 0;
+      try {
+        const [projRows] = await pool.query(
+          `SELECT cost_type, COALESCE(SUM(total_cost), 0) AS s
+           FROM project_costs WHERE project_id = ? AND IFNULL(is_projected,0)=1
+           GROUP BY cost_type`,
+          [id]
+        );
+        for (const r of projRows) {
+          const s = nf(r.s);
+          if (r.cost_type === 'labor') laborP += s;
+          else if (r.cost_type === 'material') materialP += s;
+          else if (r.cost_type === 'additional') additionalP += s;
+        }
+      } catch (e) {
+        console.warn('[projects] profitability projected split:', e.message);
+      }
+    }
+
+    const pForPl = {
+      ...p,
+      supply_value: revSupply,
+      installation_value: revInst,
+      sand_finish_value: revSand,
+    };
+    const profitabilityLive = profitabilityFromRollup(
+      pForPl,
+      effectiveContract > 0 ? effectiveContract : money(p.contract_value),
+      laborA,
+      materialA,
+      additionalA,
+      laborP,
+      materialP,
+      additionalP
+    );
+
     const [allCosts] = await pool.query(
       'SELECT * FROM project_costs WHERE project_id = ? ORDER BY id',
       [id]
@@ -614,11 +761,17 @@ router.get('/:id/profitability', ...allAuthed, requirePermission('projects.view'
         costsByService[cat].labor + costsByService[cat].material + costsByService[cat].additional;
     }
 
+    const contractOut = moneyRound(
+      effectiveContract > 0 ? effectiveContract : money(p.contract_value),
+      2
+    );
+
     res.json({
       success: true,
       data: {
         project_id: id,
-        contract_value: moneyRound(money(p.contract_value), 2),
+        contract_value: contractOut,
+        contract_value_source: contractValueSource,
         by_service,
         totals: {
           total_revenue: moneyRound(total_revenue, 2),
@@ -632,7 +785,7 @@ router.get('/:id/profitability', ...allAuthed, requirePermission('projects.view'
         cost_breakdown: allCosts.map((c) => floatMoneyFields(c, ['quantity', 'unit_cost', 'total_cost'])),
         cost_items: allCosts.map((c) => floatMoneyFields(c, ['quantity', 'unit_cost', 'total_cost'])),
         costs_by_service: costsByService,
-        profitability: calculateProfitability(p),
+        profitability: profitabilityLive,
         days_estimated,
         days_actual,
         days_variance,
