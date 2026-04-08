@@ -386,7 +386,7 @@ operationalCostsRouter.post('/', async (req, res) => {
   try {
     const pool = await getDBConnection();
     if (!pool) return res.status(503).json({ success: false, error: 'Database not available' });
-    const b = req.body && typeof b === 'object' ? req.body : {};
+    const b = req.body && typeof req.body === 'object' ? req.body : {};
     const uid = req.session?.userId || null;
     const desc = String(b.description ?? '').trim();
     if (!desc) {
