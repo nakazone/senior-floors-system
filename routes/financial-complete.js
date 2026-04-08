@@ -53,6 +53,12 @@ function normalizeInsertId(hdr) {
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
+/** Express JSON body as a plain object (avoids TDZ if a future edit typos `typeof b` before `const b`). */
+function readJsonObjectBody(req) {
+  const raw = req.body;
+  return raw != null && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+}
+
 function periodBounds(req) {
   const { period = 'month', start, end } = req.query;
   let periodStart;
@@ -386,22 +392,22 @@ operationalCostsRouter.post('/', async (req, res) => {
   try {
     const pool = await getDBConnection();
     if (!pool) return res.status(503).json({ success: false, error: 'Database not available' });
-    const b = req.body && typeof req.body === 'object' ? req.body : {};
+    const payload = readJsonObjectBody(req);
     const uid = req.session?.userId || null;
-    const desc = String(b.description ?? '').trim();
+    const desc = String(payload.description ?? '').trim();
     if (!desc) {
       return res.status(400).json({ success: false, error: 'Descrição é obrigatória' });
     }
-    const amount = parseFloat(b.amount);
+    const amount = parseFloat(payload.amount);
     if (!Number.isFinite(amount)) {
       return res.status(400).json({ success: false, error: 'Valor inválido' });
     }
-    const tax = parseFloat(b.tax_amount) || 0;
-    const total = b.total_amount != null ? parseFloat(b.total_amount) : amount + tax;
+    const tax = parseFloat(payload.tax_amount) || 0;
+    const total = payload.total_amount != null ? parseFloat(payload.total_amount) : amount + tax;
     if (!Number.isFinite(total)) {
       return res.status(400).json({ success: false, error: 'Total inválido' });
     }
-    const expRaw = String(b.expense_date || '').trim().slice(0, 10);
+    const expRaw = String(payload.expense_date || '').trim().slice(0, 10);
     const expenseDate = /^\d{4}-\d{2}-\d{2}$/.test(expRaw)
       ? expRaw
       : new Date().toISOString().slice(0, 10);
@@ -409,15 +415,15 @@ operationalCostsRouter.post('/', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Data inválida (YYYY-MM-DD)' });
     }
     const isRec =
-      b.is_recurring === true ||
-      b.is_recurring === 1 ||
-      b.is_recurring === '1' ||
-      String(b.status || '').toLowerCase() === 'recurring';
-    const vendorId = optionalPositiveInt(b.vendor_id);
-    const recDay = isRec ? optionalRecurrenceDay(b.recurrence_day) : null;
-    const recType = isRec ? b.recurrence_type || null : null;
-    const recEnd = isRec ? b.recurrence_end_date || null : null;
-    const status = isRec ? 'recurring' : b.status === 'paid' ? 'paid' : 'pending';
+      payload.is_recurring === true ||
+      payload.is_recurring === 1 ||
+      payload.is_recurring === '1' ||
+      String(payload.status || '').toLowerCase() === 'recurring';
+    const vendorId = optionalPositiveInt(payload.vendor_id);
+    const recDay = isRec ? optionalRecurrenceDay(payload.recurrence_day) : null;
+    const recType = isRec ? payload.recurrence_type || null : null;
+    const recEnd = isRec ? payload.recurrence_end_date || null : null;
+    const status = isRec ? 'recurring' : payload.status === 'paid' ? 'paid' : 'pending';
 
     const [ins] = await pool.execute(
       `INSERT INTO operational_costs (
@@ -426,21 +432,21 @@ operationalCostsRouter.post('/', async (req, res) => {
         recurrence_end_date, notes, created_by
       ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [
-        b.category || 'other',
-        b.subcategory || null,
+        payload.category || 'other',
+        payload.subcategory || null,
         vendorId,
         desc.slice(0, 255),
         amount,
         tax,
         total,
         expenseDate,
-        b.payment_method || 'credit_card',
+        payload.payment_method || 'credit_card',
         status,
         isRec ? 1 : 0,
         recType,
         recDay,
         recEnd,
-        b.notes || null,
+        payload.notes || null,
         uid,
       ]
     );
