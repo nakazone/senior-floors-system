@@ -59,6 +59,7 @@
       label: 'Financeiro & registo',
       items: [
         { href: 'financial.html', label: 'Financeiro', perm: 'contracts.view', page: '', iconKey: 'financial' },
+        { href: 'vendors-hub.html', label: 'Fornecedores & pagamentos', perm: 'contracts.view', page: '', iconKey: 'financial' },
         { href: 'payroll-module.html', label: 'Folha de pagamento', perm: 'payroll.view', page: '', iconKey: 'payroll' },
         { href: 'dashboard.html?page=activities', label: 'Activities', perm: 'activities.view', page: 'activities', iconKey: 'activities' },
       ],
@@ -102,6 +103,9 @@
     }
     if (base === 'financial.html') {
       return file === 'financial.html';
+    }
+    if (base === 'vendors-hub.html') {
+      return file === 'vendors-hub.html';
     }
     if (base === 'projects.html') {
       return file === 'projects.html';

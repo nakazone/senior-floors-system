@@ -14,10 +14,12 @@ import {
   updateVendorTotalSpent,
   importMarketingCosts,
   sqlNotDeletedAt,
+  getUpcomingVendorPayments,
 } from '../lib/financialEngine.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const uploadDir = path.join(__dirname, '..', 'uploads', 'receipts', 'operational');
+const vendorInvoiceDir = path.join(__dirname, '..', 'uploads', 'vendor-invoices');
 
 const receiptStorage = multer.diskStorage({
   destination: (_req, _file, cb) => {
@@ -30,6 +32,18 @@ const receiptStorage = multer.diskStorage({
   },
 });
 const uploadReceipt = multer({ storage: receiptStorage, limits: { fileSize: 15 * 1024 * 1024 } });
+
+const vendorInvoiceStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => {
+    fs.mkdirSync(vendorInvoiceDir, { recursive: true });
+    cb(null, vendorInvoiceDir);
+  },
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname || '') || '.bin';
+    cb(null, `vinv_${Date.now()}_${Math.random().toString(36).slice(2, 7)}${ext}`);
+  },
+});
+const uploadVendorInvoice = multer({ storage: vendorInvoiceStorage, limits: { fileSize: 20 * 1024 * 1024 } });
 
 function optionalPositiveInt(v) {
   if (v == null || v === '') return null;
@@ -192,6 +206,19 @@ vendorsRouter.get('/', async (req, res) => {
   }
 });
 
+vendorsRouter.get('/upcoming-payments', async (req, res) => {
+  try {
+    const pool = await getDBConnection();
+    if (!pool) return res.status(503).json({ success: false, error: 'Database not available' });
+    const days = Math.min(366, Math.max(1, parseInt(req.query.days, 10) || 120));
+    const data = await getUpcomingVendorPayments(pool, days);
+    res.json({ success: true, data, horizon_days: days });
+  } catch (e) {
+    console.error('GET /vendors/upcoming-payments', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 vendorsRouter.post('/', async (req, res) => {
   try {
     const pool = await getDBConnection();
@@ -221,6 +248,87 @@ vendorsRouter.post('/', async (req, res) => {
     res.status(201).json({ success: true, data: row });
   } catch (e) {
     console.error('POST /vendors', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+vendorsRouter.get('/:id/invoices', async (req, res) => {
+  try {
+    const pool = await getDBConnection();
+    if (!pool) return res.status(503).json({ success: false, error: 'Database not available' });
+    const id = parseInt(req.params.id, 10);
+    if (!id) return res.status(400).json({ success: false, error: 'ID inválido' });
+    const [[v]] = await pool.query('SELECT id FROM vendors WHERE id = ?', [id]);
+    if (!v) return res.status(404).json({ success: false, error: 'Fornecedor não encontrado' });
+    const [rows] = await pool.query(
+      'SELECT * FROM vendor_attachments WHERE vendor_id = ? ORDER BY created_at DESC',
+      [id]
+    );
+    res.json({ success: true, data: rows });
+  } catch (e) {
+    if (e && e.code === 'ER_NO_SUCH_TABLE') {
+      return res.json({ success: true, data: [] });
+    }
+    console.error('GET /vendors/:id/invoices', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+vendorsRouter.post('/:id/invoices', uploadVendorInvoice.single('file'), async (req, res) => {
+  try {
+    const pool = await getDBConnection();
+    if (!pool) return res.status(503).json({ success: false, error: 'Database not available' });
+    const id = parseInt(req.params.id, 10);
+    if (!id) return res.status(400).json({ success: false, error: 'ID inválido' });
+    if (!req.file) return res.status(400).json({ success: false, error: 'Ficheiro obrigatório' });
+    const [[v]] = await pool.query('SELECT id FROM vendors WHERE id = ?', [id]);
+    if (!v) return res.status(404).json({ success: false, error: 'Fornecedor não encontrado' });
+    const rel = path.relative(path.join(__dirname, '..'), req.file.path).replace(/\\/g, '/');
+    const url = `/uploads/${rel}`;
+    const memo = req.body?.memo != null ? String(req.body.memo).slice(0, 500) : null;
+    const uid = req.session?.userId || null;
+    const orig = String(req.file.originalname || '').slice(0, 255) || null;
+    const [ins] = await pool.execute(
+      `INSERT INTO vendor_attachments (vendor_id, file_path, file_url, original_name, memo, created_by)
+       VALUES (?,?,?,?,?,?)`,
+      [id, rel, url, orig, memo, uid]
+    );
+    const attId = normalizeInsertId(ins);
+    if (!attId) {
+      return res.status(500).json({ success: false, error: 'Falha ao gravar registo' });
+    }
+    const [[row]] = await pool.query('SELECT * FROM vendor_attachments WHERE id = ?', [attId]);
+    res.status(201).json({ success: true, data: row });
+  } catch (e) {
+    console.error('POST /vendors/:id/invoices', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+vendorsRouter.delete('/:id/invoices/:attId', async (req, res) => {
+  try {
+    const pool = await getDBConnection();
+    if (!pool) return res.status(503).json({ success: false, error: 'Database not available' });
+    const id = parseInt(req.params.id, 10);
+    const attId = parseInt(req.params.attId, 10);
+    if (!id || !attId) return res.status(400).json({ success: false, error: 'ID inválido' });
+    const [[row]] = await pool.query('SELECT * FROM vendor_attachments WHERE id = ? AND vendor_id = ?', [
+      attId,
+      id,
+    ]);
+    if (!row) return res.status(404).json({ success: false, error: 'Not found' });
+    if (row.file_path) {
+      const abs = path.join(__dirname, '..', row.file_path);
+      try {
+        fs.unlinkSync(abs);
+      } catch (_) {
+        /* ficheiro já ausente */
+      }
+    }
+    await pool.execute('DELETE FROM vendor_attachments WHERE id = ?', [attId]);
+    res.json({ success: true });
+  } catch (e) {
+    console.error('DELETE /vendors/:id/invoices/:attId', e);
     res.status(500).json({ success: false, error: e.message });
   }
 });

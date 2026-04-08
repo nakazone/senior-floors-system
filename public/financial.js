@@ -419,7 +419,11 @@ async function loadVendors() {
         <p style="font-size:12px;color:var(--text-light)">${escapeHtml([v.contact_name, v.contact_email].filter(Boolean).join(' · '))}</p>
         <p style="font-weight:700;margin-top:8px">${fmt$(v.total_spent)}</p>
         <p style="font-size:12px">${v.rating ? '★'.repeat(v.rating) + '☆'.repeat(5 - v.rating) : '—'}</p>
-        <button type="button" class="btn btn-sm btn-secondary" data-vendor-hist="${v.id}" style="margin-top:8px">Ver histórico →</button>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">
+          <button type="button" class="btn btn-sm btn-secondary" data-vendor-hist="${v.id}">Histórico</button>
+          <button type="button" class="btn btn-sm btn-primary" data-vendor-edit="${v.id}">Editar</button>
+          <a href="vendors-hub.html?vendor=${v.id}" class="btn btn-sm btn-secondary" style="text-decoration:none;display:inline-flex;align-items:center">Pagamentos &amp; notas</a>
+        </div>
       </div>`
         )
         .join('')
@@ -428,11 +432,39 @@ async function loadVendors() {
   document.querySelectorAll('[data-vendor-hist]').forEach((b) => {
     b.addEventListener('click', () => openVendorDrawer(parseInt(b.getAttribute('data-vendor-hist'), 10)));
   });
+  document.querySelectorAll('[data-vendor-edit]').forEach((b) => {
+    b.addEventListener('click', () => openVendorModalForEdit(parseInt(b.getAttribute('data-vendor-edit'), 10)));
+  });
 
   const sel = document.getElementById('op-vendor-select');
   if (sel) {
     sel.innerHTML = '<option value="">— Vendor —</option>' + vendorsCache.map((v) => `<option value="${v.id}">${escapeHtml(v.name)}</option>`).join('');
   }
+}
+
+async function openVendorModalForEdit(id) {
+  if (!id) return;
+  const res = await fetch(`/api/vendors/${id}`, { credentials: 'include' }).then((r) => r.json());
+  if (!res.success || !res.data) {
+    showToast(res.error || 'Fornecedor não encontrado', 'error');
+    return;
+  }
+  const row = res.data;
+  editingVendorId = id;
+  const titleEl = document.getElementById('modalVendorTitle');
+  if (titleEl) titleEl.textContent = 'Editar fornecedor';
+  document.getElementById('v-name').value = row.name || '';
+  document.getElementById('v-cat').value = row.category || 'other';
+  document.getElementById('v-contact').value = row.contact_name || '';
+  document.getElementById('v-email').value = row.contact_email || '';
+  document.getElementById('v-phone').value = row.contact_phone || '';
+  document.getElementById('v-web').value = row.website || '';
+  document.getElementById('v-addr').value = row.address || '';
+  document.getElementById('v-terms').value = row.payment_terms || '';
+  document.getElementById('v-tax').value = row.tax_id || '';
+  document.getElementById('v-rating').value = row.rating != null ? row.rating : '';
+  document.getElementById('v-notes').value = row.notes || '';
+  openModal('modalVendor');
 }
 
 async function openVendorDrawer(id) {
@@ -718,6 +750,8 @@ document.addEventListener('DOMContentLoaded', () => {
   );
   document.getElementById('btnNewVendor')?.addEventListener('click', () => {
     editingVendorId = null;
+    const titleEl = document.getElementById('modalVendorTitle');
+    if (titleEl) titleEl.textContent = 'Novo fornecedor';
     ['v-name', 'v-contact', 'v-email', 'v-phone', 'v-web', 'v-addr', 'v-terms', 'v-tax', 'v-rating', 'v-notes'].forEach((id) => {
       const el = document.getElementById(id);
       if (el) el.value = '';
