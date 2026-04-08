@@ -4,6 +4,14 @@
  */
 
 import { getDBConnection } from '../config/db.js';
+import { ensureLeadsAddressColumn } from '../lib/leadColumns.js';
+
+function rowHasQualAddress(row) {
+  for (const k of ['address_street', 'address_line2', 'address_city', 'address_state', 'address_zip']) {
+    if (String(row[k] ?? '').trim()) return true;
+  }
+  return false;
+}
 
 /** Colunas atuais de `lead_qualification` (evita ER_BAD_FIELD_ERROR em BD sem migração). */
 async function leadQualificationColumnSet(pool) {
@@ -35,7 +43,14 @@ export async function getQualification(req, res) {
       return res.status(404).json({ success: false, error: 'Qualification not found' });
     }
 
-    return res.json({ success: true, data: rows[0] });
+    const data = { ...rows[0] };
+    if (!rowHasQualAddress(data)) {
+      const [lrows] = await pool.execute('SELECT address FROM leads WHERE id = ?', [leadId]);
+      const la = lrows[0]?.address != null ? String(lrows[0].address).trim() : '';
+      if (la) data.address_street = la;
+    }
+
+    return res.json({ success: true, data });
   } catch (error) {
     console.error('Error getting qualification:', error);
     return res.status(500).json({ success: false, error: error.message });
@@ -155,6 +170,22 @@ export async function createOrUpdateQualification(req, res) {
       );
     }
 
+    const qualHasAddrCols = ['address_street', 'address_line2', 'address_city', 'address_state', 'address_zip'].some(
+      (c) => cols.has(c)
+    );
+    const composedAddr = [
+      address_street,
+      address_line2,
+      [address_city, address_state].filter(Boolean).join(', ') || null,
+      address_zip,
+    ]
+      .filter((x) => x != null && String(x).trim() !== '')
+      .join(', ');
+    if (!qualHasAddrCols && composedAddr) {
+      await ensureLeadsAddressColumn(pool);
+      await pool.execute('UPDATE leads SET address = ? WHERE id = ?', [composedAddr.slice(0, 500), leadId]);
+    }
+
     // Buscar atualizado
     const [updated] = await pool.execute(
       `SELECT q.*, u.name as qualified_by_name 
@@ -164,7 +195,19 @@ export async function createOrUpdateQualification(req, res) {
       [leadId]
     );
 
-    return res.json({ success: true, data: updated[0] });
+    let out = updated[0];
+    if (!qualHasAddrCols) {
+      out = {
+        ...out,
+        address_street,
+        address_line2,
+        address_city,
+        address_state,
+        address_zip,
+      };
+    }
+
+    return res.json({ success: true, data: out });
   } catch (error) {
     console.error('Error saving qualification:', error);
     return res.status(500).json({ success: false, error: error.message });

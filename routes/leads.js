@@ -2,7 +2,7 @@
  * Leads API — list, get, update (CRM)
  */
 import { getDBConnection, isDatabaseConfigured } from '../config/db.js';
-import { getLeadsTableColumns } from '../lib/leadColumns.js';
+import { getLeadsTableColumns, ensureLeadsAddressColumn } from '../lib/leadColumns.js';
 import { extractMarketingFromBody, MARKETING_KEYS } from '../lib/marketingLeadFields.js';
 import { ensureClientFromLead } from '../modules/clients/leadToClient.js';
 import { ensureProjectFromWonLead } from '../modules/projects/fromWonLead.js';
@@ -178,8 +178,13 @@ export async function createLead(req, res) {
       }
     }
 
-    const colSet = await getLeadsTableColumns(pool);
+    let colSet = await getLeadsTableColumns(pool);
     const marketing = extractMarketingFromBody({ ...restBody, ...req.body });
+    const addrIn = restBody.address != null ? String(restBody.address).trim().slice(0, 500) : '';
+    if (addrIn) {
+      await ensureLeadsAddressColumn(pool);
+      colSet = await getLeadsTableColumns(pool);
+    }
     const cols = [
       'name',
       'email',
@@ -210,6 +215,10 @@ export async function createLead(req, res) {
       estimated_value || null,
       notes || null,
     ];
+    if (colSet.has('address')) {
+      cols.push('address');
+      vals.push(addrIn || null);
+    }
     for (const key of MARKETING_KEYS) {
       if (colSet.has(key)) {
         cols.push(key);
@@ -258,6 +267,9 @@ export async function updateLead(req, res) {
     );
     const oldStageSlug = String(oldLeadRows[0]?.stage_slug || oldLeadRows[0]?.status || '').toLowerCase();
 
+    if (body.address !== undefined) {
+      await ensureLeadsAddressColumn(pool);
+    }
     const colSet = await getLeadsTableColumns(pool);
     const allowed = [
       'name',
