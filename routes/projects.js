@@ -407,9 +407,28 @@ router.get('/builder/:builderId', ...allAuthed, requirePermission('projects.view
 
     const hasDeleted = await columnExists(pool, 'projects', 'deleted_at');
     const delClause = hasDeleted ? 'deleted_at IS NULL AND ' : '';
-
+    const hasBuilderId = await columnExists(pool, 'projects', 'builder_id');
+    const hasClientType = await columnExists(pool, 'projects', 'client_type');
+    if (!hasBuilderId) {
+      const [custEmpty] = await pool.query('SELECT * FROM customers WHERE id = ?', [builderId]);
+      return res.json({
+        success: true,
+        data: {
+          builder: custEmpty[0] || null,
+          projects: [],
+          aggregates: {
+            project_count: 0,
+            total_sqft: 0,
+            total_revenue: 0,
+            total_profit: 0,
+            avg_margin_pct: 0,
+          },
+        },
+      });
+    }
+    const typeClause = hasClientType ? "client_type = 'builder' AND " : '';
     const [projects] = await pool.query(
-      `SELECT * FROM projects WHERE ${delClause} client_type = 'builder' AND builder_id = ? ORDER BY created_at DESC`,
+      `SELECT * FROM projects WHERE ${delClause}${typeClause}builder_id = ? ORDER BY created_at DESC`,
       [builderId]
     );
 

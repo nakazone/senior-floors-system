@@ -483,12 +483,19 @@ export async function getCustomerInsight(req, res) {
     const isBuilder = String(customer.customer_type || '').toLowerCase() === 'builder';
     if (isBuilder) {
       try {
+        const hasBuilderId = await columnExists(pool, 'projects', 'builder_id');
+        const hasClientType = await columnExists(pool, 'projects', 'client_type');
         const hasDeleted = await columnExists(pool, 'projects', 'deleted_at');
         const delClause = hasDeleted ? 'deleted_at IS NULL AND ' : '';
-        const [projects] = await pool.query(
-          `SELECT * FROM projects WHERE ${delClause} client_type = 'builder' AND builder_id = ? ORDER BY created_at DESC`,
-          [id]
-        );
+        const typeClause = hasClientType ? "client_type = 'builder' AND " : '';
+        let projects = [];
+        if (hasBuilderId) {
+          const [pr] = await pool.query(
+            `SELECT * FROM projects WHERE ${delClause}${typeClause}builder_id = ? ORDER BY created_at DESC`,
+            [id]
+          );
+          projects = pr;
+        }
 
         let totalRev = 0;
         let totalProfit = 0;

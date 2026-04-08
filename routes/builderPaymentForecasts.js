@@ -52,12 +52,13 @@ router.get('/builders', ...authed, requirePermission('projects.view'), async (re
       }
     }
 
-    if (hasBuilderId && hasClientType) {
+    if (hasBuilderId) {
+      const ct = hasClientType ? "p.client_type = 'builder' AND " : '';
       const [rows] = await pool.query(
         `SELECT DISTINCT c.id, c.name
          FROM projects p
          INNER JOIN customers c ON c.id = p.builder_id
-         WHERE p.client_type = 'builder' AND p.builder_id IS NOT NULL
+         WHERE ${ct}p.builder_id IS NOT NULL
          ORDER BY c.name ASC`
       );
       for (const row of rows) {
@@ -87,14 +88,15 @@ router.get('/projects', ...authed, requirePermission('projects.view'), async (re
     const hasBuilderId = await columnExists(pool, 'projects', 'builder_id');
     const hasClientType = await columnExists(pool, 'projects', 'client_type');
 
-    if (!hasBuilderId || !hasClientType) {
+    if (!hasBuilderId) {
       return res.json({ success: true, data: [] });
     }
 
+    const typeClause = hasClientType ? "client_type = 'builder' AND " : '';
     const [rows] = await pool.query(
       `SELECT id, name, project_number, status, contract_value
        FROM projects
-       WHERE ${delClause} client_type = 'builder' AND builder_id = ?
+       WHERE ${delClause}${typeClause}builder_id = ?
        ORDER BY name ASC`,
       [builderId]
     );
