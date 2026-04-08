@@ -13,6 +13,7 @@ import {
   generateWeeklyForecast,
   updateVendorTotalSpent,
   importMarketingCosts,
+  sqlNotDeletedAt,
 } from '../lib/financialEngine.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -236,7 +237,7 @@ vendorsRouter.get('/:id/history', async (req, res) => {
     );
     const [opcosts] = await pool.query(
       `SELECT 'operational' AS type, description, total_amount AS amount, expense_date AS date, status
-       FROM operational_costs WHERE vendor_id = ? AND (deleted_at IS NULL OR deleted_at = '0000-00-00 00:00:00')
+       FROM operational_costs WHERE vendor_id = ? AND ${sqlNotDeletedAt()}
        ORDER BY expense_date DESC LIMIT 50`,
       [id]
     );
@@ -328,7 +329,7 @@ operationalCostsRouter.get('/recurring', async (req, res) => {
       `SELECT oc.*, v.name AS vendor_name
        FROM operational_costs oc
        LEFT JOIN vendors v ON oc.vendor_id = v.id
-       WHERE oc.is_recurring = 1 AND (oc.deleted_at IS NULL OR oc.deleted_at = '0000-00-00 00:00:00')
+       WHERE oc.is_recurring = 1 AND ${sqlNotDeletedAt('oc')}
        ORDER BY oc.expense_date DESC`
     );
     res.json({ success: true, data: rows });
@@ -347,7 +348,7 @@ operationalCostsRouter.get('/', async (req, res) => {
     const cat = req.query.category || null;
     let sql = `SELECT oc.*, v.name AS vendor_name FROM operational_costs oc
       LEFT JOIN vendors v ON oc.vendor_id = v.id
-      WHERE (oc.deleted_at IS NULL OR oc.deleted_at = '0000-00-00 00:00:00')`;
+      WHERE ${sqlNotDeletedAt('oc')}`;
     const params = [];
     if (start) {
       sql += ' AND oc.expense_date >= ?';
