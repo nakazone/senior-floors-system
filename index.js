@@ -40,6 +40,7 @@ import * as erpMaterials from './routes/erpMaterials.js';
 import * as publicQuote from './routes/publicQuote.js';
 import { quotePdfUploadMiddleware } from './lib/quotePdfUpload.js';
 import projectsRouter from './routes/projects.js';
+import builderPaymentForecastsRouter from './routes/builderPaymentForecasts.js';
 import { listVisits, getVisit, createVisit, updateVisit } from './routes/visits.js';
 import { listActivities, createActivity } from './routes/activities.js';
 import { listContracts, getContract, createContract, updateContract } from './routes/contracts.js';
@@ -93,6 +94,7 @@ import { ensureUserModuleColumns } from './lib/ensureUserModuleColumns.js';
 import { ensureCustomersResponsibleNameColumn } from './lib/ensureCustomersResponsibleNameColumn.js';
 import { ensurePayrollTimesheetDailyOverrideColumn } from './lib/ensurePayrollTimesheetDailyOverrideColumn.js';
 import { ensurePayrollEmployeeAllowOutsidePeriodColumn } from './lib/ensurePayrollEmployeeAllowOutsidePeriodColumn.js';
+import { ensureBuilderPaymentForecastsTable } from './lib/ensureBuilderPaymentForecastsTable.js';
 import { ensureFinancialCompleteSchema } from './lib/ensureFinancialCompleteSchema.js';
 import { getUiConfig } from './routes/uiConfig.js';
 
@@ -431,6 +433,7 @@ app.put('/api/projects/:projectId/financial', requireAuth, updateProjectFinancia
 
 // Projects (router completo: lista, custos, checklist, fotos, P&L, etc.)
 app.use('/api/projects', projectsRouter);
+app.use('/api/builder-payment-forecasts', builderPaymentForecastsRouter);
 
 // Visits/Schedule
 app.get('/api/visits', requireAuth, listVisits);
@@ -715,6 +718,7 @@ async function start() {
       await ensureCustomersResponsibleNameColumn(pool);
       await ensurePayrollTimesheetDailyOverrideColumn(pool);
       await ensurePayrollEmployeeAllowOutsidePeriodColumn(pool);
+      await ensureBuilderPaymentForecastsTable(pool);
       try {
         await ensureFinancialCompleteSchema(pool);
         console.log('[db] Schema financeiro (vendors, operational_costs, …) verificado no arranque.');

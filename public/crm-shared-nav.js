@@ -53,6 +53,13 @@
         { href: 'dashboard.html?page=quotes', label: 'Quotes', perm: 'quotes.view', page: 'quotes', iconKey: 'quotes' },
         { href: 'dashboard.html?page=schedule', label: 'Schedule', perm: 'visits.view', page: 'schedule', iconKey: 'schedule' },
         { href: 'projects.html', label: 'Projetos', perm: 'projects.view', page: '', iconKey: 'projects' },
+        {
+          href: 'builder-payments-forecast.html',
+          label: 'Previsão builders',
+          perm: 'projects.view',
+          page: '',
+          iconKey: 'projects',
+        },
       ],
     },
     {
@@ -105,6 +112,9 @@
     }
     if (base === 'projects.html') {
       return file === 'projects.html';
+    }
+    if (base === 'builder-payments-forecast.html') {
+      return file === 'builder-payments-forecast.html';
     }
     if (h.indexOf('dashboard.html') === 0) {
       if (file !== 'dashboard.html') return false;
