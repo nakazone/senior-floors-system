@@ -5,6 +5,15 @@
 
 import { getDBConnection } from '../config/db.js';
 
+/** Colunas atuais de `lead_qualification` (evita ER_BAD_FIELD_ERROR em BD sem migração). */
+async function leadQualificationColumnSet(pool) {
+  const [rows] = await pool.query(
+    `SELECT COLUMN_NAME AS n FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'lead_qualification'`
+  );
+  return new Set((rows || []).map((r) => r.n));
+}
+
 export async function getQualification(req, res) {
   const leadId = parseInt(req.params.leadId);
   
@@ -70,7 +79,27 @@ export async function createOrUpdateQualification(req, res) {
 
   try {
     const pool = await getDBConnection();
-    
+    const cols = await leadQualificationColumnSet(pool);
+
+    const fieldPairs = [
+      ['property_type', property_type],
+      ['service_type', service_type],
+      ['estimated_area', estimated_area],
+      ['estimated_budget', estimated_budget],
+      ['urgency', urgency],
+      ['decision_maker', decision_maker],
+      ['decision_timeline', decision_timeline],
+      ['payment_type', payment_type],
+      ['score', score],
+      ['qualification_notes', qualification_notes],
+      ['address_street', address_street],
+      ['address_line2', address_line2],
+      ['address_city', address_city],
+      ['address_state', address_state],
+      ['address_zip', address_zip],
+      ['qualified_by', qualified_by],
+    ];
+
     // Verificar se já existe
     const [existing] = await pool.execute(
       'SELECT id FROM lead_qualification WHERE lead_id = ?',
@@ -78,40 +107,51 @@ export async function createOrUpdateQualification(req, res) {
     );
 
     if (existing.length > 0) {
-      // Update
+      const setParts = [];
+      const vals = [];
+      for (const [col, val] of fieldPairs) {
+        if (!cols.has(col)) continue;
+        setParts.push(`\`${col}\` = ?`);
+        vals.push(val);
+      }
+      if (cols.has('qualified_at')) {
+        setParts.push('`qualified_at` = NOW()');
+      }
+      if (setParts.length === 0) {
+        return res.status(500).json({
+          success: false,
+          error: 'Tabela lead_qualification incompatível com esta versão da API',
+        });
+      }
+      vals.push(leadId);
       await pool.execute(
-        `UPDATE lead_qualification SET
-          property_type = ?, service_type = ?, estimated_area = ?,
-          estimated_budget = ?, urgency = ?, decision_maker = ?,
-          decision_timeline = ?, payment_type = ?, score = ?,
-          qualification_notes = ?, address_street = ?, address_line2 = ?,
-          address_city = ?, address_state = ?, address_zip = ?,
-          qualified_by = ?, qualified_at = NOW()
-        WHERE lead_id = ?`,
-        [
-          property_type, service_type, estimated_area,
-          estimated_budget, urgency, decision_maker,
-          decision_timeline, payment_type, score,
-          qualification_notes, address_street, address_line2,
-          address_city, address_state, address_zip,
-          qualified_by, leadId
-        ]
+        `UPDATE lead_qualification SET ${setParts.join(', ')} WHERE lead_id = ?`,
+        vals
       );
     } else {
-      // Insert
+      const insertCols = ['lead_id'];
+      const placeholders = ['?'];
+      const insVals = [leadId];
+      for (const [col, val] of fieldPairs) {
+        if (!cols.has(col)) continue;
+        insertCols.push(col);
+        placeholders.push('?');
+        insVals.push(val);
+      }
+      if (cols.has('qualified_at')) {
+        insertCols.push('qualified_at');
+        placeholders.push('NOW()');
+      }
+      if (insertCols.length < 2) {
+        return res.status(500).json({
+          success: false,
+          error: 'Tabela lead_qualification incompatível com esta versão da API',
+        });
+      }
       await pool.execute(
-        `INSERT INTO lead_qualification 
-        (lead_id, property_type, service_type, estimated_area, estimated_budget,
-         urgency, decision_maker, decision_timeline, payment_type, score,
-         qualification_notes, address_street, address_line2, address_city,
-         address_state, address_zip, qualified_by, qualified_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
-        [
-          leadId, property_type, service_type, estimated_area,
-          estimated_budget, urgency, decision_maker, decision_timeline,
-          payment_type, score, qualification_notes, address_street, address_line2,
-          address_city, address_state, address_zip, qualified_by
-        ]
+        `INSERT INTO lead_qualification (${insertCols.map((c) => `\`${c}\``).join(', ')})
+         VALUES (${placeholders.join(', ')})`,
+        insVals
       );
     }
 

@@ -13,6 +13,7 @@
     "migrate:quote-pdf-blob": "node database/migrate-quote-invoice-pdf-blob.js",
     "fix:lead-names-csv": "node database/fix-lead-names-from-csv.js",
     "migrate:lead-address": "node database/add-lead-address-column.js",
+    "migrate:lead-qualification-columns": "node database/run-add-lead-qualification-columns.js",
     "migrate:quotes-module": "node database/migrate-quotes-module-complete.js",
     "migrate:quote-enhancements-v2": "node database/migrate-quote-enhancements-v2.js",
     "migrate:supplier-product-erp": "node database/migrate-supplier-product-erp.js",
