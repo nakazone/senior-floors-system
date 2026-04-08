@@ -19,12 +19,20 @@ const fmt$Compact = (v) => {
 };
 const fmtPct = (v) => `${(parseFloat(v) || 0).toFixed(1)}%`;
 
+/** Data civil local YYYY-MM-DD (não usar toISOString — é UTC e desloca o mês/dia). */
+function formatLocalYMD(d) {
+  const y = d.getFullYear();
+  const m = d.getMonth() + 1;
+  const day = d.getDate();
+  return `${y}-${String(m).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
 function getMonday(d) {
   const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
   const day = x.getDay();
   const diff = x.getDate() - day + (day === 0 ? -6 : 1);
   x.setDate(diff);
-  return x.toISOString().slice(0, 10);
+  return formatLocalYMD(x);
 }
 
 function showToast(msg, type = 'success') {
@@ -210,8 +218,8 @@ async function loadWeeklyForecast(week) {
 
 async function importMarketing() {
   const now = new Date();
-  const start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
-  const end = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10);
+  const start = formatLocalYMD(new Date(now.getFullYear(), now.getMonth(), 1));
+  const end = formatLocalYMD(new Date(now.getFullYear(), now.getMonth() + 1, 0));
   const res = await fetch('/api/financial/import-marketing', {
     method: 'POST',
     credentials: 'include',
@@ -229,8 +237,8 @@ async function loadOperationalCosts() {
   const now = new Date();
   const y = now.getFullYear();
   const m = now.getMonth();
-  const startM = new Date(y, m, 1).toISOString().slice(0, 10);
-  const endM = new Date(y, m + 1, 0).toISOString().slice(0, 10);
+  const startM = formatLocalYMD(new Date(y, m, 1));
+  const endM = formatLocalYMD(new Date(y, m + 1, 0));
   const startY = `${y}-01-01`;
   const endY = `${y}-12-31`;
 
@@ -489,7 +497,7 @@ async function openOpModal(id) {
   } else {
     document.getElementById('op-desc').value = '';
     document.getElementById('op-amount').value = '';
-    document.getElementById('op-date').value = new Date().toISOString().slice(0, 10);
+    document.getElementById('op-date').value = formatLocalYMD(new Date());
   }
   openModal('modalOpCost');
 }
@@ -543,13 +551,13 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btnPrevWeek')?.addEventListener('click', () => {
     const d = new Date(`${currentWeek}T12:00:00`);
     d.setDate(d.getDate() - 7);
-    currentWeek = d.toISOString().slice(0, 10);
+    currentWeek = formatLocalYMD(d);
     loadWeeklyForecast(currentWeek);
   });
   document.getElementById('btnNextWeek')?.addEventListener('click', () => {
     const d = new Date(`${currentWeek}T12:00:00`);
     d.setDate(d.getDate() + 7);
-    currentWeek = d.toISOString().slice(0, 10);
+    currentWeek = formatLocalYMD(d);
     loadWeeklyForecast(currentWeek);
   });
 
@@ -590,6 +598,8 @@ document.addEventListener('DOMContentLoaded', () => {
       showToast('Guardado');
       closeModal('modalOpCost');
       editingOpId = null;
+      const recToggle = document.getElementById('opToggleRecurring');
+      if (!rec && recToggle && recToggle.checked) recToggle.checked = false;
       loadOperationalCosts();
       loadPL();
     } else showToast(res.error || 'Erro', 'error');
@@ -641,7 +651,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   document.getElementById('btnAddPaymentRecv')?.addEventListener('click', () => {
-    document.getElementById('pr-date').value = new Date().toISOString().slice(0, 10);
+    document.getElementById('pr-date').value = formatLocalYMD(new Date());
     openModal('modalPayRecv');
   });
   document.getElementById('btnSavePayRecv')?.addEventListener('click', async () => {
