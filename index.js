@@ -95,6 +95,7 @@ import { ensureCustomersResponsibleNameColumn } from './lib/ensureCustomersRespo
 import { ensurePayrollTimesheetDailyOverrideColumn } from './lib/ensurePayrollTimesheetDailyOverrideColumn.js';
 import { ensurePayrollEmployeeAllowOutsidePeriodColumn } from './lib/ensurePayrollEmployeeAllowOutsidePeriodColumn.js';
 import { ensureBuilderPaymentForecastsTable } from './lib/ensureBuilderPaymentForecastsTable.js';
+import { ensureProjectChildTables } from './lib/ensureProjectChildTables.js';
 import { ensureFinancialCompleteSchema } from './lib/ensureFinancialCompleteSchema.js';
 import { getUiConfig } from './routes/uiConfig.js';
 
@@ -719,6 +720,7 @@ async function start() {
       await ensurePayrollTimesheetDailyOverrideColumn(pool);
       await ensurePayrollEmployeeAllowOutsidePeriodColumn(pool);
       await ensureBuilderPaymentForecastsTable(pool);
+      await ensureProjectChildTables(pool);
       try {
         await ensureFinancialCompleteSchema(pool);
         console.log('[db] Schema financeiro (vendors, operational_costs, …) verificado no arranque.');
