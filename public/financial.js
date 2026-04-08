@@ -281,7 +281,15 @@ async function loadOperationalCosts() {
     fetchJsonOrWarn('/api/operational-costs/recurring', 'operational-costs recurring'),
   ]);
 
-  const rows = listRes.success ? listRes.data || [] : [];
+  const listPayload = listRes.success ? listRes.data : null;
+  const rows = Array.isArray(listPayload)
+    ? listPayload
+    : listPayload != null && typeof listPayload === 'object'
+      ? [listPayload]
+      : [];
+  if (!listRes.success) {
+    showToast(listRes.error || listRes.message || 'Erro ao carregar a lista de custos', 'error');
+  }
   const sumMonth = (monthRes.data || []).reduce((s, r) => s + (parseFloat(r.total_amount) || 0), 0);
   const sumYear = (yearRes.data || []).reduce((s, r) => s + (parseFloat(r.total_amount) || 0), 0);
   document.getElementById('op-kpi-month').textContent = fmt$(sumMonth);
@@ -306,15 +314,23 @@ async function loadOperationalCosts() {
         .join('')
     : '<p style="color:var(--text-muted)">Sem dados no mês</p>';
 
-  document.getElementById('op-table-body').innerHTML = rows.length
-    ? rows
-        .map((r) => {
-          const rec = r.is_recurring ? `<span class="fin-badge-rec">🔄 ${escapeHtml(r.recurrence_type || '')}</span>` : '—';
-          const rc = r.receipt_url
-            ? `<a href="${escapeHtml(r.receipt_url)}" target="_blank" rel="noopener">Ver</a>
+  const listErr = !listRes.success
+    ? escapeHtml(String(listRes.error || listRes.message || 'Erro ao carregar'))
+    : '';
+  const emptyMsg = recurringOnly
+    ? 'Nenhum custo recorrente (desmarque «Só recorrentes» para ver todos)'
+    : 'Sem registos';
+  document.getElementById('op-table-body').innerHTML = listErr
+    ? `<tr><td colspan="8" style="color:var(--sf-bad,#b33a3a)">${listErr}</td></tr>`
+    : rows.length
+      ? rows
+          .map((r) => {
+            const rec = r.is_recurring ? `<span class="fin-badge-rec">🔄 ${escapeHtml(r.recurrence_type || '')}</span>` : '—';
+            const rc = r.receipt_url
+              ? `<a href="${escapeHtml(r.receipt_url)}" target="_blank" rel="noopener">Ver</a>
                <button type="button" class="btn btn-sm btn-secondary" data-op-receipt="${r.id}" style="padding:4px 8px;font-size:10px">Upload</button>`
-            : `<button type="button" class="btn btn-sm btn-secondary" data-op-receipt="${r.id}" style="padding:4px 8px;font-size:10px">Upload</button>`;
-          return `<tr>
+              : `<button type="button" class="btn btn-sm btn-secondary" data-op-receipt="${r.id}" style="padding:4px 8px;font-size:10px">Upload</button>`;
+            return `<tr>
           <td>${escapeHtml(fmtOpDate(r.expense_date))}</td>
           <td>${escapeHtml(r.category)}</td>
           <td>${escapeHtml(r.description)}</td>
@@ -324,9 +340,9 @@ async function loadOperationalCosts() {
           <td>${rc}</td>
           <td><button type="button" class="btn btn-sm btn-secondary" data-op-edit="${r.id}" style="padding:4px 8px">Editar</button></td>
         </tr>`;
-        })
-        .join('')
-    : '<tr><td colspan="8">Sem registos</td></tr>';
+          })
+          .join('')
+      : `<tr><td colspan="8">${emptyMsg}</td></tr>`;
 
   document.querySelectorAll('[data-op-receipt]').forEach((btn) => {
     btn.addEventListener('click', () => {
