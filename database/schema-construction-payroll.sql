@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS `construction_payroll_employees` (
   `sector` enum('installation','sand_finish') DEFAULT NULL COMMENT 'Installation vs Sand & Finish',
   `user_id` int(11) DEFAULT NULL COMMENT 'optional link to CRM users.id (no FK — type/host variance)',
   `is_active` tinyint(1) NOT NULL DEFAULT 1,
+  `allow_work_date_outside_period` tinyint(1) NOT NULL DEFAULT 0 COMMENT '1 = work_date pode estar fora do período; paga neste fechamento',
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),

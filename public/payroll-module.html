@@ -242,7 +242,6 @@
                 <th class="px-3 py-2 text-right" title="Soma de horas extras na planilha do período selecionado">H. extras (período)</th>
                 <th class="px-3 py-2">Tipo</th>
                 <th class="px-3 py-2 text-right">Diária</th>
-                <th class="px-3 py-2 text-right">Hora</th>
                 <th class="px-3 py-2 text-right">HE</th>
                 <th class="px-3 py-2">Pagamento</th>
                 <th class="px-3 py-2 text-right">Ações</th>
@@ -288,11 +287,12 @@
             <li>A planilha está <strong>dividida por setor</strong> (Installation e Sand &amp; Finish). Funcionários <strong>sem setor</strong> no cadastro aparecem na lista de Installation. Ao mudar a <strong>data</strong>, a <strong>linha seguinte no mesmo bloco</strong> recebe a mesma data.</li>
             <li>Em cada linha: <strong>data</strong>, <strong>funcionário</strong>, opcionalmente <strong>projeto</strong>.</li>
             <li>Opcional: em <strong>Diária linha</strong> indique um valor só para aquele dia (ex.: outra função com diária maior). <strong>Vazio</strong> usa a diária do cadastro. Não altera o cálculo para tipo <strong>por hora</strong>.</li>
-            <li>Preencha <strong>dias</strong> (ex.: 1, <strong>2</strong> ou ½) e/ou <strong>h. normais</strong> e/ou <strong>horas extras</strong> — use os botões <strong>±</strong>, <strong>1d</strong>, <strong>2d</strong> (double), <strong>½</strong>, <strong>+2h/+4h</strong> (normais) e <strong>+1h/+2h/+4h</strong> (extras). No mesmo dia, no máximo <strong>2 diárias</strong> por funcionário (duas linhas de 1 ou uma de 2). No celular, <strong>deslize a tabela para a direita</strong> para ver essas colunas.</li>
+            <li>Preencha <strong>dias</strong> (ex.: 1, <strong>2</strong> ou ½) — para tipo <strong>por hora</strong>, use esta coluna como <strong>horas</strong> no mesmo campo. Tipo <strong>misto</strong> mostra <strong>horas normais</strong> extra na linha. Inclua <strong>horas extras</strong> na coluna HE (botões <strong>±</strong>, <strong>1d</strong>, <strong>2d</strong>, <strong>½</strong>, <strong>+1h/+2h/+4h</strong> em HE). No mesmo dia, no máximo <strong>2 diárias</strong> por funcionário (duas linhas de 1 ou uma de 2). No celular, <strong>deslize a tabela</strong> para a direita.</li>
+            <li>Funcionários com <strong>“datas fora da semana”</strong> no cadastro podem ter <strong>data de trabalho</strong> fora do intervalo Seg–Dom do período; o valor entra na folha <strong>deste</strong> fechamento.</li>
             <li>Clique em <strong>Salvar planilha</strong> para gravar no servidor.</li>
           </ol>
           <p class="text-slate-500 pt-1 border-t border-slate-200">
-            <strong>Cálculo:</strong> tipo <em>diária</em> usa dias + HE; <em>por hora</em> usa h. normais (+ HE); <em>misto</em> combina dias, horas e HE. Defina valores de diária/hora/HE no cadastro do funcionário.
+            <strong>Cálculo:</strong> tipo <em>diária</em> usa dias + HE; <em>por hora</em> usa a coluna de quantidade como <em>horas</em> (+ HE); <em>misto</em> combina dias, horas normais (bloco na linha) e HE. Defina valores no cadastro.
           </p>
           <p class="text-slate-500 pt-1 border-t border-slate-200 text-[11px]">
             <strong>Permissões:</strong> com <code class="text-slate-600">payroll.view</code> você pode lançar e salvar a planilha enquanto o período está <strong>aberto</strong>. Com período <strong>fechado</strong>, só quem tem <code class="text-slate-600">payroll.manage</code> pode alterar ou excluir linhas já salvas e usar de novo <strong>Salvar planilha</strong>; não é possível adicionar linhas novas. Criar funcionários, períodos ou fechar período continua exigindo <code class="text-slate-600">payroll.manage</code>.
@@ -306,18 +306,17 @@
 
         <div class="rounded-lg border border-slate-200 overflow-hidden bg-white">
           <p class="payroll-grid-scroll-hint border-b border-slate-200 px-2 py-1.5" aria-hidden="true">
-            ← Deslize para a direita: Diária (linha), Dias, Horas normais, Horas extras →
+            ← Deslize para a direita: Diária (linha), Dias/horas, Horas extras →
           </p>
           <div class="overflow-x-auto max-h-[min(640px,70vh)] payroll-grid">
-          <table id="timesheetTable" class="w-full text-sm min-w-[1000px]">
+          <table id="timesheetTable" class="w-full text-sm min-w-[860px]">
             <thead class="text-left text-xs text-slate-500 uppercase border-b">
               <tr>
                 <th class="px-2 py-2 w-[118px]">Data</th>
                 <th class="px-2 py-2 min-w-[130px]">Funcionário</th>
                 <th class="px-2 py-2 min-w-[110px]">Projeto</th>
                 <th class="px-2 py-2 min-w-[88px]" title="Diária só neste dia; vazio = cadastro">Diária linha</th>
-                <th class="px-2 py-2 min-w-[120px]">Dias</th>
-                <th class="px-2 py-2 min-w-[120px]">H. normais</th>
+                <th class="px-2 py-2 min-w-[140px]" title="Diárias ou, no tipo por hora, horas trabalhadas">Dias / horas</th>
                 <th class="px-2 py-2 min-w-[140px]">Horas extras</th>
                 <th class="px-2 py-2 min-w-[88px]">Notas</th>
                 <th class="px-2 py-2 w-[88px] text-right">Valor</th>
@@ -325,10 +324,10 @@
               </tr>
             </thead>
             <tbody id="timesheetTbodyInstallation" class="ts-sector-group" data-sector="installation">
-              <tr class="ts-sector-head bg-slate-100 border-t border-slate-200"><td colspan="10" class="px-2 py-2 text-xs font-bold text-slate-800">Installation</td></tr>
+              <tr class="ts-sector-head bg-slate-100 border-t border-slate-200"><td colspan="9" class="px-2 py-2 text-xs font-bold text-slate-800">Installation</td></tr>
             </tbody>
             <tbody id="timesheetTbodySandFinish" class="ts-sector-group" data-sector="sand_finish">
-              <tr class="ts-sector-head bg-amber-50/80 border-t border-amber-100"><td colspan="10" class="px-2 py-2 text-xs font-bold text-amber-950">Sand &amp; Finish</td></tr>
+              <tr class="ts-sector-head bg-amber-50/80 border-t border-amber-100"><td colspan="9" class="px-2 py-2 text-xs font-bold text-amber-950">Sand &amp; Finish</td></tr>
             </tbody>
           </table>
           </div>
@@ -420,6 +419,12 @@
         <div><label class="text-xs font-semibold text-slate-500">Valor hora extra</label><input id="empOt" type="number" step="0.01" min="0" class="w-full border rounded-lg px-3 py-2 text-sm" /></div>
       </div>
       <div><label class="text-xs font-semibold text-slate-500">Forma de pagamento</label><input id="empPayMethod" class="w-full border rounded-lg px-3 py-2 text-sm" placeholder="PIX, cheque, Zelle…" /></div>
+      <div class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+        <label class="inline-flex gap-2 text-sm items-start cursor-pointer">
+          <input type="checkbox" id="empAllowOutsideWeek" class="mt-0.5 shrink-0" />
+          <span><span class="font-medium text-slate-800">Datas fora da semana do período</span><span class="block text-xs text-slate-500 font-normal mt-0.5">Permite lançar a <strong>data do trabalho</strong> fora de Seg–Dom do período selecionado; o pagamento continua neste fechamento (útil para quem recebe numa semana diferente do calendário do trabalho).</span></span>
+        </label>
+      </div>
       <div id="empActiveWrap" class="hidden"><label class="inline-flex gap-2 text-sm"><input type="checkbox" id="empActive" checked /> Ativo</label></div>
       <p id="empFormErr" class="text-red-600 text-sm hidden"></p>
       <div class="flex flex-wrap justify-between items-center gap-2 pt-1">
@@ -621,6 +626,6 @@
   </script>
   <script src="crm-toast.js?v=2"></script>
   <script src="crm-shared-nav.js?v=8"></script>
-  <script src="payroll-module.js?v=35"></script>
+  <script src="payroll-module.js?v=36"></script>
 </body>
 </html>

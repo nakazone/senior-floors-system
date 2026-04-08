@@ -23,6 +23,7 @@
     "migrate:payroll-timesheet-daily-override": "node database/migrate-payroll-timesheet-daily-override.js",
     "migrate:payroll-sector-reimbursement": "node database/migrate-payroll-sector-reimbursement.js",
     "migrate:payroll-timesheet-allow-double-lines": "node database/migrate-payroll-timesheet-allow-double-lines.js",
+    "migrate:payroll-employee-flex-dates": "node database/migrate-payroll-employee-flex-dates.js",
     "migrate:projects-complete": "node database/migrate-projects-complete.js",
     "migrate:financial-complete": "node database/migrate-financial-complete.js",
     "migrate:financial-complete:railway": "railway run npm run migrate:financial-complete",

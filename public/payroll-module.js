@@ -334,7 +334,6 @@ function renderEmployeeTable() {
       <td class="px-3 py-2 text-right tabular-nums">${otPer}</td>
       <td class="px-3 py-2">${escapeHtml(paymentTypeLabel(e.payment_type))}</td>
       <td class="px-3 py-2 text-right">${money(e.daily_rate)}</td>
-      <td class="px-3 py-2 text-right">${money(e.hourly_rate)}</td>
       <td class="px-3 py-2 text-right">${money(e.overtime_rate)}</td>
       <td class="px-3 py-2">${escapeHtml(e.payment_method || '—')}</td>
       <td class="px-3 py-2 text-right">
@@ -434,6 +433,27 @@ function relocateTimesheetRowForEmployee(tr) {
   const target = getTimesheetTbody(key);
   if (target && tr.parentElement !== target) target.appendChild(tr);
   refreshEmployeeSelectForSector(tr, key);
+  syncTimesheetRowPaymentUi(tr);
+}
+
+function syncTimesheetRowPaymentUi(tr) {
+  const empId = parseInt(tr.querySelector('.ts-emp')?.value, 10);
+  const emp = employeesById[empId];
+  const pt = String(emp?.payment_type || 'daily').toLowerCase();
+  const hint = tr.querySelector('.ts-days-hint');
+  if (hint) {
+    hint.textContent =
+      pt === 'hourly' ? 'Horas (por hora)' : pt === 'mixed' ? 'Dias (misto)' : 'Dias';
+  }
+  const wrap = tr.querySelector('.ts-mixed-reg-wrap');
+  const regInp = tr.querySelector('input.ts-reg');
+  if (wrap) {
+    const show = pt === 'mixed';
+    wrap.classList.toggle('hidden', !show);
+    if (!show && regInp) regInp.value = '';
+  }
+  syncDailyOverrideHint(tr);
+  refreshRowAmount(tr);
 }
 
 function syncNextRowDateFromChange(tr, ymd) {
@@ -743,9 +763,7 @@ function bindRowEvents(tr) {
     });
     dateInp.addEventListener('input', () => refreshRowAmount(tr));
   }
-  tr.querySelector('.ts-emp')?.addEventListener('change', () => {
-    relocateTimesheetRowForEmployee(tr);
-  });
+  tr.querySelector('.ts-emp')?.addEventListener('change', () => relocateTimesheetRowForEmployee(tr));
   tr.querySelector('.ts-days-dec')?.addEventListener('click', (e) => tsTap(e, () => bumpInput(tr, '.ts-days', -0.25)));
   tr.querySelector('.ts-days-inc')?.addEventListener('click', (e) => tsTap(e, () => bumpInput(tr, '.ts-days', 0.25)));
   tr.querySelector('.ts-reg-dec')?.addEventListener('click', (e) => tsTap(e, () => bumpInput(tr, '.ts-reg', -0.25)));
@@ -829,6 +847,7 @@ function appendTimesheetRow(data, sectorKey) {
     <td class="px-2 py-1 align-top"><select class="ts-proj w-full border rounded px-2 py-2 text-sm"${dis}>${projectOptionsHtml(data?.project_id)}</select></td>
     <td class="px-1 py-1 align-top"><input type="number" inputmode="decimal" step="any" min="0" class="ts-daily-override payroll-num-input w-[4.5rem] border rounded px-1 py-2 text-sm"${dis} value="${drOv}" /></td>
     <td class="px-1 py-1 align-top">
+      <p class="ts-days-hint text-[10px] text-slate-500 text-center mb-0.5 leading-tight">Dias</p>
       <div class="flex items-center justify-center gap-0.5">
         <button type="button" class="ts-numbtn ts-days-dec"${dis} aria-label="Menos dia">−</button>
         <input type="number" inputmode="decimal" step="any" min="0" class="ts-days payroll-num-input w-[4.25rem] border rounded"${dis} value="${d0 === '' || d0 == null ? '' : d0}" />
@@ -839,16 +858,17 @@ function appendTimesheetRow(data, sectorKey) {
         <button type="button" class="ts-short ts-double-2 text-[10px] px-2 py-1 border border-slate-200 rounded${!grid ? ' opacity-40' : ''}" ${!grid ? 'disabled' : ''} title="2 diárias no mesmo dia (double)">2d</button>
         <button type="button" class="ts-short ts-half text-[10px] px-2 py-1 border border-slate-200 rounded${!grid ? ' opacity-40' : ''}" ${!grid ? 'disabled' : ''}>½</button>
       </div>
-    </td>
-    <td class="px-1 py-1 align-top">
-      <div class="flex items-center justify-center gap-0.5">
-        <button type="button" class="ts-numbtn ts-reg-dec"${dis} aria-label="Menos horas">−</button>
-        <input type="number" inputmode="decimal" step="any" min="0" class="ts-reg payroll-num-input w-[4.25rem] border rounded"${dis} value="${r0 === '' || r0 == null ? '' : r0}" />
-        <button type="button" class="ts-numbtn ts-reg-inc"${dis} aria-label="Mais horas">+</button>
-      </div>
-      <div class="flex justify-center gap-1 mt-1 flex-wrap">
-        <button type="button" class="ts-short ts-reg-2 text-[10px] px-2 py-1 border border-slate-200 rounded${!grid ? ' opacity-40' : ''}" ${!grid ? 'disabled' : ''}>+2h</button>
-        <button type="button" class="ts-short ts-reg-4 text-[10px] px-2 py-1 border border-slate-200 rounded${!grid ? ' opacity-40' : ''}" ${!grid ? 'disabled' : ''}>+4h</button>
+      <div class="ts-mixed-reg-wrap hidden mt-1.5 pt-1 border-t border-slate-200">
+        <p class="text-[10px] text-slate-500 text-center mb-0.5">Horas normais (misto)</p>
+        <div class="flex items-center justify-center gap-0.5">
+          <button type="button" class="ts-numbtn ts-reg-dec"${dis} aria-label="Menos horas normais">−</button>
+          <input type="number" inputmode="decimal" step="any" min="0" class="ts-reg payroll-num-input w-[4.25rem] border rounded"${dis} value="${r0 === '' || r0 == null ? '' : r0}" />
+          <button type="button" class="ts-numbtn ts-reg-inc"${dis} aria-label="Mais horas normais">+</button>
+        </div>
+        <div class="flex justify-center gap-1 mt-1 flex-wrap">
+          <button type="button" class="ts-short ts-reg-2 text-[10px] px-2 py-1 border border-slate-200 rounded${!grid ? ' opacity-40' : ''}" ${!grid ? 'disabled' : ''}>+2h</button>
+          <button type="button" class="ts-short ts-reg-4 text-[10px] px-2 py-1 border border-slate-200 rounded${!grid ? ' opacity-40' : ''}" ${!grid ? 'disabled' : ''}>+4h</button>
+        </div>
       </div>
     </td>
     <td class="px-1 py-1 align-top">
@@ -871,8 +891,7 @@ function appendTimesheetRow(data, sectorKey) {
   tb.appendChild(tr);
   if (data?.notes) tr.querySelector('.ts-notes').value = data.notes;
   bindRowEvents(tr);
-  syncDailyOverrideHint(tr);
-  refreshRowAmount(tr);
+  syncTimesheetRowPaymentUi(tr);
 }
 
 function updatePeriodRunningTotalFromDom() {
@@ -1031,13 +1050,17 @@ function timesheetGridValidationIssues() {
     if (!employee_id) issues.push(`Linha ${idx}: escolha o funcionário.`);
     if (!work_date) issues.push(`Linha ${idx}: escolha a data do trabalho.`);
     if (work_date && !workDateInsideSelectedPeriod(work_date)) {
-      issues.push(
-        `Linha ${idx}: a data ${work_date} está fora do período (${String(selectedPeriodRecord()?.start_date || '').slice(0, 10)} a ${String(selectedPeriodRecord()?.end_date || '').slice(0, 10)}).`
-      );
+      const eid = employee_id ? parseInt(employee_id, 10) : NaN;
+      const flex = Number.isFinite(eid) && Number(employeesById[eid]?.allow_work_date_outside_period) === 1;
+      if (!flex) {
+        issues.push(
+          `Linha ${idx}: a data ${work_date} está fora do período (${String(selectedPeriodRecord()?.start_date || '').slice(0, 10)} a ${String(selectedPeriodRecord()?.end_date || '').slice(0, 10)}). Marque «Datas fora da semana» no cadastro do funcionário se o pagamento for neste fechamento com trabalho em outra semana.`
+        );
+      }
     }
     if (!hasPersistedId && d === 0 && r === 0 && ot === 0 && !notes) {
       issues.push(
-        `Linha ${idx}: para uma linha nova, preencha diárias (botões 1d/2d/½ ou ±), horas normais/extra ou uma nota.`
+        `Linha ${idx}: para uma linha nova, preencha diárias ou horas (coluna Dias/horas), horas extras ou uma nota.`
       );
     }
     if (employee_id && work_date && Number.isFinite(parseInt(employee_id, 10))) {
@@ -1084,6 +1107,8 @@ function openEmployeeModal(editId) {
     document.getElementById('empPayMethod').value = e.payment_method || '';
     const secEl = document.getElementById('empSector');
     if (secEl) secEl.value = e.sector || '';
+    const outW = document.getElementById('empAllowOutsideWeek');
+    if (outW) outW.checked = Number(e.allow_work_date_outside_period) === 1;
     document.getElementById('empActive').checked = !!e.is_active;
   } else {
     ['empName', 'empRole', 'empPhone', 'empEmail', 'empPayMethod'].forEach((id) => {
@@ -1093,6 +1118,8 @@ function openEmployeeModal(editId) {
     document.getElementById('empDaily').value = '0';
     document.getElementById('empHourly').value = '0';
     document.getElementById('empOt').value = '0';
+    const outWN = document.getElementById('empAllowOutsideWeek');
+    if (outWN) outWN.checked = false;
     const secElNew = document.getElementById('empSector');
     if (secElNew) secElNew.value = '';
   }
@@ -1121,6 +1148,7 @@ async function saveEmployee() {
     overtime_rate: Number(document.getElementById('empOt').value) || 0,
     payment_method: document.getElementById('empPayMethod').value.trim() || null,
     sector: document.getElementById('empSector')?.value || null,
+    allow_work_date_outside_period: !!document.getElementById('empAllowOutsideWeek')?.checked,
   };
   if (editId) {
     body.is_active = document.getElementById('empActive').checked;
@@ -2153,7 +2181,7 @@ document.getElementById('btnSaveTimesheet')?.addEventListener('click', async () 
   const lines = collectLinesFromGrid();
   if (!lines.length) {
     window.crmToast?.error?.(
-      'Nenhuma linha para salvar. Escolha funcionário e data e preencha pelo menos diárias (1d/2d/½), horas normais ou horas extras — ou escreva uma nota.'
+      'Nenhuma linha para salvar. Escolha funcionário e data e preencha pelo menos diárias/horas (1d/2d/½), horas extras — ou escreva uma nota.'
     );
     return;
   }

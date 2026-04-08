@@ -275,6 +275,12 @@ async function loadEmployee(pool, id) {
   return rows[0] || null;
 }
 
+function employeeAllowsWorkDateOutsidePeriod(emp) {
+  if (!emp) return false;
+  const v = emp.allow_work_date_outside_period;
+  return Number(v) === 1;
+}
+
 function safePaySlipFilenamePart(s) {
   return String(s || 'recibo').replace(/[^\w.\-]+/g, '_').slice(0, 48);
 }
@@ -569,6 +575,12 @@ export async function createEmployee(req, res) {
     const pool = await getDBConnection();
     const b = req.body || {};
     const sector = normalizeSector(b.sector);
+    const flexDates =
+      b.allow_work_date_outside_period === true ||
+      b.allow_work_date_outside_period === 1 ||
+      b.allow_work_date_outside_period === '1'
+        ? 1
+        : 0;
     const baseParams = [
       String(b.name || '').trim() || 'Sem nome',
       b.role != null ? String(b.role) : null,
@@ -584,20 +596,20 @@ export async function createEmployee(req, res) {
     ];
     let r;
     try {
-      const params = [...baseParams.slice(0, 9), sector, baseParams[9], baseParams[10]];
+      const params = [...baseParams.slice(0, 9), sector, baseParams[9], baseParams[10], flexDates];
       [r] = await pool.execute(
         `INSERT INTO construction_payroll_employees
-         (name, role, phone, email, payment_type, daily_rate, hourly_rate, overtime_rate, payment_method, sector, user_id, is_active)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         (name, role, phone, email, payment_type, daily_rate, hourly_rate, overtime_rate, payment_method, sector, user_id, is_active, allow_work_date_outside_period)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         params
       );
     } catch (e) {
       if (e.code === 'ER_BAD_FIELD_ERROR' && String(e.message || '').includes('sector')) {
         [r] = await pool.execute(
           `INSERT INTO construction_payroll_employees
-           (name, role, phone, email, payment_type, daily_rate, hourly_rate, overtime_rate, payment_method, user_id, is_active)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          baseParams
+           (name, role, phone, email, payment_type, daily_rate, hourly_rate, overtime_rate, payment_method, user_id, is_active, allow_work_date_outside_period)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [...baseParams, flexDates]
         );
       } else {
         throw e;
@@ -629,6 +641,13 @@ export async function updateEmployee(req, res) {
       b.payment_method !== undefined ? b.payment_method : existing.payment_method,
       b.sector !== undefined ? normalizeSector(b.sector) : existing.sector,
       b.user_id !== undefined ? (b.user_id === '' || b.user_id == null ? null : parseInt(b.user_id, 10)) : existing.user_id,
+      b.allow_work_date_outside_period !== undefined
+        ? b.allow_work_date_outside_period === true ||
+          b.allow_work_date_outside_period === 1 ||
+          b.allow_work_date_outside_period === '1'
+          ? 1
+          : 0
+        : null,
       b.is_active !== undefined ? (b.is_active ? 1 : 0) : null,
       id,
     ];
@@ -646,6 +665,7 @@ export async function updateEmployee(req, res) {
           payment_method = ?,
           sector = ?,
           user_id = ?,
+          allow_work_date_outside_period = COALESCE(?, allow_work_date_outside_period),
           is_active = COALESCE(?, is_active)
          WHERE id = ?`,
         params
@@ -664,6 +684,7 @@ export async function updateEmployee(req, res) {
             overtime_rate = COALESCE(?, overtime_rate),
             payment_method = ?,
             user_id = ?,
+            allow_work_date_outside_period = COALESCE(?, allow_work_date_outside_period),
             is_active = COALESCE(?, is_active)
            WHERE id = ?`,
           [
@@ -679,6 +700,7 @@ export async function updateEmployee(req, res) {
             params[10],
             params[11],
             params[12],
+            params[13],
           ]
         );
       } else {
@@ -1316,7 +1338,9 @@ async function upsertOneLine(executor, period, line, userId, options = {}) {
     e.statusCode = 400;
     throw e;
   }
-  await assertWorkDateInPeriodDb(executor, period.id, workDate);
+  if (!employeeAllowsWorkDateOutsidePeriod(emp)) {
+    await assertWorkDateInPeriodDb(executor, period.id, workDate);
+  }
   let projectId = line.project_id != null && line.project_id !== '' ? parseInt(line.project_id, 10) : null;
   if (projectId) {
     const [pr] = await executor.query('SELECT id FROM projects WHERE id = ?', [projectId]);
