@@ -89,6 +89,32 @@ Assim a LP poderá enviar leads para o System no Railway.
 - Teste a conexão localmente primeiro com um `.env`
 - Se usar Hostinger, verifique se o IP do Railway está liberado no firewall do MySQL
 
+### `Table '…vendors' doesn't exist` (ou outras tabelas do financeiro)
+O módulo financeiro precisa das tabelas `vendors`, `operational_costs`, `payment_receipts`, `weekly_forecast`, etc. Rode a migração **uma vez** no ambiente que usa esse MySQL:
+
+1. Na pasta do projeto, com [Railway CLI](https://docs.railway.com/guides/cli) ligado ao serviço:  
+   `npm run migrate:financial-complete:railway`  
+   (equivale a `railway run npm run migrate:financial-complete`)
+2. Ou no painel Railway: abra o serviço **Node** → **Shell** / terminal e execute:  
+   `npm run migrate:financial-complete`
+
+A migração é idempotente (`CREATE TABLE IF NOT EXISTS`); pode voltar a correr sem problema.
+
+### `ETIMEDOUT` ao correr `npm run migrate:financial-complete` no Mac/PC
+
+O host `*.up.railway.app` (ou a porta MySQL) **muitas vezes não aceita ligações da internet** até ativares **Public networking** no serviço MySQL no painel da Railway. Mesmo assim, algumas redes bloqueiam a saída na porta 3306.
+
+**Forma mais fiável:** correr a migração **dentro** da Railway (mesma rede que o MySQL):
+
+- **Shell do serviço Node** (onde corre o CRM): abre o terminal no painel e executa  
+  `node database/migrate-financial-complete.js`  
+  (o diretório pode ser `/app`; se falhar, `ls` e ajusta o caminho até à pasta que contém `database/`.)
+
+- **Railway CLI** (na pasta `senior-floors-system`, com o projeto ligado):  
+  `railway run npm run migrate:financial-complete`
+
+**Se quiseres mesmo migrar a partir do Mac:** no serviço **MySQL** → ativa **TCP Proxy / Public networking**, copia **`DATABASE_PUBLIC_URL`** (ou equivalente com `proxy.rlwy.net`) para o teu `.env` e garante que o código usa essa URL para scripts locais (ver `config/db.js` — já prefere `DATABASE_PUBLIC_URL` quando a URL principal é interna).
+
 ### App não responde na URL
 - Verifique se gerou um domínio público (Settings → Generate Domain)
 - Verifique os logs do Railway (aba "Deployments" → clique no deploy → "View Logs")

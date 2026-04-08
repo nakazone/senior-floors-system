@@ -46,13 +46,14 @@
     </aside>
 
     <main class="dashboard-main" style="flex-direction:column;padding:0;background:#f5f4f1">
-      <div class="fin-topbar">
-        <h1>
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true">
-            <line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>
-          </svg>
-          Senior Floors / Financeiro
-        </h1>
+      <div class="fin-subnav" aria-label="Abas e filtros do financeiro">
+        <div class="fin-tabs" role="tablist">
+          <button type="button" class="fin-tab on" data-tab="pl" role="tab">P&amp;L</button>
+          <button type="button" class="fin-tab" data-tab="forecast" role="tab">Previsão semanal</button>
+          <button type="button" class="fin-tab" data-tab="operational" role="tab">Custos operacionais</button>
+          <button type="button" class="fin-tab" data-tab="vendors" role="tab">Fornecedores</button>
+          <button type="button" class="fin-tab" data-tab="receipts" role="tab">Recibos &amp; pagamentos</button>
+        </div>
         <div class="fin-topbar-actions">
           <select id="finPeriodType" class="fin-select" aria-label="Período">
             <option value="month">Mês</option>
@@ -61,18 +62,10 @@
           </select>
           <input type="date" id="finCustomStart" aria-label="Início" />
           <input type="date" id="finCustomEnd" aria-label="Fim" />
-          <button type="button" class="btn btn-sm btn-bar-dark-ghost" id="btnFinApplyPeriod">Aplicar datas</button>
-          <button type="button" class="btn btn-sm btn-bar-dark" id="btnImportMarketing">↓ Importar Marketing</button>
+          <button type="button" class="btn btn-sm btn-secondary" id="btnFinApplyPeriod">Aplicar datas</button>
+          <button type="button" class="btn btn-sm btn-secondary" id="btnImportMarketing">↓ Importar Marketing</button>
           <button type="button" class="btn btn-sm btn-primary" id="btnAddExpense">+ Adicionar Despesa</button>
         </div>
-      </div>
-
-      <div class="fin-tabs" role="tablist">
-        <button type="button" class="fin-tab on" data-tab="pl" role="tab">P&amp;L</button>
-        <button type="button" class="fin-tab" data-tab="forecast" role="tab">Previsão semanal</button>
-        <button type="button" class="fin-tab" data-tab="operational" role="tab">Custos operacionais</button>
-        <button type="button" class="fin-tab" data-tab="vendors" role="tab">Fornecedores</button>
-        <button type="button" class="fin-tab" data-tab="receipts" role="tab">Recibos &amp; pagamentos</button>
       </div>
 
       <div class="fin-main">
