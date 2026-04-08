@@ -20,6 +20,7 @@ import { requireAuth, requireRole, requirePermission } from './middleware/auth.j
 import {
   listCustomers,
   getCustomer,
+  getCustomerInsight,
   createCustomer,
   updateCustomer,
   getCustomerByLead,
@@ -379,6 +380,7 @@ app.put('/api/proposals/:proposalId', requireAuth, updateProposal);
 app.get('/api/customers/by-lead/:leadId', requireAuth, getCustomerByLead);
 app.post('/api/customers/from-lead', requireAuth, requirePermission('customers.create'), createCustomerFromLead);
 app.get('/api/customers', requireAuth, listCustomers);
+app.get('/api/customers/:id/insight', requireAuth, getCustomerInsight);
 app.get('/api/customers/:id', requireAuth, getCustomer);
 app.post('/api/customers', requireAuth, requirePermission('customers.create'), createCustomer);
 app.put('/api/customers/:id', requireAuth, requirePermission('customers.edit'), updateCustomer);
@@ -681,7 +683,7 @@ async function start() {
     console.log('  Dashboard: GET /api/dashboard/stats');
     console.log('  Dashboard debug: GET /api/dashboard/debug (requer DASHBOARD_DEBUG=1)');
     console.log('  Leads: GET /api/leads, GET /api/leads/:id, PUT /api/leads/:id, DELETE /api/leads/:id');
-    console.log('  Customers: GET /api/customers, POST /api/customers, PUT /api/customers/:id');
+    console.log('  Customers: GET /api/customers, GET /api/customers/:id/insight, POST /api/customers, PUT /api/customers/:id');
     console.log('  Quotes: GET /api/quotes, POST /api/quotes, PUT /api/quotes/:id');
     console.log('  Projects: /api/projects (router completo + financial em /:id/financial)');
     console.log('  Visits: GET /api/visits, POST /api/visits, PUT /api/visits/:id');

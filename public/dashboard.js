@@ -1763,6 +1763,23 @@ window.leadsSearchClear = leadsSearchClear;
 
 // Clients (/api/customers)
 let customersPage = 1;
+let customerInsightEditId = null;
+
+function fmtMoneyInsight(n) {
+    return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: 'USD',
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+    }).format(parseFloat(n) || 0);
+}
+
+function customerViewOpenEdit() {
+    const id = customerInsightEditId;
+    if (id == null) return;
+    if (typeof closeModal === 'function') closeModal('customerViewModal');
+    viewCustomer(id);
+}
 
 function escapeClientCell(s) {
     if (s == null || s === '') return '';
@@ -1823,7 +1840,10 @@ async function loadCustomers() {
                         <td>${leadCell}</td>
                         <td><span class="badge badge-${c.status || 'active'}">${c.status || 'active'}</span></td>
                         <td>${c.created_at ? new Date(c.created_at).toLocaleDateString() : '-'}</td>
-                        <td><button type="button" class="btn btn-sm" onclick="viewCustomer(${c.id})">Edit</button></td>
+                        <td style="white-space:nowrap">
+                            <button type="button" class="btn btn-sm btn-secondary" onclick="inspectCustomer(${c.id})">Ver</button>
+                            <button type="button" class="btn btn-sm" onclick="viewCustomer(${c.id})">Editar</button>
+                        </td>
                     </tr>`;
                 }).join('');
             }
@@ -1900,6 +1920,138 @@ function showNewCustomerModal() {
     if (t) t.textContent = 'Novo cliente';
     const modal = document.getElementById('clientModal');
     if (modal) modal.style.display = 'flex';
+}
+
+async function inspectCustomer(id) {
+    customerInsightEditId = id;
+    const modal = document.getElementById('customerViewModal');
+    const body = document.getElementById('customerViewBody');
+    const title = document.getElementById('customerViewTitle');
+    if (!modal || !body) return;
+    body.innerHTML = '<p class="text-center text-muted" style="padding:2rem">A carregar…</p>';
+    modal.style.display = 'flex';
+    if (title) title.textContent = 'Cliente';
+    try {
+        const res = await fetch(`/api/customers/${encodeURIComponent(id)}/insight`, { credentials: 'include' });
+        const data = await res.json();
+        if (!data.success || !data.data) {
+            body.innerHTML = `<p class="text-center" style="color:#c0392b;padding:2rem">${escapeClientCell(data.error || 'Erro ao carregar')}</p>`;
+            return;
+        }
+        const { customer, lead_insight, builder_insight } = data.data;
+        const isB = (customer.customer_type || '') === 'builder';
+        if (title) {
+            title.textContent =
+                isB && customer.responsible_name
+                    ? `${customer.name || ''} · ${customer.responsible_name}`
+                    : customer.name || 'Cliente';
+        }
+        const z = (v) => (v != null && String(v).trim() !== '' ? escapeClientCell(String(v)) : '—');
+        let html = '';
+
+        html += `<div class="customer-view-card" style="background:var(--bg-light,#f6f7f9);border-radius:10px;padding:14px 16px;margin-bottom:16px;">
+            <p style="margin:0 0 8px;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--sf-muted,#666)">Cadastro</p>
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px 16px;font-size:14px;">
+                <div><span style="color:var(--sf-muted,#666)">Tipo</span><br><strong>${z(customer.customer_type)}</strong></div>
+                <div><span style="color:var(--sf-muted,#666)">Email</span><br><strong>${z(customer.email)}</strong></div>
+                <div><span style="color:var(--sf-muted,#666)">Telefone</span><br><strong>${z(customer.phone)}</strong></div>
+                <div><span style="color:var(--sf-muted,#666)">Cidade</span><br><strong>${z(customer.city)}</strong></div>
+                <div><span style="color:var(--sf-muted,#666)">Estado</span><br><strong>${z(customer.state)}</strong></div>
+                <div><span style="color:var(--sf-muted,#666)">Status</span><br><strong>${z(customer.status)}</strong></div>
+            </div>
+            ${customer.address ? `<p style="margin:12px 0 0;font-size:13px;color:#333">${escapeClientCell(customer.address)}</p>` : ''}
+            ${customer.notes ? `<p style="margin:10px 0 0;font-size:13px;color:#555"><em>Notas:</em> ${escapeClientCell(customer.notes)}</p>` : ''}
+        </div>`;
+
+        if (lead_insight && lead_insight.lead) {
+            const L = lead_insight.lead;
+            const pipe = L.pipeline_stage_name || L.pipeline_stage_slug || '—';
+            html += `<div class="customer-view-card" style="border:1px solid rgba(26,32,54,.12);border-radius:10px;padding:14px 16px;margin-bottom:16px;">
+                <p style="margin:0 0 10px;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--sf-muted,#666)">Origem — Lead #${L.id}</p>
+                <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px 16px;font-size:14px;">
+                    <div><span style="color:var(--sf-muted,#666)">Nome</span><br><strong>${z(L.name)}</strong></div>
+                    <div><span style="color:var(--sf-muted,#666)">Email</span><br><strong>${z(L.email)}</strong></div>
+                    <div><span style="color:var(--sf-muted,#666)">Telefone</span><br><strong>${z(L.phone)}</strong></div>
+                    <div><span style="color:var(--sf-muted,#666)">Pipeline</span><br><strong>${escapeClientCell(pipe)}</strong></div>
+                    <div><span style="color:var(--sf-muted,#666)">Estado (lead)</span><br><strong>${z(L.status)}</strong></div>
+                    <div><span style="color:var(--sf-muted,#666)">Valor estimado</span><br><strong>${L.estimated_value != null ? fmtMoneyInsight(L.estimated_value) : '—'}</strong></div>
+                    <div><span style="color:var(--sf-muted,#666)">Orçamentos</span><br><strong>${lead_insight.quotes_count ?? 0}</strong></div>
+                    <div><span style="color:var(--sf-muted,#666)">Estimates</span><br><strong>${lead_insight.estimates_count ?? 0}</strong></div>
+                </div>
+                ${L.address ? `<p style="margin:12px 0 0;font-size:13px">${escapeClientCell(L.address)} ${L.zipcode ? escapeClientCell(String(L.zipcode)) : ''}</p>` : ''}
+                <p style="margin:12px 0 0"><a class="btn btn-sm btn-secondary" href="lead-detail.html?id=${encodeURIComponent(L.id)}">Abrir ficha do lead</a></p>
+            </div>`;
+        } else if (!isB) {
+            html += `<p class="text-muted" style="font-size:14px;margin-bottom:16px">Este cliente não está ligado a um lead na base de dados.</p>`;
+        }
+
+        if (builder_insight && builder_insight.aggregates) {
+            const a = builder_insight.aggregates;
+            const rows = builder_insight.projects || [];
+            html += `<div class="customer-view-card" style="border:1px solid rgba(26,32,54,.12);border-radius:10px;padding:14px 16px;margin-bottom:8px;">
+                <p style="margin:0 0 12px;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--sf-muted,#666)">Builder — Projetos e performance</p>
+                <div class="stats-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;margin-bottom:16px;">
+                    <div style="background:var(--bg-light,#f6f7f9);border-radius:8px;padding:10px 12px;">
+                        <div style="font-size:11px;color:var(--sf-muted,#666)">Projetos</div>
+                        <div style="font-size:20px;font-weight:700">${a.project_count ?? 0}</div>
+                    </div>
+                    <div style="background:var(--bg-light,#f6f7f9);border-radius:8px;padding:10px 12px;">
+                        <div style="font-size:11px;color:var(--sf-muted,#666)">Receita total</div>
+                        <div style="font-size:18px;font-weight:700">${fmtMoneyInsight(a.total_revenue)}</div>
+                    </div>
+                    <div style="background:var(--bg-light,#f6f7f9);border-radius:8px;padding:10px 12px;">
+                        <div style="font-size:11px;color:var(--sf-muted,#666)">Lucro bruto total</div>
+                        <div style="font-size:18px;font-weight:700">${fmtMoneyInsight(a.total_profit)}</div>
+                    </div>
+                    <div style="background:var(--bg-light,#f6f7f9);border-radius:8px;padding:10px 12px;">
+                        <div style="font-size:11px;color:var(--sf-muted,#666)">Margem geral</div>
+                        <div style="font-size:18px;font-weight:700">${(a.overall_margin_pct != null ? a.overall_margin_pct : 0).toFixed(1)}%</div>
+                    </div>
+                    <div style="background:var(--bg-light,#f6f7f9);border-radius:8px;padding:10px 12px;">
+                        <div style="font-size:11px;color:var(--sf-muted,#666)">Margem média / projeto</div>
+                        <div style="font-size:18px;font-weight:700">${(a.avg_margin_pct != null ? a.avg_margin_pct : 0).toFixed(1)}%</div>
+                    </div>
+                    <div style="background:var(--bg-light,#f6f7f9);border-radius:8px;padding:10px 12px;">
+                        <div style="font-size:11px;color:var(--sf-muted,#666)">Sqft (soma)</div>
+                        <div style="font-size:18px;font-weight:700">${a.total_sqft != null ? escapeClientCell(String(a.total_sqft)) : '—'}</div>
+                    </div>
+                </div>`;
+            if (rows.length === 0) {
+                html += `<p class="text-muted" style="font-size:14px">Nenhum projeto builder associado a este cliente.</p>`;
+            } else {
+                html += `<div class="table-container" style="max-height:280px;overflow:auto"><table class="data-table" style="font-size:13px">
+                    <thead><tr><th>Projeto</th><th>Nº</th><th>Estado</th><th>Contrato</th><th>Custos</th><th>Lucro</th><th>Margem</th></tr></thead><tbody>`;
+                for (const pr of rows) {
+                    const nm = escapeClientCell(pr.name || '—');
+                    const num = escapeClientCell(pr.project_number || '—');
+                    const st = escapeClientCell(pr.status || '—');
+                    html += `<tr style="cursor:pointer" data-pd="${pr.id}">
+                        <td>${nm}</td><td>${num}</td><td>${st}</td>
+                        <td>${fmtMoneyInsight(pr.contract_value)}</td>
+                        <td>${fmtMoneyInsight(pr.total_cost_actual)}</td>
+                        <td>${fmtMoneyInsight(pr.gross_profit)}</td>
+                        <td>${pr.margin_pct != null ? escapeClientCell(String(pr.margin_pct)) + '%' : '—'}</td>
+                    </tr>`;
+                }
+                html += `</tbody></table></div>`;
+            }
+            html += `</div>`;
+        } else if (isB && builder_insight && builder_insight.error) {
+            html += `<p style="color:#c0392b;font-size:14px">Builder: ${escapeClientCell(builder_insight.error)}</p>`;
+        } else if (isB && !builder_insight) {
+            html += `<p class="text-muted" style="font-size:14px">Não foi possível carregar o histórico de projetos deste builder.</p>`;
+        }
+
+        body.innerHTML = html;
+        body.querySelectorAll('tr[data-pd]').forEach((tr) => {
+            tr.addEventListener('click', () => {
+                const pid = tr.getAttribute('data-pd');
+                if (pid) window.location.href = `/project-detail.html?id=${encodeURIComponent(pid)}`;
+            });
+        });
+    } catch (e) {
+        body.innerHTML = `<p class="text-center" style="color:#c0392b;padding:2rem">${escapeClientCell(e.message || 'Erro de rede')}</p>`;
+    }
 }
 
 async function viewCustomer(id) {
@@ -2037,6 +2189,8 @@ async function submitClientForm(ev) {
 }
 
 window.viewCustomer = viewCustomer;
+window.inspectCustomer = inspectCustomer;
+window.customerViewOpenEdit = customerViewOpenEdit;
 window.showNewCustomerModal = showNewCustomerModal;
 window.submitClientForm = submitClientForm;
 
