@@ -338,7 +338,10 @@ async function loadOperationalCosts() {
           <td>${fmt$(r.total_amount)}</td>
           <td>${rec}</td>
           <td>${rc}</td>
-          <td><button type="button" class="btn btn-sm btn-secondary" data-op-edit="${r.id}" style="padding:4px 8px">Editar</button></td>
+          <td style="white-space:nowrap;display:flex;flex-wrap:wrap;gap:6px;align-items:center">
+            <button type="button" class="btn btn-sm btn-secondary" data-op-edit="${r.id}" style="padding:4px 8px">Editar</button>
+            <button type="button" class="btn btn-sm btn-danger" data-op-delete="${r.id}" style="padding:4px 8px">Excluir</button>
+          </td>
         </tr>`;
           })
           .join('')
@@ -357,6 +360,37 @@ async function loadOperationalCosts() {
   document.querySelectorAll('[data-op-edit]').forEach((btn) => {
     btn.addEventListener('click', () => openOpModal(parseInt(btn.getAttribute('data-op-edit'), 10)));
   });
+  document.querySelectorAll('[data-op-delete]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const id = parseInt(btn.getAttribute('data-op-delete'), 10);
+      if (!id) return;
+      deleteOperationalCost(id);
+    });
+  });
+}
+
+async function deleteOperationalCost(id) {
+  if (!confirm('Excluir este custo operacional? O registo será removido da lista (exclusão lógica).')) return;
+  try {
+    const raw = await fetch(`/api/operational-costs/${id}`, { method: 'DELETE', credentials: 'include' });
+    let res = {};
+    try {
+      res = await raw.json();
+    } catch (_) {}
+    if (raw.ok && res.success) {
+      showToast('Registo excluído');
+      if (editingOpId === id) {
+        editingOpId = null;
+        closeModal('modalOpCost');
+      }
+      loadOperationalCosts();
+      loadPL();
+    } else {
+      showToast(res.error || res.message || `Erro ao excluir (${raw.status})`, 'error');
+    }
+  } catch (e) {
+    showToast(e.message || 'Falha de rede', 'error');
+  }
 }
 
 async function uploadOperationalReceipt(id, file) {

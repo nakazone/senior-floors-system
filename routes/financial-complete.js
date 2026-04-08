@@ -548,7 +548,14 @@ operationalCostsRouter.delete('/:id', async (req, res) => {
     const pool = await getDBConnection();
     if (!pool) return res.status(503).json({ success: false, error: 'Database not available' });
     const id = parseInt(req.params.id, 10);
+    if (!id) return res.status(400).json({ success: false, error: 'ID inválido' });
+    const [[row]] = await pool.query(
+      `SELECT id, vendor_id FROM operational_costs WHERE id = ? AND ${sqlNotDeletedAt()} LIMIT 1`,
+      [id]
+    );
+    if (!row) return res.status(404).json({ success: false, error: 'Registo não encontrado ou já excluído' });
     await pool.execute('UPDATE operational_costs SET deleted_at = NOW() WHERE id = ?', [id]);
+    if (row.vendor_id) await updateVendorTotalSpent(pool, row.vendor_id);
     res.json({ success: true });
   } catch (e) {
     console.error('DELETE /operational-costs/:id', e);
