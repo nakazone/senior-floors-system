@@ -27,6 +27,30 @@ function formatLocalYMD(d) {
   return `${y}-${String(m).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 }
 
+/** API pode devolver DATE como string ou objeto Date (mysql2). */
+function fmtOpDate(v) {
+  if (v == null || v === '') return '—';
+  if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}/.test(v)) return v.slice(0, 10);
+  if (v instanceof Date && !Number.isNaN(v.getTime())) return formatLocalYMD(v);
+  const s = String(v);
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+  return s.length >= 10 ? s.slice(0, 10) : s;
+}
+
+async function fetchJsonOrWarn(url, label) {
+  const r = await fetch(url, { credentials: 'include' });
+  let j;
+  try {
+    j = await r.json();
+  } catch (_) {
+    j = { success: false, error: 'Resposta inválida' };
+  }
+  if (!r.ok || j.success === false) {
+    console.warn(`[financial] ${label || url}`, r.status, j.error || j.message || '');
+  }
+  return j;
+}
+
 function getMonday(d) {
   const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
   const day = x.getDay();
@@ -54,7 +78,10 @@ function hideSkeletons(section) {
 function switchFinancialTab(tab) {
   document.querySelectorAll('.fin-tab').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab));
   document.querySelectorAll('.fin-pane').forEach((p) => p.classList.toggle('on', p.dataset.pane === tab));
-  if (tab === 'operational') loadOperationalCosts();
+  if (tab === 'operational') {
+    loadVendors();
+    loadOperationalCosts();
+  }
   if (tab === 'vendors') loadVendors();
   if (tab === 'receipts') loadPaymentReceipts();
 }
@@ -243,15 +270,15 @@ async function loadOperationalCosts() {
   const endY = `${y}-12-31`;
 
   const recurringOnly = document.getElementById('opToggleRecurring')?.checked;
-  let url = '/api/operational-costs?';
-  if (recurringOnly) url = '/api/operational-costs/recurring';
-  else url += `start_date=${startM}&end_date=${endM}`;
+  // Tabela: sem filtro de mês — evita registos “invisíveis” por TZ / data fora do intervalo.
+  // KPIs e cartas por categoria continuam com filtro do mês local.
+  const listUrl = recurringOnly ? '/api/operational-costs/recurring' : '/api/operational-costs';
 
   const [listRes, monthRes, yearRes, recRes] = await Promise.all([
-    fetch(url, { credentials: 'include' }).then((r) => r.json()),
-    fetch(`/api/operational-costs?start_date=${startM}&end_date=${endM}`, { credentials: 'include' }).then((r) => r.json()),
-    fetch(`/api/operational-costs?start_date=${startY}&end_date=${endY}`, { credentials: 'include' }).then((r) => r.json()),
-    fetch('/api/operational-costs/recurring', { credentials: 'include' }).then((r) => r.json()),
+    fetchJsonOrWarn(listUrl, 'operational-costs list'),
+    fetchJsonOrWarn(`/api/operational-costs?start_date=${startM}&end_date=${endM}`, 'operational-costs month'),
+    fetchJsonOrWarn(`/api/operational-costs?start_date=${startY}&end_date=${endY}`, 'operational-costs year'),
+    fetchJsonOrWarn('/api/operational-costs/recurring', 'operational-costs recurring'),
   ]);
 
   const rows = listRes.success ? listRes.data || [] : [];
@@ -288,7 +315,7 @@ async function loadOperationalCosts() {
                <button type="button" class="btn btn-sm btn-secondary" data-op-receipt="${r.id}" style="padding:4px 8px;font-size:10px">Upload</button>`
             : `<button type="button" class="btn btn-sm btn-secondary" data-op-receipt="${r.id}" style="padding:4px 8px;font-size:10px">Upload</button>`;
           return `<tr>
-          <td>${escapeHtml(String(r.expense_date).slice(0, 10))}</td>
+          <td>${escapeHtml(fmtOpDate(r.expense_date))}</td>
           <td>${escapeHtml(r.category)}</td>
           <td>${escapeHtml(r.description)}</td>
           <td>${escapeHtml(r.vendor_name || '')}</td>
@@ -482,7 +509,7 @@ async function openOpModal(id) {
       document.getElementById('op-vendor-select').value = row.vendor_id || '';
       document.getElementById('op-desc').value = row.description;
       document.getElementById('op-amount').value = row.amount;
-      document.getElementById('op-date').value = String(row.expense_date).slice(0, 10);
+      document.getElementById('op-date').value = fmtOpDate(row.expense_date);
       document.getElementById('op-pay').value = row.payment_method || 'credit_card';
       document.getElementById('op-is-rec').checked = !!row.is_recurring;
       if (row.is_recurring) {
@@ -588,13 +615,17 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     const url = editingOpId ? `/api/operational-costs/${editingOpId}` : '/api/operational-costs';
     const method = editingOpId ? 'PUT' : 'POST';
-    const res = await fetch(url, {
+    const raw = await fetch(url, {
       method,
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
-    }).then((r) => r.json());
-    if (res.success) {
+    });
+    let res = {};
+    try {
+      res = await raw.json();
+    } catch (_) {}
+    if (raw.ok && res.success) {
       showToast('Guardado');
       closeModal('modalOpCost');
       editingOpId = null;
@@ -602,7 +633,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!rec && recToggle && recToggle.checked) recToggle.checked = false;
       loadOperationalCosts();
       loadPL();
-    } else showToast(res.error || 'Erro', 'error');
+    } else showToast(res.error || `Erro ao guardar (${raw.status})`, 'error');
   });
 
   document.getElementById('vendorSearch')?.addEventListener(
