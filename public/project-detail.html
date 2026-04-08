@@ -146,6 +146,19 @@
         <span class="pd-prog-dates" id="pd-prog-dates"></span>
       </div>
 
+      <div class="pd-schedule-bar" id="pd-schedule-bar">
+        <span class="pd-prog-label">Cronograma</span>
+        <label class="pd-date-lab"
+          >Início
+          <input type="date" id="pd-date-start" class="pd-date-input" autocomplete="off" />
+        </label>
+        <label class="pd-date-lab"
+          >Término previsto
+          <input type="date" id="pd-date-end" class="pd-date-input" autocomplete="off" />
+        </label>
+        <button type="button" class="pd-action-btn pd-action-filled" id="pd-dates-save">Guardar datas</button>
+      </div>
+
       <nav class="pd-tabs" role="tablist" aria-label="Secções do projeto">
         <button type="button" class="tab-btn pd-tab active" data-tab="overview" role="tab" aria-selected="true">Visão Geral</button>
         <button type="button" class="tab-btn pd-tab" data-tab="costs" role="tab">Custos</button>
@@ -165,7 +178,7 @@
 
   <input type="file" id="pd-file-input" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif" capture="environment" style="position:fixed;left:-9999px;width:1px;height:1px;opacity:0" />
 
-  <script src="project-detail.js?v=6"></script>
+  <script src="project-detail.js?v=7"></script>
   <script>
     (function () {
       var t = document.getElementById('mobileMenuToggle');

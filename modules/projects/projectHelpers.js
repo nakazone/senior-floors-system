@@ -136,16 +136,55 @@ export function formatAddressFromCustomer(c) {
   return s || null;
 }
 
+function trimOrNull(v) {
+  if (v == null) return null;
+  const s = String(v).trim();
+  return s || null;
+}
+
 /**
- * Usa o endereço do projeto se preenchido; caso contrário, o formatado do cliente.
+ * Junta cadastro do cliente com o lead (rua costuma estar no lead; ZIP só no cliente).
+ * @param {Record<string, unknown>|null|undefined} customerRow
+ * @param {Record<string, unknown>|null|undefined} leadRow
+ */
+export function mergeCustomerLeadForAddress(customerRow, leadRow) {
+  const c = customerRow || {};
+  const l = leadRow || {};
+  return {
+    address: trimOrNull(c.address) || trimOrNull(l.address),
+    city: trimOrNull(c.city),
+    state: trimOrNull(c.state),
+    zipcode: trimOrNull(c.zipcode) || trimOrNull(l.zipcode),
+  };
+}
+
+/** Uma linha de endereço a partir de cliente + lead (ex.: projeto com customer_id + lead_id). */
+export function formatAddressFromCustomerAndLead(customerRow, leadRow) {
+  return formatAddressFromCustomer(mergeCustomerLeadForAddress(customerRow, leadRow));
+}
+
+function isZipOnlyProjectAddress(pa) {
+  const s = String(pa || '').trim();
+  return /^\d{5}(-\d{4})?$/.test(s);
+}
+
+/**
+ * Prioridade: endereço explícito no projeto; se for só ZIP, prefere linha completa cliente+lead.
  * @param {string|null|undefined} projectAddress
  * @param {Record<string, unknown>|null|undefined} customerRow
+ * @param {Record<string, unknown>|null|undefined} [leadRow]
  * @returns {string}
  */
-export function resolveProjectAddress(projectAddress, customerRow) {
+export function resolveProjectAddress(projectAddress, customerRow, leadRow = null) {
   const pa = projectAddress != null ? String(projectAddress).trim() : '';
-  if (pa) return pa;
-  return formatAddressFromCustomer(customerRow) || '';
+  const merged = formatAddressFromCustomerAndLead(customerRow, leadRow) || '';
+
+  if (!pa) return merged;
+  if (isZipOnlyProjectAddress(pa)) {
+    if (merged.length > pa.length) return merged;
+    if (/[a-zA-ZÀ-ÿ]/.test(merged) && merged.trim() !== pa) return merged;
+  }
+  return pa;
 }
 
 export function mapListProjectRow(p) {
@@ -154,6 +193,8 @@ export function mapListProjectRow(p) {
     _customer_city,
     _customer_state,
     _customer_zipcode,
+    _lead_address,
+    _lead_zipcode,
     ...rowIn
   } = p;
 
@@ -168,6 +209,11 @@ export function mapListProjectRow(p) {
           state: _customer_state,
           zipcode: _customer_zipcode,
         }
+      : null;
+
+  const leadForAddr =
+    _lead_address != null || _lead_zipcode != null
+      ? { address: _lead_address, zipcode: _lead_zipcode }
       : null;
 
   const leadNumeric = rowIn.lead_id != null ? parseInt(String(rowIn.lead_id), 10) : NaN;
@@ -190,7 +236,7 @@ export function mapListProjectRow(p) {
       : rowIn.status === 'completed'
         ? 100
         : 0;
-  const resolvedAddress = resolveProjectAddress(rowIn.address, customerForAddr);
+  const resolvedAddress = resolveProjectAddress(rowIn.address, customerForAddr, leadForAddr);
   return {
     ...rowIn,
     address: resolvedAddress || rowIn.address,

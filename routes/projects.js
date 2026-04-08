@@ -16,7 +16,7 @@ import {
   seedChecklistIfEmpty,
   refreshChecklistCompletedFlag,
   mapListProjectRow,
-  formatAddressFromCustomer,
+  formatAddressFromCustomerAndLead,
   resolveProjectAddress,
   money,
   moneyRound,
@@ -29,6 +29,8 @@ import {
   publishToPortfolio,
   recalculateProjectCosts,
 } from '../lib/projectAutomation.js';
+import { sumQuoteItemsRevenueByCategory } from '../lib/quoteRevenueSplit.js';
+import { applyQuoteLineRevenueToProject } from '../lib/syncProjectRevenueFromQuote.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const router = Router();
@@ -102,6 +104,34 @@ function sumByCat(byCat, field) {
 
 const QUOTE_ORDER_SQL = `ORDER BY CASE WHEN status IN ('accepted','approved') THEN 0 WHEN status IN ('sent','viewed') THEN 1 ELSE 2 END, updated_at DESC, id DESC`;
 
+const QUOTE_ROW_SELECT = `id, total_amount, labor_amount, materials_amount, status`;
+
+/** Orçamento preferencial para split de receita (linhas do quote), mesmo com contract_value já preenchido no projeto. */
+async function fetchQuoteRowForProjectRevenue(pool, projectId, p) {
+  if (!(await tableExists(pool, 'quotes'))) return null;
+  try {
+    const [qr] = await pool.query(
+      `SELECT ${QUOTE_ROW_SELECT} FROM quotes WHERE project_id = ? ${QUOTE_ORDER_SQL} LIMIT 1`,
+      [projectId]
+    );
+    if (qr[0]) return qr[0];
+  } catch (e) {
+    console.warn('[projects] fetchQuoteRowForProjectRevenue by project:', e.message);
+  }
+  if (p.lead_id) {
+    try {
+      const [qr] = await pool.query(
+        `SELECT ${QUOTE_ROW_SELECT} FROM quotes WHERE lead_id = ? ${QUOTE_ORDER_SQL} LIMIT 1`,
+        [p.lead_id]
+      );
+      if (qr[0]) return qr[0];
+    } catch (e) {
+      console.warn('[projects] fetchQuoteRowForProjectRevenue by lead:', e.message);
+    }
+  }
+  return null;
+}
+
 /**
  * Valor "fechado" para KPIs: `projects.contract_value` → `contracts.closed_amount` → `quotes` (projeto / contrato / lead).
  */
@@ -121,7 +151,7 @@ async function resolveProjectContractValue(pool, projectId, p) {
         if (ca > 0.005) return { value: ca, source: 'contract', quoteSplit: null };
         if (row.quote_id != null && (await tableExists(pool, 'quotes'))) {
           const [qr] = await pool.query(
-            'SELECT total_amount, labor_amount, materials_amount FROM quotes WHERE id = ? LIMIT 1',
+            `SELECT ${QUOTE_ROW_SELECT} FROM quotes WHERE id = ? LIMIT 1`,
             [row.quote_id]
           );
           const q = qr[0];
@@ -139,7 +169,7 @@ async function resolveProjectContractValue(pool, projectId, p) {
   if (await tableExists(pool, 'quotes')) {
     try {
       const [qr] = await pool.query(
-        `SELECT total_amount, labor_amount, materials_amount, status FROM quotes WHERE project_id = ? ${QUOTE_ORDER_SQL} LIMIT 1`,
+        `SELECT ${QUOTE_ROW_SELECT} FROM quotes WHERE project_id = ? ${QUOTE_ORDER_SQL} LIMIT 1`,
         [projectId]
       );
       const q = qr[0];
@@ -153,7 +183,7 @@ async function resolveProjectContractValue(pool, projectId, p) {
     if (p.lead_id) {
       try {
         const [qr] = await pool.query(
-          `SELECT total_amount, labor_amount, materials_amount, status FROM quotes WHERE lead_id = ? ${QUOTE_ORDER_SQL} LIMIT 1`,
+          `SELECT ${QUOTE_ROW_SELECT} FROM quotes WHERE lead_id = ? ${QUOTE_ORDER_SQL} LIMIT 1`,
           [p.lead_id]
         );
         const q = qr[0];
@@ -170,14 +200,24 @@ async function resolveProjectContractValue(pool, projectId, p) {
   return { value: 0, source: 'none', quoteSplit: null };
 }
 
-/** Receita por serviço na Visão geral: usa colunas do projeto; se vazio, reparte orçamento (quote) ou cai tudo em installation. */
-function serviceRevenuesForProfitability(p, effectiveContract, quoteSplit) {
+/**
+ * Receita por serviço: colunas do projeto; senão soma das linhas do quote (Supply / Installation / Sand&Finish);
+ * senão labor_amount/materials_amount do quote; senão tudo em installation.
+ */
+function serviceRevenuesForProfitability(p, effectiveContract, quoteSplit, quoteItemSplit) {
   let revSupply = money(p.supply_value);
   let revInst = money(p.installation_value);
   let revSand = money(p.sand_finish_value);
   const sumRev = revSupply + revInst + revSand;
   if (sumRev > 0.005) return { revSupply, revInst, revSand };
   if (effectiveContract <= 0.005) return { revSupply: 0, revInst: 0, revSand: 0 };
+  if (quoteItemSplit && quoteItemSplit.lineTotal > 0.01) {
+    return {
+      revSupply: money(quoteItemSplit.revSupply),
+      revInst: money(quoteItemSplit.revInst),
+      revSand: money(quoteItemSplit.revSand),
+    };
+  }
   if (quoteSplit) {
     const la = nf(quoteSplit.labor_amount);
     const ma = nf(quoteSplit.materials_amount);
@@ -271,6 +311,8 @@ router.get('/', ...allAuthed, requirePermission('projects.view'), async (req, re
         c.city AS _customer_city,
         c.state AS _customer_state,
         c.zipcode AS _customer_zipcode,
+        l.address AS _lead_address,
+        l.zipcode AS _lead_zipcode,
         ${crewSel},
         ${photosSel} AS photos_count,
         ${chkTotalSel} AS checklist_total,
@@ -278,6 +320,7 @@ router.get('/', ...allAuthed, requirePermission('projects.view'), async (req, re
       FROM projects p
       ${uJoin}
       LEFT JOIN customers c ON p.customer_id = c.id
+      LEFT JOIN leads l ON p.lead_id = l.id
       ${crewJoin}
       WHERE ${where}
       ORDER BY p.created_at DESC
@@ -591,7 +634,16 @@ router.post('/', ...allAuthed, requirePermission('projects.create'), async (req,
           'SELECT address, city, state, zipcode FROM customers WHERE id = ? LIMIT 1',
           [customerId]
         );
-        rowMap.address = custRows[0] ? formatAddressFromCustomer(custRows[0]) || null : null;
+        let leadRow = null;
+        if (leadId) {
+          const [lr] = await pool.query('SELECT address, zipcode FROM leads WHERE id = ? LIMIT 1', [leadId]);
+          leadRow = lr[0] || null;
+        }
+        rowMap.address = custRows[0]
+          ? formatAddressFromCustomerAndLead(custRows[0], leadRow) || null
+          : leadRow
+            ? formatAddressFromCustomerAndLead(null, leadRow) || null
+            : null;
       }
     }
     const fields = [];
@@ -619,9 +671,12 @@ router.post('/', ...allAuthed, requirePermission('projects.create'), async (req,
         c.address AS _customer_address,
         c.city AS _customer_city,
         c.state AS _customer_state,
-        c.zipcode AS _customer_zipcode
+        c.zipcode AS _customer_zipcode,
+        l.address AS _lead_address,
+        l.zipcode AS _lead_zipcode
        FROM projects p
        LEFT JOIN customers c ON p.customer_id = c.id
+       LEFT JOIN leads l ON p.lead_id = l.id
        WHERE p.id = ?`,
       [projectId]
     );
@@ -701,7 +756,44 @@ router.get('/:id/profitability', ...allAuthed, requirePermission('projects.view'
       id,
       p
     );
-    let { revSupply, revInst, revSand } = serviceRevenuesForProfitability(p, effectiveContract, quoteSplit);
+    let quoteRow = quoteSplit && quoteSplit.id != null ? quoteSplit : null;
+    if (!quoteRow) {
+      quoteRow = await fetchQuoteRowForProjectRevenue(pool, id, p);
+    }
+
+    let quoteItemSplit = null;
+    if (quoteRow && quoteRow.id != null && (await tableExists(pool, 'quote_items'))) {
+      try {
+        const [itemRows] = await pool.query('SELECT * FROM quote_items WHERE quote_id = ?', [quoteRow.id]);
+        quoteItemSplit = sumQuoteItemsRevenueByCategory(itemRows || []);
+      } catch (e) {
+        if (e?.code !== 'ER_NO_SUCH_TABLE') console.warn('[projects] profitability quote_items:', e.message);
+      }
+    }
+
+    const sumStoredRev = money(p.supply_value) + money(p.installation_value) + money(p.sand_finish_value);
+    if (
+      quoteItemSplit &&
+      quoteItemSplit.lineTotal > 0.01 &&
+      sumStoredRev < 0.01 &&
+      quoteRow &&
+      quoteRow.id != null
+    ) {
+      try {
+        await applyQuoteLineRevenueToProject(pool, id, quoteRow.id);
+        const [pr2] = await pool.query('SELECT * FROM projects WHERE id = ?', [id]);
+        if (pr2.length) Object.assign(p, pr2[0]);
+      } catch (e) {
+        console.warn('[projects] profitability sync revenue from quote:', e.message);
+      }
+    }
+
+    let { revSupply, revInst, revSand } = serviceRevenuesForProfitability(
+      p,
+      effectiveContract,
+      quoteRow || quoteSplit,
+      quoteItemSplit
+    );
     let sumServiceRev = revSupply + revInst + revSand;
     if (effectiveContract > sumServiceRev + 0.01) {
       revInst += effectiveContract - sumServiceRev;
@@ -1580,7 +1672,8 @@ router.get('/:id', ...allAuthed, requirePermission('projects.view'), async (req,
 
     const base = mapListProjectRow(p);
     const cust = customer[0] && customer[0].id ? customer[0] : null;
-    const address = resolveProjectAddress(base.address, cust) || base.address;
+    const leadRow = lead[0] && lead[0].id ? lead[0] : null;
+    const address = resolveProjectAddress(base.address, cust, leadRow) || base.address;
     res.json({
       success: true,
       data: {
@@ -1619,6 +1712,7 @@ router.put('/:id', ...allAuthed, requirePermission('projects.edit'), async (req,
       'start_date',
       'end_date_estimated',
       'end_date_actual',
+      'days_estimated',
       'days_actual',
       'notes',
       'internal_notes',
@@ -1629,7 +1723,7 @@ router.put('/:id', ...allAuthed, requirePermission('projects.edit'), async (req,
       'sand_finish_value',
     ];
     const moneyKeys = new Set(['supply_value', 'installation_value', 'sand_finish_value']);
-    const intKeys = new Set(['completion_percentage', 'crew_id', 'assigned_to', 'days_actual']);
+    const intKeys = new Set(['completion_percentage', 'crew_id', 'assigned_to', 'days_actual', 'days_estimated']);
     const updates = [];
     const vals = [];
     for (const k of allowed) {
@@ -1667,9 +1761,12 @@ router.put('/:id', ...allAuthed, requirePermission('projects.edit'), async (req,
         c.address AS _customer_address,
         c.city AS _customer_city,
         c.state AS _customer_state,
-        c.zipcode AS _customer_zipcode
+        c.zipcode AS _customer_zipcode,
+        l.address AS _lead_address,
+        l.zipcode AS _lead_zipcode
        FROM projects p
        LEFT JOIN customers c ON p.customer_id = c.id
+       LEFT JOIN leads l ON p.lead_id = l.id
        WHERE p.id = ?`,
       [id]
     );

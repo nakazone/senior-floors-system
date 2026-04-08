@@ -5,7 +5,7 @@ import {
   seedChecklistIfEmpty,
   money,
   getProjectsTableColumnSet,
-  formatAddressFromCustomer,
+  formatAddressFromCustomerAndLead,
 } from './projectHelpers.js';
 
 /**
@@ -105,14 +105,14 @@ export async function createOrSyncProjectFromAcceptedEstimate(pool, estimateId, 
     addI('estimate_id', eid);
     addI('name', name);
     if (pn) addI('project_number', pn);
-    let projectAddress = String(est.lead_address || '').trim() || null;
-    if (!projectAddress) {
-      const [cr] = await pool.query(
-        'SELECT address, city, state, zipcode FROM customers WHERE id = ? LIMIT 1',
-        [customerId]
-      );
-      if (cr.length) projectAddress = formatAddressFromCustomer(cr[0]) || null;
-    }
+    const [cr] = await pool.query(
+      'SELECT address, city, state, zipcode FROM customers WHERE id = ? LIMIT 1',
+      [customerId]
+    );
+    const projectAddress =
+      formatAddressFromCustomerAndLead(cr[0] || null, leads[0]) ||
+      String(est.lead_address || '').trim() ||
+      null;
     addI('address', projectAddress);
     addI('flooring_type', flooringType);
     addI('total_sqft', totalSqft);

@@ -69,6 +69,7 @@ async function loadProject() {
       : { before: [], during: [], after: [] };
 
   renderHeader(project);
+  bindProjectSchedule(project);
   renderOverviewTab(project, plData);
   renderCostsTab(project);
   renderChecklistTab();
@@ -129,6 +130,54 @@ function updateProgressDatesLine(p) {
     parts.push(`Dia ${elapsed}`);
   }
   el.textContent = parts.join(' · ');
+}
+
+function bindProjectSchedule(p) {
+  const ds = document.getElementById('pd-date-start');
+  const de = document.getElementById('pd-date-end');
+  const btn = document.getElementById('pd-dates-save');
+  if (ds) {
+    const v = p.start_date || p.estimated_start_date;
+    ds.value = v ? String(v).slice(0, 10) : '';
+  }
+  if (de) {
+    const v = p.end_date_estimated || p.estimated_end_date;
+    de.value = v ? String(v).slice(0, 10) : '';
+  }
+  if (btn && !btn.dataset.bound) {
+    btn.dataset.bound = '1';
+    btn.addEventListener('click', saveProjectSchedule);
+  }
+}
+
+async function saveProjectSchedule() {
+  const start = document.getElementById('pd-date-start')?.value?.trim() || '';
+  const end = document.getElementById('pd-date-end')?.value?.trim() || '';
+  const payload = {
+    start_date: start || null,
+    end_date_estimated: end || null,
+  };
+  if (start && end) {
+    const d0 = new Date(`${start}T12:00:00`);
+    const d1 = new Date(`${end}T12:00:00`);
+    if (d1 >= d0) {
+      payload.days_estimated = Math.round((d1 - d0) / 86400000);
+    }
+  }
+  const res = await fetch(`/api/projects/${projectId}`, {
+    method: 'PUT',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const j = await res.json();
+  if (!res.ok || !j.success) {
+    showToast(j.error || 'Erro ao guardar datas', 'error');
+    return;
+  }
+  project = { ...project, ...j.data };
+  updateProgressDatesLine(project);
+  showToast('Datas guardadas');
 }
 
 function renderHeader(p) {

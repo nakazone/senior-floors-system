@@ -3350,6 +3350,44 @@ input.score-auto {
     line-height: 1.4;
 }
 
+.pd-schedule-bar {
+    background: var(--sf-navy2);
+    padding: 12px var(--pd-pad-x, 32px) 16px;
+    display: flex;
+    align-items: center;
+    gap: 14px 20px;
+    flex-wrap: wrap;
+    border-bottom: 1px solid rgba(214, 181, 152, 0.08);
+}
+
+.pd-date-lab {
+    display: inline-flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 10px;
+    font-weight: 600;
+    color: rgba(214, 181, 152, 0.55);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.pd-date-input {
+    min-width: 140px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(214, 181, 152, 0.22);
+    border-radius: 6px;
+    color: var(--sf-gold);
+    font-size: 13px;
+    font-weight: 600;
+    padding: 8px 10px;
+    font-family: inherit;
+    outline: none;
+}
+
+.pd-date-input:focus {
+    border-color: var(--sf-gold3);
+}
+
 /* ── Tabs (JS: .tab-btn + .active) ── */
 .pd-tabs {
     background: var(--sf-white);

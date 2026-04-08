@@ -3,6 +3,7 @@
  */
 import { ensureClientFromLead } from '../clients/leadToClient.js';
 import { nextProjectNumber, getProjectsTableColumnSet } from '../projects/projectHelpers.js';
+import { applyQuoteLineRevenueToProject } from '../../lib/syncProjectRevenueFromQuote.js';
 
 const APPROVED = new Set(['approved', 'accepted']);
 
@@ -136,6 +137,11 @@ export async function ensureProjectForApprovedQuote(pool, quoteId) {
     );
     const newProjectId = ins.insertId;
     await conn.execute('UPDATE quotes SET project_id = ? WHERE id = ?', [newProjectId, id]);
+    try {
+      await applyQuoteLineRevenueToProject(conn, newProjectId, id);
+    } catch (e) {
+      console.warn('[quotes] applyQuoteLineRevenueToProject on new project:', e.message);
+    }
     await conn.commit();
     return { ok: true, projectId: newProjectId, created: true };
   } catch (e) {

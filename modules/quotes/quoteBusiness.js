@@ -4,6 +4,7 @@ import { buildQuotePdfBuffer } from './quotePdf.js';
 import { sendQuoteEmail } from './quoteMail.js';
 import { summarizeQuoteProfit } from '../pricing/marginPricing.js';
 import { ensureProjectForApprovedQuote } from './quoteProjectFromApproval.js';
+import { applyQuoteLineRevenueToProject } from '../../lib/syncProjectRevenueFromQuote.js';
 
 /** Resumo no quote (PDF / listagem): tipos únicos por linha, ex. "Installation · Sand & Finishing". */
 export function deriveQuoteServiceSummary(items) {
@@ -304,7 +305,16 @@ export async function saveQuoteFull(pool, quoteId, body, userId, { snapshotPrevi
     }
   }
 
-  return loadQuoteContext(pool, quoteId);
+  const out = await loadQuoteContext(pool, quoteId);
+  const pid = out.quote?.project_id != null ? parseInt(String(out.quote.project_id), 10) : null;
+  if (pid && pid > 0) {
+    try {
+      await applyQuoteLineRevenueToProject(pool, pid, quoteId);
+    } catch (e) {
+      console.warn('[quotes] saveQuoteFull: sync project revenue from quote lines:', e.message);
+    }
+  }
+  return out;
 }
 
 function computeTotal(subtotal, discountType, discountValue, taxTotal) {
@@ -423,6 +433,16 @@ export async function createQuoteFull(pool, body, userId) {
     } catch (e) {
       console.error('[quotes] createQuoteFull: project auto-create failed', e);
     }
+  }
+
+  try {
+    const [qref] = await pool.query('SELECT project_id FROM quotes WHERE id = ?', [quoteId]);
+    const pid = qref[0]?.project_id != null ? parseInt(String(qref[0].project_id), 10) : null;
+    if (pid && pid > 0) {
+      await applyQuoteLineRevenueToProject(pool, pid, quoteId);
+    }
+  } catch (e) {
+    console.warn('[quotes] createQuoteFull: sync project revenue:', e.message);
   }
 
   return { id: quoteId, quote_number: quoteNumber, public_token: token };
