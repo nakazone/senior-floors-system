@@ -161,6 +161,9 @@ export async function ensureProjectFromWonLead(pool, leadId, userId) {
 
   add('customer_id', conv.customer_id);
   add('lead_id', lid);
+  if (cols.has('client_type')) add('client_type', 'customer');
+  if (cols.has('builder_id')) add('builder_id', null);
+  if (cols.has('builder_name')) add('builder_name', null);
   add('name', projectName);
   if (cols.has('project_number')) {
     add('project_number', await nextProjectNumber(pool));

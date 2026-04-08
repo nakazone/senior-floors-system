@@ -112,6 +112,11 @@ export async function ensureProjectForApprovedQuote(pool, quoteId) {
     };
     addI('customer_id', customerId);
     addI('lead_id', leadIdIns && leadIdIns > 0 ? leadIdIns : null);
+    if (leadIdIns && leadIdIns > 0) {
+      if (pcols.has('client_type')) addI('client_type', 'customer');
+      if (pcols.has('builder_id')) addI('builder_id', null);
+      if (pcols.has('builder_name')) addI('builder_name', null);
+    }
     addI('name', name.slice(0, 255));
     if (pn) addI('project_number', pn);
     if (pcols.has('project_type')) addI('project_type', 'installation');

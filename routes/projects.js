@@ -528,15 +528,16 @@ router.post('/', ...allAuthed, requirePermission('projects.create'), async (req,
     }
 
     const pcols = await getProjectsTableColumnSet(pool);
+    const fromLead = leadId != null && leadId > 0;
     const rowMap = {
       customer_id: customerId,
       lead_id: leadId || null,
       estimate_id: b.estimate_id != null ? parseInt(String(b.estimate_id), 10) || null : null,
       name: name.slice(0, 255),
       project_number: pn,
-      client_type: b.client_type === 'builder' ? 'builder' : 'customer',
-      builder_id: b.builder_id != null ? parseInt(String(b.builder_id), 10) || null : null,
-      builder_name: b.builder_name != null ? String(b.builder_name).slice(0, 255) : null,
+      client_type: fromLead ? 'customer' : b.client_type === 'builder' ? 'builder' : 'customer',
+      builder_id: fromLead ? null : b.builder_id != null ? parseInt(String(b.builder_id), 10) || null : null,
+      builder_name: fromLead ? null : b.builder_name != null ? String(b.builder_name).slice(0, 255) : null,
       flooring_type: b.flooring_type != null ? String(b.flooring_type).slice(0, 100) : null,
       total_sqft: b.total_sqft != null ? money(b.total_sqft) : null,
       service_type: serviceType,

@@ -117,6 +117,8 @@ function normalizeProjectStatus(s) {
 }
 
 export function mapListProjectRow(p) {
+  const leadNumeric = p.lead_id != null ? parseInt(String(p.lead_id), 10) : NaN;
+  const hasLead = Number.isFinite(leadNumeric) && leadNumeric > 0;
   const contract = money(p.contract_value ?? p.estimated_cost);
   const labor = money(p.labor_cost_actual);
   const mat = money(p.material_cost_actual);
@@ -137,6 +139,7 @@ export function mapListProjectRow(p) {
         : 0;
   return {
     ...p,
+    client_type: hasLead ? 'customer' : p.client_type,
     status: normalizeProjectStatus(p.status),
     start_date: startDate,
     end_date_estimated: endEst,

@@ -98,6 +98,9 @@ export async function createOrSyncProjectFromAcceptedEstimate(pool, estimateId, 
     };
     addI('customer_id', customerId);
     addI('lead_id', leadId);
+    if (pcols.has('client_type')) addI('client_type', 'customer');
+    if (pcols.has('builder_id')) addI('builder_id', null);
+    if (pcols.has('builder_name')) addI('builder_name', null);
     addI('estimate_id', eid);
     addI('name', name);
     if (pn) addI('project_number', pn);
@@ -193,6 +196,14 @@ export async function createOrSyncProjectFromAcceptedEstimate(pool, estimateId, 
       'project_number = IF(project_number IS NULL OR TRIM(COALESCE(project_number,\'\')) = \'\', ?, project_number)'
     );
     uvals.push(pn);
+  }
+  if (leadId) {
+    if (ucols.has('client_type')) {
+      sets.push('client_type = ?');
+      uvals.push('customer');
+    }
+    if (ucols.has('builder_id')) sets.push('builder_id = NULL');
+    if (ucols.has('builder_name')) sets.push('builder_name = NULL');
   }
   if (sets.length) {
     uvals.push(projectId);
