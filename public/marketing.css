@@ -43,6 +43,10 @@ body.marketing-page {
   align-items: center;
   gap: 0.5rem;
 }
+.mk-title__emoji {
+  font-size: 1.35rem;
+  line-height: 1;
+}
 .mk-title__icon {
   flex-shrink: 0;
   color: var(--sf-navy, #1a2036);

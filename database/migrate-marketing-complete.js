@@ -337,6 +337,20 @@ async function main() {
     }
   }
 
+  if ((await tableExists(conn, 'ad_spend')) && (await tableExists(conn, 'users')) && (await columnExists(conn, 'ad_spend', 'created_by'))) {
+    try {
+      await conn.query(`
+        ALTER TABLE ad_spend
+        ADD CONSTRAINT fk_ad_spend_created_by FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+      `);
+      console.log('  ✓ ad_spend.created_by → users(id) FK');
+    } catch (e) {
+      if (!/Duplicate|already exists|errno: 1826|errno: 121/i.test(String(e.message || e.sqlMessage || ''))) {
+        console.warn('  (skip FK ad_spend.created_by)', e.message);
+      }
+    }
+  }
+
   await conn.query(`
     CREATE TABLE IF NOT EXISTS marketing_goals (
       id INT AUTO_INCREMENT PRIMARY KEY,

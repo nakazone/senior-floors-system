@@ -257,10 +257,15 @@ function renderPlatformCards(platforms, totalSpend) {
   }
   el.innerHTML = list
     .map((p) => {
-      const share = totalSpend > 0 ? safeDivide(p.spend, totalSpend) * 100 : 0;
+      const share =
+        p.spend_share != null && p.spend_share !== ''
+          ? +p.spend_share
+          : totalSpend > 0
+            ? safeDivide(p.spend, totalSpend) * 100
+            : 0;
       const eff = (p.roas || 0) >= 2 && (p.cpl || 0) <= 60;
       return `<div class="mk-plat-card ${state.filterPlatform === p.platform ? 'mk-plat-card--sel' : ''}" data-plat="${escapeHtml(p.platform)}">
-        <div class="mk-plat-card__head"><span>${platformEmoji(p.platform)} ${escapeHtml(platformLabel(p.platform))}</span>
+        <div class="mk-plat-card__head"><span>${platformEmoji(p.platform)} ${escapeHtml(p.label || platformLabel(p.platform))}</span>
         <span class="mk-badge mk-badge--${eff ? 'ok' : 'warning'}">${eff ? 'Eficiente ✓' : 'Atenção ⚠'}</span></div>
         <div class="mk-plat-metrics">
           <div><span>Spend</span>${fmt$(p.spend)}</div>
@@ -300,7 +305,7 @@ function renderLeadSources(rows) {
   host.innerHTML = top
     .map((r) => {
       const c = +r.count || 0;
-      const pct = total > 0 ? (c / total) * 100 : 0;
+      const pct = r.percentage != null && r.percentage !== '' ? +r.percentage : total > 0 ? (c / total) * 100 : 0;
       const w = (c / maxC) * 100;
       const col = sourceColorClass(r.source);
       return `<div class="mk-bar-row" title="${escapeHtml(r.source)}: ${c}">

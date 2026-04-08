@@ -24,6 +24,14 @@ router.use(requirePermission('reports.view'));
 const PERIODS = new Set(['month', 'quarter', 'year']);
 const PLATFORMS = new Set(['google_ads', 'meta', 'instagram', 'tiktok', 'other']);
 
+const PLATFORM_LABELS = {
+  google_ads: 'Google Ads',
+  meta: 'Meta',
+  instagram: 'Instagram',
+  tiktok: 'TikTok',
+  other: 'Outras',
+};
+
 function safeDivide(a, b) {
   const x = Number(a) || 0;
   const y = Number(b) || 0;
@@ -55,14 +63,32 @@ function toYMD(d) {
   return `${y}-${m}-${day}`;
 }
 
-/** Últimos N dias inclusive (hoje = fim). */
-function rangeForPeriod(period) {
-  const days = period === 'year' ? 365 : period === 'quarter' ? 90 : 30;
-  const end = new Date();
-  end.setHours(12, 0, 0, 0);
-  const start = new Date(end);
-  start.setDate(start.getDate() - (days - 1));
-  return { start: toYMD(start), end: toYMD(end) };
+/** Mês / trimestre / ano civil corrente; fim = hoje quando o período ainda não terminou. */
+function calendarRangeForPeriod(period) {
+  const today = new Date();
+  today.setHours(12, 0, 0, 0);
+  const y = today.getFullYear();
+  const m = today.getMonth();
+
+  let startD;
+  let endD;
+
+  if (period === 'month') {
+    startD = new Date(y, m, 1);
+    const lastOfMonth = new Date(y, m + 1, 0);
+    endD = lastOfMonth.getTime() < today.getTime() ? lastOfMonth : today;
+  } else if (period === 'quarter') {
+    const q0 = Math.floor(m / 3) * 3;
+    startD = new Date(y, q0, 1);
+    const lastOfQ = new Date(y, q0 + 3, 0);
+    endD = lastOfQ.getTime() < today.getTime() ? lastOfQ : today;
+  } else {
+    startD = new Date(y, 0, 1);
+    const lastOfYear = new Date(y, 11, 31);
+    endD = lastOfYear.getTime() < today.getTime() ? lastOfYear : today;
+  }
+
+  return { start: toYMD(startD), end: toYMD(endD) };
 }
 
 /** Clausula SQL: linhas ad_spend ativas sobrepostas ao intervalo [start,end]. */
@@ -429,7 +455,7 @@ router.get('/stats', async (req, res) => {
   const period = PERIODS.has(String(req.query.period || '').toLowerCase())
     ? String(req.query.period).toLowerCase()
     : 'month';
-  const { start, end } = rangeForPeriod(period);
+  const { start, end } = calendarRangeForPeriod(period);
 
   try {
     const pool = await getDBConnection();
@@ -622,6 +648,7 @@ router.get('/stats', async (req, res) => {
 
     const by_platform = (byPlatRows || []).map((r) => ({
       platform: r.platform,
+      label: PLATFORM_LABELS[r.platform] || String(r.platform || 'other'),
       spend: round2(r.spend),
       clicks: num(r.clicks),
       impressions: num(r.impressions),
@@ -632,9 +659,13 @@ router.get('/stats', async (req, res) => {
       cpl: round2(safeDivide(r.spend, r.conversions)),
       roas: round2(safeDivide(r.conversion_value, r.spend)),
       ctr: round2(safeDivide(num(r.clicks), num(r.impressions)) * 100),
+      spend_share: 0,
     }));
 
     const total_spend = by_platform.reduce((s, x) => s + x.spend, 0);
+    for (const row of by_platform) {
+      row.spend_share = round2(safeDivide(row.spend, total_spend) * 100);
+    }
     const total_clicks = by_platform.reduce((s, x) => s + x.clicks, 0);
     const total_impressions = by_platform.reduce((s, x) => s + x.impressions, 0);
     const total_conversions = by_platform.reduce((s, x) => s + x.conversions, 0);
@@ -659,6 +690,7 @@ router.get('/stats', async (req, res) => {
     const by_campaign = (byCampRows || []).map((r) => ({
       campaign_name: r.campaign_name,
       platform: r.platform,
+      platform_label: PLATFORM_LABELS[r.platform] || String(r.platform || ''),
       spend: round2(r.spend),
       clicks: num(r.clicks),
       impressions: num(r.impressions),
@@ -666,11 +698,15 @@ router.get('/stats', async (req, res) => {
       conversion_value: round2(r.conversion_value),
       cpl: round2(safeDivide(r.spend, r.conversions)),
       roas: round2(safeDivide(r.conversion_value, r.spend)),
+      status: 'active',
     }));
 
-    const leads_by_source = (leadSrcRows || []).slice(0, 50).map((r) => ({
+    const srcList = leadSrcRows || [];
+    const totalLeadsSrc = srcList.reduce((s, r) => s + num(r.cnt), 0);
+    const leads_by_source = srcList.slice(0, 50).map((r) => ({
       source: r.src,
       count: num(r.cnt),
+      percentage: round2(safeDivide(num(r.cnt), totalLeadsSrc) * 100),
     }));
 
     const goal = goalRows && goalRows[0];
