@@ -80,7 +80,34 @@ function applyCrmNavPermissions(permissions, role) {
             el.style.display = 'none';
         }
     });
+    refreshCrmNavGroupVisibility();
     updateUsersPageActions();
+}
+
+function refreshCrmNavGroupVisibility() {
+    document.querySelectorAll('.sidebar-nav-dropdown').forEach((det) => {
+        const panel = det.querySelector('.sidebar-nav-dropdown__panel');
+        if (!panel) return;
+        const any = Array.from(panel.querySelectorAll('.nav-item')).some((el) => el.style.display !== 'none');
+        det.style.display = any ? '' : 'none';
+    });
+    document.querySelectorAll('.mobile-more-sheet__cadastro').forEach((det) => {
+        const panel = det.querySelector('.mobile-more-sheet__cadastro-panel');
+        if (!panel) return;
+        const any = Array.from(panel.querySelectorAll('.mobile-more-sheet__btn')).some((el) => el.style.display !== 'none');
+        det.style.display = any ? '' : 'none';
+    });
+}
+
+function syncSidebarCadastroDropdowns() {
+    const side = document.getElementById('dashboardSidebar');
+    if (!side) return;
+    side.querySelectorAll('.sidebar-nav-dropdown').forEach((det) => {
+        const activeInPanel = det.querySelector('.sidebar-nav-dropdown__panel .nav-item.active');
+        det.open = !!activeInPanel;
+        const sum = det.querySelector('summary.nav-item');
+        if (sum) sum.classList.toggle('active', !!activeInPanel);
+    });
 }
 
 function updateUsersPageActions() {
@@ -365,6 +392,7 @@ if (mobileMenuToggle && dashboardSidebar && mobileOverlay) {
 
     dashboardSidebar.querySelectorAll('.nav-item').forEach((item) => {
         item.addEventListener('click', () => {
+            if (item.tagName === 'SUMMARY') return;
             if (isMobile()) {
                 dashboardSidebar.classList.remove('mobile-open');
                 mobileOverlay.classList.remove('active');
@@ -478,6 +506,7 @@ const dashboardSidebarEl = document.getElementById('dashboardSidebar');
 if (dashboardSidebarEl) {
     dashboardSidebarEl.querySelectorAll('.nav-item').forEach(item => {
         item.addEventListener('click', (e) => {
+            if (item.tagName === 'SUMMARY') return;
             const href = (item.getAttribute('href') || '').trim();
             /* Folha obra e outros links reais (.html) — não interceptar */
             if (href && href !== '#' && !href.startsWith('#')) {
@@ -534,6 +563,7 @@ function showPage(pageName) {
             }
         }
         if (navLink) navLink.classList.add('active');
+        syncSidebarCadastroDropdowns();
         currentPageName = pageName;
         
         // Load page data

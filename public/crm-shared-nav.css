@@ -123,6 +123,91 @@
   color: var(--color-accent, #c8a96e);
 }
 
+.crm-shared-nav__dropdown {
+  position: relative;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.crm-shared-nav__dropdown-toggle {
+  display: inline-block;
+  padding: 0.35rem 0.55rem;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.88);
+  cursor: pointer;
+  list-style: none;
+  border: 1px solid transparent;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.crm-shared-nav__dropdown-toggle::-webkit-details-marker {
+  display: none;
+}
+
+.crm-shared-nav__dropdown-toggle::after {
+  content: ' ▾';
+  font-size: 0.65em;
+  opacity: 0.75;
+}
+
+.crm-shared-nav__dropdown-toggle:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.crm-shared-nav__dropdown-toggle--active {
+  background: rgba(200, 169, 110, 0.22);
+  border-color: rgba(200, 169, 110, 0.45);
+  color: var(--color-accent, #c8a96e);
+}
+
+.crm-shared-nav__dropdown[open] > .crm-shared-nav__dropdown-toggle {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.crm-shared-nav__dropdown-menu {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 4px);
+  min-width: 11rem;
+  padding: 0.35rem 0;
+  margin: 0;
+  background: var(--color-primary, #1a1a2e);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  z-index: 10060;
+}
+
+.crm-shared-nav__dropdown-link {
+  display: block;
+  padding: 0.45rem 0.85rem;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.9);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.crm-shared-nav__dropdown-link:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.crm-shared-nav__dropdown-link--active {
+  background: rgba(200, 169, 110, 0.18);
+  color: var(--color-accent, #c8a96e);
+}
+
+.crm-shared-nav__dropdown-toggle:focus-visible,
+.crm-shared-nav__dropdown-link:focus-visible {
+  outline: 2px solid #d6b598;
+  outline-offset: 2px;
+}
+
 .crm-shared-nav__logout {
   margin-left: auto;
   padding: 0.35rem 0.65rem;

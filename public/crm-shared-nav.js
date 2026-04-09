@@ -30,6 +30,23 @@
       '<svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>',
   };
 
+  const CADASTRO_CHILDREN = [
+    { href: 'products-erp.html', label: 'Produtos', perm: 'quotes.view', page: '', iconKey: 'quotes' },
+    { href: 'financial.html#vendors', label: 'Fornecedores', perm: 'contracts.view', page: '', iconKey: 'financial' },
+    { href: 'quote-catalog.html', label: 'Serviços', perm: 'quotes.edit', page: '', iconKey: 'quotes' },
+    { href: 'dashboard.html?page=customers', label: 'Clientes', perm: 'customers.view', page: 'customers', iconKey: 'customers' },
+    {
+      href: 'dashboard.html?page=customers&type=builder',
+      label: 'Builders',
+      perm: 'customers.view',
+      page: 'customers',
+      iconKey: 'customers',
+      customerType: 'builder',
+    },
+    { href: 'financial.html#notas-recibos', label: 'Notas / recibos', perm: 'contracts.view', page: '', iconKey: 'financial' },
+    { href: 'financial.html#recebimentos', label: 'Recebimentos', perm: 'contracts.view', page: '', iconKey: 'financial' },
+  ];
+
   /** Grupos alinhados a dashboard.html */
   const SIDEBAR_GROUPS = [
     {
@@ -59,26 +76,7 @@
           page: '',
           iconKey: 'projects',
         },
-      ],
-    },
-    {
-      label: 'Cadastros gerais',
-      items: [
-        { href: 'products-erp.html', label: 'Produtos', perm: 'quotes.view', page: '', iconKey: 'quotes', showInTopBar: false },
-        { href: 'financial.html#vendors', label: 'Fornecedores', perm: 'contracts.view', page: '', iconKey: 'financial', showInTopBar: false },
-        { href: 'quote-catalog.html', label: 'Serviços', perm: 'quotes.edit', page: '', iconKey: 'quotes', showInTopBar: false },
-        { href: 'dashboard.html?page=customers', label: 'Clientes', perm: 'customers.view', page: 'customers', iconKey: 'customers', showInTopBar: false },
-        {
-          href: 'dashboard.html?page=customers&type=builder',
-          label: 'Builders',
-          perm: 'customers.view',
-          page: 'customers',
-          iconKey: 'customers',
-          showInTopBar: false,
-          customerType: 'builder',
-        },
-        { href: 'financial.html#notas-recibos', label: 'Notas / recibos', perm: 'contracts.view', page: '', iconKey: 'financial', showInTopBar: false },
-        { href: 'financial.html#recebimentos', label: 'Recebimentos', perm: 'contracts.view', page: '', iconKey: 'financial', showInTopBar: false },
+        { type: 'dropdown', label: 'Cadastro', perm: null, iconKey: 'quotes', children: CADASTRO_CHILDREN },
       ],
     },
     {
@@ -95,7 +93,9 @@
     },
   ];
 
-  const MAIN_NAV = SIDEBAR_GROUPS.flatMap((g) => g.items).filter((item) => item.showInTopBar !== false);
+  const MAIN_NAV = SIDEBAR_GROUPS.flatMap((g) => g.items).filter(
+    (item) => item.showInTopBar !== false && item.type !== 'dropdown'
+  );
 
   /** Só na barra horizontal (páginas sem sidebar); não aparece no menu lateral fixo. */
   const TOOL_NAV = [
@@ -171,12 +171,42 @@
     return a;
   }
 
+  function createSidebarCadastroDropdown(item, children, file, page, role, keys) {
+    const kids = children.filter((ch) => canSee(ch.perm, role, keys));
+    if (kids.length === 0) return null;
+    const anyActive = kids.some((ch) => linkActive(ch, file, page));
+    const det = document.createElement('details');
+    det.className = 'sidebar-nav-dropdown';
+    if (anyActive) det.setAttribute('open', '');
+    const sum = document.createElement('summary');
+    sum.className = 'nav-item nav-item--dropdown' + (anyActive ? ' active' : '');
+    const stpl = document.createElement('template');
+    stpl.innerHTML = ICONS[item.iconKey].trim();
+    sum.appendChild(stpl.content);
+    sum.appendChild(document.createTextNode(item.label));
+    const panel = document.createElement('div');
+    panel.className = 'sidebar-nav-dropdown__panel';
+    kids.forEach((ch) => {
+      const sub = createSidebarLink(ch, file, page);
+      sub.classList.add('nav-item--sub');
+      panel.appendChild(sub);
+    });
+    det.appendChild(sum);
+    det.appendChild(panel);
+    return det;
+  }
+
   function mountSidebarNav(host, perms, role) {
     const keys = new Set(perms);
     const file = currentFile();
     const page = pageParam();
     SIDEBAR_GROUPS.forEach((group) => {
-      const visible = group.items.filter((item) => canSee(item.perm, role, keys));
+      const visible = group.items.filter((item) => {
+        if (item.type === 'dropdown' && Array.isArray(item.children)) {
+          return item.children.some((ch) => canSee(ch.perm, role, keys));
+        }
+        return canSee(item.perm, role, keys);
+      });
       if (visible.length === 0) return;
       const wrap = document.createElement('div');
       wrap.className = 'sidebar-nav-group';
@@ -187,10 +217,46 @@
         wrap.appendChild(lab);
       }
       visible.forEach((item) => {
+        if (item.type === 'dropdown' && Array.isArray(item.children)) {
+          const dd = createSidebarCadastroDropdown(item, item.children, file, page, role, keys);
+          if (dd) wrap.appendChild(dd);
+          return;
+        }
         wrap.appendChild(createSidebarLink(item, file, page));
       });
       host.appendChild(wrap);
     });
+  }
+
+  function appendTopBarCadastroDropdown(inner, keys, role, file, page) {
+    const kids = CADASTRO_CHILDREN.filter((ch) => canSee(ch.perm, role, keys));
+    if (kids.length === 0) return;
+    const sepCad = document.createElement('span');
+    sepCad.className = 'crm-shared-nav__sep';
+    sepCad.setAttribute('aria-hidden', 'true');
+    inner.appendChild(sepCad);
+    const anyActive = kids.some((ch) => linkActive(ch, file, page));
+    const det = document.createElement('details');
+    det.className = 'crm-shared-nav__dropdown';
+    if (anyActive) det.setAttribute('open', '');
+    const sum = document.createElement('summary');
+    sum.className = 'crm-shared-nav__dropdown-toggle';
+    if (anyActive) sum.classList.add('crm-shared-nav__dropdown-toggle--active');
+    sum.textContent = 'Cadastro';
+    const menu = document.createElement('div');
+    menu.className = 'crm-shared-nav__dropdown-menu';
+    menu.setAttribute('role', 'menu');
+    kids.forEach((ch) => {
+      const a = document.createElement('a');
+      a.href = ch.href;
+      a.className = 'crm-shared-nav__dropdown-link' + (linkActive(ch, file, page) ? ' crm-shared-nav__dropdown-link--active' : '');
+      a.setAttribute('role', 'menuitem');
+      a.textContent = ch.label;
+      menu.appendChild(a);
+    });
+    det.appendChild(sum);
+    det.appendChild(menu);
+    inner.appendChild(det);
   }
 
   function initSidebarUserFooter(user, role) {
@@ -268,26 +334,7 @@
       inner.appendChild(a);
     });
 
-    const cadastroGroup = SIDEBAR_GROUPS.find((g) => g.label === 'Cadastros gerais');
-    const cadastroItems = cadastroGroup && Array.isArray(cadastroGroup.items) ? cadastroGroup.items : [];
-    const cadastroVisible = cadastroItems.filter((item) => canSee(item.perm, role, keys));
-    if (cadastroVisible.length) {
-      const sepCad = document.createElement('span');
-      sepCad.className = 'crm-shared-nav__sep';
-      sepCad.setAttribute('aria-hidden', 'true');
-      inner.appendChild(sepCad);
-      const cadLab = document.createElement('span');
-      cadLab.className = 'crm-shared-nav__label crm-shared-nav__label--tools';
-      cadLab.textContent = 'Cadastros gerais';
-      inner.appendChild(cadLab);
-      cadastroVisible.forEach((item) => {
-        const a = document.createElement('a');
-        a.href = item.href;
-        a.className = 'crm-shared-nav__link' + (linkActive(item, file, page) ? ' crm-shared-nav__link--active' : '');
-        a.textContent = item.label;
-        inner.appendChild(a);
-      });
-    }
+    appendTopBarCadastroDropdown(inner, keys, role, file, page);
 
     const sep = document.createElement('span');
     sep.className = 'crm-shared-nav__sep';
