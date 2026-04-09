@@ -391,12 +391,14 @@ vendorsRouter.get('/:id/history', async (req, res) => {
     if (!pool) return res.status(503).json({ success: false, error: 'Database not available' });
     const id = parseInt(req.params.id, 10);
     const [expenses] = await pool.query(
-      `SELECT 'expense' AS type, description, total_amount AS amount, expense_date AS date, status
+      `SELECT 'expense' AS type, id AS source_id, description, total_amount AS amount, expense_date AS date, status,
+              receipt_url, receipt_file_path
        FROM expenses WHERE vendor_id = ? ORDER BY expense_date DESC LIMIT 50`,
       [id]
     );
     const [opcosts] = await pool.query(
-      `SELECT 'operational' AS type, description, total_amount AS amount, expense_date AS date, status
+      `SELECT 'operational' AS type, id AS source_id, description, total_amount AS amount, expense_date AS date, status,
+              receipt_url, receipt_path AS receipt_file_path
        FROM operational_costs WHERE vendor_id = ? AND ${sqlNotDeletedAt()}
        ORDER BY expense_date DESC LIMIT 50`,
       [id]

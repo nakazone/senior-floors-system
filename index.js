@@ -71,7 +71,18 @@ import {
   googleCalendarOAuthStart,
   googleCalendarOAuthCallback,
 } from './routes/googleCalendarIntegration.js';
-import { getProjectFinancial, updateProjectFinancial, listExpenses, createExpense, approveExpense, listPayrollEntries, createPayrollEntry, approvePayrollEntry, getFinancialDashboard } from './routes/financials.js';
+import {
+  getProjectFinancial,
+  updateProjectFinancial,
+  listExpenses,
+  createExpense,
+  approveExpense,
+  deleteExpense,
+  listPayrollEntries,
+  createPayrollEntry,
+  approvePayrollEntry,
+  getFinancialDashboard,
+} from './routes/financials.js';
 import {
   financialPlRouter,
   vendorsRouter,
@@ -482,6 +493,7 @@ app.put('/api/contracts/:id', requireAuth, updateContract);
 app.get('/api/expenses', requireAuth, listExpenses);
 app.post('/api/expenses', requireAuth, createExpense);
 app.put('/api/expenses/:id/approve', requireAuth, approveExpense);
+app.delete('/api/expenses/:id', requireAuth, deleteExpense);
 app.get('/api/payroll', requireAuth, listPayrollEntries);
 app.post('/api/payroll', requireAuth, createPayrollEntry);
 app.put('/api/payroll/:id/approve', requireAuth, approvePayrollEntry);

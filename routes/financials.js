@@ -3,13 +3,19 @@
  * Gestão financeira completa
  */
 
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { getDBConnection } from '../config/db.js';
+import { updateVendorTotalSpent } from '../lib/financialEngine.js';
 import {
   recalculateProjectFinancial,
   allocateExpense,
   allocatePayroll,
   calculateRealTimeProfitAnalysis
 } from '../services/financialCalculator.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 async function tableColumnExists(pool, table, column) {
   const [rows] = await pool.query(
@@ -213,6 +219,9 @@ export async function listExpenses(req, res) {
       params.push(endDate);
     }
 
+    const limitRaw = parseInt(req.query.limit, 10);
+    const limit = Number.isFinite(limitRaw) ? Math.min(500, Math.max(1, limitRaw)) : 100;
+
     const pnSel = await sqlProjectsProjectNumberSelect(pool);
     const [rows] = await pool.query(
       `SELECT e.*,
@@ -225,8 +234,8 @@ export async function listExpenses(req, res) {
        LEFT JOIN users u2 ON e.approved_by = u2.id
        WHERE ${whereClause}
        ORDER BY e.expense_date DESC, e.created_at DESC
-       LIMIT 100`,
-      params
+       LIMIT ?`,
+      [...params, limit]
     );
     
     return res.json({ success: true, data: rows });
@@ -335,6 +344,10 @@ export async function createExpense(req, res) {
       [result.insertId]
     );
     
+    if (vendorId) {
+      await updateVendorTotalSpent(pool, vendorId);
+    }
+
     return res.status(201).json({ success: true, data: created[0] });
   } catch (error) {
     console.error('Error creating expense:', error);
@@ -350,6 +363,8 @@ export async function approveExpense(req, res) {
     const pool = await getDBConnection();
     const expenseId = parseInt(req.params.id);
     const userId = req.session?.user?.id;
+
+    const [[before]] = await pool.query('SELECT vendor_id FROM expenses WHERE id = ?', [expenseId]);
     
     // Atualizar status
     await pool.execute(
@@ -363,10 +378,57 @@ export async function approveExpense(req, res) {
     await allocateExpense(pool, expenseId);
     
     const [updated] = await pool.query('SELECT * FROM expenses WHERE id = ?', [expenseId]);
+
+    const vid = before && before.vendor_id != null ? parseInt(String(before.vendor_id), 10) : null;
+    if (vid && Number.isFinite(vid) && vid > 0) {
+      await updateVendorTotalSpent(pool, vid);
+    }
     
     return res.json({ success: true, data: updated[0] });
   } catch (error) {
     console.error('Error approving expense:', error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+}
+
+/**
+ * Eliminar despesa (tabela expenses) e atualizar total do fornecedor.
+ */
+export async function deleteExpense(req, res) {
+  try {
+    const pool = await getDBConnection();
+    const id = parseInt(req.params.id, 10);
+    if (!id) {
+      return res.status(400).json({ success: false, error: 'ID inválido' });
+    }
+    const [[row]] = await pool.query(
+      'SELECT id, vendor_id, receipt_file_path FROM expenses WHERE id = ? LIMIT 1',
+      [id]
+    );
+    if (!row) {
+      return res.status(404).json({ success: false, error: 'Despesa não encontrada' });
+    }
+    await pool.execute('DELETE FROM expenses WHERE id = ?', [id]);
+    const relRaw = row.receipt_file_path ? String(row.receipt_file_path).trim() : '';
+    if (relRaw) {
+      const rel = relRaw.replace(/^\/+/, '').replace(/^\/?uploads\/?/, '');
+      const base = path.resolve(path.join(__dirname, '..', 'uploads'));
+      const abs = path.resolve(path.join(base, rel));
+      try {
+        if ((abs === base || abs.startsWith(base + path.sep)) && fs.existsSync(abs)) {
+          fs.unlinkSync(abs);
+        }
+      } catch (_) {
+        /* ficheiro já ausente */
+      }
+    }
+    const vid = row.vendor_id != null ? parseInt(String(row.vendor_id), 10) : null;
+    if (vid && Number.isFinite(vid) && vid > 0) {
+      await updateVendorTotalSpent(pool, vid);
+    }
+    return res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting expense:', error);
     return res.status(500).json({ success: false, error: error.message });
   }
 }

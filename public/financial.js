@@ -169,6 +169,57 @@ function formatExpensePaymentMethod(v) {
   return k || '—';
 }
 
+/** URL pública do recibo (expense ou histórico de fornecedor). */
+function resolveExpenseReceiptUrl(row) {
+  if (!row || typeof row !== 'object') return '';
+  const url = row.receipt_url;
+  if (url != null && String(url).trim() !== '') {
+    const u = String(url).trim();
+    if (/^https?:\/\//i.test(u)) return u;
+    return u.startsWith('/') ? u : `/${u}`;
+  }
+  const p = row.receipt_file_path || row.receipt_path;
+  if (p == null || String(p).trim() === '') return '';
+  const rel = String(p).replace(/^\/?uploads\/?/, '');
+  return `/uploads/${rel}`;
+}
+
+function isReceiptPdfSrc(src) {
+  return /\.pdf($|\?|#)/i.test(src || '');
+}
+
+function receiptThumbOrLinkHtml(src) {
+  if (!src) return '—';
+  if (isReceiptPdfSrc(src)) {
+    return `<a href="${escapeHtml(src)}" target="_blank" rel="noopener" class="btn btn-sm btn-secondary" style="padding:4px 8px;font-size:11px">Ver PDF</a>`;
+  }
+  return `<a href="${escapeHtml(src)}" class="fin-exp-receipt-lightbox" data-exp-lightbox="${escapeHtml(src)}"><img src="${escapeHtml(src)}" alt="" loading="lazy" style="max-height:44px;max-width:72px;object-fit:cover;border-radius:6px;border:1px solid var(--border-color);vertical-align:middle;cursor:zoom-in" /></a>`;
+}
+
+async function deleteExpenseById(expenseId, opts) {
+  if (!expenseId) return;
+  if (!confirm('Excluir esta despesa? Esta ação não pode ser anulada.')) return;
+  try {
+    const raw = await fetch(`/api/expenses/${expenseId}`, { method: 'DELETE', credentials: 'include' });
+    let res = {};
+    try {
+      res = await raw.json();
+    } catch (_) {}
+    if (raw.ok && res.success) {
+      showToast('Despesa excluída');
+      loadVendors();
+      loadPL();
+      loadPaymentReceipts();
+      const rid = opts && opts.refreshVendorDrawerId;
+      if (rid) await openVendorDrawer(rid);
+    } else {
+      showToast(res.error || res.message || `Erro ao excluir (${raw.status})`, 'error');
+    }
+  } catch (e) {
+    showToast(e.message || 'Falha de rede', 'error');
+  }
+}
+
 function renderCashFlowChart(months) {
   if (_cfChart) {
     _cfChart.destroy();
@@ -663,9 +714,19 @@ async function openVendorDrawer(id) {
       ? list
           .map((r) => {
             sum += parseFloat(r.amount) || 0;
-            return `<li style="padding:10px 0;border-bottom:1px solid var(--border-color)">
-        <span style="font-size:11px;color:var(--text-muted)">${escapeHtml(r.type)} · ${escapeHtml(String(r.date).slice(0, 10))}</span><br/>
-        ${escapeHtml(r.description)} — <strong>${fmt$(r.amount)}</strong>
+            const src = resolveExpenseReceiptUrl(r);
+            const rec = receiptThumbOrLinkHtml(src);
+            const delBtn =
+              r.type === 'expense' && r.source_id
+                ? `<button type="button" class="btn btn-sm btn-danger" data-vd-del-exp="${r.source_id}" style="padding:4px 8px;font-size:11px;margin-top:6px">Excluir despesa</button>`
+                : '';
+            return `<li style="padding:10px 0;border-bottom:1px solid var(--border-color);display:flex;flex-wrap:wrap;gap:12px;align-items:flex-start;justify-content:space-between">
+        <div style="flex:1;min-width:140px">
+          <span style="font-size:11px;color:var(--text-muted)">${escapeHtml(r.type)} · ${escapeHtml(String(r.date).slice(0, 10))}${r.status != null && r.status !== '' ? ` · ${escapeHtml(r.status)}` : ''}</span><br/>
+          ${escapeHtml(r.description)} — <strong>${fmt$(r.amount)}</strong>
+          ${delBtn}
+        </div>
+        <div style="flex-shrink:0;text-align:right">${rec}</div>
       </li>`;
           })
           .join('')
@@ -719,6 +780,23 @@ async function openVendorDrawer(id) {
     btn.addEventListener('click', () => switchVendorDrawerTab(btn.getAttribute('data-vtab')));
   });
   document.getElementById('vdUploadBtn')?.addEventListener('click', () => vendorDrawerUploadFile());
+
+  body.querySelectorAll('[data-vd-del-exp]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const eid = parseInt(btn.getAttribute('data-vd-del-exp'), 10);
+      if (eid) deleteExpenseById(eid, { refreshVendorDrawerId: id });
+    });
+  });
+  body.querySelectorAll('#vd-pane-hist .fin-exp-receipt-lightbox').forEach((el) => {
+    el.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      const s = el.getAttribute('data-exp-lightbox');
+      if (s) {
+        document.getElementById('lightboxImg').src = s;
+        document.getElementById('lightboxReceipt').classList.add('on');
+      }
+    });
+  });
 }
 
 async function vendorDrawerUploadFile() {
@@ -805,26 +883,51 @@ async function loadPaymentReceipts() {
         .join('');
   }
 
-  const ex = await fetch('/api/expenses', { credentials: 'include' }).then((r) => r.json());
+  const ex = await fetch('/api/expenses?limit=250', { credentials: 'include' }).then((r) => r.json());
   const exRows = ex.success ? ex.data || [] : [];
-  const withReceipt = exRows.filter((e) => e.receipt_url || e.receipt_file_path);
-  document.getElementById('expense-receipt-grid').innerHTML = withReceipt.length
-    ? withReceipt
-        .slice(0, 48)
-        .map((e) => {
-          const src = e.receipt_url || (e.receipt_file_path ? `/uploads/${String(e.receipt_file_path).replace(/^\/?uploads\/?/, '')}` : '');
-          if (!src) return '';
-          return `<div class="fin-receipt-thumb" data-lightbox="${escapeHtml(src)}"><img src="${escapeHtml(src)}" alt="" loading="lazy" /></div>`;
-        })
-        .join('')
-    : '<p style="color:var(--text-muted)">Sem miniaturas</p>';
-
-  document.querySelectorAll('[data-lightbox]').forEach((el) => {
-    el.addEventListener('click', () => {
-      document.getElementById('lightboxImg').src = el.getAttribute('data-lightbox');
-      document.getElementById('lightboxReceipt').classList.add('on');
+  const tbody = document.getElementById('expense-receipt-body');
+  if (tbody) {
+    tbody.innerHTML = exRows.length
+      ? exRows
+          .map((e) => {
+            const src = resolveExpenseReceiptUrl(e);
+            const vendor =
+              e.vendor_name != null && String(e.vendor_name).trim() !== ''
+                ? String(e.vendor_name).trim()
+                : e.vendor != null && String(e.vendor).trim() !== ''
+                  ? String(e.vendor).trim()
+                  : '—';
+            return `<tr>
+        <td>${escapeHtml(fmtOpDate(e.expense_date))}</td>
+        <td>${escapeHtml(e.description || '')}</td>
+        <td>${escapeHtml(vendor)}</td>
+        <td>${fmt$(e.total_amount)}</td>
+        <td>${escapeHtml(formatExpensePaymentMethod(e.payment_method))}</td>
+        <td>${receiptThumbOrLinkHtml(src)}</td>
+        <td style="white-space:nowrap">
+          <button type="button" class="btn btn-sm btn-danger" data-del-expense="${e.id}" style="padding:4px 8px;font-size:11px">Excluir</button>
+        </td>
+      </tr>`;
+          })
+          .join('')
+      : '<tr><td colspan="7" style="color:var(--text-muted)">Sem despesas registadas</td></tr>';
+    tbody.querySelectorAll('[data-del-expense]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const id = parseInt(btn.getAttribute('data-del-expense'), 10);
+        deleteExpenseById(id, {});
+      });
     });
-  });
+    tbody.querySelectorAll('.fin-exp-receipt-lightbox').forEach((el) => {
+      el.addEventListener('click', (ev) => {
+        ev.preventDefault();
+        const s = el.getAttribute('data-exp-lightbox');
+        if (s) {
+          document.getElementById('lightboxImg').src = s;
+          document.getElementById('lightboxReceipt').classList.add('on');
+        }
+      });
+    });
+  }
 }
 
 function openModal(id) {
@@ -941,6 +1044,8 @@ document.addEventListener('DOMContentLoaded', () => {
       resetExpenseReceiptUI();
       closeModal('modalExpense');
       loadPL();
+      loadVendors();
+      loadPaymentReceipts();
     } else showToast(res.error || 'Erro', 'error');
   });
 
