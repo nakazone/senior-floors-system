@@ -17,6 +17,24 @@ import {
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+function unlinkExpenseReceiptFile(relRaw) {
+  if (!relRaw) return;
+  const rel = String(relRaw)
+    .trim()
+    .replace(/^\/+/, '')
+    .replace(/^\/?uploads\/?/, '');
+  if (!rel || rel.includes('..')) return;
+  const base = path.resolve(path.join(__dirname, '..', 'uploads'));
+  const abs = path.resolve(path.join(base, rel));
+  try {
+    if ((abs === base || abs.startsWith(base + path.sep)) && fs.existsSync(abs)) {
+      fs.unlinkSync(abs);
+    }
+  } catch (_) {
+    /* já ausente */
+  }
+}
+
 async function tableColumnExists(pool, table, column) {
   const [rows] = await pool.query(
     `SELECT COUNT(*) AS c FROM information_schema.COLUMNS
@@ -356,6 +374,180 @@ export async function createExpense(req, res) {
 }
 
 /**
+ * Obter uma despesa por id (edição / detalhe).
+ */
+export async function getExpense(req, res) {
+  try {
+    const pool = await getDBConnection();
+    const id = parseInt(req.params.id, 10);
+    if (!id) {
+      return res.status(400).json({ success: false, error: 'Invalid id' });
+    }
+    const pnSel = await sqlProjectsProjectNumberSelect(pool);
+    const [rows] = await pool.query(
+      `SELECT e.*,
+              ${pnSel},
+              u1.name as created_by_name,
+              u2.name as approved_by_name
+       FROM expenses e
+       LEFT JOIN projects p ON e.project_id = p.id
+       LEFT JOIN users u1 ON e.created_by = u1.id
+       LEFT JOIN users u2 ON e.approved_by = u2.id
+       WHERE e.id = ?`,
+      [id]
+    );
+    if (!rows.length) {
+      return res.status(404).json({ success: false, error: 'Not found' });
+    }
+    return res.json({ success: true, data: rows[0] });
+  } catch (error) {
+    console.error('Error getting expense:', error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+}
+
+/**
+ * Atualizar despesa (campos editáveis + recibo por URL/path se necessário).
+ */
+export async function updateExpense(req, res) {
+  try {
+    const pool = await getDBConnection();
+    const id = parseInt(req.params.id, 10);
+    if (!id) {
+      return res.status(400).json({ success: false, error: 'Invalid id' });
+    }
+    const [[before]] = await pool.query('SELECT * FROM expenses WHERE id = ?', [id]);
+    if (!before) {
+      return res.status(404).json({ success: false, error: 'Not found' });
+    }
+
+    const b = req.body || {};
+    const hasVendorIdCol = await tableColumnExists(pool, 'expenses', 'vendor_id');
+    const hasVendorNameCol = await tableColumnExists(pool, 'expenses', 'vendor_name');
+
+    const updates = [];
+    const vals = [];
+    const add = (col, val) => {
+      updates.push(`\`${col}\` = ?`);
+      vals.push(val);
+    };
+
+    if (b.category !== undefined) add('category', b.category);
+    if (b.description !== undefined) add('description', b.description);
+    if (b.expense_date !== undefined) add('expense_date', b.expense_date);
+    if (b.payment_method !== undefined) add('payment_method', b.payment_method || null);
+    if (b.project_id !== undefined) {
+      const pid = b.project_id != null && String(b.project_id).trim() !== '' ? parseInt(String(b.project_id), 10) : null;
+      add('project_id', Number.isFinite(pid) && pid > 0 ? pid : null);
+    }
+
+    let amt = parseFloat(before.amount);
+    let tax = parseFloat(before.tax_amount) || 0;
+    if (b.amount !== undefined) {
+      const x = parseFloat(b.amount);
+      amt = Number.isFinite(x) ? x : amt;
+    }
+    if (b.tax_amount !== undefined) {
+      const x = parseFloat(b.tax_amount);
+      tax = Number.isFinite(x) ? x : 0;
+    }
+    if (b.amount !== undefined || b.tax_amount !== undefined) {
+      add('amount', amt);
+      add('tax_amount', tax);
+      add('total_amount', amt + tax);
+    }
+
+    if (b.vendor_id !== undefined || b.vendor !== undefined) {
+      let vendorId =
+        before.vendor_id != null ? parseInt(String(before.vendor_id), 10) : null;
+      if (!Number.isFinite(vendorId) || vendorId <= 0) vendorId = null;
+
+      if (b.vendor_id !== undefined) {
+        const raw = b.vendor_id != null && String(b.vendor_id).trim() !== '' ? parseInt(String(b.vendor_id), 10) : null;
+        vendorId = Number.isFinite(raw) && raw > 0 ? raw : null;
+      }
+
+      let vendorStr =
+        before.vendor != null && String(before.vendor).trim() !== ''
+          ? String(before.vendor).trim().slice(0, 255)
+          : null;
+      if (b.vendor !== undefined) {
+        const t = String(b.vendor || '').trim();
+        vendorStr = t ? t.slice(0, 255) : null;
+      }
+
+      if (vendorId) {
+        const [vr] = await pool.query('SELECT name FROM vendors WHERE id = ? LIMIT 1', [vendorId]);
+        if (vr.length) {
+          vendorStr = String(vr[0].name).slice(0, 255);
+        } else {
+          vendorId = null;
+        }
+      }
+
+      if (hasVendorIdCol) add('vendor_id', vendorId);
+      if (hasVendorNameCol) add('vendor_name', vendorStr);
+      add('vendor', vendorStr);
+    }
+
+    if (b.receipt_url !== undefined) add('receipt_url', b.receipt_url || null);
+    if (b.receipt_file_path !== undefined) add('receipt_file_path', b.receipt_file_path || null);
+
+    if (updates.length === 0) {
+      return res.status(400).json({ success: false, error: 'No fields to update' });
+    }
+
+    const oldRecPath = before.receipt_file_path ? String(before.receipt_file_path).trim() : '';
+    if (oldRecPath) {
+      const clearingRec =
+        (b.receipt_file_path !== undefined && (b.receipt_file_path == null || b.receipt_file_path === '')) ||
+        (b.receipt_url !== undefined && (b.receipt_url == null || b.receipt_url === ''));
+      const newPath =
+        b.receipt_file_path !== undefined && b.receipt_file_path != null
+          ? String(b.receipt_file_path).trim()
+          : null;
+      const replacingRec =
+        b.receipt_file_path !== undefined && newPath && newPath !== oldRecPath;
+      if (clearingRec || replacingRec) {
+        unlinkExpenseReceiptFile(oldRecPath);
+      }
+    }
+
+    vals.push(id);
+    await pool.execute(`UPDATE expenses SET ${updates.join(', ')} WHERE id = ?`, vals);
+
+    const toRefresh = new Set();
+    const vb = before.vendor_id != null ? parseInt(String(before.vendor_id), 10) : null;
+    if (Number.isFinite(vb) && vb > 0) toRefresh.add(vb);
+    const [[afterV]] = await pool.query('SELECT vendor_id FROM expenses WHERE id = ?', [id]);
+    const va = afterV?.vendor_id != null ? parseInt(String(afterV.vendor_id), 10) : null;
+    if (Number.isFinite(va) && va > 0) toRefresh.add(va);
+    for (const vid of toRefresh) {
+      await updateVendorTotalSpent(pool, vid);
+    }
+
+    const pnSel = await sqlProjectsProjectNumberSelect(pool);
+    const [rows] = await pool.query(
+      `SELECT e.*,
+              ${pnSel},
+              u1.name as created_by_name,
+              u2.name as approved_by_name
+       FROM expenses e
+       LEFT JOIN projects p ON e.project_id = p.id
+       LEFT JOIN users u1 ON e.created_by = u1.id
+       LEFT JOIN users u2 ON e.approved_by = u2.id
+       WHERE e.id = ?`,
+      [id]
+    );
+
+    return res.json({ success: true, data: rows[0] });
+  } catch (error) {
+    console.error('Error updating expense:', error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+}
+
+/**
  * Aprovar expense
  */
 export async function approveExpense(req, res) {
@@ -409,19 +601,7 @@ export async function deleteExpense(req, res) {
       return res.status(404).json({ success: false, error: 'Despesa não encontrada' });
     }
     await pool.execute('DELETE FROM expenses WHERE id = ?', [id]);
-    const relRaw = row.receipt_file_path ? String(row.receipt_file_path).trim() : '';
-    if (relRaw) {
-      const rel = relRaw.replace(/^\/+/, '').replace(/^\/?uploads\/?/, '');
-      const base = path.resolve(path.join(__dirname, '..', 'uploads'));
-      const abs = path.resolve(path.join(base, rel));
-      try {
-        if ((abs === base || abs.startsWith(base + path.sep)) && fs.existsSync(abs)) {
-          fs.unlinkSync(abs);
-        }
-      } catch (_) {
-        /* ficheiro já ausente */
-      }
-    }
+    if (row.receipt_file_path) unlinkExpenseReceiptFile(row.receipt_file_path);
     const vid = row.vendor_id != null ? parseInt(String(row.vendor_id), 10) : null;
     if (vid && Number.isFinite(vid) && vid > 0) {
       await updateVendorTotalSpent(pool, vid);

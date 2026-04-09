@@ -45,7 +45,7 @@ const expenseReceiptStorage = multer.diskStorage({
     cb(null, `exp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}${ext}`);
   },
 });
-const uploadExpenseReceipt = multer({
+export const uploadExpenseReceipt = multer({
   storage: expenseReceiptStorage,
   limits: { fileSize: 15 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
@@ -55,6 +55,58 @@ const uploadExpenseReceipt = multer({
     cb(null, ok);
   },
 });
+
+function safeUnlinkExpenseReceiptFile(relRaw) {
+  if (!relRaw) return;
+  const rel = String(relRaw)
+    .trim()
+    .replace(/^\/+/, '')
+    .replace(/^\/?uploads\/?/, '');
+  if (!rel || rel.includes('..')) return;
+  const base = path.resolve(path.join(__dirname, '..', 'uploads'));
+  const abs = path.resolve(path.join(base, rel));
+  try {
+    if ((abs === base || abs.startsWith(base + path.sep)) && fs.existsSync(abs)) {
+      fs.unlinkSync(abs);
+    }
+  } catch (_) {
+    /* já removido */
+  }
+}
+
+/** Anexar ou substituir recibo numa despesa já criada (multipart file). */
+export async function postExpenseReceiptAttachment(req, res) {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, error: 'Ficheiro em falta' });
+    }
+    const pool = await getDBConnection();
+    if (!pool) return res.status(503).json({ success: false, error: 'Database not available' });
+    const id = parseInt(req.params.id, 10);
+    if (!id) return res.status(400).json({ success: false, error: 'ID inválido' });
+
+    const [[row]] = await pool.query(
+      'SELECT id, receipt_file_path FROM expenses WHERE id = ? LIMIT 1',
+      [id]
+    );
+    if (!row) return res.status(404).json({ success: false, error: 'Despesa não encontrada' });
+
+    const rel = `receipts/expenses/${req.file.filename}`;
+    const url = `/uploads/${rel}`;
+    if (row.receipt_file_path) safeUnlinkExpenseReceiptFile(row.receipt_file_path);
+
+    await pool.execute('UPDATE expenses SET receipt_file_path = ?, receipt_url = ? WHERE id = ?', [
+      rel,
+      url,
+      id,
+    ]);
+    const [updated] = await pool.query('SELECT * FROM expenses WHERE id = ?', [id]);
+    res.json({ success: true, data: updated[0] });
+  } catch (e) {
+    console.error('POST /expenses/:id/receipt', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+}
 
 const vendorInvoiceStorage = multer.diskStorage({
   destination: (_req, _file, cb) => {
@@ -813,8 +865,13 @@ paymentReceiptsRouter.put('/:id', async (req, res) => {
     if (!pool) return res.status(503).json({ success: false, error: 'Database not available' });
     const id = parseInt(req.params.id, 10);
     const b = req.body || {};
+    const pid =
+      b.project_id != null && String(b.project_id).trim() !== ''
+        ? parseInt(String(b.project_id), 10)
+        : null;
     await pool.execute(
       `UPDATE payment_receipts SET
+        project_id = COALESCE(?, project_id),
         payment_type = COALESCE(?, payment_type),
         amount = COALESCE(?, amount),
         payment_date = COALESCE(?, payment_date),
@@ -823,6 +880,7 @@ paymentReceiptsRouter.put('/:id', async (req, res) => {
         notes = ?
        WHERE id = ?`,
       [
+        Number.isFinite(pid) && pid > 0 ? pid : null,
         b.payment_type || null,
         b.amount != null ? parseFloat(b.amount) : null,
         b.payment_date || null,
@@ -832,8 +890,8 @@ paymentReceiptsRouter.put('/:id', async (req, res) => {
         id,
       ]
     );
-    const [[row]] = await pool.query('SELECT * FROM payment_receipts WHERE id = ?', [id]);
-    res.json({ success: true, data: row });
+    const [rowsUp] = await pool.query('SELECT * FROM payment_receipts WHERE id = ?', [id]);
+    res.json({ success: true, data: rowsUp[0] });
   } catch (e) {
     console.error('PUT /payment-receipts/:id', e);
     res.status(500).json({ success: false, error: e.message });

@@ -76,6 +76,8 @@ import {
   updateProjectFinancial,
   listExpenses,
   createExpense,
+  getExpense,
+  updateExpense,
   approveExpense,
   deleteExpense,
   listPayrollEntries,
@@ -88,6 +90,8 @@ import {
   vendorsRouter,
   operationalCostsRouter,
   paymentReceiptsRouter,
+  uploadExpenseReceipt,
+  postExpenseReceiptAttachment,
 } from './routes/financial-complete.js';
 import * as constructionPayroll from './routes/constructionPayroll.js';
 import {
@@ -491,7 +495,15 @@ app.put('/api/contracts/:id', requireAuth, updateContract);
 
 // Financial Management
 app.get('/api/expenses', requireAuth, listExpenses);
+app.get('/api/expenses/:id', requireAuth, getExpense);
 app.post('/api/expenses', requireAuth, createExpense);
+app.put('/api/expenses/:id', requireAuth, updateExpense);
+app.post(
+  '/api/expenses/:id/receipt',
+  requireAuth,
+  uploadExpenseReceipt.single('file'),
+  postExpenseReceiptAttachment
+);
 app.put('/api/expenses/:id/approve', requireAuth, approveExpense);
 app.delete('/api/expenses/:id', requireAuth, deleteExpense);
 app.get('/api/payroll', requireAuth, listPayrollEntries);

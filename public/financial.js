@@ -8,6 +8,10 @@ let _cfChart = null;
 let vendorsCache = [];
 let editingOpId = null;
 let editingVendorId = null;
+let editingExpenseId = null;
+/** Se true ao guardar edição, limpa recibo na BD (utilizador clicou Remover anexo). */
+let removeExpenseReceiptOnSave = false;
+let editingPayRecvId = null;
 /** Recibo enviado antes de POST /api/expenses — { receipt_file_path, receipt_url, name } */
 let pendingExpenseReceipt = null;
 
@@ -194,6 +198,69 @@ function receiptThumbOrLinkHtml(src) {
     return `<a href="${escapeHtml(src)}" target="_blank" rel="noopener" class="btn btn-sm btn-secondary" style="padding:4px 8px;font-size:11px">Ver PDF</a>`;
   }
   return `<a href="${escapeHtml(src)}" class="fin-exp-receipt-lightbox" data-exp-lightbox="${escapeHtml(src)}"><img src="${escapeHtml(src)}" alt="" loading="lazy" style="max-height:44px;max-width:72px;object-fit:cover;border-radius:6px;border:1px solid var(--border-color);vertical-align:middle;cursor:zoom-in" /></a>`;
+}
+
+async function openExpenseModalForEdit(id) {
+  if (!id) return;
+  editingExpenseId = id;
+  removeExpenseReceiptOnSave = false;
+  const titleEl = document.getElementById('modalExpenseTitle');
+  if (titleEl) titleEl.textContent = 'Editar despesa';
+  await ensureExpenseVendorSelect();
+  const res = await fetch(`/api/expenses/${id}`, { credentials: 'include' }).then((r) => r.json());
+  if (!res.success || !res.data) {
+    showToast(res.error || 'Despesa não encontrada', 'error');
+    editingExpenseId = null;
+    return;
+  }
+  const row = res.data;
+  document.getElementById('exp-cat').value = row.category || 'other';
+  document.getElementById('exp-desc').value = row.description || '';
+  document.getElementById('exp-amount').value = row.amount != null ? String(row.amount) : '';
+  document.getElementById('exp-date').value = fmtOpDate(row.expense_date);
+  const expPay = document.getElementById('exp-pay');
+  if (expPay) expPay.value = row.payment_method || 'cash_debit';
+  const vs = document.getElementById('exp-vendor-select');
+  if (vs) vs.value = row.vendor_id != null && row.vendor_id !== '' ? String(row.vendor_id) : '';
+  const vf = document.getElementById('exp-vendor-free');
+  if (vf) {
+    vf.value =
+      row.vendor_id != null && String(row.vendor_id).trim() !== ''
+        ? ''
+        : String(row.vendor_name || row.vendor || '').trim();
+  }
+  resetExpenseReceiptUI();
+  removeExpenseReceiptOnSave = false;
+  const url = resolveExpenseReceiptUrl(row);
+  if (url) {
+    const hint = document.getElementById('exp-receipt-hint');
+    if (hint) hint.textContent = 'Recibo atual. Carregue outro ficheiro para substituir ou use Remover anexo.';
+    const clr = document.getElementById('exp-receipt-clear');
+    if (clr) clr.style.display = '';
+    const prev = document.getElementById('exp-receipt-preview');
+    if (prev) {
+      if (!isReceiptPdfSrc(url)) {
+        prev.innerHTML = `<img src="${escapeHtml(url)}" alt="" class="fin-expense-receipt-thumb" />`;
+      } else {
+        prev.innerHTML = `<a href="${escapeHtml(url)}" target="_blank" rel="noopener">Ver PDF</a>`;
+      }
+    }
+  }
+  openModal('modalExpense');
+}
+
+function openPaymentRecvModalForEdit(row) {
+  if (!row) return;
+  editingPayRecvId = row.id;
+  const t = document.getElementById('modalPayRecvTitle');
+  if (t) t.textContent = 'Editar recebimento';
+  document.getElementById('pr-project').value = row.project_id != null ? String(row.project_id) : '';
+  document.getElementById('pr-type').value = row.payment_type || 'other';
+  document.getElementById('pr-amount').value = row.amount != null ? String(row.amount) : '';
+  document.getElementById('pr-date').value = fmtOpDate(row.payment_date);
+  document.getElementById('pr-method').value = row.payment_method || 'check';
+  document.getElementById('pr-ref').value = row.reference_number || '';
+  openModal('modalPayRecv');
 }
 
 async function deleteExpenseById(expenseId, opts) {
@@ -508,8 +575,9 @@ async function ensureExpenseVendorSelect() {
   }
 }
 
-function resetExpenseReceiptUI() {
+function resetExpenseReceiptUI(opts) {
   pendingExpenseReceipt = null;
+  if (opts?.markRemovedOnEdit && editingExpenseId) removeExpenseReceiptOnSave = true;
   const f = document.getElementById('exp-receipt-file');
   const c = document.getElementById('exp-receipt-camera');
   if (f) f.value = '';
@@ -540,6 +608,7 @@ async function uploadPendingExpenseReceipt(file) {
     receipt_url: res.receipt_url,
     name: file.name,
   };
+  if (editingExpenseId) removeExpenseReceiptOnSave = false;
   const hint = document.getElementById('exp-receipt-hint');
   if (hint) hint.textContent = file.name || 'Anexo carregado';
   const clr = document.getElementById('exp-receipt-clear');
@@ -843,11 +912,20 @@ async function loadPaymentReceipts() {
       <td>${escapeHtml(String(r.payment_date).slice(0, 10))}</td>
       <td>${escapeHtml(r.payment_method)}</td>
       <td>${escapeHtml(r.reference_number || '')}</td>
+      <td><button type="button" class="btn btn-sm btn-secondary" data-edit-pr="${r.id}" style="padding:4px 8px;font-size:11px">Editar</button></td>
       <td><button type="button" class="btn btn-sm btn-secondary" data-del-pr="${r.id}" style="padding:4px 8px">✕</button></td>
     </tr>`
         )
         .join('')
-    : '<tr><td colspan="7">Sem recebimentos</td></tr>';
+    : '<tr><td colspan="8">Sem recebimentos</td></tr>';
+
+  document.querySelectorAll('[data-edit-pr]').forEach((b) => {
+    b.addEventListener('click', () => {
+      const id = parseInt(b.getAttribute('data-edit-pr'), 10);
+      const row = rows.find((x) => x.id === id);
+      if (row) openPaymentRecvModalForEdit(row);
+    });
+  });
 
   document.querySelectorAll('[data-del-pr]').forEach((b) => {
     b.addEventListener('click', async () => {
@@ -897,20 +975,32 @@ async function loadPaymentReceipts() {
                 : e.vendor != null && String(e.vendor).trim() !== ''
                   ? String(e.vendor).trim()
                   : '—';
+            const recBlock = `<div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;max-width:200px">
+          <span>${receiptThumbOrLinkHtml(src)}</span>
+          <label class="btn btn-sm btn-secondary" for="fin-exp-rc-${e.id}" style="padding:4px 8px;font-size:10px;margin:0;cursor:pointer">Carregar</label>
+          <input type="file" id="fin-exp-rc-${e.id}" class="fin-sr-only fin-exp-row-receipt" data-expense-id="${e.id}" accept="image/*,.pdf,application/pdf" />
+        </div>`;
             return `<tr>
         <td>${escapeHtml(fmtOpDate(e.expense_date))}</td>
         <td>${escapeHtml(e.description || '')}</td>
         <td>${escapeHtml(vendor)}</td>
         <td>${fmt$(e.total_amount)}</td>
         <td>${escapeHtml(formatExpensePaymentMethod(e.payment_method))}</td>
-        <td>${receiptThumbOrLinkHtml(src)}</td>
+        <td>${recBlock}</td>
         <td style="white-space:nowrap">
+          <button type="button" class="btn btn-sm btn-secondary" data-edit-expense="${e.id}" style="padding:4px 8px;font-size:11px">Editar</button>
           <button type="button" class="btn btn-sm btn-danger" data-del-expense="${e.id}" style="padding:4px 8px;font-size:11px">Excluir</button>
         </td>
       </tr>`;
           })
           .join('')
       : '<tr><td colspan="7" style="color:var(--text-muted)">Sem despesas registadas</td></tr>';
+    tbody.querySelectorAll('[data-edit-expense]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const id = parseInt(btn.getAttribute('data-edit-expense'), 10);
+        openExpenseModalForEdit(id);
+      });
+    });
     tbody.querySelectorAll('[data-del-expense]').forEach((btn) => {
       btn.addEventListener('click', () => {
         const id = parseInt(btn.getAttribute('data-del-expense'), 10);
@@ -935,6 +1025,11 @@ function openModal(id) {
 }
 function closeModal(id) {
   document.getElementById(id)?.classList.remove('on');
+  if (id === 'modalExpense') {
+    editingExpenseId = null;
+    removeExpenseReceiptOnSave = false;
+  }
+  if (id === 'modalPayRecv') editingPayRecvId = null;
 }
 
 async function openOpModal(id) {
@@ -993,6 +1088,10 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btnFinApplyPeriod')?.addEventListener('click', () => loadPL());
   document.getElementById('btnImportMarketing')?.addEventListener('click', importMarketing);
   document.getElementById('btnAddExpense')?.addEventListener('click', async () => {
+    editingExpenseId = null;
+    removeExpenseReceiptOnSave = false;
+    const titleEl = document.getElementById('modalExpenseTitle');
+    if (titleEl) titleEl.textContent = 'Nova despesa';
     resetExpenseReceiptUI();
     document.getElementById('exp-desc').value = '';
     document.getElementById('exp-amount').value = '';
@@ -1012,7 +1111,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const f = e.target.files?.[0];
     if (f) uploadPendingExpenseReceipt(f);
   });
-  document.getElementById('exp-receipt-clear')?.addEventListener('click', () => resetExpenseReceiptUI());
+  document.getElementById('exp-receipt-clear')?.addEventListener('click', () =>
+    resetExpenseReceiptUI({ markRemovedOnEdit: true })
+  );
 
   document.getElementById('btnSaveExpense')?.addEventListener('click', async () => {
     const vSel = document.getElementById('exp-vendor-select')?.value?.trim() || '';
@@ -1026,21 +1127,30 @@ document.addEventListener('DOMContentLoaded', () => {
       payment_method: document.getElementById('exp-pay')?.value || 'cash_debit',
       vendor_id: vendorId,
       vendor: vendorFree,
-      receipt_url: pendingExpenseReceipt?.receipt_url || null,
-      receipt_file_path: pendingExpenseReceipt?.receipt_file_path || null,
     };
+    if (pendingExpenseReceipt) {
+      body.receipt_url = pendingExpenseReceipt.receipt_url;
+      body.receipt_file_path = pendingExpenseReceipt.receipt_file_path;
+    } else if (editingExpenseId && removeExpenseReceiptOnSave) {
+      body.receipt_url = null;
+      body.receipt_file_path = null;
+    }
     if (!body.description || !body.amount || !body.expense_date) {
       showToast('Preencha descrição, valor e data', 'error');
       return;
     }
-    const res = await fetch('/api/expenses', {
-      method: 'POST',
+    const url = editingExpenseId ? `/api/expenses/${editingExpenseId}` : '/api/expenses';
+    const method = editingExpenseId ? 'PUT' : 'POST';
+    const res = await fetch(url, {
+      method,
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     }).then((r) => r.json());
     if (res.success) {
-      showToast('Despesa criada');
+      showToast(editingExpenseId ? 'Despesa atualizada' : 'Despesa criada');
+      editingExpenseId = null;
+      removeExpenseReceiptOnSave = false;
       resetExpenseReceiptUI();
       closeModal('modalExpense');
       loadPL();
@@ -1184,7 +1294,12 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   document.getElementById('btnAddPaymentRecv')?.addEventListener('click', () => {
+    editingPayRecvId = null;
+    const t = document.getElementById('modalPayRecvTitle');
+    if (t) t.textContent = 'Recebimento';
     document.getElementById('pr-date').value = formatLocalYMD(new Date());
+    document.getElementById('pr-amount').value = '';
+    document.getElementById('pr-ref').value = '';
     openModal('modalPayRecv');
   });
   document.getElementById('btnSavePayRecv')?.addEventListener('click', async () => {
@@ -1200,18 +1315,50 @@ document.addEventListener('DOMContentLoaded', () => {
       showToast('Projeto, valor e data obrigatórios', 'error');
       return;
     }
-    const res = await fetch('/api/payment-receipts', {
-      method: 'POST',
+    const url = editingPayRecvId ? `/api/payment-receipts/${editingPayRecvId}` : '/api/payment-receipts';
+    const method = editingPayRecvId ? 'PUT' : 'POST';
+    const res = await fetch(url, {
+      method,
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     }).then((r) => r.json());
     if (res.success) {
-      showToast('Recebimento registado');
+      showToast(editingPayRecvId ? 'Recebimento atualizado' : 'Recebimento registado');
+      editingPayRecvId = null;
       closeModal('modalPayRecv');
       loadPaymentReceipts();
       loadPL();
     } else showToast(res.error || 'Erro', 'error');
+  });
+
+  document.getElementById('pane-receipts')?.addEventListener('change', async (ev) => {
+    const inp = ev.target.closest?.('.fin-exp-row-receipt');
+    if (!inp || !inp.files?.length) return;
+    const eid = parseInt(inp.getAttribute('data-expense-id'), 10);
+    if (!eid) return;
+    const file = inp.files[0];
+    const form = new FormData();
+    form.append('file', file);
+    try {
+      const raw = await fetch(`/api/expenses/${eid}/receipt`, { method: 'POST', credentials: 'include', body: form });
+      let j = {};
+      try {
+        j = await raw.json();
+      } catch (_) {}
+      if (!raw.ok || !j.success) {
+        showToast(j.error || `Erro ao enviar recibo (${raw.status})`, 'error');
+        return;
+      }
+      showToast('Recibo anexado');
+      loadPaymentReceipts();
+      loadVendors();
+      loadPL();
+    } catch (e) {
+      showToast(e.message || 'Falha de rede', 'error');
+    } finally {
+      inp.value = '';
+    }
   });
 
   document.getElementById('vendorDetailBack')?.addEventListener('click', () => closeVendorDrawer());

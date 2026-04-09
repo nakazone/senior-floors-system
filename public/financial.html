@@ -167,7 +167,7 @@
           <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start">
             <div class="fin-table-wrap" style="flex:2;min-width:280px">
               <table class="fin-table">
-                <thead><tr><th>Projeto</th><th>Tipo</th><th>Valor</th><th>Data</th><th>Método</th><th>Ref.</th><th></th></tr></thead>
+                <thead><tr><th>Projeto</th><th>Tipo</th><th>Valor</th><th>Data</th><th>Método</th><th>Ref.</th><th></th><th></th></tr></thead>
                 <tbody id="payrecv-body"></tbody>
               </table>
               <div style="padding:12px"><button type="button" class="btn btn-sm btn-secondary" id="btnAddPaymentRecv">+ Recebimento</button></div>
@@ -183,7 +183,7 @@
           <p style="font-size:12px;color:var(--text-muted);margin:0 0 10px">Últimas despesas registadas; miniatura ou ligação ao recibo quando existir anexo.</p>
           <div class="fin-table-wrap">
             <table class="fin-table">
-              <thead><tr><th>Data</th><th>Descrição</th><th>Fornecedor</th><th>Valor</th><th>Pagamento</th><th>Recibo</th><th></th></tr></thead>
+              <thead><tr><th>Data</th><th>Descrição</th><th>Fornecedor</th><th>Valor</th><th>Pagamento</th><th>Recibo</th><th>Ações</th></tr></thead>
               <tbody id="expense-receipt-body"></tbody>
             </table>
           </div>
@@ -196,7 +196,7 @@
   <!-- Modals -->
   <div class="fin-modal-backdrop" id="modalExpense">
     <div class="fin-modal">
-      <h3>Nova despesa</h3>
+      <h3 id="modalExpenseTitle">Nova despesa</h3>
       <div class="fin-form-grid">
         <select id="exp-cat" class="fin-form-full"><option value="material">material</option><option value="labor">labor</option><option value="equipment">equipment</option><option value="travel">travel</option><option value="office">office</option><option value="other">other</option></select>
         <input id="exp-desc" class="fin-form-full" placeholder="Descrição *" />
@@ -288,7 +288,7 @@
 
   <div class="fin-modal-backdrop" id="modalPayRecv">
     <div class="fin-modal">
-      <h3>Recebimento</h3>
+      <h3 id="modalPayRecvTitle">Recebimento</h3>
       <div class="fin-form-grid">
         <select id="pr-project" class="fin-form-full"><option value="">— Projeto —</option></select>
         <select id="pr-type"><option value="deposit">deposit</option><option value="progress">progress</option><option value="final">final</option><option value="other">other</option></select>
@@ -313,6 +313,6 @@
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="crm-shared-nav.js?v=12"></script>
-  <script src="financial.js?v=13"></script>
+  <script src="financial.js?v=14"></script>
 </body>
 </html>
