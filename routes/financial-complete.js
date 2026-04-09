@@ -15,6 +15,7 @@ import {
   importMarketingCosts,
   sqlNotDeletedAt,
   getUpcomingVendorPayments,
+  sqlProjectLabelExpr,
 } from '../lib/financialEngine.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -730,10 +731,11 @@ paymentReceiptsRouter.get('/pending-summary', async (req, res) => {
   try {
     const pool = await getDBConnection();
     if (!pool) return res.status(503).json({ success: false, error: 'Database not available' });
+    const plab = await sqlProjectLabelExpr(pool);
     const [rows] = await pool.query(
       `SELECT
         p.id,
-        COALESCE(p.project_number, CONCAT('PRJ-', p.id)) AS project_label,
+        ${plab} AS project_label,
         COALESCE(p.contract_value, 0) AS contract_value,
         COALESCE((SELECT SUM(pr.amount) FROM payment_receipts pr WHERE pr.project_id = p.id), 0) AS received_total
       FROM projects p
@@ -756,8 +758,9 @@ paymentReceiptsRouter.get('/', async (req, res) => {
   try {
     const pool = await getDBConnection();
     if (!pool) return res.status(503).json({ success: false, error: 'Database not available' });
+    const plab = await sqlProjectLabelExpr(pool);
     const projectId = req.query.project_id ? parseInt(req.query.project_id, 10) : null;
-    let sql = `SELECT pr.*, COALESCE(p.project_number, CONCAT('PRJ-', p.id)) AS project_label
+    let sql = `SELECT pr.*, ${plab} AS project_label
       FROM payment_receipts pr JOIN projects p ON pr.project_id = p.id WHERE 1=1`;
     const params = [];
     if (projectId) {

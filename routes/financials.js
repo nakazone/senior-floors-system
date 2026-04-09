@@ -20,6 +20,17 @@ async function tableColumnExists(pool, table, column) {
   return Number(rows[0].c) > 0;
 }
 
+/** BD legada sem `projects.project_number` */
+let _projectsHasProjectNumberCol = null;
+
+async function sqlProjectsProjectNumberSelect(pool, alias = 'p') {
+  if (!pool) return `NULL AS project_number`;
+  if (_projectsHasProjectNumberCol === null) {
+    _projectsHasProjectNumberCol = await tableColumnExists(pool, 'projects', 'project_number');
+  }
+  return _projectsHasProjectNumberCol ? `${alias}.project_number` : `NULL AS project_number`;
+}
+
 /**
  * Obter financial de um projeto
  */
@@ -27,9 +38,10 @@ export async function getProjectFinancial(req, res) {
   try {
     const pool = await getDBConnection();
     const projectId = parseInt(req.params.projectId);
-    
+    const pnSel = await sqlProjectsProjectNumberSelect(pool);
+
     let [financials] = await pool.query(
-      `SELECT pf.*, p.project_number, p.status as project_status
+      `SELECT pf.*, ${pnSel}, p.status as project_status
        FROM project_financials pf
        JOIN projects p ON pf.project_id = p.id
        WHERE pf.project_id = ?`,
@@ -43,7 +55,7 @@ export async function getProjectFinancial(req, res) {
         [projectId]
       );
       [financials] = await pool.query(
-        `SELECT pf.*, p.project_number, p.status as project_status
+        `SELECT pf.*, ${pnSel}, p.status as project_status
          FROM project_financials pf
          JOIN projects p ON pf.project_id = p.id
          WHERE pf.project_id = ?`,
@@ -200,10 +212,11 @@ export async function listExpenses(req, res) {
       whereClause += ' AND e.expense_date <= ?';
       params.push(endDate);
     }
-    
+
+    const pnSel = await sqlProjectsProjectNumberSelect(pool);
     const [rows] = await pool.query(
       `SELECT e.*,
-              p.project_number,
+              ${pnSel},
               u1.name as created_by_name,
               u2.name as approved_by_name
        FROM expenses e
@@ -312,9 +325,10 @@ export async function createExpense(req, res) {
 
     const sql = `INSERT INTO expenses (${cols.map((c) => `\`${c}\``).join(', ')}) VALUES (${cols.map(() => '?').join(', ')})`;
     const [result] = await pool.execute(sql, vals);
-    
+
+    const pnSel = await sqlProjectsProjectNumberSelect(pool);
     const [created] = await pool.query(
-      `SELECT e.*, p.project_number
+      `SELECT e.*, ${pnSel}
        FROM expenses e
        LEFT JOIN projects p ON e.project_id = p.id
        WHERE e.id = ?`,
@@ -382,11 +396,12 @@ export async function listPayrollEntries(req, res) {
       whereClause += ' AND pe.approved = ?';
       params.push(approved ? 1 : 0);
     }
-    
+
+    const pnSel = await sqlProjectsProjectNumberSelect(pool);
     const [rows] = await pool.query(
       `SELECT pe.*,
               u.name as employee_name,
-              p.project_number,
+              ${pnSel},
               c.name as crew_name
        FROM payroll_entries pe
        JOIN users u ON pe.employee_id = u.id
@@ -566,10 +581,11 @@ export async function getFinancialDashboard(req, res) {
 
     let profitabilityRanking = [];
     try {
+      const pnSel = await sqlProjectsProjectNumberSelect(pool);
       const [rows] = await pool.query(
         `SELECT 
          pf.project_id,
-         p.project_number,
+         ${pnSel},
          pf.actual_profit,
          pf.actual_margin_percentage,
          pf.profit_variance
