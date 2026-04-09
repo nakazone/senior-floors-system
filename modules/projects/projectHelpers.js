@@ -142,6 +142,17 @@ function trimOrNull(v) {
   return s || null;
 }
 
+/** Normaliza DATE / ISO do MySQL para `YYYY-MM-DD` (evita "Invalid Date" na UI ao concatenar com `T12:00:00`). */
+export function sqlDateToYmd(v) {
+  if (v == null || v === '') return null;
+  if (v instanceof Date && !Number.isNaN(v.getTime())) {
+    return v.toISOString().slice(0, 10);
+  }
+  const s = String(v);
+  const m = s.match(/^(\d{4}-\d{2}-\d{2})/);
+  return m ? m[1] : null;
+}
+
 /**
  * Junta cadastro do cliente com o lead (rua costuma estar no lead; ZIP só no cliente).
  * @param {Record<string, unknown>|null|undefined} customerRow
@@ -228,8 +239,8 @@ export function mapListProjectRow(p) {
   }
   const gross = contract - totalCost;
   const marginPct = contract > 0 ? moneyRound((gross / contract) * 100, 1) : 0;
-  const startDate = rowIn.start_date ?? rowIn.estimated_start_date ?? null;
-  const endEst = rowIn.end_date_estimated ?? rowIn.estimated_end_date ?? null;
+  const startDate = sqlDateToYmd(rowIn.start_date ?? rowIn.estimated_start_date ?? null);
+  const endEst = sqlDateToYmd(rowIn.end_date_estimated ?? rowIn.estimated_end_date ?? null);
   const completion =
     rowIn.completion_percentage != null && rowIn.completion_percentage !== ''
       ? parseInt(String(rowIn.completion_percentage), 10)
@@ -244,6 +255,8 @@ export function mapListProjectRow(p) {
     status: normalizeProjectStatus(rowIn.status),
     start_date: startDate,
     end_date_estimated: endEst,
+    estimated_start_date: startDate,
+    estimated_end_date: endEst,
     checklist_completed: !!(rowIn.checklist_completed === 1 || rowIn.checklist_completed === true),
     contract_value: moneyRound(contract, 2),
     supply_value: moneyRound(money(rowIn.supply_value), 2),

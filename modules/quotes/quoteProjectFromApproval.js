@@ -1,9 +1,11 @@
 /**
  * Quando um orçamento fica aprovado/aceite, garante um registo em `projects` e liga `quotes.project_id`.
+ * Se já existir projeto para o mesmo lead (ex.: ganho pelo módulo de leads), reutiliza-o em vez de duplicar.
  */
 import { ensureClientFromLead } from '../clients/leadToClient.js';
 import { nextProjectNumber, getProjectsTableColumnSet } from '../projects/projectHelpers.js';
 import { applyQuoteLineRevenueToProject } from '../../lib/syncProjectRevenueFromQuote.js';
+import { setLeadPipelineBySlug } from '../../lib/pipelineAutomation.js';
 
 const APPROVED = new Set(['approved', 'accepted']);
 
@@ -26,7 +28,17 @@ export async function ensureProjectForApprovedQuote(pool, quoteId) {
   const pid0 = q0.project_id != null ? parseInt(String(q0.project_id), 10) : null;
   if (pid0 && pid0 > 0) {
     const [ex] = await pool.query('SELECT id FROM projects WHERE id = ?', [pid0]);
-    if (ex.length) return { ok: true, projectId: pid0, created: false };
+    if (ex.length) {
+      const lidEarly = q0.lead_id != null ? parseInt(String(q0.lead_id), 10) : null;
+      if (lidEarly && lidEarly > 0) {
+        try {
+          await setLeadPipelineBySlug(lidEarly, 'closed_won');
+        } catch (_) {
+          /* best-effort */
+        }
+      }
+      return { ok: true, projectId: pid0, created: false };
+    }
   }
 
   let customerId = q0.customer_id != null ? parseInt(String(q0.customer_id), 10) : null;
@@ -96,11 +108,58 @@ export async function ensureProjectForApprovedQuote(pool, quoteId) {
       const [ex2] = await conn.query('SELECT id FROM projects WHERE id = ?', [pid]);
       if (ex2.length) {
         await conn.commit();
+        if (leadIdIns && leadIdIns > 0) {
+          try {
+            await setLeadPipelineBySlug(leadIdIns, 'closed_won');
+          } catch (_) {
+            /* best-effort */
+          }
+        }
         return { ok: true, projectId: pid, created: false };
       }
     }
 
     const pcols = await getProjectsTableColumnSet(conn);
+
+    /** Reutilizar projeto já criado pelo lead ganho (mesmo lead_id). */
+    if (leadIdIns && leadIdIns > 0) {
+      let existProjSql = 'SELECT id FROM projects WHERE lead_id = ?';
+      if (pcols.has('deleted_at')) existProjSql += ' AND deleted_at IS NULL';
+      existProjSql += ' ORDER BY id ASC LIMIT 1';
+      const [exByLead] = await conn.query(existProjSql, [leadIdIns]);
+      if (exByLead.length) {
+        const mergeId = exByLead[0].id;
+        await conn.execute('UPDATE quotes SET project_id = ? WHERE id = ?', [mergeId, id]);
+        await conn.execute(
+          `UPDATE quotes SET project_id = ?
+           WHERE lead_id = ? AND LOWER(TRIM(status)) IN ('approved','accepted') AND project_id IS NULL`,
+          [mergeId, leadIdIns]
+        );
+        try {
+          await applyQuoteLineRevenueToProject(conn, mergeId, id);
+        } catch (e) {
+          console.warn('[quotes] applyQuoteLineRevenueToProject on merged project:', e.message);
+        }
+        if (contractVal > 0 && pcols.has('contract_value')) {
+          await conn.execute(
+            'UPDATE projects SET contract_value = GREATEST(COALESCE(contract_value,0), ?) WHERE id = ?',
+            [contractVal, mergeId]
+          );
+        } else if (contractVal > 0 && pcols.has('estimated_cost') && !pcols.has('contract_value')) {
+          await conn.execute(
+            'UPDATE projects SET estimated_cost = GREATEST(COALESCE(estimated_cost,0), ?) WHERE id = ?',
+            [contractVal, mergeId]
+          );
+        }
+        await conn.commit();
+        try {
+          await setLeadPipelineBySlug(leadIdIns, 'closed_won');
+        } catch (_) {
+          /* best-effort */
+        }
+        return { ok: true, projectId: mergeId, created: false, mergedFromLead: true };
+      }
+    }
     const pn = await nextProjectNumber(conn);
     const contractVal = estimated != null && Number.isFinite(estimated) ? estimated : 0;
     const oid = ownerId && ownerId > 0 ? ownerId : null;
@@ -143,6 +202,13 @@ export async function ensureProjectForApprovedQuote(pool, quoteId) {
       console.warn('[quotes] applyQuoteLineRevenueToProject on new project:', e.message);
     }
     await conn.commit();
+    if (leadIdIns && leadIdIns > 0) {
+      try {
+        await setLeadPipelineBySlug(leadIdIns, 'closed_won');
+      } catch (_) {
+        /* best-effort */
+      }
+    }
     return { ok: true, projectId: newProjectId, created: true };
   } catch (e) {
     await conn.rollback();

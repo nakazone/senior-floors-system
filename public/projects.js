@@ -12,8 +12,21 @@ const fmt$ = (v) =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(
     parseFloat(v) || 0
   );
-const formatDate = (d) =>
-  d ? new Date(`${d}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '--';
+function toYmd(d) {
+  if (d == null || d === '') return '';
+  const m = String(d).match(/^(\d{4}-\d{2}-\d{2})/);
+  return m ? m[1] : '';
+}
+
+const formatDate = (d) => {
+  const ymd = toYmd(d);
+  if (!ymd) return '—';
+  return new Date(`${ymd}T12:00:00`).toLocaleDateString('pt-BR', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+};
 
 function showSkeletons() {
   const el = document.getElementById('projects-grid');

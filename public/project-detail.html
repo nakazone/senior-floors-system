@@ -162,6 +162,7 @@
       <nav class="pd-tabs" role="tablist" aria-label="Secções do projeto">
         <button type="button" class="tab-btn pd-tab active" data-tab="overview" role="tab" aria-selected="true">Visão Geral</button>
         <button type="button" class="tab-btn pd-tab" data-tab="costs" role="tab">Custos</button>
+        <button type="button" class="tab-btn pd-tab" data-tab="payforecast" role="tab">Previsão pagamentos</button>
         <button type="button" class="tab-btn pd-tab" data-tab="checklist" role="tab">Checklist</button>
         <button type="button" class="tab-btn pd-tab" data-tab="gallery" role="tab">Galeria &amp; Portfólio</button>
         <button type="button" class="tab-btn pd-tab" data-tab="builder" role="tab" id="tab-btn-builder" style="display:none">Builder</button>
@@ -170,6 +171,7 @@
       <!-- Conteúdo das abas é injetado por project-detail.js (innerHTML). -->
       <div id="tab-overview" class="tab-pane pd-tab-pane" style="display:flex"></div>
       <div id="tab-costs" class="tab-pane pd-tab-pane" style="display:none"></div>
+      <div id="tab-payforecast" class="tab-pane pd-tab-pane" style="display:none"></div>
       <div id="tab-checklist" class="tab-pane pd-tab-pane" style="display:none"></div>
       <div id="tab-gallery" class="tab-pane pd-tab-pane" style="display:none"></div>
       <div id="tab-builder" class="tab-pane pd-tab-pane" style="display:none"></div>
@@ -178,7 +180,7 @@
 
   <input type="file" id="pd-file-input" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif" capture="environment" style="position:fixed;left:-9999px;width:1px;height:1px;opacity:0" />
 
-  <script src="project-detail.js?v=10"></script>
+  <script src="project-detail.js?v=11"></script>
   <script>
     (function () {
       var t = document.getElementById('mobileMenuToggle');

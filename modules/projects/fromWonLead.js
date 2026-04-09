@@ -209,5 +209,15 @@ export async function ensureProjectFromWonLead(pool, leadId, userId) {
     /* project_checklist pode não existir */
   }
 
+  try {
+    await pool.execute(
+      `UPDATE quotes SET project_id = ?
+       WHERE lead_id = ? AND LOWER(TRIM(status)) IN ('approved','accepted') AND project_id IS NULL`,
+      [insertId, lid]
+    );
+  } catch (_) {
+    /* quotes pode não existir */
+  }
+
   return { ok: true, created: true, project_id: insertId };
 }

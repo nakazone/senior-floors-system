@@ -17,6 +17,13 @@ const fmt$ = (v) =>
   );
 const fmtPct = (v) => `${(parseFloat(v) || 0).toFixed(1)}%`;
 
+/** Extrai YYYY-MM-DD de strings ISO/MySQL (evita datas inválidas ao juntar com T12:00:00). */
+function toYmdFromApi(iso) {
+  if (iso == null || iso === '') return '';
+  const m = String(iso).match(/^(\d{4}-\d{2}-\d{2})/);
+  return m ? m[1] : '';
+}
+
 /** Parse números de inputs (aceita vírgula decimal). */
 function parseCostNumber(v) {
   if (v == null || v === '') return 0;
@@ -32,6 +39,31 @@ const MATERIAL_STATUS_LABELS = {
   partial: 'Parcial',
   returned: 'Devolvido',
 };
+
+const PPF_TYPE_LABELS = {
+  deposit: 'Sinal',
+  progress: 'Progresso',
+  final: 'Final',
+  other: 'Outro',
+};
+
+const PPF_METHOD_LABELS = {
+  cash: 'Numerário',
+  check: 'Cheque',
+  zelle: 'Zelle',
+  venmo: 'Venmo',
+  credit_card: 'Cartão',
+  bank_transfer: 'Transferência',
+  other: 'Outro',
+};
+
+function labelPpfType(c) {
+  return PPF_TYPE_LABELS[String(c || '').toLowerCase()] || c || '—';
+}
+
+function labelPpfMethod(c) {
+  return PPF_METHOD_LABELS[String(c || '').toLowerCase()] || c || '—';
+}
 
 function materialStatusLabel(code) {
   if (code == null || code === '') return '—';
@@ -96,6 +128,7 @@ async function loadProject() {
   renderChecklistTab();
   renderGalleryTab();
   loadPortfolioStatusLine();
+  loadPaymentForecastTab();
   const tb = document.getElementById('tab-btn-builder');
   if (project.client_type === 'builder' && project.builder_id) {
     if (tb) tb.style.display = '';
@@ -122,11 +155,27 @@ const STATUS_LABELS = {
 };
 
 function fmtShortPt(iso) {
-  if (!iso) return '—';
+  const ymd = toYmdFromApi(iso);
+  if (!ymd) return '—';
   try {
-    return new Date(`${String(iso).slice(0, 10)}T12:00:00`).toLocaleDateString('pt-BR', {
+    return new Date(`${ymd}T12:00:00`).toLocaleDateString('pt-BR', {
       day: '2-digit',
       month: 'short',
+    });
+  } catch {
+    return '—';
+  }
+}
+
+/** Data legível (sem hora) para textos corridos na página do projeto. */
+function fmtDatePtLong(iso) {
+  const ymd = toYmdFromApi(iso);
+  if (!ymd) return '—';
+  try {
+    return new Date(`${ymd}T12:00:00`).toLocaleDateString('pt-BR', {
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric',
     });
   } catch {
     return '—';
@@ -144,7 +193,7 @@ function updateProgressDatesLine(p) {
     parts.push(`${parseInt(p.days_estimated, 10)} dias est.`);
   }
   const daysEst = p.days_estimated != null ? parseInt(p.days_estimated, 10) : null;
-  const start = p.start_date ? new Date(`${String(p.start_date).slice(0, 10)}T12:00:00`) : null;
+  const start = toYmdFromApi(p.start_date) ? new Date(`${toYmdFromApi(p.start_date)}T12:00:00`) : null;
   if (start && daysEst) {
     const now = new Date();
     const elapsed = Math.max(1, Math.ceil((now - start) / 86400000));
@@ -158,12 +207,12 @@ function bindProjectSchedule(p) {
   const de = document.getElementById('pd-date-end');
   const btn = document.getElementById('pd-dates-save');
   if (ds) {
-    const v = p.start_date || p.estimated_start_date;
-    ds.value = v ? String(v).slice(0, 10) : '';
+    const v = toYmdFromApi(p.start_date || p.estimated_start_date);
+    ds.value = v || '';
   }
   if (de) {
-    const v = p.end_date_estimated || p.estimated_end_date;
-    de.value = v ? String(v).slice(0, 10) : '';
+    const v = toYmdFromApi(p.end_date_estimated || p.estimated_end_date);
+    de.value = v || '';
   }
   if (btn && !btn.dataset.bound) {
     btn.dataset.bound = '1';
@@ -401,7 +450,7 @@ function renderOverviewTab(p, pl) {
     let realRange = '—';
     if (p.start_date && dAct != null && !Number.isNaN(dAct)) {
       try {
-        const start = new Date(`${String(p.start_date).slice(0, 10)}T12:00:00`);
+        const start = new Date(`${toYmdFromApi(p.start_date)}T12:00:00`);
         const end = new Date(start);
         end.setDate(end.getDate() + Math.max(0, dAct - 1));
         realRange = `${fmtShortPt(p.start_date)} → ${end.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })} <strong>real</strong>`;
@@ -465,7 +514,7 @@ function renderOverviewTab(p, pl) {
   el.innerHTML = `
     <div class="pd-overview-meta">
       <p class="pd-overview-meta__line">${escapeHtml(p.address || 'Sem endereço')} · ${escapeHtml(p.flooring_type || '—')} · ${p.total_sqft != null ? `${p.total_sqft} sqft` : '—'}</p>
-      <p class="pd-overview-meta__line">Início: ${p.start_date || '—'} · Fim previsto: ${p.end_date_estimated || '—'}</p>
+      <p class="pd-overview-meta__line">Início: <strong>${fmtDatePtLong(p.start_date)}</strong> · Fim previsto: <strong>${fmtDatePtLong(p.end_date_estimated)}</strong></p>
     </div>
     <div class="pd-service-grid" id="service-cards-grid">
       ${serviceCardHtml('supply', 'Supply', supply, pr, contractVal)}
@@ -504,6 +553,183 @@ function escapeHtml(s) {
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/"/g, '&quot;');
+}
+
+async function loadPaymentForecastTab() {
+  const shell = document.getElementById('tab-payforecast');
+  if (!shell) return;
+  shell.innerHTML = '<p class="pd-muted" style="padding:12px">A carregar previsões…</p>';
+  try {
+    const res = await fetch(`/api/projects/${projectId}/payment-forecast`, { credentials: 'include' });
+    const j = await res.json();
+    if (!res.ok || !j.success) {
+      shell.innerHTML = `<p class="pd-muted" style="padding:12px">Erro: ${escapeHtml(j.error || String(res.status))}</p>`;
+      return;
+    }
+    renderPaymentForecastShell(j.data);
+  } catch (_) {
+    shell.innerHTML = '<p class="pd-muted" style="padding:12px">Falha de rede ao carregar previsões.</p>';
+  }
+}
+
+function renderPaymentForecastShell(data) {
+  const el = document.getElementById('tab-payforecast');
+  if (!el) return;
+  const forecasts = data?.forecasts || [];
+  const receipts = data?.receipts || [];
+  if (data?.tableMissing) {
+    el.innerHTML =
+      '<p class="pd-muted" style="padding:12px;max-width:520px">A tabela de previsões ainda não existe nesta base. Reinicie o servidor (o schema financeiro cria <code>project_payment_forecasts</code> no arranque).</p>';
+    return;
+  }
+
+  const typeOpts = Object.entries(PPF_TYPE_LABELS)
+    .map(([k, lab]) => `<option value="${escapeHtml(k)}">${escapeHtml(lab)}</option>`)
+    .join('');
+  const methodOpts = Object.entries(PPF_METHOD_LABELS)
+    .map(([k, lab]) => `<option value="${escapeHtml(k)}">${escapeHtml(lab)}</option>`)
+    .join('');
+
+  const receiptOpts =
+    '<option value="">— (opcional) Ligar a recebimento já registado</option>' +
+    receipts
+      .map(
+        (r) =>
+          `<option value="${r.id}">#${r.id} · ${fmtDatePtLong(r.payment_date)} · ${fmt$(r.amount)} · ${escapeHtml(labelPpfType(r.payment_type))}</option>`
+      )
+      .join('');
+
+  const fcRows = forecasts.length
+    ? forecasts
+        .map((f) => {
+          const linked =
+            f.payment_receipt_id != null
+              ? ` <span class="pd-muted" style="font-size:11px">→ recebimento #${f.payment_receipt_id}</span>`
+              : '';
+          return `<tr>
+        <td>${escapeHtml(fmtDatePtLong(f.expected_payment_date))}</td>
+        <td>${escapeHtml(labelPpfType(f.payment_type))}</td>
+        <td>${escapeHtml(labelPpfMethod(f.payment_method))}</td>
+        <td>${f.amount != null ? fmt$(f.amount) : '—'}</td>
+        <td>${escapeHtml(f.notes || '')}${linked}</td>
+        <td style="white-space:nowrap">
+          <button type="button" class="pd-btn pd-btn--compact pd-btn--danger" data-pf-del="${f.id}">Excluir</button>
+        </td>
+      </tr>`;
+        })
+        .join('')
+    : '<tr><td colspan="6" class="pd-muted">Nenhuma previsão — adicione abaixo.</td></tr>';
+
+  const rcRows = receipts.length
+    ? receipts
+        .map(
+          (r) => `<tr>
+      <td>${escapeHtml(fmtDatePtLong(r.payment_date))}</td>
+      <td>${escapeHtml(labelPpfType(r.payment_type))}</td>
+      <td>${escapeHtml(labelPpfMethod(r.payment_method))}</td>
+      <td>${fmt$(r.amount)}</td>
+      <td>${escapeHtml(r.reference_number || '—')}</td>
+    </tr>`
+        )
+        .join('')
+    : '<tr><td colspan="5" class="pd-muted">Sem recebimentos registados no financeiro para este projeto.</td></tr>';
+
+  el.innerHTML = `
+    <div class="pd-payforecast-wrap" style="padding:4px 0 24px;max-width:960px">
+      <p style="font-size:13px;color:var(--sf-muted);margin:0 0 14px">
+        Previsões de recebimento (cliente / obra) alinhadas com o módulo financeiro.
+        Os <strong>recebimentos reais</strong> vêm da tabela de recebimentos; pode ligar uma previsão a um recebimento já criado.
+        <a href="financial.html" class="pd-breadcrumb-link" style="margin-left:6px">Abrir Financeiro</a>
+      </p>
+
+      <h3 style="font-size:14px;margin:18px 0 8px">Recebimentos registados (financeiro)</h3>
+      <div class="fin-table-wrap" style="overflow-x:auto;margin-bottom:20px">
+        <table class="pd-table">
+          <thead><tr><th>Data</th><th>Tipo</th><th>Forma</th><th>Valor</th><th>Ref.</th></tr></thead>
+          <tbody>${rcRows}</tbody>
+        </table>
+      </div>
+
+      <h3 style="font-size:14px;margin:18px 0 8px">Previsões</h3>
+      <div class="fin-table-wrap" style="overflow-x:auto;margin-bottom:16px">
+        <table class="pd-table">
+          <thead><tr><th>Data prevista</th><th>Tipo</th><th>Forma de pagamento</th><th>Valor</th><th>Notas</th><th></th></tr></thead>
+          <tbody>${fcRows}</tbody>
+        </table>
+      </div>
+
+      <div class="sf-card" style="padding:14px">
+        <p style="font-weight:600;margin:0 0 10px;font-size:13px">Nova previsão</p>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;align-items:end">
+          <label style="font-size:12px">Data prevista *
+            <input type="date" id="pf-new-date" class="pd-date-input" style="width:100%;margin-top:4px" />
+          </label>
+          <label style="font-size:12px">Tipo
+            <select id="pf-new-type" style="width:100%;margin-top:4px;padding:6px;border-radius:8px;border:1px solid var(--border-color)">${typeOpts}</select>
+          </label>
+          <label style="font-size:12px">Forma
+            <select id="pf-new-method" style="width:100%;margin-top:4px;padding:6px;border-radius:8px;border:1px solid var(--border-color)">${methodOpts}</select>
+          </label>
+          <label style="font-size:12px">Valor (USD)
+            <input type="text" id="pf-new-amount" placeholder="0" style="width:100%;margin-top:4px;padding:6px;border-radius:8px;border:1px solid var(--border-color)" />
+          </label>
+        </div>
+        <label style="font-size:12px;display:block;margin-top:10px">Ligação opcional
+          <select id="pf-new-receipt" style="width:100%;max-width:100%;margin-top:4px;padding:6px;border-radius:8px;border:1px solid var(--border-color)">${receiptOpts}</select>
+        </label>
+        <label style="font-size:12px;display:block;margin-top:10px">Notas
+          <input type="text" id="pf-new-notes" maxlength="500" style="width:100%;margin-top:4px;padding:6px;border-radius:8px;border:1px solid var(--border-color)" />
+        </label>
+        <button type="button" class="pd-action-btn pd-action-filled" id="pf-new-submit" style="margin-top:12px">Adicionar previsão</button>
+      </div>
+    </div>`;
+
+  el.querySelectorAll('[data-pf-del]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const id = parseInt(btn.getAttribute('data-pf-del'), 10);
+      if (!id || !confirm('Eliminar esta previsão?')) return;
+      const raw = await fetch(`/api/projects/${projectId}/payment-forecast/${id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      const j = await raw.json().catch(() => ({}));
+      if (!raw.ok || !j.success) {
+        showToast(j.error || 'Erro ao eliminar', 'error');
+        return;
+      }
+      showToast('Previsão eliminada');
+      loadPaymentForecastTab();
+    });
+  });
+
+  document.getElementById('pf-new-submit')?.addEventListener('click', async () => {
+    const expected_payment_date = document.getElementById('pf-new-date')?.value?.trim() || '';
+    if (!expected_payment_date) {
+      showToast('Indique a data prevista', 'error');
+      return;
+    }
+    const body = {
+      expected_payment_date,
+      payment_type: document.getElementById('pf-new-type')?.value || 'progress',
+      payment_method: document.getElementById('pf-new-method')?.value || 'check',
+      amount: document.getElementById('pf-new-amount')?.value?.trim() || null,
+      notes: document.getElementById('pf-new-notes')?.value?.trim() || null,
+      payment_receipt_id: document.getElementById('pf-new-receipt')?.value || null,
+    };
+    const raw = await fetch(`/api/projects/${projectId}/payment-forecast`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const j = await raw.json().catch(() => ({}));
+    if (!raw.ok || !j.success) {
+      showToast(j.error || 'Erro ao criar', 'error');
+      return;
+    }
+    showToast('Previsão adicionada');
+    loadPaymentForecastTab();
+  });
 }
 
 function costRowIsProjected(r) {

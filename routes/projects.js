@@ -1754,6 +1754,193 @@ router.get('/:id/portfolio/status', ...allAuthed, requirePermission('projects.vi
   }
 });
 
+const PPF_TYPES = new Set(['deposit', 'progress', 'final', 'other']);
+const PPF_METHODS = new Set(['cash', 'check', 'zelle', 'venmo', 'credit_card', 'bank_transfer', 'other']);
+
+function ymdPpf(s) {
+  const m = String(s || '').match(/^(\d{4}-\d{2}-\d{2})/);
+  return m ? m[1] : null;
+}
+
+router.get('/:id/payment-forecast', ...allAuthed, requirePermission('projects.view'), async (req, res) => {
+  try {
+    const pool = await getDBConnection();
+    if (!pool) return res.status(503).json({ success: false, error: 'Database not available' });
+    const id = parseInt(req.params.id, 10);
+    if (!id) return res.status(400).json({ success: false, error: 'Invalid id' });
+    const [pex] = await pool.query('SELECT id FROM projects WHERE id = ?', [id]);
+    if (!pex.length) return res.status(404).json({ success: false, error: 'Project not found' });
+    if (!(await tableExists(pool, 'project_payment_forecasts'))) {
+      return res.json({
+        success: true,
+        data: { forecasts: [], receipts: [], tableMissing: true },
+      });
+    }
+    const [forecasts] = await pool.query(
+      `SELECT * FROM project_payment_forecasts WHERE project_id = ? ORDER BY expected_payment_date ASC, id ASC`,
+      [id]
+    );
+    let receipts = [];
+    if (await tableExists(pool, 'payment_receipts')) {
+      const [r] = await pool.query(
+        `SELECT id, payment_type, amount, payment_date, payment_method, reference_number, notes
+         FROM payment_receipts WHERE project_id = ? ORDER BY payment_date DESC, id DESC`,
+        [id]
+      );
+      receipts = r || [];
+    }
+    res.json({ success: true, data: { forecasts, receipts, tableMissing: false } });
+  } catch (e) {
+    console.error('GET /projects/:id/payment-forecast', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+router.post('/:id/payment-forecast', ...allAuthed, requirePermission('projects.edit'), async (req, res) => {
+  try {
+    const pool = await getDBConnection();
+    if (!pool) return res.status(503).json({ success: false, error: 'Database not available' });
+    const projectId = parseInt(req.params.id, 10);
+    if (!projectId) return res.status(400).json({ success: false, error: 'Invalid id' });
+    if (!(await tableExists(pool, 'project_payment_forecasts'))) {
+      return res.status(503).json({
+        success: false,
+        error: 'Tabela project_payment_forecasts em falta — reinicie o servidor para criar o schema financeiro.',
+        code: 'PPF_SCHEMA_MISSING',
+      });
+    }
+    const [pex] = await pool.query('SELECT id FROM projects WHERE id = ?', [projectId]);
+    if (!pex.length) return res.status(404).json({ success: false, error: 'Project not found' });
+
+    const b = req.body || {};
+    const expected_payment_date = ymdPpf(b.expected_payment_date);
+    let payment_type = String(b.payment_type || 'progress').toLowerCase();
+    let payment_method = String(b.payment_method || 'check').toLowerCase();
+    if (!PPF_TYPES.has(payment_type)) payment_type = 'progress';
+    if (!PPF_METHODS.has(payment_method)) payment_method = 'check';
+    const amount =
+      b.amount != null && String(b.amount).trim() !== '' ? Math.round(Number(b.amount) * 100) / 100 : null;
+    const notes = b.notes != null ? String(b.notes).slice(0, 500) : null;
+    const prParsed =
+      b.payment_receipt_id != null && String(b.payment_receipt_id).trim() !== ''
+        ? parseInt(String(b.payment_receipt_id), 10)
+        : null;
+    const payment_receipt_id = Number.isFinite(prParsed) && prParsed > 0 ? prParsed : null;
+    const uid = req.session?.userId || null;
+
+    if (!expected_payment_date) {
+      return res.status(400).json({ success: false, error: 'expected_payment_date obrigatória (YYYY-MM-DD)' });
+    }
+
+    let receiptOk = true;
+    if (payment_receipt_id && (await tableExists(pool, 'payment_receipts'))) {
+      const [rc] = await pool.query(
+        'SELECT id FROM payment_receipts WHERE id = ? AND project_id = ? LIMIT 1',
+        [payment_receipt_id, projectId]
+      );
+      receiptOk = rc.length > 0;
+    } else if (payment_receipt_id) {
+      receiptOk = false;
+    }
+    const prid = receiptOk && payment_receipt_id ? payment_receipt_id : null;
+
+    const [ins] = await pool.execute(
+      `INSERT INTO project_payment_forecasts
+       (project_id, expected_payment_date, payment_type, payment_method, amount, notes, payment_receipt_id, created_by)
+       VALUES (?,?,?,?,?,?,?,?)`,
+      [projectId, expected_payment_date, payment_type, payment_method, amount, notes, prid, uid]
+    );
+    const [rowsIns] = await pool.query('SELECT * FROM project_payment_forecasts WHERE id = ?', [ins.insertId]);
+    res.status(201).json({ success: true, data: rowsIns[0] });
+  } catch (e) {
+    console.error('POST /projects/:id/payment-forecast', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+router.put('/:id/payment-forecast/:forecastId', ...allAuthed, requirePermission('projects.edit'), async (req, res) => {
+  try {
+    const pool = await getDBConnection();
+    if (!pool) return res.status(503).json({ success: false, error: 'Database not available' });
+    const projectId = parseInt(req.params.id, 10);
+    const forecastId = parseInt(req.params.forecastId, 10);
+    if (!projectId || !forecastId) return res.status(400).json({ success: false, error: 'Invalid id' });
+    if (!(await tableExists(pool, 'project_payment_forecasts'))) {
+      return res.status(503).json({ success: false, error: 'Tabela project_payment_forecasts em falta' });
+    }
+    const [ex] = await pool.query(
+      'SELECT id FROM project_payment_forecasts WHERE id = ? AND project_id = ?',
+      [forecastId, projectId]
+    );
+    if (!ex.length) return res.status(404).json({ success: false, error: 'Não encontrado' });
+
+    const b = req.body || {};
+    const expected_payment_date = ymdPpf(b.expected_payment_date);
+    let payment_type = String(b.payment_type || 'progress').toLowerCase();
+    let payment_method = String(b.payment_method || 'check').toLowerCase();
+    if (!PPF_TYPES.has(payment_type)) payment_type = 'progress';
+    if (!PPF_METHODS.has(payment_method)) payment_method = 'check';
+    const amount =
+      b.amount != null && String(b.amount).trim() !== '' ? Math.round(Number(b.amount) * 100) / 100 : null;
+    const notes = b.notes != null ? String(b.notes).slice(0, 500) : null;
+    const prParsedPut =
+      b.payment_receipt_id != null && String(b.payment_receipt_id).trim() !== ''
+        ? parseInt(String(b.payment_receipt_id), 10)
+        : null;
+    const payment_receipt_id = Number.isFinite(prParsedPut) && prParsedPut > 0 ? prParsedPut : null;
+
+    if (!expected_payment_date) {
+      return res.status(400).json({ success: false, error: 'expected_payment_date obrigatória' });
+    }
+
+    let receiptOk = true;
+    if (payment_receipt_id && (await tableExists(pool, 'payment_receipts'))) {
+      const [rc] = await pool.query(
+        'SELECT id FROM payment_receipts WHERE id = ? AND project_id = ? LIMIT 1',
+        [payment_receipt_id, projectId]
+      );
+      receiptOk = rc.length > 0;
+    } else if (payment_receipt_id) {
+      receiptOk = false;
+    }
+    const prid = receiptOk && payment_receipt_id ? payment_receipt_id : null;
+
+    await pool.execute(
+      `UPDATE project_payment_forecasts SET
+        expected_payment_date = ?, payment_type = ?, payment_method = ?, amount = ?, notes = ?, payment_receipt_id = ?
+       WHERE id = ? AND project_id = ?`,
+      [expected_payment_date, payment_type, payment_method, amount, notes, prid, forecastId, projectId]
+    );
+    const [rowsUp] = await pool.query('SELECT * FROM project_payment_forecasts WHERE id = ?', [forecastId]);
+    res.json({ success: true, data: rowsUp[0] });
+  } catch (e) {
+    console.error('PUT /projects/:id/payment-forecast', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+router.delete('/:id/payment-forecast/:forecastId', ...allAuthed, requirePermission('projects.edit'), async (req, res) => {
+  try {
+    const pool = await getDBConnection();
+    if (!pool) return res.status(503).json({ success: false, error: 'Database not available' });
+    const projectId = parseInt(req.params.id, 10);
+    const forecastId = parseInt(req.params.forecastId, 10);
+    if (!projectId || !forecastId) return res.status(400).json({ success: false, error: 'Invalid id' });
+    if (!(await tableExists(pool, 'project_payment_forecasts'))) {
+      return res.status(404).json({ success: false, error: 'Não encontrado' });
+    }
+    const [r] = await pool.execute(
+      'DELETE FROM project_payment_forecasts WHERE id = ? AND project_id = ?',
+      [forecastId, projectId]
+    );
+    if (r.affectedRows === 0) return res.status(404).json({ success: false, error: 'Não encontrado' });
+    res.json({ success: true });
+  } catch (e) {
+    console.error('DELETE /projects/:id/payment-forecast', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 router.get('/:id', ...allAuthed, requirePermission('projects.view'), async (req, res) => {
   try {
     const pool = await getDBConnection();
