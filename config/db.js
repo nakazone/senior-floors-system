@@ -57,6 +57,78 @@ export async function resetDbPool() {
   }
 }
 
+/**
+ * mysql2 prepared statements rejeitam `undefined`; usar `null` para SQL NULL.
+ * @param {unknown} values
+ */
+export function sanitizeMysqlBindParams(values) {
+  if (values == null) return values;
+  if (Array.isArray(values)) return values.map((v) => (v === undefined ? null : v));
+  if (typeof values === 'object') {
+    if (values instanceof Date || Buffer.isBuffer(values) || ArrayBuffer.isView(values)) return values;
+    const proto = Object.getPrototypeOf(values);
+    if (proto !== Object.prototype && proto !== null) return values;
+    const out = { ...values };
+    for (const k of Object.keys(out)) {
+      if (out[k] === undefined) out[k] = null;
+    }
+    return out;
+  }
+  return values;
+}
+
+/**
+ * Aplica sanitização de binds em pool ou ligação (incl. após pool.getConnection()).
+ * @param {import('mysql2/promise').Pool | import('mysql2/promise').PoolConnection} dbLike
+ */
+function applyMysqlBindSanitizer(dbLike) {
+  if (!dbLike || dbLike.__sfMysqlBindSanitizer) return dbLike;
+  dbLike.__sfMysqlBindSanitizer = true;
+  const origQuery = dbLike.query.bind(dbLike);
+  const origExecute = dbLike.execute.bind(dbLike);
+
+  dbLike.query = function (...args) {
+    if (args.length === 0) return origQuery();
+    const [sql, valOrCb, maybeCb] = args;
+    if (args.length === 1 && sql && typeof sql === 'object' && sql.sql != null) {
+      const o = { ...sql };
+      if (o.values !== undefined) o.values = sanitizeMysqlBindParams(o.values);
+      return origQuery(o);
+    }
+    if (args.length === 2 && typeof valOrCb === 'function') return origQuery(sql, valOrCb);
+    if (args.length >= 2 && typeof valOrCb !== 'function') {
+      const sanitized = sanitizeMysqlBindParams(valOrCb);
+      return args.length === 2 ? origQuery(sql, sanitized) : origQuery(sql, sanitized, maybeCb);
+    }
+    return origQuery(...args);
+  };
+
+  dbLike.execute = function (...args) {
+    if (args.length >= 2 && args[1] !== undefined) {
+      const next = [...args];
+      next[1] = sanitizeMysqlBindParams(next[1]);
+      return origExecute(...next);
+    }
+    return origExecute(...args);
+  };
+
+  return dbLike;
+}
+
+/** Pool + ligações de getConnection(). */
+function patchMysqlPoolBindSanitizer(p) {
+  if (!p || p.__sfMysqlPoolBindPatched) return p;
+  p.__sfMysqlPoolBindPatched = true;
+  applyMysqlBindSanitizer(p);
+  const origGetConnection = p.getConnection.bind(p);
+  p.getConnection = async function () {
+    const conn = await origGetConnection();
+    applyMysqlBindSanitizer(conn);
+    return conn;
+  };
+  return p;
+}
+
 export function parseDatabaseUrl(url) {
   if (!url || typeof url !== 'string') return null;
   let s = url.trim();
@@ -467,6 +539,7 @@ async function getDBConnection() {
     pool.on('error', (err) => {
       console.error('[DB] Pool error:', err && err.message ? err.message : err);
     });
+    patchMysqlPoolBindSanitizer(pool);
     return pool;
   } catch (e) {
     console.error('DB connection error:', e.message);
