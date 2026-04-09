@@ -196,6 +196,11 @@
         <input id="exp-desc" class="fin-form-full" placeholder="Descrição *" />
         <input id="exp-amount" type="number" step="0.01" placeholder="Valor *" />
         <input id="exp-date" type="date" />
+        <select id="exp-pay" class="fin-form-full" aria-label="Forma de pagamento">
+          <option value="cash_debit">Dinheiro / cartão de débito</option>
+          <option value="credit_card">Cartão de crédito</option>
+          <option value="store_credit">Crédito na loja</option>
+        </select>
         <select id="exp-vendor-select" class="fin-form-full" aria-label="Fornecedor cadastrado"><option value="">— Fornecedor (cadastro) —</option></select>
         <input id="exp-vendor-free" class="fin-form-full" placeholder="Ou fornecedor em texto (sem cadastro)" />
         <div class="fin-form-full fin-expense-receipt-row">

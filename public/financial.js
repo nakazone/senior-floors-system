@@ -157,6 +157,18 @@ function escapeHtml(s) {
     .replace(/"/g, '&quot;');
 }
 
+const EXPENSE_PAYMENT_METHOD_LABELS = {
+  cash_debit: 'Dinheiro / cartão de débito',
+  credit_card: 'Cartão de crédito',
+  store_credit: 'Crédito na loja',
+};
+
+function formatExpensePaymentMethod(v) {
+  const k = String(v || '').trim();
+  if (EXPENSE_PAYMENT_METHOD_LABELS[k]) return EXPENSE_PAYMENT_METHOD_LABELS[k];
+  return k || '—';
+}
+
 function renderCashFlowChart(months) {
   if (_cfChart) {
     _cfChart.destroy();
@@ -883,6 +895,8 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('exp-amount').value = '';
     document.getElementById('exp-vendor-free').value = '';
     document.getElementById('exp-date').value = formatLocalYMD(new Date());
+    const expPay = document.getElementById('exp-pay');
+    if (expPay) expPay.value = 'cash_debit';
     await ensureExpenseVendorSelect();
     openModal('modalExpense');
   });
@@ -906,6 +920,7 @@ document.addEventListener('DOMContentLoaded', () => {
       description: document.getElementById('exp-desc').value,
       amount: document.getElementById('exp-amount').value,
       expense_date: document.getElementById('exp-date').value,
+      payment_method: document.getElementById('exp-pay')?.value || 'cash_debit',
       vendor_id: vendorId,
       vendor: vendorFree,
       receipt_url: pendingExpenseReceipt?.receipt_url || null,
