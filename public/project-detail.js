@@ -17,6 +17,27 @@ const fmt$ = (v) =>
   );
 const fmtPct = (v) => `${(parseFloat(v) || 0).toFixed(1)}%`;
 
+/** Parse números de inputs (aceita vírgula decimal). */
+function parseCostNumber(v) {
+  if (v == null || v === '') return 0;
+  const s = String(v).trim().replace(/\s/g, '').replace(',', '.');
+  const n = parseFloat(s);
+  return Number.isFinite(n) ? n : 0;
+}
+
+const MATERIAL_STATUS_LABELS = {
+  pending: 'Pendente',
+  ordered: 'Pedido',
+  received: 'Recebido',
+  partial: 'Parcial',
+  returned: 'Devolvido',
+};
+
+function materialStatusLabel(code) {
+  if (code == null || code === '') return '—';
+  return MATERIAL_STATUS_LABELS[String(code)] || String(code);
+}
+
 function showToast(msg, type = 'success') {
   const bg =
     type === 'error' ? 'var(--sf-bad)' : type === 'info' ? 'var(--sf-navy)' : 'var(--sf-ok)';
@@ -485,6 +506,202 @@ function escapeHtml(s) {
     .replace(/"/g, '&quot;');
 }
 
+function costRowIsProjected(r) {
+  return r.is_projected === 1 || r.is_projected === true;
+}
+
+/** Atualiza visibilidade das linhas e totais conforme filtro real / projetado (aba Custos). */
+function applyCostProjectionFilter() {
+  const sel = document.getElementById('pd-cost-filter');
+  if (!sel) return;
+  const v = sel.value;
+  try {
+    localStorage.setItem('sf_project_cost_filter', v);
+  } catch (_) {}
+
+  const tab = document.getElementById('tab-costs');
+  if (!tab) return;
+
+  tab.querySelectorAll('.pd-collapsible[data-section]').forEach((section) => {
+    const table = section.querySelector('table.pd-table tbody');
+    if (!table) return;
+    const rows = table.querySelectorAll('tr[data-projection]');
+    let sum = 0;
+    let anyShown = false;
+    rows.forEach((tr) => {
+      const p = tr.getAttribute('data-projection');
+      const show = v === 'all' || (v === 'real' && p === '0') || (v === 'projected' && p === '1');
+      tr.classList.toggle('pd-cost-row-hidden', !show);
+      if (show) {
+        sum += parseFloat(tr.getAttribute('data-total')) || 0;
+        anyShown = true;
+      }
+    });
+    const noMatch = table.querySelector('tr.pd-cost-no-match');
+    if (noMatch) {
+      noMatch.hidden = anyShown || rows.length === 0;
+    }
+    const sumEl = section.querySelector('.pd-cost-section-sum');
+    if (sumEl) sumEl.textContent = fmt$(sum);
+  });
+
+  let grand = 0;
+  tab.querySelectorAll('tr[data-projection]:not(.pd-cost-row-hidden)').forEach((tr) => {
+    grand += parseFloat(tr.getAttribute('data-total')) || 0;
+  });
+  const grandEl = document.getElementById('pd-costs-grand-total');
+  if (grandEl) grandEl.textContent = fmt$(grand);
+  const sub = document.getElementById('pd-costs-grand-sub');
+  if (sub) {
+    if (v === 'all') sub.textContent = 'todos os itens';
+    else if (v === 'real') sub.textContent = 'apenas custos reais';
+    else sub.textContent = 'apenas custos projetados';
+  }
+}
+
+function syncCostEntryModeToAllForms(mode) {
+  document
+    .querySelectorAll('#tab-costs select[data-f="is_projected"], #tab-costs select[data-f="general_is_projected"]')
+    .forEach((s) => {
+      s.value = mode;
+    });
+}
+
+function wireCostEntryModeDefaults() {
+  const master = document.getElementById('pd-cost-entry-mode');
+  if (!master) return;
+  try {
+    const m = localStorage.getItem('sf_project_cost_entry_mode');
+    if (m === '0' || m === '1') master.value = m;
+  } catch (_) {}
+  syncCostEntryModeToAllForms(master.value);
+  master.addEventListener('change', () => {
+    try {
+      localStorage.setItem('sf_project_cost_entry_mode', master.value);
+    } catch (_) {}
+    syncCostEntryModeToAllForms(master.value);
+  });
+}
+
+function persistCostEntryModeFromForm(form) {
+  const sel =
+    form?.querySelector('[data-f="is_projected"]') || form?.querySelector('[data-f="general_is_projected"]');
+  if (!sel) return;
+  try {
+    localStorage.setItem('sf_project_cost_entry_mode', sel.value);
+    const master = document.getElementById('pd-cost-entry-mode');
+    if (master) master.value = sel.value;
+  } catch (_) {}
+}
+
+function updateMaterialCalcTotal(form) {
+  if (!form || form.getAttribute('data-add') !== 'material') return;
+  const get = (n) => form.querySelector(`[data-f="${n}"]`)?.value;
+  const qo = parseCostNumber(get('qty_ordered'));
+  const qu = parseCostNumber(get('qty_used'));
+  const qr = parseCostNumber(get('qty_received'));
+  const uc = parseCostNumber(get('unit_cost'));
+  const line = qo > 0 ? qo : qu > 0 ? qu : qr;
+  const el = form.querySelector('[data-f="material_calc_total"]');
+  if (el) el.textContent = fmt$(line * uc);
+}
+
+function wireMaterialCalcAndRowActions(root) {
+  root.querySelectorAll('[data-add="material"]').forEach((form) => {
+    ['qty_ordered', 'qty_used', 'qty_received', 'unit_cost'].forEach((name) => {
+      form.querySelector(`[data-f="${name}"]`)?.addEventListener('input', () => updateMaterialCalcTotal(form));
+    });
+    updateMaterialCalcTotal(form);
+  });
+
+  root.querySelectorAll('[data-edit-mat]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const id = btn.getAttribute('data-edit-mat');
+      const m = (project?.materials || []).find((x) => String(x.id) === String(id));
+      if (!m) {
+        showToast('Material não encontrado', 'error');
+        return;
+      }
+      const form = root.querySelector('[data-add="material"]');
+      if (!form) return;
+      const section = form.closest('.pd-collapsible');
+      section?.classList.add('open');
+      form.querySelector('[data-f="material_edit_id"]').value = String(m.id);
+      form.querySelector('[data-f="product_name"]').value = m.product_name || '';
+      form.querySelector('[data-f="sku"]').value = m.sku != null ? String(m.sku) : '';
+      form.querySelector('[data-f="supplier"]').value = m.supplier != null ? String(m.supplier) : '';
+      form.querySelector('[data-f="unit"]').value = m.unit != null ? String(m.unit) : '';
+      form.querySelector('[data-f="qty_ordered"]').value = m.qty_ordered != null ? String(m.qty_ordered) : '';
+      form.querySelector('[data-f="qty_received"]').value = m.qty_received != null ? String(m.qty_received) : '';
+      form.querySelector('[data-f="qty_used"]').value = m.qty_used != null ? String(m.qty_used) : '';
+      form.querySelector('[data-f="unit_cost"]').value = m.unit_cost != null ? String(m.unit_cost) : '';
+      form.querySelector('[data-f="service_category"]').value = m.service_category || 'general';
+      form.querySelector('[data-f="is_projected"]').value = costRowIsProjected(m) ? '1' : '0';
+      const st = form.querySelector('[data-f="status"]');
+      if (st) {
+        const ok = ['pending', 'ordered', 'received', 'partial', 'returned'];
+        st.value = m.status && ok.includes(String(m.status)) ? String(m.status) : 'ordered';
+      }
+      const notes = form.querySelector('[data-f="mat_notes"]');
+      if (notes) notes.value = m.notes != null ? String(m.notes) : '';
+      const hid = form.querySelector('[data-f="erp_product_id"]');
+      const search = form.querySelector('[data-f="erp_product_search"]');
+      if (m.erp_product_id != null && String(m.erp_product_id).trim() !== '') {
+        if (hid) hid.value = String(m.erp_product_id);
+        if (search) search.value = [m.product_name, m.sku].filter(Boolean).join(' · ');
+      } else {
+        if (hid) hid.value = '';
+        if (search) search.value = '';
+      }
+      const cancel = form.querySelector('[data-cancel-mat-edit]');
+      if (cancel) cancel.style.display = '';
+      const sub = form.querySelector('[data-submit-cost="material"]');
+      if (sub) sub.textContent = 'Salvar alterações';
+      updateMaterialCalcTotal(form);
+      form.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    });
+  });
+
+  root.querySelectorAll('[data-del-mat]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const id = btn.getAttribute('data-del-mat');
+      if (!id || !confirm('Excluir este material do projeto?')) return;
+      const res = await fetch(`/api/projects/${projectId}/materials/${id}`, { method: 'DELETE', credentials: 'include' });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok || !j.success) showToast(j.error || 'Erro ao excluir', 'error');
+      else showToast('Material excluído');
+      loadProject();
+    });
+  });
+
+  root.querySelectorAll('[data-cancel-mat-edit]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const form = btn.closest('[data-add="material"]');
+      if (!form) return;
+      form.querySelector('[data-f="material_edit_id"]').value = '';
+      form.querySelector('[data-f="erp_product_id"]').value = '';
+      form.querySelector('[data-f="erp_product_search"]').value = '';
+      form.querySelector('[data-f="product_name"]').value = '';
+      form.querySelector('[data-f="sku"]').value = '';
+      form.querySelector('[data-f="supplier"]').value = '';
+      form.querySelector('[data-f="unit"]').value = '';
+      form.querySelector('[data-f="qty_ordered"]').value = '';
+      form.querySelector('[data-f="qty_received"]').value = '';
+      form.querySelector('[data-f="qty_used"]').value = '';
+      form.querySelector('[data-f="unit_cost"]').value = '';
+      form.querySelector('[data-f="mat_notes"]').value = '';
+      if (form.querySelector('[data-f="status"]')) form.querySelector('[data-f="status"]').value = 'ordered';
+      form.querySelector('[data-f="service_category"]').value = 'supply';
+      const master = document.getElementById('pd-cost-entry-mode');
+      form.querySelector('[data-f="is_projected"]').value = master && master.value === '1' ? '1' : '0';
+      btn.style.display = 'none';
+      const sub = form.querySelector('[data-submit-cost="material"]');
+      if (sub) sub.textContent = sub.getAttribute('data-default-label') || '+ Adicionar material';
+      updateMaterialCalcTotal(form);
+    });
+  });
+}
+
 function renderCostsTab(p) {
   const el = document.getElementById('tab-costs');
   if (!el) return;
@@ -497,8 +714,29 @@ function renderCostsTab(p) {
   const sumMat = materials.reduce((a, x) => a + (parseFloat(x.total_cost) || 0), 0);
   const grand = sumLabor + sumAdd + sumMat;
   el.innerHTML = `
+    <div class="pd-cost-filter-bar">
+      <div class="pd-cost-filter-group">
+        <label for="pd-cost-filter">Visualizar</label>
+        <select id="pd-cost-filter" class="pd-cost-filter-select" aria-label="Filtrar custos por real ou projetado">
+          <option value="all">Todos (real + projetado)</option>
+          <option value="real">Somente custo real</option>
+          <option value="projected">Somente custo projetado</option>
+        </select>
+      </div>
+      <div class="pd-cost-filter-group">
+        <label for="pd-cost-entry-mode">Novo lançamento</label>
+        <select id="pd-cost-entry-mode" class="pd-cost-filter-select" aria-label="Padrão real ou projetado para novos custos">
+          <option value="0">Custo real</option>
+          <option value="1">Custo projetado</option>
+        </select>
+      </div>
+    </div>
     <button type="button" class="pd-btn pd-btn--primary" id="btn-sync-payroll-tab" style="margin-bottom:14px">🔄 Importar da folha de pagamento</button>
-    <p style="font-weight:700;color:var(--sf-navy);margin-bottom:12px">Total custos: ${fmt$(grand)}</p>
+    <p class="pd-cost-grand-line">
+      <span class="pd-cost-grand-label">Total (filtro):</span>
+      <strong id="pd-costs-grand-total">${fmt$(grand)}</strong>
+      <span class="pd-cost-grand-sub" id="pd-costs-grand-sub">todos os itens</span>
+    </p>
     ${costSection('labor', 'Mão de obra (labor)', labor, sumLabor, 'labor', null, constructionPayrollRates)}
     ${costSection('material', 'Materiais (stock)', [], sumMat, 'material', materials)}
     ${costSection('additional', 'Adicional', additional, sumAdd, 'additional')}
@@ -507,7 +745,19 @@ function renderCostsTab(p) {
     h.addEventListener('click', () => h.closest('.pd-collapsible').classList.toggle('open'));
   });
   wireCostForms(el, p);
+  wireErpProductMaterialPickers(el);
+  wireMaterialCalcAndRowActions(el);
   document.getElementById('btn-sync-payroll-tab')?.addEventListener('click', syncPayroll);
+  const filt = document.getElementById('pd-cost-filter');
+  if (filt) {
+    try {
+      const s = localStorage.getItem('sf_project_cost_filter');
+      if (s === 'real' || s === 'projected' || s === 'all') filt.value = s;
+    } catch (_) {}
+    filt.addEventListener('change', applyCostProjectionFilter);
+    applyCostProjectionFilter();
+  }
+  wireCostEntryModeDefaults();
 }
 
 function costSection(key, title, rows, sum, type, matRows, payrollEmployees) {
@@ -523,17 +773,21 @@ function costSection(key, title, rows, sum, type, matRows, payrollEmployees) {
       : '';
   return `
     <div class="pd-collapsible open" data-section="${key}">
-      <div class="pd-collapsible-h"><span>${title}</span><span>${fmt$(sum)}</span></div>
+      <div class="pd-collapsible-h"><span>${title}</span><span class="pd-cost-section-sum">${fmt$(sum)}</span></div>
       <div class="pd-collapsible-b">
         <table class="pd-table">
           <thead><tr><th>Descrição</th><th>Cat.</th><th>Qtd</th><th>Un.</th><th>Unit</th><th>Total</th>${isMat ? '<th>Status</th>' : '<th>Pago</th>'}<th></th></tr></thead>
           <tbody>
-            ${list.length ? list.map((r) => costRowHtml(r, isMat)).join('') : '<tr><td colspan="8" style="color:var(--sf-muted)">Sem itens</td></tr>'}
+            ${
+              list.length
+                ? `${list.map((r) => costRowHtml(r, isMat)).join('')}<tr class="pd-cost-no-match" hidden><td colspan="8" style="color:var(--sf-muted)">Nenhum item neste filtro</td></tr>`
+                : '<tr><td colspan="8" style="color:var(--sf-muted)">Sem itens</td></tr>'
+            }
           </tbody>
         </table>
         <div class="pd-inline-form" data-add="${type}">
           ${isMat ? materialFormFields() : type === 'labor' ? laborFormFields(payrollEmployees || []) : additionalFormFields()}
-          <button type="button" class="pd-btn pd-btn--primary" style="grid-column:1/-1" data-submit-cost="${type}">+ Adicionar</button>
+          <button type="button" class="pd-btn pd-btn--primary" style="grid-column:1/-1" data-submit-cost="${type}" data-default-label="${isMat ? '+ Adicionar material' : '+ Adicionar'}">${isMat ? '+ Adicionar material' : '+ Adicionar'}</button>
         </div>
         ${matExtra}
       </div>
@@ -586,19 +840,47 @@ function materialGeneralFormFields() {
     <input type="text" data-f="general_notes" placeholder="Notas (opcional)" style="grid-column:1/-1" />`;
 }
 
+function erpUnitDisplay(ut) {
+  const u = String(ut || 'sq_ft').toLowerCase();
+  if (u === 'sq_ft') return 'sq ft';
+  if (u === 'linear_ft') return 'linear ft';
+  return u.replace(/_/g, ' ');
+}
+
 function materialFormFields() {
   return `
+    <input type="hidden" data-f="material_edit_id" value="" />
+    <div class="pd-erp-wrap" style="grid-column:1/-1">
+      <span class="pd-erp-label">Catálogo ERP</span>
+      <div class="pd-erp-search-wrap">
+        <input type="search" data-f="erp_product_search" placeholder="Pesquisar produto (nome ou SKU)…" autocomplete="off" />
+        <input type="hidden" data-f="erp_product_id" value="" />
+        <div class="pd-erp-results" data-erp-results hidden></div>
+      </div>
+    </div>
     <select data-f="is_projected" style="grid-column:1/-1">
       <option value="0">Custo real</option>
       <option value="1">Projetado</option>
     </select>
+    <select data-f="status" style="grid-column:1/-1" aria-label="Status do material">
+      <option value="ordered">Pedido / planejado</option>
+      <option value="pending">Pendente</option>
+      <option value="partial">Recebimento parcial</option>
+      <option value="received">Recebido</option>
+      <option value="returned">Devolvido</option>
+    </select>
     <input type="text" data-f="product_name" placeholder="Produto" />
+    <input type="text" data-f="sku" placeholder="SKU" />
     <input type="text" data-f="supplier" placeholder="Fornecedor" />
-    <input type="number" data-f="qty_ordered" placeholder="Qtd pedida" step="0.01" />
-    <input type="number" data-f="qty_received" placeholder="Qtd recebida" step="0.01" />
-    <input type="number" data-f="qty_used" placeholder="Qtd usada" step="0.01" />
-    <input type="number" data-f="unit_cost" placeholder="Custo unit." step="0.01" />
-    <select data-f="service_category"><option value="general">general</option><option value="supply">supply</option><option value="installation">installation</option><option value="sand_finish">sand_finish</option></select>`;
+    <input type="text" data-f="unit" placeholder="Unidade (ex. sq ft, caixa)" />
+    <input type="number" data-f="qty_ordered" placeholder="Qtd pedida" step="0.01" inputmode="decimal" />
+    <input type="number" data-f="qty_received" placeholder="Qtd recebida" step="0.01" inputmode="decimal" />
+    <input type="number" data-f="qty_used" placeholder="Qtd usada" step="0.01" inputmode="decimal" />
+    <input type="number" data-f="unit_cost" placeholder="Custo unit." step="0.01" inputmode="decimal" />
+    <p class="pd-mat-calc-line" style="grid-column:1/-1">Total (qtd base × custo unit.): <strong data-f="material_calc_total">—</strong></p>
+    <select data-f="service_category"><option value="general">general</option><option value="supply">supply</option><option value="installation">installation</option><option value="sand_finish">sand_finish</option></select>
+    <input type="text" data-f="mat_notes" placeholder="Notas (opcional)" style="grid-column:1/-1" />
+    <button type="button" class="pd-btn" style="grid-column:1/-1;display:none" data-cancel-mat-edit>Cancelar edição</button>`;
 }
 
 function additionalFormFields() {
@@ -615,16 +897,22 @@ function additionalFormFields() {
 }
 
 function costRowHtml(r, isMat) {
+  const projFlag = costRowIsProjected(r) ? '1' : '0';
+  const totNum = parseFloat(r.total_cost) || 0;
   if (isMat) {
-    const proj = r.is_projected === 1 || r.is_projected === true ? ' <small>(proj.)</small>' : '';
-    return `<tr>
-      <td>${escapeHtml(r.product_name)}${proj}</td><td>${escapeHtml(r.service_category)}</td>
+    const proj = costRowIsProjected(r) ? ' <small>(proj.)</small>' : '';
+    const erp =
+      r.erp_product_id != null && String(r.erp_product_id).trim() !== ''
+        ? ' <span class="pd-erp-badge" title="Ligado ao ERP">ERP</span>'
+        : '';
+    return `<tr data-projection="${projFlag}" data-total="${totNum}">
+      <td>${escapeHtml(r.product_name)}${erp}${proj}</td><td>${escapeHtml(r.service_category)}</td>
       <td>${r.qty_ordered}</td><td>${escapeHtml(r.unit || '')}</td><td>${fmt$(r.unit_cost)}</td><td>${fmt$(r.total_cost)}</td>
-      <td>${escapeHtml(r.status)}</td>
-      <td></td></tr>`;
+      <td>${escapeHtml(materialStatusLabel(r.status))}</td>
+      <td class="pd-table-actions"><button type="button" class="pd-btn pd-btn--compact" data-edit-mat="${r.id}">Editar</button><button type="button" class="pd-btn pd-btn--compact pd-btn--danger" data-del-mat="${r.id}">Excluir</button></td></tr>`;
   }
-  const proj = r.is_projected === 1 || r.is_projected === true ? ' <small>(proj.)</small>' : '';
-  return `<tr>
+  const proj = costRowIsProjected(r) ? ' <small>(proj.)</small>' : '';
+  return `<tr data-projection="${projFlag}" data-total="${totNum}">
     <td>${escapeHtml(r.description)}${proj}</td><td>${escapeHtml(r.service_category)}</td>
     <td>${r.quantity}</td><td>${escapeHtml(r.unit || '')}</td><td>${fmt$(r.unit_cost)}</td><td>${fmt$(r.total_cost)}</td>
     <td>${r.paid ? 'Sim' : 'Não'}</td>
@@ -665,6 +953,92 @@ function wirePayrollPick(root) {
   });
 }
 
+let erpMaterialSearchTimer = null;
+
+async function fetchErpProductsForProject(q) {
+  const res = await fetch(
+    `/api/projects/lookup/erp-products?q=${encodeURIComponent(q)}&limit=80`,
+    { credentials: 'include' }
+  );
+  const j = await res.json();
+  if (!j.success) return { list: [], erp: false };
+  return { list: j.data || [], erp: j.erp_available !== false };
+}
+
+function wireErpProductMaterialPickers(root) {
+  root.querySelectorAll('[data-add="material"]').forEach((form) => {
+    const search = form.querySelector('[data-f="erp_product_search"]');
+    const box = form.querySelector('[data-erp-results]');
+    const hid = form.querySelector('[data-f="erp_product_id"]');
+    if (!search || !box || !hid) return;
+
+    const applyProduct = (p) => {
+      hid.value = String(p.id);
+      const pn = form.querySelector('[data-f="product_name"]');
+      const sku = form.querySelector('[data-f="sku"]');
+      const sup = form.querySelector('[data-f="supplier"]');
+      const unit = form.querySelector('[data-f="unit"]');
+      const uc = form.querySelector('[data-f="unit_cost"]');
+      const cat = form.querySelector('[data-f="service_category"]');
+      if (pn) pn.value = p.name || '';
+      if (sku) sku.value = p.sku || '';
+      if (sup) sup.value = p.supplier_name || '';
+      if (unit) unit.value = erpUnitDisplay(p.unit_type);
+      if (uc) uc.value = p.cost_price != null ? String(p.cost_price) : '';
+      if (cat) cat.value = 'supply';
+      search.value = [p.name, p.sku].filter(Boolean).join(' · ');
+      box.innerHTML = '';
+      box.hidden = true;
+      updateMaterialCalcTotal(form);
+    };
+
+    search.addEventListener('input', () => {
+      clearTimeout(erpMaterialSearchTimer);
+      hid.value = '';
+      const q = search.value.trim();
+      if (q.length < 2) {
+        box.innerHTML = '';
+        box.hidden = true;
+        return;
+      }
+      erpMaterialSearchTimer = setTimeout(async () => {
+        const { list, erp } = await fetchErpProductsForProject(q);
+        if (!erp) {
+          box.innerHTML =
+            '<div class="pd-erp-row pd-erp-row--muted">ERP indisponível — use cadastro manual ou rode migrate supplier-product.</div>';
+          box.hidden = false;
+          return;
+        }
+        if (!list.length) {
+          box.innerHTML = '<div class="pd-erp-row pd-erp-row--muted">Nenhum resultado</div>';
+          box.hidden = false;
+          return;
+        }
+        box.innerHTML = list
+          .map(
+            (p) =>
+              `<button type="button" class="pd-erp-row" data-erp-pick="${p.id}"><strong>${escapeHtml(p.name || '')}</strong><span>${escapeHtml(p.sku || '—')} · ${fmt$(p.cost_price)} · ${escapeHtml(p.supplier_name || '')}</span></button>`
+          )
+          .join('');
+        box.hidden = false;
+        box.querySelectorAll('[data-erp-pick]').forEach((btn) => {
+          btn.addEventListener('click', () => {
+            const pid = parseInt(btn.getAttribute('data-erp-pick'), 10);
+            const row = list.find((x) => x.id === pid);
+            if (row) applyProduct(row);
+          });
+        });
+      }, 300);
+    });
+
+    search.addEventListener('blur', () => {
+      setTimeout(() => {
+        if (!box.matches(':hover')) box.hidden = true;
+      }, 200);
+    });
+  });
+}
+
 function wireCostForms(root) {
   wirePayrollPick(root);
   root.querySelectorAll('[data-submit-general-material]').forEach((btn) => {
@@ -697,6 +1071,7 @@ function wireCostForms(root) {
       if (!res.ok || !j.success) showToast(j.error || 'Erro', 'error');
       else {
         showToast('Custo geral de materiais adicionado');
+        persistCostEntryModeFromForm(form);
         form.querySelector('[data-f="general_total"]').value = '';
         const n = form.querySelector('[data-f="general_notes"]');
         if (n) n.value = '';
@@ -710,25 +1085,48 @@ function wireCostForms(root) {
       const form = btn.closest('.pd-inline-form');
       const get = (name) => form.querySelector(`[data-f="${name}"]`)?.value;
       if (type === 'material') {
+        const editId = (get('material_edit_id') || '').trim();
+        if (!String(get('product_name') || '').trim()) {
+          showToast('Informe o nome do produto', 'error');
+          return;
+        }
         const body = {
           product_name: get('product_name'),
-          supplier: get('supplier') || null,
-          qty_ordered: get('qty_ordered') || 0,
-          qty_received: get('qty_received') || 0,
-          qty_used: get('qty_used') || 0,
-          unit_cost: get('unit_cost') || 0,
+          sku: (get('sku') || '').trim() || null,
+          supplier: (get('supplier') || '').trim() || null,
+          unit: (get('unit') || '').trim() || null,
+          qty_ordered: parseCostNumber(get('qty_ordered')),
+          qty_received: parseCostNumber(get('qty_received')),
+          qty_used: parseCostNumber(get('qty_used')),
+          unit_cost: parseCostNumber(get('unit_cost')),
           service_category: get('service_category') || 'general',
+          status: get('status') || undefined,
+          notes: (get('mat_notes') || '').trim() || null,
           is_projected: get('is_projected') === '1',
         };
-        const res = await fetch(`/api/projects/${projectId}/materials`, {
-          method: 'POST',
+        const eidRaw = get('erp_product_id');
+        if (eidRaw) {
+          const n = parseInt(String(eidRaw), 10);
+          if (Number.isFinite(n) && n > 0) body.erp_product_id = n;
+        } else if (editId) {
+          body.erp_product_id = null;
+        }
+        const url = editId
+          ? `/api/projects/${projectId}/materials/${editId}`
+          : `/api/projects/${projectId}/materials`;
+        const method = editId ? 'PUT' : 'POST';
+        const res = await fetch(url, {
+          method,
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body),
         });
         const j = await res.json();
         if (!res.ok || !j.success) showToast(j.error || 'Erro', 'error');
-        else showToast('Material adicionado');
+        else {
+          showToast(editId ? 'Material atualizado' : 'Material adicionado');
+          persistCostEntryModeFromForm(form);
+        }
       } else {
         const body = {
           cost_type: type,
@@ -748,7 +1146,10 @@ function wireCostForms(root) {
         });
         const j = await res.json();
         if (!res.ok || !j.success) showToast(j.error || 'Erro', 'error');
-        else showToast('Custo adicionado');
+        else {
+          showToast('Custo adicionado');
+          persistCostEntryModeFromForm(form);
+        }
       }
       loadProject();
     });

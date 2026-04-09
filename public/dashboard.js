@@ -143,7 +143,11 @@ fetch('/api/auth/session', { credentials: 'include' })
             window.location.replace('/projects.html');
             return;
         }
-        if (pageParam && document.querySelector(`#dashboardSidebar [data-page="${pageParam}"]`)) {
+        if (pageParam === 'customers') {
+            const tp = new URLSearchParams(window.location.search).get('type');
+            customersTypeFilter = tp === 'builder' ? 'builder' : '';
+            showPage('customers');
+        } else if (pageParam && document.querySelector(`#dashboardSidebar [data-page="${pageParam}"]`)) {
             showPage(pageParam);
         }
     })
@@ -382,6 +386,7 @@ if (mobileTabBarEl) {
             }
             closeMobileMoreSheet();
             closeSfFabSheet();
+            if (t === 'customers') customersTypeFilter = '';
             showPage(t);
         });
     });
@@ -437,6 +442,7 @@ document.getElementById('sfFabQuickQuote')?.addEventListener('click', () => {
 });
 document.getElementById('sfFabNewClient')?.addEventListener('click', () => {
     closeSfFabSheet();
+    customersTypeFilter = '';
     showPage('customers');
     if (typeof showNewCustomerModal === 'function') showNewCustomerModal();
 });
@@ -479,6 +485,10 @@ if (dashboardSidebarEl) {
             }
             e.preventDefault();
             const page = item.dataset.page;
+            const ct = item.getAttribute('data-customers-type');
+            if (page === 'customers') {
+                customersTypeFilter = ct === 'builder' ? 'builder' : '';
+            }
             if (page) showPage(page);
         });
     });
@@ -511,7 +521,18 @@ function showPage(pageName) {
     const pageEl = document.getElementById(pageName + 'Page');
     if (pageEl) {
         pageEl.style.display = 'block';
-        const navLink = side && pageName ? side.querySelector(`[data-page="${pageName}"]`) : null;
+        let navLink = null;
+        if (side && pageName) {
+            if (pageName === 'customers') {
+                if (customersTypeFilter === 'builder') {
+                    navLink = side.querySelector('.nav-item[data-page="customers"][data-customers-type="builder"]');
+                } else {
+                    navLink = side.querySelector('.nav-item[data-page="customers"]:not([data-customers-type])');
+                }
+            } else {
+                navLink = side.querySelector(`[data-page="${pageName}"]`);
+            }
+        }
         if (navLink) navLink.classList.add('active');
         currentPageName = pageName;
         
@@ -538,7 +559,10 @@ function showPage(pageName) {
                 }, 100);
             }
         }
-        else if (pageName === 'customers') { currentPage = 1; loadCustomers(); }
+        else if (pageName === 'customers') {
+            customersPage = 1;
+            loadCustomers();
+        }
         else if (pageName === 'quotes') {
             currentPage = 1;
             if (typeof updateQuotesFilterChipStyles === 'function') updateQuotesFilterChipStyles();
@@ -1763,6 +1787,8 @@ window.leadsSearchClear = leadsSearchClear;
 
 // Clients (/api/customers)
 let customersPage = 1;
+/** '' | 'builder' — filtro da lista em Clientes / Builders */
+let customersTypeFilter = '';
 let customerInsightEditId = null;
 
 function fmtMoneyInsight(n) {
@@ -1813,7 +1839,9 @@ async function loadCustomers() {
     tbody.innerHTML = '<tr><td colspan="10" class="text-center">Loading...</td></tr>';
     
     try {
-        const response = await fetch(`/api/customers?page=${customersPage}&limit=20`, { credentials: 'include' });
+        const qs = new URLSearchParams({ page: String(customersPage), limit: '20' });
+        if (customersTypeFilter === 'builder') qs.set('customer_type', 'builder');
+        const response = await fetch(`/api/customers?${qs}`, { credentials: 'include' });
         const data = await response.json();
         
         if (data.success && data.data) {

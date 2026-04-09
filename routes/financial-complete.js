@@ -19,6 +19,7 @@ import {
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const uploadDir = path.join(__dirname, '..', 'uploads', 'receipts', 'operational');
+const expenseReceiptDir = path.join(__dirname, '..', 'uploads', 'receipts', 'expenses');
 const vendorInvoiceDir = path.join(__dirname, '..', 'uploads', 'vendor-invoices');
 
 const receiptStorage = multer.diskStorage({
@@ -32,6 +33,27 @@ const receiptStorage = multer.diskStorage({
   },
 });
 const uploadReceipt = multer({ storage: receiptStorage, limits: { fileSize: 15 * 1024 * 1024 } });
+
+const expenseReceiptStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => {
+    fs.mkdirSync(expenseReceiptDir, { recursive: true });
+    cb(null, expenseReceiptDir);
+  },
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname || '') || '.bin';
+    cb(null, `exp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}${ext}`);
+  },
+});
+const uploadExpenseReceipt = multer({
+  storage: expenseReceiptStorage,
+  limits: { fileSize: 15 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const m = (file.mimetype || '').toLowerCase();
+    const ok =
+      m.startsWith('image/') || m === 'application/pdf' || m === 'image/heic' || m === 'image/heif' || m === '';
+    cb(null, ok);
+  },
+});
 
 const vendorInvoiceStorage = multer.diskStorage({
   destination: (_req, _file, cb) => {
@@ -101,6 +123,19 @@ function periodBounds(req) {
 /** Rotas em /api/financial (além de /api/financial/dashboard já registado no index) */
 export const financialPlRouter = Router();
 financialPlRouter.use(requireAuth);
+
+/** Upload de recibo antes de criar despesa (JSON POST /api/expenses). */
+financialPlRouter.post('/expense-receipt', uploadExpenseReceipt.single('file'), (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ success: false, error: 'Ficheiro em falta' });
+    const rel = `receipts/expenses/${req.file.filename}`;
+    const url = `/uploads/${rel}`;
+    res.json({ success: true, receipt_file_path: rel, receipt_url: url });
+  } catch (e) {
+    console.error('POST /financial/expense-receipt', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
 
 financialPlRouter.get('/pl', async (req, res) => {
   try {

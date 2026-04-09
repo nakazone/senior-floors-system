@@ -11,6 +11,15 @@ import {
   calculateRealTimeProfitAnalysis
 } from '../services/financialCalculator.js';
 
+async function tableColumnExists(pool, table, column) {
+  const [rows] = await pool.query(
+    `SELECT COUNT(*) AS c FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?`,
+    [table, column]
+  );
+  return Number(rows[0].c) > 0;
+}
+
 /**
  * Obter financial de um projeto
  */
@@ -225,6 +234,7 @@ export async function createExpense(req, res) {
     const {
       category,
       project_id,
+      vendor_id: bodyVendorId,
       vendor,
       description,
       amount,
@@ -234,36 +244,74 @@ export async function createExpense(req, res) {
       receipt_url,
       receipt_file_path
     } = req.body;
-    
+
     if (!category || !description || !amount || !expense_date) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'category, description, amount, and expense_date are required' 
+      return res.status(400).json({
+        success: false,
+        error: 'category, description, amount, and expense_date are required'
       });
     }
-    
+
+    let vendorId =
+      bodyVendorId != null && bodyVendorId !== '' ? parseInt(String(bodyVendorId), 10) : null;
+    if (!Number.isFinite(vendorId) || vendorId <= 0) vendorId = null;
+
+    let vendorStr =
+      vendor != null && String(vendor).trim() !== '' ? String(vendor).trim().slice(0, 255) : null;
+
+    if (vendorId) {
+      const [vr] = await pool.query('SELECT name FROM vendors WHERE id = ? LIMIT 1', [vendorId]);
+      if (vr.length) {
+        vendorStr = String(vr[0].name).slice(0, 255);
+      } else {
+        vendorId = null;
+      }
+    }
+
     const totalAmount = parseFloat(amount) + (parseFloat(tax_amount) || 0);
-    
-    const [result] = await pool.execute(
-      `INSERT INTO expenses
-       (category, project_id, vendor, description, amount, tax_amount, total_amount,
-        payment_method, expense_date, receipt_url, receipt_file_path, created_by, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
-      [
-        category,
-        project_id || null,
-        vendor || null,
-        description,
-        amount,
-        tax_amount || 0,
-        totalAmount,
-        payment_method || null,
-        expense_date,
-        receipt_url || null,
-        receipt_file_path || null,
-        userId
-      ]
+
+    const hasVendorIdCol = await tableColumnExists(pool, 'expenses', 'vendor_id');
+    const hasVendorNameCol = await tableColumnExists(pool, 'expenses', 'vendor_name');
+
+    const cols = ['category', 'project_id'];
+    const vals = [category, project_id || null];
+    if (hasVendorIdCol) {
+      cols.push('vendor_id');
+      vals.push(vendorId);
+    }
+    if (hasVendorNameCol) {
+      cols.push('vendor_name');
+      vals.push(vendorStr);
+    }
+    cols.push(
+      'vendor',
+      'description',
+      'amount',
+      'tax_amount',
+      'total_amount',
+      'payment_method',
+      'expense_date',
+      'receipt_url',
+      'receipt_file_path',
+      'created_by',
+      'status'
     );
+    vals.push(
+      vendorStr,
+      description,
+      amount,
+      tax_amount || 0,
+      totalAmount,
+      payment_method || null,
+      expense_date,
+      receipt_url || null,
+      receipt_file_path || null,
+      userId,
+      'pending'
+    );
+
+    const sql = `INSERT INTO expenses (${cols.map((c) => `\`${c}\``).join(', ')}) VALUES (${cols.map(() => '?').join(', ')})`;
+    const [result] = await pool.execute(sql, vals);
     
     const [created] = await pool.query(
       `SELECT e.*, p.project_number

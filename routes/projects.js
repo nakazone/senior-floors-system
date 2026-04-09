@@ -31,6 +31,7 @@ import {
 } from '../lib/projectAutomation.js';
 import { sumQuoteItemsRevenueByCategory } from '../lib/quoteRevenueSplit.js';
 import { applyQuoteLineRevenueToProject } from '../lib/syncProjectRevenueFromQuote.js';
+import * as productsRepo from '../modules/erp/productsRepo.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const router = Router();
@@ -38,6 +39,38 @@ const allAuthed = [requireAuth];
 
 function nf(v) {
   return parseFloat(v) || 0;
+}
+
+const MATERIAL_STATUSES = ['pending', 'ordered', 'received', 'partial', 'returned'];
+
+function normalizeMaterialUnitIn(v) {
+  if (v == null) return null;
+  const t = String(v).trim();
+  return t === '' ? null : t.slice(0, 50);
+}
+
+/** Qtd base para total_cost: pedida; senão usada; senão recebida. */
+function materialLineQtyForTotal(qo, qr, qu) {
+  const a = nf(qo);
+  const b = nf(qu);
+  const c = nf(qr);
+  if (a > 0) return a;
+  if (b > 0) return b;
+  return c;
+}
+
+function resolveNewMaterialStatus(b, qo, qr, qu) {
+  const s = b.status;
+  if (s && MATERIAL_STATUSES.includes(String(s))) return String(s);
+  if (nf(qr) >= nf(qo) && nf(qo) > 0) return 'received';
+  if (nf(qr) > 0) return 'partial';
+  return 'ordered';
+}
+
+function coerceMaterialStatusForUpdate(b) {
+  if (b.status == null || b.status === '') return null;
+  const s = String(b.status);
+  return MATERIAL_STATUSES.includes(s) ? s : null;
 }
 
 /** @param {import('mysql2/promise').RowDataPacket} row */
@@ -96,6 +129,57 @@ async function safeChildQuery(pool, sql, params, fallback = []) {
     }
     throw e;
   }
+}
+
+/** Colunas físicas de datas em `projects` (schema novo vs legado `estimated_*` / `actual_*`). */
+function erpUnitTypeToMaterialUnit(ut) {
+  const u = String(ut || 'sq_ft').toLowerCase();
+  if (u === 'sq_ft') return 'sq ft';
+  if (u === 'linear_ft') return 'linear ft';
+  return u.replace(/_/g, ' ');
+}
+
+/** Preenche nome/SKU/fornecedor/un/custo a partir do produto ERP quando `erp_product_id` vem no body. */
+async function mergeProjectMaterialFromErp(pool, b) {
+  const out = { ...(b || {}) };
+  const eid = out.erp_product_id != null ? parseInt(String(out.erp_product_id), 10) : null;
+  if (!Number.isFinite(eid) || eid <= 0) return out;
+  try {
+    const prod = await productsRepo.getProduct(pool, eid);
+    if (!prod) return out;
+    const pn = String(out.product_name || '').trim();
+    if (!pn) out.product_name = prod.name;
+    if (out.sku == null || String(out.sku).trim() === '') out.sku = prod.sku;
+    if (out.supplier == null || String(out.supplier).trim() === '') out.supplier = prod.supplier_name;
+    if (out.unit == null || String(out.unit).trim() === '') out.unit = erpUnitTypeToMaterialUnit(prod.unit_type);
+    const ucNum = out.unit_cost != null && out.unit_cost !== '' ? nf(out.unit_cost) : 0;
+    if (ucNum <= 0 && prod.cost_price != null) out.unit_cost = Number(prod.cost_price) || 0;
+    out.erp_product_id = eid;
+    if (!out.service_category || out.service_category === 'general') out.service_category = 'supply';
+  } catch (_) {
+    /* tabela products ausente ou erro de rede */
+  }
+  return out;
+}
+
+function projectDatePhysicalColumns(pcols) {
+  return {
+    start: pcols.has('start_date')
+      ? 'start_date'
+      : pcols.has('estimated_start_date')
+        ? 'estimated_start_date'
+        : null,
+    endEst: pcols.has('end_date_estimated')
+      ? 'end_date_estimated'
+      : pcols.has('estimated_end_date')
+        ? 'estimated_end_date'
+        : null,
+    endActual: pcols.has('end_date_actual')
+      ? 'end_date_actual'
+      : pcols.has('actual_end_date')
+        ? 'actual_end_date'
+        : null,
+  };
 }
 
 function sumByCat(byCat, field) {
@@ -616,15 +700,17 @@ router.post('/', ...allAuthed, requirePermission('projects.create'), async (req,
       supply_value: b.supply_value != null ? money(b.supply_value) : 0,
       installation_value: b.installation_value != null ? money(b.installation_value) : 0,
       sand_finish_value: b.sand_finish_value != null ? money(b.sand_finish_value) : 0,
-      start_date: start,
-      end_date_estimated: endEst,
-      days_estimated: daysEst,
       crew_id: b.crew_id != null ? parseInt(String(b.crew_id), 10) || null : null,
       assigned_to: b.assigned_to != null ? parseInt(String(b.assigned_to), 10) || null : null,
       status: 'scheduled',
       created_by: uid,
       notes: b.notes != null ? String(b.notes) : null,
     };
+    const dtIns = projectDatePhysicalColumns(pcols);
+    if (start != null && dtIns.start) rowMap[dtIns.start] = start;
+    if (endEst != null && dtIns.endEst) rowMap[dtIns.endEst] = endEst;
+    if (daysEst != null && pcols.has('days_estimated')) rowMap.days_estimated = daysEst;
+
     if (pcols.has('address')) {
       const bodyAddr = b.address != null ? String(b.address).trim() : '';
       if (bodyAddr) {
@@ -713,6 +799,39 @@ router.get(
       });
     } catch (e) {
       console.error('lookup construction-payroll-rates', e);
+      res.status(500).json({ success: false, error: e.message });
+    }
+  }
+);
+
+/** Produtos do ERP para preencher materiais do projeto (quem tem projects.view). */
+router.get(
+  '/lookup/erp-products',
+  ...allAuthed,
+  requirePermission('projects.view'),
+  async (req, res) => {
+    try {
+      const pool = await getDBConnection();
+      if (!pool) return res.status(503).json({ success: false, error: 'Database not available' });
+      const supplierId = req.query.supplier_id ? parseInt(req.query.supplier_id, 10) : null;
+      const q = req.query.q || req.query.search;
+      const rows = await productsRepo.listProducts(pool, {
+        supplierId: supplierId && supplierId > 0 ? supplierId : undefined,
+        q,
+        activeOnly: req.query.all !== '1',
+        limit: Math.min(parseInt(req.query.limit, 10) || 120, 300),
+      });
+      res.json({ success: true, data: rows, erp_available: true });
+    } catch (e) {
+      const msg = String(e?.sqlMessage || e?.message || '');
+      if (
+        e?.code === 'ER_NO_SUCH_TABLE' ||
+        msg.toLowerCase().includes("doesn't exist") ||
+        msg.toLowerCase().includes('unknown table')
+      ) {
+        return res.json({ success: true, data: [], erp_available: false });
+      }
+      console.error('lookup erp-products', e);
       res.status(500).json({ success: false, error: e.message });
     }
   }
@@ -1180,71 +1299,71 @@ router.post('/:id/materials', ...allAuthed, requirePermission('projects.edit'), 
     const pool = await getDBConnection();
     if (!pool) return res.status(503).json({ success: false, error: 'Database not available' });
     const id = parseInt(req.params.id, 10);
-    const b = req.body || {};
+    let b = await mergeProjectMaterialFromErp(pool, req.body || {});
     const qo = b.qty_ordered != null ? nf(b.qty_ordered) : 0;
+    const qr = b.qty_received != null ? nf(b.qty_received) : 0;
+    const qu = b.qty_used != null ? nf(b.qty_used) : 0;
     const uc = b.unit_cost != null ? nf(b.unit_cost) : 0;
-    const total = moneyRound(qo * uc, 2);
+    const lineQty = materialLineQtyForTotal(qo, qr, qu);
+    const total = moneyRound(lineQty * uc, 2);
+    const statusResolved = resolveNewMaterialStatus(b, qo, qr, qu);
     const hasMatProj = await columnExists(pool, 'project_materials', 'is_projected');
+    const hasErpPid = await columnExists(pool, 'project_materials', 'erp_product_id');
     const isProj = !!(b.is_projected === true || b.is_projected === 1 || b.is_projected === '1');
-    let ins;
+    const erpPid =
+      hasErpPid && b.erp_product_id != null
+        ? (() => {
+            const x = parseInt(String(b.erp_product_id), 10);
+            return Number.isFinite(x) && x > 0 ? x : null;
+          })()
+        : null;
+    const baseVals = [
+      id,
+      String(b.product_name || 'Material').slice(0, 255),
+      b.sku != null ? String(b.sku).slice(0, 100) : null,
+      b.supplier != null ? String(b.supplier).slice(0, 255) : null,
+      normalizeMaterialUnitIn(b.unit),
+      qo,
+      b.qty_received != null ? nf(b.qty_received) : 0,
+      b.qty_used != null ? nf(b.qty_used) : 0,
+      uc,
+      total,
+      b.service_category && ['supply', 'installation', 'sand_finish', 'general'].includes(b.service_category)
+        ? b.service_category
+        : 'general',
+      statusResolved,
+      b.order_date || null,
+      b.received_date || null,
+      b.notes != null ? String(b.notes) : null,
+    ];
+    const colNames = [
+      'project_id',
+      'product_name',
+      'sku',
+      'supplier',
+      'unit',
+      'qty_ordered',
+      'qty_received',
+      'qty_used',
+      'unit_cost',
+      'total_cost',
+      'service_category',
+      'status',
+      'order_date',
+      'received_date',
+      'notes',
+    ];
+    const vals = [...baseVals];
     if (hasMatProj) {
-      [ins] = await pool.execute(
-        `INSERT INTO project_materials (
-          project_id, product_name, sku, supplier, unit, qty_ordered, qty_received, qty_used,
-          unit_cost, total_cost, service_category, status, order_date, received_date, notes, is_projected
-        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-        [
-          id,
-          String(b.product_name || 'Material').slice(0, 255),
-          b.sku != null ? String(b.sku).slice(0, 100) : null,
-          b.supplier != null ? String(b.supplier).slice(0, 255) : null,
-          b.unit != null ? String(b.unit).slice(0, 50) : null,
-          qo,
-          b.qty_received != null ? nf(b.qty_received) : 0,
-          b.qty_used != null ? nf(b.qty_used) : 0,
-          uc,
-          total,
-          b.service_category && ['supply', 'installation', 'sand_finish', 'general'].includes(b.service_category)
-            ? b.service_category
-            : 'general',
-          b.status && ['pending', 'ordered', 'received', 'partial', 'returned'].includes(b.status)
-            ? b.status
-            : 'pending',
-          b.order_date || null,
-          b.received_date || null,
-          b.notes != null ? String(b.notes) : null,
-          isProj ? 1 : 0,
-        ]
-      );
-    } else {
-      [ins] = await pool.execute(
-        `INSERT INTO project_materials (
-          project_id, product_name, sku, supplier, unit, qty_ordered, qty_received, qty_used,
-          unit_cost, total_cost, service_category, status, order_date, received_date, notes
-        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-        [
-          id,
-          String(b.product_name || 'Material').slice(0, 255),
-          b.sku != null ? String(b.sku).slice(0, 100) : null,
-          b.supplier != null ? String(b.supplier).slice(0, 255) : null,
-          b.unit != null ? String(b.unit).slice(0, 50) : null,
-          qo,
-          b.qty_received != null ? nf(b.qty_received) : 0,
-          b.qty_used != null ? nf(b.qty_used) : 0,
-          uc,
-          total,
-          b.service_category && ['supply', 'installation', 'sand_finish', 'general'].includes(b.service_category)
-            ? b.service_category
-            : 'general',
-          b.status && ['pending', 'ordered', 'received', 'partial', 'returned'].includes(b.status)
-            ? b.status
-            : 'pending',
-          b.order_date || null,
-          b.received_date || null,
-          b.notes != null ? String(b.notes) : null,
-        ]
-      );
+      colNames.push('is_projected');
+      vals.push(isProj ? 1 : 0);
     }
+    if (hasErpPid) {
+      colNames.push('erp_product_id');
+      vals.push(erpPid);
+    }
+    const sql = `INSERT INTO project_materials (${colNames.map((c) => `\`${c}\``).join(', ')}) VALUES (${colNames.map(() => '?').join(', ')})`;
+    const [ins] = await pool.execute(sql, vals);
     await recalculateProjectCosts(pool, id);
     const [rows] = await pool.query('SELECT * FROM project_materials WHERE id = ?', [ins.insertId]);
     res.status(201).json({
@@ -1263,12 +1382,33 @@ router.put('/:id/materials/:materialId', ...allAuthed, requirePermission('projec
     if (!pool) return res.status(503).json({ success: false, error: 'Database not available' });
     const id = parseInt(req.params.id, 10);
     const mid = parseInt(req.params.materialId, 10);
-    const b = req.body || {};
+    const rawBody = req.body || {};
     const [ex] = await pool.query('SELECT * FROM project_materials WHERE id = ? AND project_id = ?', [mid, id]);
     if (!ex.length) return res.status(404).json({ success: false, error: 'Not found' });
+    const b = await mergeProjectMaterialFromErp(pool, rawBody);
+    const hasErpPidCol = await columnExists(pool, 'project_materials', 'erp_product_id');
+    let erpPidVal;
+    if (hasErpPidCol && Object.prototype.hasOwnProperty.call(rawBody, 'erp_product_id')) {
+      const r = rawBody.erp_product_id;
+      if (r == null || r === '' || r === 0 || r === '0') erpPidVal = null;
+      else {
+        const n = parseInt(String(r), 10);
+        erpPidVal = Number.isFinite(n) && n > 0 ? n : null;
+      }
+    }
     const qo = b.qty_ordered != null ? nf(b.qty_ordered) : nf(ex[0].qty_ordered);
+    const qr = b.qty_received != null ? nf(b.qty_received) : nf(ex[0].qty_received);
+    const qu = b.qty_used != null ? nf(b.qty_used) : nf(ex[0].qty_used);
     const uc = b.unit_cost != null ? nf(b.unit_cost) : nf(ex[0].unit_cost);
-    const total = moneyRound(qo * uc, 2);
+    const lineQty = materialLineQtyForTotal(qo, qr, qu);
+    const total = moneyRound(lineQty * uc, 2);
+    const unitUpd =
+      b.unit !== undefined
+        ? normalizeMaterialUnitIn(b.unit)
+        : ex[0].unit != null && String(ex[0].unit).trim() !== ''
+          ? String(ex[0].unit).trim().slice(0, 50)
+          : null;
+    const statusUpd = coerceMaterialStatusForUpdate(b);
     const hasMatProj = await columnExists(pool, 'project_materials', 'is_projected');
     if (hasMatProj && b.is_projected !== undefined) {
       const isProj = !!(b.is_projected === true || b.is_projected === 1 || b.is_projected === '1');
@@ -1277,7 +1417,7 @@ router.put('/:id/materials/:materialId', ...allAuthed, requirePermission('projec
           product_name = COALESCE(?, product_name),
           sku = COALESCE(?, sku),
           supplier = COALESCE(?, supplier),
-          unit = COALESCE(?, unit),
+          unit = ?,
           qty_ordered = ?,
           qty_received = COALESCE(?, qty_received),
           qty_used = COALESCE(?, qty_used),
@@ -1294,14 +1434,14 @@ router.put('/:id/materials/:materialId', ...allAuthed, requirePermission('projec
           b.product_name != null ? String(b.product_name).slice(0, 255) : null,
           b.sku !== undefined ? b.sku : null,
           b.supplier !== undefined ? b.supplier : null,
-          b.unit !== undefined ? b.unit : null,
+          unitUpd,
           qo,
           b.qty_received != null ? nf(b.qty_received) : null,
           b.qty_used != null ? nf(b.qty_used) : null,
           uc,
           total,
           b.service_category || null,
-          b.status || null,
+          statusUpd,
           b.order_date !== undefined ? b.order_date : null,
           b.received_date !== undefined ? b.received_date : null,
           b.notes !== undefined ? b.notes : null,
@@ -1315,7 +1455,7 @@ router.put('/:id/materials/:materialId', ...allAuthed, requirePermission('projec
           product_name = COALESCE(?, product_name),
           sku = COALESCE(?, sku),
           supplier = COALESCE(?, supplier),
-          unit = COALESCE(?, unit),
+          unit = ?,
           qty_ordered = ?,
           qty_received = COALESCE(?, qty_received),
           qty_used = COALESCE(?, qty_used),
@@ -1331,19 +1471,25 @@ router.put('/:id/materials/:materialId', ...allAuthed, requirePermission('projec
           b.product_name != null ? String(b.product_name).slice(0, 255) : null,
           b.sku !== undefined ? b.sku : null,
           b.supplier !== undefined ? b.supplier : null,
-          b.unit !== undefined ? b.unit : null,
+          unitUpd,
           qo,
           b.qty_received != null ? nf(b.qty_received) : null,
           b.qty_used != null ? nf(b.qty_used) : null,
           uc,
           total,
           b.service_category || null,
-          b.status || null,
+          statusUpd,
           b.order_date !== undefined ? b.order_date : null,
           b.received_date !== undefined ? b.received_date : null,
           b.notes !== undefined ? b.notes : null,
           mid,
         ]
+      );
+    }
+    if (erpPidVal !== undefined) {
+      await pool.execute(
+        'UPDATE project_materials SET erp_product_id = ? WHERE id = ? AND project_id = ?',
+        [erpPidVal, mid, id]
       );
     }
     await recalculateProjectCosts(pool, id);
@@ -1354,6 +1500,22 @@ router.put('/:id/materials/:materialId', ...allAuthed, requirePermission('projec
     });
   } catch (e) {
     console.error('put material', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+router.delete('/:id/materials/:materialId', ...allAuthed, requirePermission('projects.edit'), async (req, res) => {
+  try {
+    const pool = await getDBConnection();
+    if (!pool) return res.status(503).json({ success: false, error: 'Database not available' });
+    const id = parseInt(req.params.id, 10);
+    const mid = parseInt(req.params.materialId, 10);
+    const [r] = await pool.execute('DELETE FROM project_materials WHERE id = ? AND project_id = ?', [mid, id]);
+    if (r.affectedRows === 0) return res.status(404).json({ success: false, error: 'Not found' });
+    await recalculateProjectCosts(pool, id);
+    res.json({ success: true });
+  } catch (e) {
+    console.error('delete material', e);
     res.status(500).json({ success: false, error: e.message });
   }
 });
@@ -1706,12 +1868,12 @@ router.put('/:id', ...allAuthed, requirePermission('projects.edit'), async (req,
     const [ex] = await pool.query('SELECT * FROM projects WHERE id = ?', [id]);
     if (!ex.length) return res.status(404).json({ success: false, error: 'Project not found' });
 
+    const pcols = await getProjectsTableColumnSet(pool);
+    const dtPut = projectDatePhysicalColumns(pcols);
+
     const allowed = [
       'status',
       'completion_percentage',
-      'start_date',
-      'end_date_estimated',
-      'end_date_actual',
       'days_estimated',
       'days_actual',
       'notes',
@@ -1728,26 +1890,43 @@ router.put('/:id', ...allAuthed, requirePermission('projects.edit'), async (req,
     const vals = [];
     for (const k of allowed) {
       if (b[k] === undefined) continue;
+      if (!pcols.has(k)) continue;
       updates.push(`\`${k}\` = ?`);
       if (moneyKeys.has(k)) vals.push(money(b[k]));
       else if (intKeys.has(k)) vals.push(b[k] === null || b[k] === '' ? null : parseInt(String(b[k]), 10));
       else vals.push(b[k]);
     }
 
-    if (String(b.status) === 'completed') {
-      updates.push('`end_date_actual` = COALESCE(`end_date_actual`, CURDATE())');
+    if (b.start_date !== undefined && dtPut.start) {
+      updates.push(`\`${dtPut.start}\` = ?`);
+      vals.push(b.start_date);
+    }
+    if (b.end_date_estimated !== undefined && dtPut.endEst) {
+      updates.push(`\`${dtPut.endEst}\` = ?`);
+      vals.push(b.end_date_estimated);
+    }
+    if (b.end_date_actual !== undefined && dtPut.endActual) {
+      updates.push(`\`${dtPut.endActual}\` = ?`);
+      vals.push(b.end_date_actual);
+    }
+
+    if (String(b.status) === 'completed' && dtPut.endActual) {
+      updates.push(`\`${dtPut.endActual}\` = COALESCE(\`${dtPut.endActual}\`, CURDATE())`);
       if (b.days_actual === undefined) {
         const start = ex[0].start_date || ex[0].estimated_start_date;
         const endA =
           b.end_date_actual ||
           ex[0].end_date_actual ||
+          ex[0].actual_end_date ||
           new Date().toISOString().slice(0, 10);
         if (start) {
           const d0 = new Date(`${String(start).slice(0, 10)}T12:00:00`);
           const d1 = new Date(`${String(endA).slice(0, 10)}T12:00:00`);
           const days = Math.max(0, Math.round((d1 - d0) / 86400000));
-          updates.push('`days_actual` = ?');
-          vals.push(days);
+          if (pcols.has('days_actual')) {
+            updates.push('`days_actual` = ?');
+            vals.push(days);
+          }
         }
       }
     }

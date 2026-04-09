@@ -162,6 +162,7 @@
 
         <!-- Receipts -->
         <section id="pane-receipts" class="fin-pane" data-pane="receipts" role="tabpanel">
+          <div id="fin-section-recebimentos" class="fin-anchor-section">
           <h3 style="color:var(--sf-navy)">Recebimentos dos clientes</h3>
           <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start">
             <div class="fin-table-wrap" style="flex:2;min-width:280px">
@@ -176,8 +177,11 @@
               <div id="payrecv-pending" style="font-size:13px;margin-top:8px"></div>
             </div>
           </div>
+          </div>
+          <div id="fin-section-notas-recibos" class="fin-anchor-section">
           <h3 style="margin-top:24px;color:var(--sf-navy)">Recibos de despesas</h3>
           <div class="fin-receipt-grid" id="expense-receipt-grid"></div>
+          </div>
         </section>
       </div>
     </main>
@@ -192,7 +196,20 @@
         <input id="exp-desc" class="fin-form-full" placeholder="Descrição *" />
         <input id="exp-amount" type="number" step="0.01" placeholder="Valor *" />
         <input id="exp-date" type="date" />
-        <input id="exp-vendor" class="fin-form-full" placeholder="Fornecedor (texto)" />
+        <select id="exp-vendor-select" class="fin-form-full" aria-label="Fornecedor cadastrado"><option value="">— Fornecedor (cadastro) —</option></select>
+        <input id="exp-vendor-free" class="fin-form-full" placeholder="Ou fornecedor em texto (sem cadastro)" />
+        <div class="fin-form-full fin-expense-receipt-row">
+          <span class="fin-expense-receipt-label">Recibo (opcional)</span>
+          <div class="fin-expense-receipt-actions">
+            <label class="btn btn-secondary btn-sm" for="exp-receipt-file">Ficheiro / galeria</label>
+            <input type="file" id="exp-receipt-file" class="fin-sr-only" accept="image/*,.pdf,application/pdf" />
+            <label class="btn btn-secondary btn-sm" for="exp-receipt-camera">Tirar foto</label>
+            <input type="file" id="exp-receipt-camera" class="fin-sr-only" accept="image/*" capture="environment" />
+            <button type="button" class="btn btn-sm btn-secondary" id="exp-receipt-clear" style="display:none">Remover anexo</button>
+          </div>
+          <p id="exp-receipt-hint" class="fin-expense-receipt-hint"></p>
+          <div id="exp-receipt-preview"></div>
+        </div>
       </div>
       <div style="margin-top:16px;display:flex;gap:10px;justify-content:flex-end">
         <button type="button" class="btn btn-secondary" data-close="modalExpense">Cancelar</button>
@@ -284,7 +301,7 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-  <script src="crm-shared-nav.js?v=11"></script>
-  <script src="financial.js?v=12"></script>
+  <script src="crm-shared-nav.js?v=12"></script>
+  <script src="financial.js?v=13"></script>
 </body>
 </html>

@@ -380,6 +380,7 @@ async function migrateChildTableColumns(conn) {
       ['is_projected', '`is_projected` TINYINT(1) NOT NULL DEFAULT 0'],
       ['unit_cost_projected', '`unit_cost_projected` DECIMAL(10,2) NOT NULL DEFAULT 0.00'],
       ['qty_returned', '`qty_returned` DECIMAL(10,2) NOT NULL DEFAULT 0'],
+      ['erp_product_id', '`erp_product_id` INT NULL DEFAULT NULL'],
     ];
     for (const [name, ddl] of pm) {
       if (!(await columnExists(conn, 'project_materials', name))) {

@@ -44,7 +44,6 @@
         { href: 'marketing.html', label: 'Marketing', perm: 'reports.view', page: '', iconKey: 'marketing' },
         { href: 'dashboard.html?page=leads', label: 'Leads', perm: 'leads.view', page: 'leads', iconKey: 'leads' },
         { href: 'dashboard.html?page=crm', label: 'CRM', perm: 'pipeline.view', page: 'crm', iconKey: 'crm' },
-        { href: 'dashboard.html?page=customers', label: 'Clients', perm: 'customers.view', page: 'customers', iconKey: 'customers' },
       ],
     },
     {
@@ -63,6 +62,26 @@
       ],
     },
     {
+      label: 'Cadastros gerais',
+      items: [
+        { href: 'products-erp.html', label: 'Produtos', perm: 'quotes.view', page: '', iconKey: 'quotes', showInTopBar: false },
+        { href: 'financial.html#vendors', label: 'Fornecedores', perm: 'contracts.view', page: '', iconKey: 'financial', showInTopBar: false },
+        { href: 'quote-catalog.html', label: 'Serviços', perm: 'quotes.edit', page: '', iconKey: 'quotes', showInTopBar: false },
+        { href: 'dashboard.html?page=customers', label: 'Clientes', perm: 'customers.view', page: 'customers', iconKey: 'customers', showInTopBar: false },
+        {
+          href: 'dashboard.html?page=customers&type=builder',
+          label: 'Builders',
+          perm: 'customers.view',
+          page: 'customers',
+          iconKey: 'customers',
+          showInTopBar: false,
+          customerType: 'builder',
+        },
+        { href: 'financial.html#notas-recibos', label: 'Notas / recibos', perm: 'contracts.view', page: '', iconKey: 'financial', showInTopBar: false },
+        { href: 'financial.html#recebimentos', label: 'Recebimentos', perm: 'contracts.view', page: '', iconKey: 'financial', showInTopBar: false },
+      ],
+    },
+    {
       label: 'Financeiro & registo',
       items: [
         { href: 'financial.html', label: 'Financeiro', perm: 'contracts.view', page: '', iconKey: 'financial' },
@@ -76,15 +95,12 @@
     },
   ];
 
-  const MAIN_NAV = SIDEBAR_GROUPS.flatMap((g) => g.items);
+  const MAIN_NAV = SIDEBAR_GROUPS.flatMap((g) => g.items).filter((item) => item.showInTopBar !== false);
 
   /** Só na barra horizontal (páginas sem sidebar); não aparece no menu lateral fixo. */
   const TOOL_NAV = [
     { href: 'quote-builder.html', label: 'Novo orçamento', perm: 'quotes.edit' },
     { href: 'onsite-quote.html', label: 'Quick quote', perm: 'quotes.create' },
-    { href: 'quote-catalog.html', label: 'Catálogo', perm: 'quotes.edit' },
-    { href: 'suppliers.html', label: 'Fornecedores', perm: 'quotes.view' },
-    { href: 'products-erp.html', label: 'Produtos ERP', perm: 'quotes.view' },
     { href: 'estimate-builder.html', label: 'Estimate', perm: 'quotes.view' },
     { href: 'estimate-analytics.html', label: 'Est. analytics', perm: 'quotes.view' },
   ];
@@ -100,15 +116,21 @@
 
   function linkActive(item, file, page) {
     const h = item.href || '';
-    const base = h.split('?')[0].split('/').pop().toLowerCase();
+    const pathAndQuery = h.split('#')[0];
+    const wantHash = (h.split('#')[1] || '').toLowerCase();
+    const base = pathAndQuery.split('?')[0].split('/').pop().toLowerCase();
+
+    if (base === 'financial.html' && file === 'financial.html') {
+      const curHash = (location.hash || '').replace(/^#/, '').toLowerCase();
+      if (wantHash) return curHash === wantHash;
+      return !curHash;
+    }
+
     if (file === 'lead-detail.html') {
       return base === 'dashboard.html' && (item.page || '') === 'leads';
     }
     if (base === 'marketing.html') {
       return file === 'marketing.html';
-    }
-    if (base === 'financial.html') {
-      return file === 'financial.html';
     }
     if (base === 'projects.html') {
       return file === 'projects.html';
@@ -116,12 +138,18 @@
     if (base === 'builder-payments-forecast.html') {
       return file === 'builder-payments-forecast.html';
     }
-    if (h.indexOf('dashboard.html') === 0) {
+    if (pathAndQuery.indexOf('dashboard.html') >= 0 || base === 'dashboard.html') {
       if (file !== 'dashboard.html') return false;
       const expected = item.page || '';
-      return (page || '') === expected;
+      if ((page || '') !== expected) return false;
+      const q = pathAndQuery.includes('?') ? pathAndQuery.split('?')[1] : '';
+      const wantType = new URLSearchParams(q).get('type') || item.customerType || '';
+      const curType = new URLSearchParams(window.location.search).get('type') || '';
+      if (wantType) return curType === wantType;
+      if (curType === 'builder' && expected === 'customers') return false;
+      return true;
     }
-    const toolFile = h.split('?')[0].split('/').pop().toLowerCase();
+    const toolFile = pathAndQuery.split('?')[0].split('/').pop().toLowerCase();
     return file === toolFile;
   }
 
@@ -239,6 +267,27 @@
       a.textContent = item.label;
       inner.appendChild(a);
     });
+
+    const cadastroGroup = SIDEBAR_GROUPS.find((g) => g.label === 'Cadastros gerais');
+    const cadastroItems = cadastroGroup && Array.isArray(cadastroGroup.items) ? cadastroGroup.items : [];
+    const cadastroVisible = cadastroItems.filter((item) => canSee(item.perm, role, keys));
+    if (cadastroVisible.length) {
+      const sepCad = document.createElement('span');
+      sepCad.className = 'crm-shared-nav__sep';
+      sepCad.setAttribute('aria-hidden', 'true');
+      inner.appendChild(sepCad);
+      const cadLab = document.createElement('span');
+      cadLab.className = 'crm-shared-nav__label crm-shared-nav__label--tools';
+      cadLab.textContent = 'Cadastros gerais';
+      inner.appendChild(cadLab);
+      cadastroVisible.forEach((item) => {
+        const a = document.createElement('a');
+        a.href = item.href;
+        a.className = 'crm-shared-nav__link' + (linkActive(item, file, page) ? ' crm-shared-nav__link--active' : '');
+        a.textContent = item.label;
+        inner.appendChild(a);
+      });
+    }
 
     const sep = document.createElement('span');
     sep.className = 'crm-shared-nav__sep';

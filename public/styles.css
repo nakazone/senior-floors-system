@@ -3388,6 +3388,195 @@ input.score-auto {
     border-color: var(--sf-gold3);
 }
 
+/* ERP product picker (project materials) */
+.pd-erp-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.pd-erp-label {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--sf-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.pd-erp-search-wrap {
+    position: relative;
+}
+
+.pd-erp-search-wrap input[type="search"] {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--sf-border);
+    border-radius: 8px;
+    font-size: 14px;
+    font-family: inherit;
+}
+
+.pd-erp-results {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 100%;
+    margin-top: 4px;
+    z-index: 30;
+    background: var(--sf-white);
+    border: 1px solid var(--sf-border);
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(26, 32, 54, 0.12);
+    max-height: 240px;
+    overflow-y: auto;
+}
+
+.pd-erp-row {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    width: 100%;
+    text-align: left;
+    padding: 10px 12px;
+    border: none;
+    border-bottom: 1px solid var(--sf-border);
+    background: transparent;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 13px;
+}
+
+.pd-erp-row:last-child {
+    border-bottom: none;
+}
+
+.pd-erp-row:hover {
+    background: rgba(26, 32, 54, 0.04);
+}
+
+.pd-erp-row span {
+    font-size: 11px;
+    color: var(--sf-muted);
+}
+
+.pd-erp-row--muted {
+    cursor: default;
+    color: var(--sf-muted);
+    font-size: 12px;
+}
+
+.pd-erp-row--muted:hover {
+    background: transparent;
+}
+
+.pd-erp-badge {
+    display: inline-block;
+    font-size: 9px;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: rgba(26, 32, 54, 0.08);
+    color: var(--sf-navy);
+    vertical-align: middle;
+}
+
+/* Custos: filtro real vs projetado */
+.pd-cost-filter-bar {
+    display: flex;
+    align-items: flex-end;
+    flex-wrap: wrap;
+    gap: 16px 24px;
+    margin-bottom: 14px;
+    padding: 12px 14px;
+    background: rgba(26, 32, 54, 0.04);
+    border: 1px solid var(--sf-border);
+    border-radius: 10px;
+}
+
+.pd-cost-filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+}
+
+.pd-cost-filter-bar label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--sf-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.pd-cost-filter-select {
+    min-width: 220px;
+    padding: 8px 12px;
+    border: 1px solid var(--sf-border);
+    border-radius: 8px;
+    font-size: 14px;
+    font-family: inherit;
+    background: var(--sf-white);
+}
+
+.pd-cost-grand-line {
+    font-weight: 600;
+    color: var(--sf-navy);
+    margin: 0 0 12px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 8px 12px;
+}
+
+.pd-cost-grand-label {
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.pd-cost-grand-line strong {
+    font-size: 1.15rem;
+}
+
+.pd-cost-grand-sub {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--sf-muted);
+}
+
+.pd-cost-row-hidden {
+    display: none !important;
+}
+
+.pd-mat-calc-line {
+    margin: 0;
+    font-size: 12px;
+    color: var(--sf-muted);
+}
+
+.pd-table-actions {
+    white-space: nowrap;
+    text-align: right;
+}
+
+.pd-table-actions .pd-btn--compact {
+    margin-left: 4px;
+}
+
+.pd-btn--compact {
+    padding: 4px 8px;
+    font-size: 11px;
+}
+
+.pd-btn--danger {
+    color: #b42318;
+    border-color: rgba(180, 35, 24, 0.35);
+}
+
+.pd-btn--danger:hover {
+    background: rgba(180, 35, 24, 0.08);
+}
+
 /* ── Tabs (JS: .tab-btn + .active) ── */
 .pd-tabs {
     background: var(--sf-white);
@@ -4932,6 +5121,49 @@ input.score-auto {
 }
 .fin-page .fin-form-full {
     grid-column: 1 / -1;
+}
+.fin-page .fin-sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+.fin-page .fin-expense-receipt-row {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 4px;
+}
+.fin-page .fin-expense-receipt-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+}
+.fin-page .fin-expense-receipt-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+.fin-page .fin-expense-receipt-hint {
+    margin: 0;
+    font-size: 12px;
+    color: var(--text-muted);
+}
+.fin-page .fin-expense-receipt-thumb {
+    max-width: 100%;
+    max-height: 140px;
+    border-radius: 8px;
+    margin-top: 4px;
+    object-fit: contain;
+    border: 1px solid var(--border-color);
 }
 .fin-page .fin-vendor-detail {
     background: var(--sf-gold-bg);

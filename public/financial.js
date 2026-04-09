@@ -8,6 +8,8 @@ let _cfChart = null;
 let vendorsCache = [];
 let editingOpId = null;
 let editingVendorId = null;
+/** Recibo enviado antes de POST /api/expenses — { receipt_file_path, receipt_url, name } */
+let pendingExpenseReceipt = null;
 
 const fmt$ = (v) =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(parseFloat(v) || 0);
@@ -432,6 +434,63 @@ async function uploadOperationalReceipt(id, file) {
   loadOperationalCosts();
 }
 
+async function ensureExpenseVendorSelect() {
+  const res = await fetch('/api/vendors', { credentials: 'include' }).then((r) => r.json());
+  const list = res.success && res.data ? res.data : [];
+  const sel = document.getElementById('exp-vendor-select');
+  if (sel) {
+    sel.innerHTML =
+      '<option value="">— Fornecedor (cadastro) —</option>' +
+      list.map((v) => `<option value="${v.id}">${escapeHtml(v.name)}</option>`).join('');
+  }
+}
+
+function resetExpenseReceiptUI() {
+  pendingExpenseReceipt = null;
+  const f = document.getElementById('exp-receipt-file');
+  const c = document.getElementById('exp-receipt-camera');
+  if (f) f.value = '';
+  if (c) c.value = '';
+  const hint = document.getElementById('exp-receipt-hint');
+  if (hint) hint.textContent = '';
+  const prev = document.getElementById('exp-receipt-preview');
+  if (prev) prev.innerHTML = '';
+  const clr = document.getElementById('exp-receipt-clear');
+  if (clr) clr.style.display = 'none';
+}
+
+async function uploadPendingExpenseReceipt(file) {
+  if (!file) return;
+  const form = new FormData();
+  form.append('file', file);
+  const raw = await fetch('/api/financial/expense-receipt', { method: 'POST', credentials: 'include', body: form });
+  let res = {};
+  try {
+    res = await raw.json();
+  } catch (_) {}
+  if (!raw.ok || !res.success) {
+    showToast(res.error || 'Erro ao enviar recibo', 'error');
+    return;
+  }
+  pendingExpenseReceipt = {
+    receipt_file_path: res.receipt_file_path,
+    receipt_url: res.receipt_url,
+    name: file.name,
+  };
+  const hint = document.getElementById('exp-receipt-hint');
+  if (hint) hint.textContent = file.name || 'Anexo carregado';
+  const clr = document.getElementById('exp-receipt-clear');
+  if (clr) clr.style.display = '';
+  const prev = document.getElementById('exp-receipt-preview');
+  if (prev && res.receipt_url) {
+    if ((file.type || '').startsWith('image/')) {
+      prev.innerHTML = `<img src="${escapeHtml(res.receipt_url)}" alt="" class="fin-expense-receipt-thumb" />`;
+    } else {
+      prev.innerHTML = `<a href="${escapeHtml(res.receipt_url)}" target="_blank" rel="noopener">Abrir PDF / ficheiro</a>`;
+    }
+  }
+}
+
 async function loadVendors() {
   const q = document.getElementById('vendorSearch')?.value?.trim();
   const url = q ? `/api/vendors?search=${encodeURIComponent(q)}` : '/api/vendors';
@@ -818,14 +877,39 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   document.getElementById('btnFinApplyPeriod')?.addEventListener('click', () => loadPL());
   document.getElementById('btnImportMarketing')?.addEventListener('click', importMarketing);
-  document.getElementById('btnAddExpense')?.addEventListener('click', () => openModal('modalExpense'));
+  document.getElementById('btnAddExpense')?.addEventListener('click', async () => {
+    resetExpenseReceiptUI();
+    document.getElementById('exp-desc').value = '';
+    document.getElementById('exp-amount').value = '';
+    document.getElementById('exp-vendor-free').value = '';
+    document.getElementById('exp-date').value = formatLocalYMD(new Date());
+    await ensureExpenseVendorSelect();
+    openModal('modalExpense');
+  });
+
+  document.getElementById('exp-receipt-file')?.addEventListener('change', (e) => {
+    const f = e.target.files?.[0];
+    if (f) uploadPendingExpenseReceipt(f);
+  });
+  document.getElementById('exp-receipt-camera')?.addEventListener('change', (e) => {
+    const f = e.target.files?.[0];
+    if (f) uploadPendingExpenseReceipt(f);
+  });
+  document.getElementById('exp-receipt-clear')?.addEventListener('click', () => resetExpenseReceiptUI());
+
   document.getElementById('btnSaveExpense')?.addEventListener('click', async () => {
+    const vSel = document.getElementById('exp-vendor-select')?.value?.trim() || '';
+    const vendorId = vSel && /^\d+$/.test(vSel) ? parseInt(vSel, 10) : null;
+    const vendorFree = document.getElementById('exp-vendor-free')?.value?.trim() || null;
     const body = {
       category: document.getElementById('exp-cat').value,
       description: document.getElementById('exp-desc').value,
       amount: document.getElementById('exp-amount').value,
       expense_date: document.getElementById('exp-date').value,
-      vendor: document.getElementById('exp-vendor').value || null,
+      vendor_id: vendorId,
+      vendor: vendorFree,
+      receipt_url: pendingExpenseReceipt?.receipt_url || null,
+      receipt_file_path: pendingExpenseReceipt?.receipt_file_path || null,
     };
     if (!body.description || !body.amount || !body.expense_date) {
       showToast('Preencha descrição, valor e data', 'error');
@@ -839,6 +923,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }).then((r) => r.json());
     if (res.success) {
       showToast('Despesa criada');
+      resetExpenseReceiptUI();
       closeModal('modalExpense');
       loadPL();
     } else showToast(res.error || 'Erro', 'error');
@@ -1074,11 +1159,32 @@ document.addEventListener('DOMContentLoaded', () => {
   loadWeeklyForecast(currentWeek);
   loadVendors();
 
-  if (location.hash === '#vendors') {
-    switchFinancialTab('vendors');
-    const base = location.pathname + location.search;
-    history.replaceState(null, '', base || 'financial.html');
+  function applyFinancialHash() {
+    const raw = (location.hash || '').replace(/^#/, '').toLowerCase();
+    if (!raw) return;
+    if (raw === 'vendors') {
+      switchFinancialTab('vendors');
+      return;
+    }
+    if (
+      raw === 'receipts' ||
+      raw === 'recebimentos' ||
+      raw === 'notas-recibos' ||
+      raw === 'recibos'
+    ) {
+      switchFinancialTab('receipts');
+      let scrollId = null;
+      if (raw === 'recebimentos') scrollId = 'fin-section-recebimentos';
+      else if (raw === 'notas-recibos' || raw === 'recibos') scrollId = 'fin-section-notas-recibos';
+      if (scrollId) {
+        requestAnimationFrame(() =>
+          document.getElementById(scrollId)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        );
+      }
+    }
   }
+  applyFinancialHash();
+  window.addEventListener('hashchange', applyFinancialHash);
 });
 
 function debounce(fn, ms) {

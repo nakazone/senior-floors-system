@@ -36,11 +36,17 @@ export async function listCustomers(req, res) {
     const offset = (page - 1) * limit;
     const status = req.query.status || null;
     const search = req.query.search || null;
+    const customerType = req.query.customer_type || req.query.type || null;
 
     const opt = await getCustomersOptionalColumns(pool);
 
     let whereClause = '1=1';
     const params = [];
+
+    if (customerType && String(customerType).trim()) {
+      whereClause += ' AND customer_type = ?';
+      params.push(String(customerType).trim().slice(0, 50));
+    }
 
     if (status) {
       whereClause += ' AND status = ?';
