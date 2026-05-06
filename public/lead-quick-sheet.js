@@ -282,15 +282,134 @@
       .join('');
   }
 
+  function stageDisplayLabel(stage) {
+    const slug = stage.slug;
+    if (typeof global.pipelineStageDisplayName === 'function') {
+      return global.pipelineStageDisplayName(slug, stage.name);
+    }
+    return stage.name || slug;
+  }
+
+  function renderStatusMenuOptions(stages, currentSlug) {
+    return stages
+      .map((stage) => {
+        const slug = stage.slug;
+        const label = stageDisplayLabel(stage);
+        const col = escapeHtml(stage.color || '#94a3b8');
+        const sel = slugMatchesCurrent(slug, currentSlug);
+        return `<button type="button" class="lead-quick-sheet__status-option${
+          sel ? ' is-selected' : ''
+        }" role="option" data-lqs-status-option data-value="${escapeHtml(
+          slug
+        )}" data-color="${col}" aria-selected="${sel ? 'true' : 'false'}">
+      <span class="lead-quick-sheet__status-dot lead-quick-sheet__status-dot--option" style="background-color:${col}"></span>
+      <span class="lead-quick-sheet__status-option-label">${escapeHtml(label)}</span>
+    </button>`;
+      })
+      .join('');
+  }
+
+  /** Select nativo escondido + trigger + lista com cor por opcao (o <select> nao mostra cores por linha). */
+  function renderStatusPicker(stages, currentSlug) {
+    let triggerLabel = '\u2014';
+    for (let i = 0; i < stages.length; i++) {
+      const st = stages[i];
+      if (slugMatchesCurrent(st.slug, currentSlug)) {
+        triggerLabel = stageDisplayLabel(st);
+        break;
+      }
+    }
+    return `<div class="lead-quick-sheet__status-picker" id="lqsStatusPicker">
+      <select id="lqsStatus" class="lead-quick-sheet__status-select-hidden" tabindex="-1" aria-hidden="true">${renderStageOptions(
+        stages,
+        currentSlug
+      )}</select>
+      <button type="button" class="lead-quick-sheet__status-trigger" id="lqsStatusTrigger" aria-expanded="false" aria-haspopup="listbox" aria-controls="lqsStatusMenu">
+        <span class="lead-quick-sheet__status-dot lead-quick-sheet__status-dot--trigger" id="lqsStatusDot"></span>
+        <span class="lead-quick-sheet__status-trigger-label" id="lqsStatusTriggerLabel">${escapeHtml(triggerLabel)}</span>
+        <span class="lead-quick-sheet__status-chevron" aria-hidden="true">\u25BE</span>
+      </button>
+      <div class="lead-quick-sheet__status-menu" id="lqsStatusMenu" role="listbox" aria-labelledby="lqsStatusTrigger" hidden>${renderStatusMenuOptions(
+        stages,
+        currentSlug
+      )}</div>
+    </div>`;
+  }
+
+  function positionStatusMenu() {
+    const menu = document.getElementById('lqsStatusMenu');
+    const trigger = document.getElementById('lqsStatusTrigger');
+    if (!menu || !trigger) return;
+    const r = trigger.getBoundingClientRect();
+    const margin = 8;
+    const belowTop = r.bottom + 4;
+    const maxH = Math.min(280, window.innerHeight - belowTop - margin);
+    menu.style.position = 'fixed';
+    menu.style.left =
+      Math.max(margin, Math.min(r.left, window.innerWidth - margin - Math.max(r.width, 220))) + 'px';
+    menu.style.top = belowTop + 'px';
+    menu.style.width = Math.max(r.width, 220) + 'px';
+    menu.style.maxHeight = Math.max(120, maxH) + 'px';
+    menu.style.overflowY = 'auto';
+    menu.style.zIndex = '25000';
+  }
+
+  function onStatusMenuDocClick(e) {
+    if (e.target.closest('#lqsStatusPicker')) return;
+    closeStatusMenu();
+  }
+
+  function closeStatusMenu() {
+    const picker = document.getElementById('lqsStatusPicker');
+    const menu = document.getElementById('lqsStatusMenu');
+    const trigger = document.getElementById('lqsStatusTrigger');
+    document.removeEventListener('click', onStatusMenuDocClick, true);
+    window.removeEventListener('resize', positionStatusMenu);
+    if (trigger) trigger.setAttribute('aria-expanded', 'false');
+    if (menu) {
+      menu.hidden = true;
+      if (picker && menu.parentNode === document.body) {
+        picker.appendChild(menu);
+      }
+    }
+  }
+
+  function openStatusMenu() {
+    document.removeEventListener('click', onStatusMenuDocClick, true);
+    window.removeEventListener('resize', positionStatusMenu);
+    const picker = document.getElementById('lqsStatusPicker');
+    const menu = document.getElementById('lqsStatusMenu');
+    const trigger = document.getElementById('lqsStatusTrigger');
+    if (!picker || !menu || !trigger) return;
+    if (menu.parentNode !== document.body) {
+      document.body.appendChild(menu);
+    }
+    menu.hidden = false;
+    trigger.setAttribute('aria-expanded', 'true');
+    positionStatusMenu();
+    window.addEventListener('resize', positionStatusMenu);
+    requestAnimationFrame(() => {
+      document.addEventListener('click', onStatusMenuDocClick, true);
+    });
+  }
+
   function syncStatusDotFromSelect() {
     const sel = document.getElementById('lqsStatus');
     const dot = document.getElementById('lqsStatusDot');
+    const labelEl = document.getElementById('lqsStatusTriggerLabel');
     if (!sel || !dot) return;
     const opt = sel.options[sel.selectedIndex];
     const c = opt && opt.getAttribute('data-color');
     const hex = c || '#94a3b8';
     dot.style.backgroundColor = hex;
     sel.style.accentColor = hex;
+    if (labelEl && opt) labelEl.textContent = opt.textContent || '';
+    document.querySelectorAll('[data-lqs-status-option]').forEach((btn) => {
+      const v = btn.getAttribute('data-value');
+      const on = slugMatchesCurrent(v, sel.value);
+      btn.classList.toggle('is-selected', on);
+      btn.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
   }
 
   function stageColorForLead(lead, stages) {
@@ -463,13 +582,9 @@
         <div class="lead-quick-sheet__toolbar-row lead-quick-sheet__toolbar-row--controls">
           <label class="lead-quick-sheet__inline lead-quick-sheet__inline--status">
             <span class="lead-quick-sheet__status-label-row">
-              <span class="lead-quick-sheet__status-dot" id="lqsStatusDot" aria-hidden="true"></span>
               <span>Status</span>
             </span>
-            <select id="lqsStatus" class="lead-quick-sheet__select lead-quick-sheet__select--status">${renderStageOptions(
-              stages,
-              currentSlug
-            )}</select>
+            ${renderStatusPicker(stages, currentSlug)}
           </label>
           <label class="lead-quick-sheet__inline">Prioridade
             <select id="lqsPriority" class="lead-quick-sheet__select">
@@ -498,6 +613,26 @@
   }
 
   function onSheetBodyClick(e) {
+    const trigger = e.target.closest('#lqsStatusTrigger');
+    if (trigger) {
+      e.preventDefault();
+      const menu = document.getElementById('lqsStatusMenu');
+      if (menu && !menu.hidden) closeStatusMenu();
+      else openStatusMenu();
+      return;
+    }
+    const statusOpt = e.target.closest('[data-lqs-status-option]');
+    if (statusOpt && sheetLeadId) {
+      e.preventDefault();
+      const slug = statusOpt.getAttribute('data-value');
+      const sel = document.getElementById('lqsStatus');
+      if (!sel || !slug) return;
+      sel.value = slug;
+      syncStatusDotFromSelect();
+      closeStatusMenu();
+      void patchLead({ status: slug }).then(() => syncStatusDotFromSelect());
+      return;
+    }
     if (e.target.closest('[data-lqs-open-quotes-crm]')) {
       window.location.href = 'dashboard.html?page=quotes';
       return;
@@ -552,6 +687,13 @@
     sheetBodyDelegated = true;
     body.addEventListener('click', onSheetBodyClick);
     body.addEventListener('change', onSheetBodyChange);
+    body.addEventListener(
+      'scroll',
+      () => {
+        closeStatusMenu();
+      },
+      { passive: true }
+    );
   }
 
   function resetPanelTransform(panelEl) {
@@ -682,6 +824,7 @@
   }
 
   function closeLeadQuickSheet() {
+    closeStatusMenu();
     const root = document.getElementById('leadQuickSheet');
     if (!root) return;
     resetPanelTransform(root.querySelector('.lead-quick-sheet__panel'));
@@ -703,7 +846,14 @@
     if (bd) bd.addEventListener('click', closeLeadQuickSheet);
     if (closeBtn) closeBtn.addEventListener('click', closeLeadQuickSheet);
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && root.classList.contains('is-open')) closeLeadQuickSheet();
+      if (e.key !== 'Escape' || !root.classList.contains('is-open')) return;
+      const menu = document.getElementById('lqsStatusMenu');
+      if (menu && !menu.hidden) {
+        closeStatusMenu();
+        e.preventDefault();
+        return;
+      }
+      closeLeadQuickSheet();
     });
   }
 

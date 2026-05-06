@@ -6082,8 +6082,113 @@ body.lead-quick-sheet-open {
     box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.12);
 }
 
-.lead-quick-sheet__inline--status .lead-quick-sheet__select--status {
+.lead-quick-sheet__status-select-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+.lead-quick-sheet__status-picker {
+    position: relative;
+    width: 100%;
     min-width: min(220px, 100%);
+}
+
+.lead-quick-sheet__status-trigger {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    min-height: 40px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border-color, #e2e8f0);
+    background: var(--bg-white, #fff);
+    color: var(--text-dark);
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    text-align: left;
+    box-sizing: border-box;
+}
+
+.lead-quick-sheet__status-trigger:hover {
+    border-color: var(--text-muted, #94a3b8);
+}
+
+.lead-quick-sheet__status-trigger:focus-visible {
+    outline: 2px solid var(--primary-color, #2563eb);
+    outline-offset: 2px;
+}
+
+.lead-quick-sheet__status-dot--trigger {
+    flex-shrink: 0;
+}
+
+.lead-quick-sheet__status-trigger-label {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.lead-quick-sheet__status-chevron {
+    flex-shrink: 0;
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    opacity: 0.85;
+}
+
+.lead-quick-sheet__status-menu {
+    margin: 0;
+    padding: 4px;
+    border-radius: 10px;
+    border: 1px solid var(--border-color, #e2e8f0);
+    background: var(--bg-white, #fff);
+    box-shadow: 0 12px 40px rgba(15, 23, 42, 0.18);
+    box-sizing: border-box;
+}
+
+.lead-quick-sheet__status-option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    margin: 0;
+    padding: 9px 10px;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-dark);
+    font-size: 0.88rem;
+    font-weight: 500;
+    text-align: left;
+    cursor: pointer;
+    box-sizing: border-box;
+}
+
+.lead-quick-sheet__status-option:hover {
+    background: var(--bg-light, #f1f5f9);
+}
+
+.lead-quick-sheet__status-option.is-selected {
+    background: rgba(37, 99, 235, 0.08);
+}
+
+.lead-quick-sheet__status-dot--option {
+    flex-shrink: 0;
+}
+
+.lead-quick-sheet__status-option-label {
+    flex: 1;
+    min-width: 0;
 }
 
 .lead-quick-sheet--minimal .lead-quick-sheet__panel {
