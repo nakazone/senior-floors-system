@@ -5583,7 +5583,7 @@ body.lead-quick-sheet-open {
 .lead-quick-sheet__header-row {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: flex-end;
     gap: 12px;
     margin-bottom: 8px;
 }
@@ -5738,6 +5738,88 @@ body.lead-quick-sheet-open {
     margin: 0;
     color: var(--text-dark);
     word-break: break-word;
+}
+
+.lead-quick-sheet__field-view {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.lead-quick-sheet__field-val {
+    flex: 1;
+    min-width: 0;
+}
+
+.lead-quick-sheet__edit-btn {
+    flex-shrink: 0;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    line-height: 1;
+}
+
+.lead-quick-sheet__edit-btn:hover {
+    color: var(--primary-color, #2563eb);
+    background: rgba(37, 99, 235, 0.08);
+}
+
+.lead-quick-sheet__empty-field {
+    color: var(--text-muted);
+    opacity: 0.85;
+}
+
+.lead-quick-sheet__field-edit {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.lead-quick-sheet__inline-input,
+.lead-quick-sheet__inline-select {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border-color, #e2e8f0);
+    font-size: 0.88rem;
+    font-family: inherit;
+    background: var(--bg-white, #fff);
+    color: var(--text-dark);
+}
+
+.lead-quick-sheet__inline-input--multi {
+    resize: vertical;
+    min-height: 88px;
+}
+
+.lead-quick-sheet__edit-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.lead-quick-sheet__edit-save,
+.lead-quick-sheet__edit-cancel {
+    padding: 6px 12px;
+    border-radius: 8px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1px solid var(--border-color, #e2e8f0);
+    background: var(--bg-light, #f1f5f9);
+    color: var(--text-dark);
+}
+
+.lead-quick-sheet__edit-save {
+    background: var(--primary-color, #1a2036);
+    color: #fff;
+    border-color: transparent;
 }
 
 .lead-quick-sheet__list {

@@ -117,27 +117,133 @@
     return escapeHtml(String(val));
   }
 
-  function ddStatic(label, innerHtml) {
-    return `<div class="lead-quick-sheet__row"><dt>${escapeHtml(label)}</dt><dd>${innerHtml}</dd></div>`;
+  function attrEscape(s) {
+    return String(s ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/"/g, '&quot;')
+      .replace(/</g, '&lt;');
   }
 
-  /** Resumo principal: sempre visivel, somente leitura */
+  const NEVER_SHOW_KEYS = new Set([
+    'estimated_value',
+    'next_steps',
+    'next_steps_notes',
+    'ip_address',
+    'ip',
+    'client_ip',
+  ]);
+
+  const READONLY_DISPLAY_KEYS = new Set([
+    'id',
+    'created_at',
+    'updated_at',
+    'pipeline_stage_name',
+    'pipeline_stage_slug',
+    'pipeline_stage_color',
+    'owner_name',
+    'owner_email',
+    'status',
+    'priority',
+  ]);
+
+  const PATCHABLE_KEYS = new Set([
+    'name',
+    'email',
+    'phone',
+    'zipcode',
+    'address',
+    'message',
+    'notes',
+    'owner_id',
+    'utm_source',
+    'utm_medium',
+    'utm_campaign',
+    'utm_term',
+    'utm_content',
+    'marketing_platform',
+    'landing_page',
+    'source',
+    'form_type',
+    'company_name',
+    'job_title',
+    'city',
+    'state',
+    'gclid',
+    'fbclid',
+    'referrer_url',
+  ]);
+
+  function isPatchableField(key) {
+    return PATCHABLE_KEYS.has(key);
+  }
+
+  function formatFieldDisplayRich(key, raw) {
+    if (raw == null || (typeof raw === 'string' && !String(raw).trim())) {
+      return '<span class="lead-quick-sheet__empty-field">\u2014</span>';
+    }
+    return formatFieldValue(key, raw);
+  }
+
+  function inputTypeForField(key) {
+    if (key === 'email') return 'email';
+    if (key === 'phone') return 'tel';
+    return 'text';
+  }
+
+  let ownerUsersCache = null;
+
+  async function fetchUsersForOwnerSelect() {
+    if (ownerUsersCache) return ownerUsersCache;
+    try {
+      const r = await fetch('/api/users?limit=100', { credentials: 'include', cache: 'no-store' });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.success || !Array.isArray(j.data)) return [];
+      ownerUsersCache = j.data;
+      return ownerUsersCache;
+    } catch (_) {
+      return [];
+    }
+  }
+
+  function renderOwnerFieldRow(lead) {
+    const display = lead.owner_name
+      ? escapeHtml(String(lead.owner_name))
+      : '<span class="lead-quick-sheet__empty-field">\u2014</span>';
+    return `<div class="lead-quick-sheet__row lead-quick-sheet__row--editable" data-lqs-row="owner_id">
+      <dt>Responsavel</dt>
+      <dd class="lead-quick-sheet__dd-field" data-lqs-dd="owner_id">
+        <div class="lead-quick-sheet__field-view" data-lqs-view="owner_id">
+          <span class="lead-quick-sheet__field-val">${display}</span>
+          <button type="button" class="lead-quick-sheet__edit-btn" data-lqs-edit="owner_id" title="Editar" aria-label="Editar responsavel">\u270E</button>
+        </div>
+      </dd>
+    </div>`;
+  }
+
+  function renderEditableFieldRow(label, fieldKey, lead) {
+    if (!isPatchableField(fieldKey)) return '';
+    const display = formatFieldDisplayRich(fieldKey, lead[fieldKey]);
+    return `<div class="lead-quick-sheet__row lead-quick-sheet__row--editable" data-lqs-row="${fieldKey}">
+      <dt>${escapeHtml(label)}</dt>
+      <dd class="lead-quick-sheet__dd-field" data-lqs-dd="${fieldKey}">
+        <div class="lead-quick-sheet__field-view" data-lqs-view="${fieldKey}">
+          <span class="lead-quick-sheet__field-val">${display}</span>
+          <button type="button" class="lead-quick-sheet__edit-btn" data-lqs-edit="${fieldKey}" title="Editar" aria-label="Editar ${escapeHtml(label)}">\u270E</button>
+        </div>
+      </dd>
+    </div>`;
+  }
+
+  /** Resumo principal com edicao inline */
   function renderPrimaryStaticSummary(lead) {
-    const nextBits = [lead.next_steps, lead.next_steps_notes].filter((x) => x != null && String(x).trim());
-    const nextStr = nextBits.length ? escapeHtml(nextBits.join(' ù ')) : 'ù';
     const parts = [
-      ddStatic('Nome', lead.name ? escapeHtml(String(lead.name)) : 'ù'),
-      ddStatic('Email', lead.email ? escapeHtml(String(lead.email)) : 'ù'),
-      ddStatic('Telefone', lead.phone ? escapeHtml(String(lead.phone)) : 'ù'),
-      ddStatic('Morada', lead.address != null && String(lead.address).trim() ? escapeHtml(String(lead.address)) : 'ù'),
-      ddStatic('CEP', lead.zipcode ? escapeHtml(String(lead.zipcode)) : 'ù'),
-      ddStatic('Valor estimado', formatFieldValue('estimated_value', lead.estimated_value)),
-      ddStatic('Notas', lead.notes != null && String(lead.notes).trim() ? escapeHtml(String(lead.notes)) : 'ù'),
-      ddStatic('Proximos passos', nextStr),
-      ddStatic(
-        'Responsavel',
-        lead.owner_name ? escapeHtml(String(lead.owner_name)) : 'ù'
-      ),
+      renderEditableFieldRow('Nome', 'name', lead),
+      renderEditableFieldRow('Email', 'email', lead),
+      renderEditableFieldRow('Telefone', 'phone', lead),
+      renderEditableFieldRow('Morada', 'address', lead),
+      renderEditableFieldRow('CEP', 'zipcode', lead),
+      renderEditableFieldRow('Notas', 'notes', lead),
+      renderOwnerFieldRow(lead),
     ];
     return `<dl class="lead-quick-sheet__dl lead-quick-sheet__dl--primary">${parts.join('')}</dl>`;
   }
@@ -151,7 +257,6 @@
       'email',
       'phone',
       'zipcode',
-      'estimated_value',
       'source',
       'form_type',
       'message',
@@ -177,24 +282,43 @@
     const seen = new Set();
     const rows = [];
 
-    function pushField(key, labelOverride) {
-      if (SKIP_KEYS.has(key) || EXTRA_SKIP.has(key)) return;
+    function renderCatalogRow(key, labelOverride) {
+      if (SKIP_KEYS.has(key) || EXTRA_SKIP.has(key)) return '';
+      if (NEVER_SHOW_KEYS.has(key)) return '';
       const val = lead[key];
-      if (val == null || val === '') return;
-      if (typeof val === 'object') return;
+      if (val == null || val === '') return '';
+      if (typeof val === 'object') return '';
       const str = String(val).trim();
-      if (!str) return;
+      if (!str) return '';
       const label = labelOverride || DETAIL_LABELS[key] || key.replace(/_/g, ' ');
-      rows.push(
-        `<div class="lead-quick-sheet__row"><dt>${escapeHtml(label)}</dt><dd>${formatFieldValue(key, val)}</dd></div>`
-      );
-      seen.add(key);
+      if (READONLY_DISPLAY_KEYS.has(key) || !isPatchableField(key)) {
+        return `<div class="lead-quick-sheet__row"><dt>${escapeHtml(label)}</dt><dd>${formatFieldValue(key, val)}</dd></div>`;
+      }
+      const display = formatFieldDisplayRich(key, val);
+      return `<div class="lead-quick-sheet__row lead-quick-sheet__row--editable" data-lqs-row="${escapeHtml(key)}">
+        <dt>${escapeHtml(label)}</dt>
+        <dd class="lead-quick-sheet__dd-field" data-lqs-dd="${escapeHtml(key)}">
+          <div class="lead-quick-sheet__field-view" data-lqs-view="${escapeHtml(key)}">
+            <span class="lead-quick-sheet__field-val">${display}</span>
+            <button type="button" class="lead-quick-sheet__edit-btn" data-lqs-edit="${escapeHtml(key)}" title="Editar" aria-label="Editar ${escapeHtml(label)}">\u270E</button>
+          </div>
+        </dd>
+      </div>`;
+    }
+
+    function pushField(key, labelOverride) {
+      const html = renderCatalogRow(key, labelOverride);
+      if (html) {
+        rows.push(html);
+        seen.add(key);
+      }
     }
 
     ORDER.forEach((k) => pushField(k));
     Object.keys(lead).forEach((k) => {
       if (seen.has(k)) return;
       if (SKIP_KEYS.has(k) || EXTRA_SKIP.has(k)) return;
+      if (NEVER_SHOW_KEYS.has(k)) return;
       if (k.startsWith('pipeline_stage_') && k !== 'pipeline_stage_name') return;
       pushField(k);
     });
@@ -203,6 +327,85 @@
       return '';
     }
     return `<h4 class="lead-quick-sheet__h4">Mais detalhes</h4><dl class="lead-quick-sheet__dl">${rows.join('')}</dl>`;
+  }
+
+  function refreshSummarySections() {
+    if (!sheetLead) return;
+    const primary = document.querySelector('[data-lqs-primary-summary]');
+    const catalog = document.querySelector('[data-lqs-catalog]');
+    if (primary) primary.innerHTML = renderPrimaryStaticSummary(sheetLead);
+    if (catalog) catalog.innerHTML = renderLeadCatalogFields(sheetLead);
+  }
+
+  async function enterFieldEdit(fieldKey) {
+    const dd = document.querySelector(`[data-lqs-dd="${fieldKey}"]`);
+    if (!dd || !sheetLead) return;
+    if (fieldKey === 'owner_id') {
+      const users = await fetchUsersForOwnerSelect();
+      if (!users.length) {
+        notifySheet('Nao foi possivel carregar utilizadores.', 'error');
+        return;
+      }
+      const cur = sheetLead.owner_id != null ? String(sheetLead.owner_id) : '';
+      const opts =
+        '<option value="">\u2014</option>' +
+        users
+          .map((u) => {
+            const id = u.id != null ? String(u.id) : '';
+            const sel = id === cur ? ' selected' : '';
+            const lab = escapeHtml(String(u.name || u.email || id));
+            return `<option value="${escapeHtml(id)}"${sel}>${lab}</option>`;
+          })
+          .join('');
+      dd.innerHTML = `<div class="lead-quick-sheet__field-edit" data-lqs-editing="${fieldKey}">
+        <select class="lead-quick-sheet__inline-input lead-quick-sheet__inline-select" data-lqs-input="owner_id">${opts}</select>
+        <div class="lead-quick-sheet__edit-actions">
+          <button type="button" class="lead-quick-sheet__edit-save" data-lqs-save="owner_id">Guardar</button>
+          <button type="button" class="lead-quick-sheet__edit-cancel" data-lqs-cancel="owner_id">Cancelar</button>
+        </div>
+      </div>`;
+      return;
+    }
+    const raw = sheetLead[fieldKey];
+    const multiline = fieldKey === 'notes' || fieldKey === 'message';
+    const escContent = escapeHtml(raw == null ? '' : String(raw));
+    const tag = multiline
+      ? `<textarea class="lead-quick-sheet__inline-input lead-quick-sheet__inline-input--multi" rows="4" data-lqs-input="${fieldKey}">${escContent}</textarea>`
+      : `<input type="${inputTypeForField(fieldKey)}" class="lead-quick-sheet__inline-input" data-lqs-input="${fieldKey}" value="${attrEscape(
+          raw == null ? '' : String(raw)
+        )}" />`;
+    dd.innerHTML = `<div class="lead-quick-sheet__field-edit" data-lqs-editing="${fieldKey}">
+      ${tag}
+      <div class="lead-quick-sheet__edit-actions">
+        <button type="button" class="lead-quick-sheet__edit-save" data-lqs-save="${fieldKey}">Guardar</button>
+        <button type="button" class="lead-quick-sheet__edit-cancel" data-lqs-cancel="${fieldKey}">Cancelar</button>
+      </div>
+    </div>`;
+    const focusEl = dd.querySelector('[data-lqs-input]');
+    if (focusEl && typeof focusEl.focus === 'function') focusEl.focus();
+  }
+
+  async function commitFieldEdit(fieldKey) {
+    if (!sheetLeadId || !sheetLead) return;
+    const input = document.querySelector(`[data-lqs-input="${fieldKey}"]`);
+    if (!input) return;
+    let payload = {};
+    if (fieldKey === 'owner_id') {
+      const v = input.value;
+      payload.owner_id = v === '' ? null : parseInt(v, 10);
+      if (payload.owner_id !== null && Number.isNaN(payload.owner_id)) {
+        notifySheet('Responsavel invalido.', 'error');
+        return;
+      }
+    } else if (fieldKey === 'zipcode') {
+      const z = String(input.value || '').replace(/\D/g, '');
+      payload.zipcode = z === '' ? null : z.slice(0, 10);
+    } else {
+      const raw = input.value;
+      payload[fieldKey] = raw.trim() === '' ? null : raw.trim();
+    }
+    const result = await patchLead(payload);
+    if (result != null) refreshSummarySections();
   }
 
   async function fetchJson(url) {
@@ -569,7 +772,6 @@
       ? `<a class="lead-quick-sheet__action" href="mailto:${escapeHtml(lead.email)}">Email</a>`
       : '';
     const quoteNew = `<a class="lead-quick-sheet__action" href="quote-builder.html?lead_id=${sid}" target="_blank" rel="noopener">Novo orcamento</a>`;
-    const detailLink = `<a class="lead-quick-sheet__action" href="lead-detail.html?id=${sid}" target="_blank" rel="noopener">Pagina completa</a>`;
 
     const quoteRows = mergeQuoteRows(bundle.quotesPayload, bundle.proposalsPayload);
     const scheduleUrl = `lead-detail.html?id=${sid}&tab=visits&schedule=1`;
@@ -577,7 +779,7 @@
     return `
       <div class="lead-quick-sheet__toolbar lead-quick-sheet__toolbar--minimal">
         <div class="lead-quick-sheet__toolbar-row lead-quick-sheet__toolbar-row--actions">
-          ${tele}${mail}${quoteNew}${detailLink}
+          ${tele}${mail}${quoteNew}
         </div>
         <div class="lead-quick-sheet__toolbar-row lead-quick-sheet__toolbar-row--controls">
           <label class="lead-quick-sheet__inline lead-quick-sheet__inline--status">
@@ -602,8 +804,8 @@
 
       <section class="lead-quick-sheet__section lead-quick-sheet__section--static">
         <h3 class="lead-quick-sheet__h3 lead-quick-sheet__h3--minimal">Resumo</h3>
-        ${renderPrimaryStaticSummary(lead)}
-        ${renderLeadCatalogFields(lead)}
+        <div data-lqs-primary-summary>${renderPrimaryStaticSummary(lead)}</div>
+        <div data-lqs-catalog>${renderLeadCatalogFields(lead)}</div>
       </section>
 
       <section class="lead-quick-sheet__section lead-quick-sheet__section--quotes">
@@ -613,6 +815,28 @@
   }
 
   function onSheetBodyClick(e) {
+    const editBtn = e.target.closest('[data-lqs-edit]');
+    if (editBtn && sheetLeadId) {
+      const fk = editBtn.getAttribute('data-lqs-edit');
+      if (fk) {
+        e.preventDefault();
+        void enterFieldEdit(fk);
+      }
+      return;
+    }
+    const saveBtn = e.target.closest('[data-lqs-save]');
+    if (saveBtn && sheetLeadId) {
+      e.preventDefault();
+      const fk = saveBtn.getAttribute('data-lqs-save');
+      if (fk) void commitFieldEdit(fk);
+      return;
+    }
+    const cancelBtn = e.target.closest('[data-lqs-cancel]');
+    if (cancelBtn && sheetLeadId) {
+      e.preventDefault();
+      refreshSummarySections();
+      return;
+    }
     const trigger = e.target.closest('#lqsStatusTrigger');
     if (trigger) {
       e.preventDefault();
@@ -687,6 +911,19 @@
     sheetBodyDelegated = true;
     body.addEventListener('click', onSheetBodyClick);
     body.addEventListener('change', onSheetBodyChange);
+    body.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter') return;
+      const t = e.target;
+      if (
+        t &&
+        t.matches &&
+        t.matches('.lead-quick-sheet__inline-input:not(textarea)') &&
+        t.getAttribute('data-lqs-input')
+      ) {
+        e.preventDefault();
+        void commitFieldEdit(t.getAttribute('data-lqs-input'));
+      }
+    });
     body.addEventListener(
       'scroll',
       () => {
@@ -770,7 +1007,6 @@
     const body = document.getElementById('leadQuickSheetBody');
     const titleEl = document.getElementById('leadQuickSheetTitle');
     const badgesEl = document.getElementById('leadQuickSheetBadges');
-    const fullLink = document.getElementById('leadQuickSheetFullLink');
     if (!root || !body || !titleEl || !badgesEl) {
       window.location.href = 'lead-detail.html?id=' + sid;
       return;
@@ -782,7 +1018,6 @@
     root.setAttribute('aria-hidden', 'false');
     document.body.classList.add('lead-quick-sheet-open');
     body.innerHTML = '<div class="lead-quick-sheet__loading">A carregarù</div>';
-    if (fullLink) fullLink.href = 'lead-detail.html?id=' + sid;
 
     const [leadRes, stagesRes, quotesRes, proposalsRes] = await Promise.all([
       fetchJson('/api/leads/' + sid),
@@ -825,6 +1060,7 @@
 
   function closeLeadQuickSheet() {
     closeStatusMenu();
+    ownerUsersCache = null;
     const root = document.getElementById('leadQuickSheet');
     if (!root) return;
     resetPanelTransform(root.querySelector('.lead-quick-sheet__panel'));
@@ -847,6 +1083,12 @@
     if (closeBtn) closeBtn.addEventListener('click', closeLeadQuickSheet);
     document.addEventListener('keydown', (e) => {
       if (e.key !== 'Escape' || !root.classList.contains('is-open')) return;
+      const editing = root.querySelector('#leadQuickSheetBody [data-lqs-editing]');
+      if (editing) {
+        refreshSummarySections();
+        e.preventDefault();
+        return;
+      }
       const menu = document.getElementById('lqsStatusMenu');
       if (menu && !menu.hidden) {
         closeStatusMenu();

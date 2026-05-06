@@ -2,18 +2,15 @@
  * Leads API — list, get, update (CRM)
  */
 import { getDBConnection, isDatabaseConfigured } from '../config/db.js';
-import { getLeadsTableColumns, ensureLeadsAddressColumn } from '../lib/leadColumns.js';
+import { getLeadsTableColumns } from '../lib/leadColumns.js';
 import { extractMarketingFromBody, MARKETING_KEYS } from '../lib/marketingLeadFields.js';
-import { ensureClientFromLead } from '../modules/clients/leadToClient.js';
-import { ensureProjectFromWonLead } from '../modules/projects/fromWonLead.js';
-import { autoCreateProjectFromEstimate } from '../lib/projectAutomation.js';
 
 export async function listLeads(req, res) {
   if (!isDatabaseConfigured()) return res.status(503).json({ success: false, error: 'Database not configured' });
   try {
     const pool = await getDBConnection();
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
-    const limit = Math.min(1000, Math.max(1, parseInt(req.query.limit, 10) || 20));
+    const limit = Math.min(5000, Math.max(1, parseInt(req.query.limit, 10) || 20));
     const offset = (page - 1) * limit;
     const status = req.query.status || null;
     const ownerId = req.query.owner_id || null;
@@ -53,29 +50,6 @@ export async function listLeads(req, res) {
     if (createdTo && /^\d{4}-\d{2}-\d{2}$/.test(createdTo)) {
       whereClause += ' AND DATE(l.created_at) <= ?';
       params.push(createdTo);
-    }
-
-    const qRaw = (req.query.q || req.query.search || '').trim().slice(0, 120);
-    if (qRaw) {
-      const needle = qRaw.toLowerCase();
-      const phoneDigits = qRaw.replace(/\D/g, '');
-      const subconds = [
-        'INSTR(LOWER(COALESCE(l.name,\'\')), ?) > 0',
-        'INSTR(LOWER(COALESCE(l.email,\'\')), ?) > 0',
-      ];
-      const searchParams = [needle, needle];
-      if (phoneDigits.length >= 3) {
-        subconds.push(
-          'INSTR(REPLACE(REPLACE(COALESCE(l.phone,\'\'),\' \',\'\'),\'-\',\'\'), ?) > 0'
-        );
-        searchParams.push(phoneDigits);
-      }
-      if (/^\d{1,10}$/.test(qRaw)) {
-        subconds.unshift('l.id = ?');
-        searchParams.unshift(parseInt(qRaw, 10));
-      }
-      whereClause += ` AND (${subconds.join(' OR ')})`;
-      params.push(...searchParams);
     }
 
     const [rows] = await pool.query(
@@ -154,45 +128,20 @@ export async function createLead(req, res) {
   try {
     const pool = await getDBConnection();
     const userId = req.session?.user?.id;
-
-    let finalPipelineStageId =
-      pipeline_stage_id != null && pipeline_stage_id !== ''
-        ? parseInt(pipeline_stage_id, 10)
-        : null;
-    if (!Number.isFinite(finalPipelineStageId)) finalPipelineStageId = null;
-
-    let finalStatus = (status || '').trim() || 'new_lead';
-
-    if (finalPipelineStageId) {
-      const [ps] = await pool.execute('SELECT slug FROM pipeline_stages WHERE id = ? LIMIT 1', [finalPipelineStageId]);
-      if (ps.length > 0) finalStatus = ps[0].slug;
-    } else {
-      const [ps] = await pool.execute(
-        'SELECT id, slug FROM pipeline_stages WHERE slug = ? ORDER BY order_num LIMIT 1',
-        [finalStatus]
-      );
-      if (ps.length > 0) {
-        finalPipelineStageId = ps[0].id;
-        finalStatus = ps[0].slug;
-      }
-    }
+    
+    // Get default pipeline stage if not provided
+    let finalPipelineStageId = pipeline_stage_id;
     if (!finalPipelineStageId) {
-      const [ps] = await pool.execute(
-        "SELECT id, slug FROM pipeline_stages WHERE slug IN ('new_lead','lead_received') ORDER BY FIELD(slug,'new_lead','lead_received') LIMIT 1"
+      const [stages] = await pool.execute(
+        "SELECT id FROM pipeline_stages WHERE slug IN ('new_lead','lead_received') ORDER BY FIELD(slug,'new_lead','lead_received') LIMIT 1"
       );
-      if (ps.length > 0) {
-        finalPipelineStageId = ps[0].id;
-        finalStatus = 'new_lead';
+      if (stages.length > 0) {
+        finalPipelineStageId = stages[0].id;
       }
     }
-
-    let colSet = await getLeadsTableColumns(pool);
+    
+    const colSet = await getLeadsTableColumns(pool);
     const marketing = extractMarketingFromBody({ ...restBody, ...req.body });
-    const addrIn = restBody.address != null ? String(restBody.address).trim().slice(0, 500) : '';
-    if (addrIn) {
-      await ensureLeadsAddressColumn(pool);
-      colSet = await getLeadsTableColumns(pool);
-    }
     const cols = [
       'name',
       'email',
@@ -216,17 +165,13 @@ export async function createLead(req, res) {
       message || null,
       source || 'Manual',
       form_type || 'manual',
-      finalStatus,
+      status || 'new_lead',
       priority || 'medium',
       owner_id || userId || null,
       finalPipelineStageId,
       estimated_value || null,
       notes || null,
     ];
-    if (colSet.has('address')) {
-      cols.push('address');
-      vals.push(addrIn || null);
-    }
     for (const key of MARKETING_KEYS) {
       if (colSet.has(key)) {
         cols.push(key);
@@ -267,18 +212,19 @@ export async function updateLead(req, res) {
   
   try {
     const pool = await getDBConnection();
-    const [oldLeadRows] = await pool.query(
-      `SELECT ps.slug AS stage_slug, l.status FROM leads l
-       LEFT JOIN pipeline_stages ps ON l.pipeline_stage_id = ps.id
-       WHERE l.id = ?`,
-      [id]
-    );
-    const oldStageSlug = String(oldLeadRows[0]?.stage_slug || oldLeadRows[0]?.status || '').toLowerCase();
-
-    if (body.address !== undefined) {
-      await ensureLeadsAddressColumn(pool);
-    }
     const colSet = await getLeadsTableColumns(pool);
+    const OPTIONAL_DIRECT_STRING = [
+      'source',
+      'form_type',
+      'company_name',
+      'job_title',
+      'city',
+      'state',
+      'gclid',
+      'fbclid',
+      'referrer_url',
+    ];
+
     const allowed = [
       'name',
       'email',
@@ -293,6 +239,7 @@ export async function updateLead(req, res) {
       'estimated_value',
       'notes',
       ...MARKETING_KEYS.filter((k) => colSet.has(k)),
+      ...OPTIONAL_DIRECT_STRING.filter((k) => colSet.has(k)),
     ];
     
     // If status is updated but pipeline_stage_id is not, try to find matching stage
@@ -331,6 +278,14 @@ export async function updateLead(req, res) {
         } else if (key === 'name' && val != null) val = String(val).trim().slice(0, 255);
         else if (key === 'email' && val != null) val = String(val).trim().slice(0, 255);
         else if (key === 'phone' && val != null) val = String(val).trim().slice(0, 50);
+        else if (OPTIONAL_DIRECT_STRING.includes(key)) {
+          if (val === '' || val == null) val = null;
+          else {
+            const max =
+              key === 'referrer_url' ? 2000 : key === 'gclid' || key === 'fbclid' ? 255 : 500;
+            val = String(val).trim().slice(0, max) || null;
+          }
+        }
         values.push(val);
       }
     }
@@ -368,51 +323,8 @@ export async function updateLead(req, res) {
        WHERE l.id = ?`,
       [id]
     );
-
-    let client_conversion = null;
-    try {
-      const conv = await ensureClientFromLead(pool, rows[0]);
-      if (conv.created || conv.customer_id) {
-        client_conversion = {
-          created: !!conv.created,
-          customer_id: conv.customer_id ?? null,
-          reason: conv.reason || null,
-        };
-      }
-    } catch (convErr) {
-      console.error('ensureClientFromLead:', convErr);
-    }
-
-    const newSlug = String(rows[0].pipeline_stage_slug || rows[0].status || '').toLowerCase();
-    const transitionedToClosedWon = newSlug === 'closed_won' && oldStageSlug !== 'closed_won';
-
-    let project_auto = null;
-    if (transitionedToClosedWon) {
-      project_auto = { scheduled: true };
-      const uid = req.session?.userId != null ? parseInt(String(req.session.userId), 10) || null : null;
-      const leadIdForJob = id;
-      setImmediate(async () => {
-        try {
-          const p = await getDBConnection();
-          if (!p) return;
-          const [acc] = await p.query(
-            `SELECT id FROM estimates WHERE lead_id = ?
-             AND LOWER(TRIM(status)) = 'accepted'
-             ORDER BY COALESCE(updated_at, created_at) DESC LIMIT 1`,
-            [leadIdForJob]
-          );
-          if (acc.length) {
-            await autoCreateProjectFromEstimate(p, acc[0].id, uid);
-          } else {
-            await ensureProjectFromWonLead(p, leadIdForJob, uid);
-          }
-        } catch (projErr) {
-          console.error('[AUTO] lead closed_won project:', projErr);
-        }
-      });
-    }
-
-    return res.json({ success: true, data: rows[0], client_conversion, project_auto });
+    
+    return res.json({ success: true, data: rows[0] });
   } catch (e) {
     console.error('Update lead error:', e);
     return res.status(500).json({ success: false, error: e.message });
