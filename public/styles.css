@@ -1966,7 +1966,7 @@ input.score-auto {
     padding: var(--spacing-sm);
     margin-bottom: var(--spacing-sm);
     box-shadow: var(--shadow);
-    cursor: move;
+    cursor: default;
     transition: var(--transition);
     border-left: 3px solid var(--primary-color);
 }

@@ -8,9 +8,6 @@ let allLeads = [];
 let allUsers = [];
 /** Todas as visitas scheduled da API (Kanban filtra por estágio do lead) */
 let scheduledVisitsRawForKanban = [];
-/** Instâncias Sortable ativas (destruir antes de re-render para não duplicar onEnd nem “prender” cartões) */
-let kanbanSortableInstances = [];
-
 /** Inicial: 2 cards por coluna; "Ver mais" +4 */
 const KANBAN_CARDS_INITIAL = 2;
 const KANBAN_CARDS_STEP = 4;
@@ -26,17 +23,6 @@ function findLeadByIdKanban(leadId) {
     const n = kanbanNumericId(leadId);
     if (!Number.isFinite(n)) return undefined;
     return allLeads.find((l) => kanbanNumericId(l.id) === n);
-}
-
-function destroyKanbanSortables() {
-    while (kanbanSortableInstances.length) {
-        const s = kanbanSortableInstances.pop();
-        try {
-            if (s && typeof s.destroy === 'function') s.destroy();
-        } catch (e) {
-            /* ignore */
-        }
-    }
 }
 
 function escapeKanbanHtml(s) {
@@ -259,7 +245,6 @@ async function loadKanbanBoard() {
         if (data.success && data.data) {
             allLeads = data.data;
             renderKanbanBoard();
-            initKanbanDragDrop();
             bindKanbanLoadMore();
         }
     } catch (error) {
@@ -348,7 +333,6 @@ function renderKanbanBoard() {
     const board = document.getElementById('kanbanBoard');
     if (!board) return;
 
-    destroyKanbanSortables();
     board.classList.add('kanban-board-grid');
 
     board.innerHTML = '';
@@ -408,7 +392,6 @@ function bindKanbanLoadMore() {
             const cur = kanbanColumnVisible[slug] ?? KANBAN_CARDS_INITIAL;
             kanbanColumnVisible[slug] = cur + KANBAN_CARDS_STEP;
             renderKanbanBoard();
-            initKanbanDragDrop();
             bindKanbanLoadMore();
         });
     });
@@ -449,7 +432,6 @@ function renderVisitKanbanCard(visit) {
                 <div class="kanban-card-row"><span class="kanban-card-label">Local</span><span class="kanban-card-value">${addr}</span></div>
                 ${assignee ? `<div class="kanban-card-row"><span class="kanban-card-label">Resp.</span><span class="kanban-card-value">${assignee}</span></div>` : ''}
             </div>
-            <div class="kanban-card-owner kanban-card-owner--hint">Arraste para outra coluna para mudar o estágio</div>
         </div>
     `;
 }
@@ -486,115 +468,6 @@ function renderKanbanCard(lead) {
             <div class="kanban-card-owner">${ownerName}</div>
         </div>
     `;
-}
-
-// Initialize Drag and Drop
-function initKanbanDragDrop() {
-    if (typeof Sortable === 'undefined') {
-        // Load SortableJS
-        const script = document.createElement('script');
-        script.src = 'https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js';
-        script.onload = () => {
-            setupSortable();
-        };
-        document.head.appendChild(script);
-    } else {
-        setupSortable();
-    }
-}
-
-const KANBAN_SORTABLE_SHARED = {
-    animation: 150,
-    emptyInsertThreshold: 48,
-    filter: 'button, input, textarea, select, a',
-    preventOnFilter: true,
-};
-
-function setupSortable() {
-    const visitsCards = document.getElementById('kanban-visits-cards');
-    if (visitsCards && typeof Sortable !== 'undefined') {
-        // Só o destino (colunas de estágio) trata onEnd — evita dupla chamada à API.
-        // draggable nativo no HTML quebra o Sortable; não usar draggable="true" nos cartões.
-        kanbanSortableInstances.push(
-            new Sortable(visitsCards, {
-                ...KANBAN_SORTABLE_SHARED,
-                group: { name: 'kanban', pull: true, put: false },
-            })
-        );
-    }
-
-    pipelineStages.forEach((stage) => {
-        const cardsContainer = document.getElementById(kanbanStageDomId(stage));
-        if (cardsContainer) {
-            kanbanSortableInstances.push(
-                new Sortable(cardsContainer, {
-                    ...KANBAN_SORTABLE_SHARED,
-                    group: { name: 'kanban', pull: true, put: true },
-                    onEnd: (evt) => {
-                        if (evt.from === evt.to) return;
-                        const leadId = kanbanNumericId(evt.item.dataset.leadId);
-                        const col = evt.to.closest('.kanban-column');
-                        if (!col || col.dataset.visitOnly === 'true') return;
-                        const rawId = col.dataset.stageId;
-                        const parsed = rawId ? parseInt(rawId, 10) : NaN;
-                        const newStageId = Number.isFinite(parsed) && parsed > 0 ? parsed : null;
-                        const newStageSlug = col.dataset.stageSlug;
-                        if (Number.isFinite(leadId) && newStageSlug) {
-                            void updateLeadStage(leadId, newStageId, newStageSlug);
-                        }
-                    },
-                })
-            );
-        }
-    });
-}
-
-// Update Lead Stage (when dragged)
-async function updateLeadStage(leadId, stageId, stageSlug) {
-    try {
-        const response = await fetch(`/api/leads/${leadId}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify(
-                stageId != null && Number(stageId) > 0
-                    ? { pipeline_stage_id: stageId, status: stageSlug }
-                    : { status: stageSlug }
-            )
-        });
-        
-        const data = await response.json();
-        if (data.success) {
-            if (data.project_auto) {
-                if (data.project_auto.created && data.project_auto.project_id) {
-                    if (typeof crmNotify === 'function') {
-                        crmNotify('Projeto criado (ID ' + data.project_auto.project_id + ').', 'success');
-                    }
-                } else if (data.project_auto.ok === false && data.project_auto.error) {
-                    const msg =
-                        data.project_auto.error === 'invalid_email'
-                            ? 'Projeto não criado: email do lead inválido'
-                            : 'Projeto não criado: ' + data.project_auto.error;
-                    if (typeof crmNotify === 'function') crmNotify(msg, 'error');
-                }
-            }
-            // Adiar reload: await dentro de onEnd do Sortable corta o teardown do drag e “prende” cartões.
-            queueMicrotask(() => {
-                loadKanbanBoard();
-            });
-            return;
-        } else {
-            // Revert on error
-            loadKanbanBoard();
-            if (typeof crmNotify === 'function') crmNotify('Erro ao atualizar estágio: ' + (data.error || 'Desconhecido'), 'error');
-            else alert('Erro ao atualizar estágio: ' + (data.error || 'Desconhecido'));
-        }
-    } catch (error) {
-        console.error('Error updating lead stage:', error);
-        loadKanbanBoard();
-        if (typeof crmNotify === 'function') crmNotify('Erro ao atualizar estágio', 'error');
-        else alert('Erro ao atualizar estágio');
-    }
 }
 
 /** Preenche o select de estágio do modal Novo Lead (inclui Visita Agendada, etc.). */
