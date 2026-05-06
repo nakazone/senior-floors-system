@@ -13,7 +13,7 @@
     <link rel="icon" type="image/png" sizes="16x16" href="/assets/SeniorFloors.png">
     <link rel="apple-touch-icon" sizes="180x180" href="/assets/SeniorFloors.png">
     <link rel="icon" type="image/png" href="/assets/SeniorFloors.png">
-    <link rel="stylesheet" href="styles.css?v=20260506-lqs-visit-pri-icons">
+    <link rel="stylesheet" href="styles.css?v=20260506-lqs-toolbar-visit-pri">
     <link rel="stylesheet" href="design-system.css">
     <link rel="stylesheet" href="mobile-design-system.css">
     <link rel="stylesheet" href="crm-toast.css">
@@ -1438,12 +1438,13 @@
 
     <!-- Popup agendar visita (sem sair do dashboard / painel do lead) -->
     <div id="lqsScheduleVisitModal" class="modal modal-lightbox lqs-visit-modal" aria-hidden="true">
-        <div class="modal-backdrop" data-lqs-visit-close tabindex="-1" aria-hidden="true"></div>
-        <div class="modal-content modal-content-lightbox">
-            <div class="modal-header modal-header-lightbox">
-                <h3>Agendar visita</h3>
-                <button type="button" class="modal-close modal-close-lightbox" data-lqs-visit-close aria-label="Fechar">&times;</button>
-            </div>
+        <div class="modal-backdrop lqs-visit-modal__backdrop" data-lqs-visit-close tabindex="-1" aria-hidden="true"></div>
+        <div class="modal-content modal-content-lightbox lqs-visit-modal__sheet">
+            <div class="lead-quick-sheet__handle lqs-visit-modal__grab" aria-hidden="true"></div>
+            <header class="lqs-visit-modal__header">
+                <h2 class="lqs-visit-modal__title">Agendar visita</h2>
+                <button type="button" class="lead-quick-sheet__close lqs-visit-modal__close-btn" data-lqs-visit-close aria-label="Fechar">&times;</button>
+            </header>
             <form id="lqsNewVisitForm">
                 <div class="modal-body">
                     <div class="form-group form-group-readonly">
@@ -1483,9 +1484,9 @@
                         </select>
                     </div>
                 </div>
-                <div class="modal-footer-lightbox">
-                    <button type="button" class="btn btn-secondary" data-lqs-visit-close>Cancelar</button>
-                    <button type="submit" class="btn btn-primary">Agendar visita</button>
+                <div class="modal-footer-lightbox lqs-visit-modal__footer">
+                    <button type="button" class="lead-quick-sheet__edit-cancel lqs-visit-modal__btn-cancel" data-lqs-visit-close>Cancelar</button>
+                    <button type="submit" class="lead-quick-sheet__edit-save lqs-visit-modal__btn-submit">Agendar visita</button>
                 </div>
             </form>
         </div>
@@ -1499,8 +1500,8 @@
     <script src="marketing-dashboard.js"></script>
     <script src="dashboard.js"></script>
     <script src="pipeline-stage-labels.js?v=20260508-k9-order"></script>
-    <script src="lead-quick-sheet.js?v=20260506-lqs-visit-pri-icons"></script>
-    <script src="leads-kanban.js?v=20260506-lead-sheet-slim-v2"></script>
+    <script src="lead-quick-sheet.js?v=20260506-lqs-toolbar-visit-pri"></script>
+    <script src="leads-kanban.js?v=20260506-lqs-toolbar-visit-pri"></script>
     <script src="schedule-engine.js"></script>
     <script src="financial-engine.js"></script>
 </body>

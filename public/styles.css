@@ -2050,6 +2050,29 @@ input.score-auto {
     color: #22543d;
 }
 
+.kanban-card-priority--emoji {
+    font-size: 1.05rem;
+    font-weight: 400;
+    line-height: 1;
+    padding: 4px 8px;
+    min-width: 2rem;
+    text-align: center;
+}
+
+.kanban-card-priority--emoji.high {
+    background: rgba(254, 215, 215, 0.65);
+}
+
+.kanban-card-priority--emoji.medium {
+    background: transparent;
+    color: var(--text-muted);
+    opacity: 0.75;
+}
+
+.kanban-card-priority--emoji.low {
+    background: rgba(198, 246, 213, 0.65);
+}
+
 .kanban-column--visits {
     border: 2px solid #0d9488;
     background: linear-gradient(180deg, rgba(13, 148, 136, 0.08) 0%, var(--bg-light) 140px);
@@ -6300,8 +6323,14 @@ body.lead-quick-sheet-open {
     margin-bottom: 14px;
 }
 
-.lead-quick-sheet__toolbar--minimal {
-    gap: 10px;
+.lead-quick-sheet__toolbar.lead-quick-sheet__toolbar--minimal {
+    display: flex;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    width: 100%;
+    box-sizing: border-box;
+    gap: 0;
     margin-bottom: 12px;
 }
 
@@ -6309,6 +6338,9 @@ body.lead-quick-sheet-open {
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
+    width: 100%;
+    box-sizing: border-box;
+    justify-content: flex-start;
 }
 
 .lead-quick-sheet__toolbar--minimal .lead-quick-sheet__action {
@@ -6330,6 +6362,21 @@ body.lead-quick-sheet-open {
     flex-wrap: wrap;
     gap: 10px 14px;
     align-items: flex-end;
+    width: 100%;
+    box-sizing: border-box;
+    justify-content: flex-start;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border-color, #f1f5f9);
+}
+
+.lead-quick-sheet__pri-inline {
+    font-size: 1rem;
+    line-height: 1;
+}
+
+.lead-quick-sheet__pri-inline--muted {
+    opacity: 0.45;
 }
 
 .lead-quick-sheet__schedule-row--min {
@@ -6382,9 +6429,88 @@ body.lead-quick-sheet-open {
 
 .kanban-card--open-sheet { cursor: pointer; }
 
-/* Lead sheet: visit modal above popup (z-index) + priority ice/fire */
+/* Lead sheet: visit modal (mesmo formato visual que o painel do lead) + priority ice/fire */
 .lqs-visit-modal.modal {
     z-index: 13050;
+    background: transparent;
+    align-items: center;
+    justify-content: center;
+}
+
+.lqs-visit-modal .modal-backdrop,
+.lqs-visit-modal__backdrop {
+    background: rgba(15, 23, 42, 0.45);
+}
+
+.lqs-visit-modal .modal-content-lightbox.lqs-visit-modal__sheet {
+    position: relative;
+    width: min(480px, calc(100vw - 24px));
+    max-height: min(85vh, 720px);
+    border-radius: 16px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.22);
+    background: var(--bg-white, #fff);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.lqs-visit-modal__grab {
+    margin: 10px auto 4px;
+}
+
+.lqs-visit-modal__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 0 16px 12px;
+    border-bottom: 1px solid var(--border-color, #e2e8f0);
+    flex-shrink: 0;
+}
+
+.lqs-visit-modal__title {
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 700;
+    line-height: 1.25;
+    color: var(--text-dark);
+}
+
+.lqs-visit-modal .modal-content-lightbox.lqs-visit-modal__sheet > form {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+    margin: 0;
+}
+
+.lqs-visit-modal .modal-content-lightbox.lqs-visit-modal__sheet > form .modal-body {
+    overflow-y: auto;
+    flex: 1 1 auto;
+    min-height: 0;
+    -webkit-overflow-scrolling: touch;
+    padding: 12px 16px;
+}
+
+.lqs-visit-modal__footer.modal-footer-lightbox {
+    padding: 12px 16px 16px;
+    border-top: 1px solid var(--border-color, #f1f5f9);
+    background: var(--bg-white, #fff);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: flex-end;
+}
+
+.lqs-visit-modal__footer .lqs-visit-modal__btn-submit {
+    padding: 10px 18px;
+    font-size: 0.85rem;
+}
+
+.lqs-visit-modal__footer .lqs-visit-modal__btn-cancel {
+    padding: 10px 16px;
+    font-size: 0.85rem;
 }
 
 .lqs-visit-modal .form-row-2 {

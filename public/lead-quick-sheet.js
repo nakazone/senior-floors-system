@@ -114,6 +114,16 @@
   function formatFieldValue(key, val) {
     if (key === 'estimated_value') return fmtMoney(val);
     if (/_at$/.test(key) || key === 'due_date') return fmtDate(val);
+    if (key === 'priority') {
+      const p = String(val || 'medium').toLowerCase();
+      if (p === 'high') {
+        return '<span class="lead-quick-sheet__pri-inline" title="Alta">\u{1F525}</span>';
+      }
+      if (p === 'low') {
+        return '<span class="lead-quick-sheet__pri-inline" title="Baixa">\u{1F9CA}</span>';
+      }
+      return '<span class="lead-quick-sheet__pri-inline lead-quick-sheet__pri-inline--muted" title="Media">\u2014</span>';
+    }
     return escapeHtml(String(val));
   }
 
