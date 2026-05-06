@@ -7,6 +7,8 @@
   let sheetAnchorEl = null;
   /** @type {Record<string, unknown> | null} */
   let sheetLead = null;
+  /** Cache dos estagios do pipeline (com cores), alinhado ao Kanban */
+  let sheetStagesCache = [];
 
   function escapeHtml(s) {
     if (s == null || s === '') return '';
@@ -235,15 +237,34 @@
   ];
 
   function normalizeStages(stagesRes) {
-    let stages = [];
+    let apiRows = [];
     try {
-      const data = stagesRes && stagesRes.data;
-      if (data && data.success && Array.isArray(data.data)) {
-        stages = data.data.map((s) => ({ id: s.id, name: s.name, slug: s.slug || s.name }));
+      const payload = stagesRes && stagesRes.data;
+      if (payload && payload.success && Array.isArray(payload.data)) {
+        apiRows = payload.data;
       }
     } catch (_) {}
-    if (!stages.length) stages = DEFAULT_STAGES.slice();
-    return stages;
+    if (typeof global.mergePipelineStagesForKanban === 'function') {
+      return global.mergePipelineStagesForKanban(apiRows);
+    }
+    const defs = global.PIPELINE_V9_KANBAN_DEFAULTS || {};
+    return DEFAULT_STAGES.map((s, i) => ({
+      id: s.id,
+      slug: s.slug,
+      name: s.name,
+      color: (defs[s.slug] && defs[s.slug].color) || '#64748b',
+      order_num: i + 1,
+      is_active: 1,
+    }));
+  }
+
+  function slugMatchesCurrent(stageSlug, currentSlug) {
+    const a = String(stageSlug || '').trim();
+    const b = String(currentSlug || '').trim();
+    if (typeof global.normalizePipelineSlug === 'function') {
+      return global.normalizePipelineSlug(a) === global.normalizePipelineSlug(b);
+    }
+    return a === b;
   }
 
   function renderStageOptions(stages, currentSlug) {
@@ -253,11 +274,30 @@
         const label =
           typeof global.pipelineStageDisplayName === 'function'
             ? global.pipelineStageDisplayName(slug, stage.name)
-            : stage.name;
-        const sel = currentSlug === slug ? ' selected' : '';
-        return `<option value="${escapeHtml(slug)}"${sel}>${escapeHtml(label)}</option>`;
+            : stage.name || slug;
+        const sel = slugMatchesCurrent(slug, currentSlug) ? ' selected' : '';
+        const col = escapeHtml(stage.color || '#94a3b8');
+        return `<option value="${escapeHtml(slug)}" data-color="${col}"${sel}>${escapeHtml(label)}</option>`;
       })
       .join('');
+  }
+
+  function syncStatusDotFromSelect() {
+    const sel = document.getElementById('lqsStatus');
+    const dot = document.getElementById('lqsStatusDot');
+    if (!sel || !dot) return;
+    const opt = sel.options[sel.selectedIndex];
+    const c = opt && opt.getAttribute('data-color');
+    const hex = c || '#94a3b8';
+    dot.style.backgroundColor = hex;
+    sel.style.accentColor = hex;
+  }
+
+  function stageColorForLead(lead, stages) {
+    const slug = lead.pipeline_stage_slug || lead.status || '';
+    const list = stages || sheetStagesCache;
+    const hit = list.find((s) => slugMatchesCurrent(s.slug, slug));
+    return (hit && hit.color) || '#64748b';
   }
 
   function mergeQuoteRows(quotesData, proposalsData) {
@@ -351,8 +391,9 @@
     if (!badgesEl || !lead) return;
     const stageLabel = stageDisplayName(lead);
     const pri = String(lead.priority || 'medium').toLowerCase().replace(/[^a-z]/g, '') || 'medium';
+    const stageHex = escapeHtml(stageColorForLead(lead, sheetStagesCache));
     badgesEl.innerHTML =
-      `<span class="lead-quick-sheet__badge lead-quick-sheet__badge--stage">${escapeHtml(stageLabel)}</span>` +
+      `<span class="lead-quick-sheet__badge lead-quick-sheet__badge--stage" style="--lqs-stage:${stageHex}">${escapeHtml(stageLabel)}</span>` +
       `<span class="lead-quick-sheet__badge lead-quick-sheet__badge--pri lead-quick-sheet__badge--pri-${escapeHtml(pri)}">${escapeHtml(lead.priority || 'medium')}</span>`;
   }
 
@@ -415,13 +456,20 @@
     const scheduleUrl = `lead-detail.html?id=${sid}&tab=visits&schedule=1`;
 
     return `
-      <div class="lead-quick-sheet__toolbar lead-quick-sheet__toolbar--rich">
+      <div class="lead-quick-sheet__toolbar lead-quick-sheet__toolbar--minimal">
         <div class="lead-quick-sheet__toolbar-row lead-quick-sheet__toolbar-row--actions">
           ${tele}${mail}${quoteNew}${detailLink}
         </div>
         <div class="lead-quick-sheet__toolbar-row lead-quick-sheet__toolbar-row--controls">
-          <label class="lead-quick-sheet__inline">Estagio
-            <select id="lqsStatus" class="lead-quick-sheet__select">${renderStageOptions(stages, currentSlug)}</select>
+          <label class="lead-quick-sheet__inline lead-quick-sheet__inline--status">
+            <span class="lead-quick-sheet__status-label-row">
+              <span class="lead-quick-sheet__status-dot" id="lqsStatusDot" aria-hidden="true"></span>
+              <span>Status</span>
+            </span>
+            <select id="lqsStatus" class="lead-quick-sheet__select lead-quick-sheet__select--status">${renderStageOptions(
+              stages,
+              currentSlug
+            )}</select>
           </label>
           <label class="lead-quick-sheet__inline">Prioridade
             <select id="lqsPriority" class="lead-quick-sheet__select">
@@ -433,18 +481,18 @@
         </div>
       </div>
 
-      <div class="lead-quick-sheet__schedule-row">
-        <a class="btn btn-primary btn-sm lead-quick-sheet__schedule-btn" href="${scheduleUrl}" target="_blank" rel="noopener">Agendar visita</a>
+      <div class="lead-quick-sheet__schedule-row lead-quick-sheet__schedule-row--min">
+        <a class="lead-quick-sheet__schedule-btn-min" href="${scheduleUrl}" target="_blank" rel="noopener">Agendar visita</a>
       </div>
 
       <section class="lead-quick-sheet__section lead-quick-sheet__section--static">
-        <h3 class="lead-quick-sheet__h3">Resumo</h3>
+        <h3 class="lead-quick-sheet__h3 lead-quick-sheet__h3--minimal">Resumo</h3>
         ${renderPrimaryStaticSummary(lead)}
         ${renderLeadCatalogFields(lead)}
       </section>
 
-      <section class="lead-quick-sheet__section">
-        <h3 class="lead-quick-sheet__h3">Orcamentos</h3>
+      <section class="lead-quick-sheet__section lead-quick-sheet__section--quotes">
+        <h3 class="lead-quick-sheet__h3 lead-quick-sheet__h3--minimal">Orcamentos</h3>
         <div data-lqs-quotes-list>${renderQuotesRows(quoteRows, sid)}</div>
       </section>`;
   }
@@ -486,7 +534,8 @@
     const t = e.target;
     if (!sheetLeadId) return;
     if (t.id === 'lqsStatus') {
-      void patchLead({ status: t.value });
+      syncStatusDotFromSelect();
+      void patchLead({ status: t.value }).then(() => syncStatusDotFromSelect());
       return;
     }
     if (t.id === 'lqsPriority') {
@@ -613,9 +662,9 @@
     const lead = ld.data;
     sheetLead = lead;
     titleEl.textContent = lead.name || 'Lead';
-    updateHeaderBadges(lead);
 
     const stages = normalizeStages(stagesRes);
+    sheetStagesCache = stages;
 
     const bundle = {
       stages,
@@ -624,6 +673,8 @@
     };
 
     body.innerHTML = renderSheetBody(lead, bundle);
+    updateHeaderBadges(lead);
+    syncStatusDotFromSelect();
 
     requestAnimationFrame(() => {
       animatePanelFromAnchor(sheetAnchorEl, panelEl);
@@ -640,6 +691,7 @@
     sheetLeadId = null;
     sheetAnchorEl = null;
     sheetLead = null;
+    sheetStagesCache = [];
   }
 
   function wire() {
