@@ -6055,4 +6055,31 @@ body.lead-quick-sheet-open {
     background: #fef2f2;
 }
 
+.lead-quick-sheet__schedule-row {
+    margin: 0 0 14px;
+}
+
+.lead-quick-sheet__schedule-btn {
+    width: 100%;
+    justify-content: center;
+    box-sizing: border-box;
+}
+
+.lead-quick-sheet__section--static {
+    margin-bottom: 18px;
+}
+
+.lead-quick-sheet__dl--primary {
+    margin-bottom: 8px;
+}
+
+.lead-quick-sheet__h4 {
+    margin: 14px 0 8px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+}
+
 .kanban-card--open-sheet { cursor: pointer; }

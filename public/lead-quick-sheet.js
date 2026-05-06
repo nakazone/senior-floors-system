@@ -1,6 +1,6 @@
 /**
- * Painel rÔøΩpido do lead no dashboard (popup centrado + animaÔøΩÔøΩo FLIP a partir do cartÔøΩo Kanban).
- * Inclui resumo editÔøΩvel, estÔøΩgio/prioridade, qualificaÔøΩÔøΩo, follow-ups, interaÔøΩÔøΩes, visitas e orÔøΩamentos.
+ * Painel rapido do lead no dashboard (popup centrado + animacao FLIP a partir do cartao Kanban).
+ * Resumo estatico sempre visivel; estagio/prioridade; botao Agendar visita; orcamentos.
  */
 (function (global) {
   let sheetLeadId = null;
@@ -18,7 +18,7 @@
   }
 
   function fmtDate(iso) {
-    if (!iso) return 'ÔøΩ';
+    if (!iso) return 'ù';
     try {
       const d = new Date(iso);
       if (Number.isNaN(d.getTime())) return escapeHtml(String(iso));
@@ -29,7 +29,7 @@
   }
 
   function fmtMoney(n) {
-    if (n == null || n === '') return 'ÔøΩ';
+    if (n == null || n === '') return 'ù';
     const x = parseFloat(n);
     if (Number.isNaN(x)) return escapeHtml(String(n));
     return escapeHtml(
@@ -49,13 +49,13 @@
     estimated_value: 'Valor estimado',
     created_at: 'Criado em',
     updated_at: 'Atualizado em',
-    owner_name: 'ResponsÔøΩvel',
-    owner_email: 'Email do responsÔøΩvel',
-    pipeline_stage_name: 'EstÔøΩgio',
-    pipeline_stage_slug: 'EstÔøΩgio (slug)',
-    form_type: 'Tipo de formulÔøΩrio',
-    next_steps: 'PrÔøΩximos passos',
-    next_steps_notes: 'Notas prÔøΩximos passos',
+    owner_name: 'Responsavel',
+    owner_email: 'Email do responsavel',
+    pipeline_stage_name: 'Estagio',
+    pipeline_stage_slug: 'Estagio (slug)',
+    form_type: 'Tipo de formulario',
+    next_steps: 'Proximos passos',
+    next_steps_notes: 'Notas proximos passos',
     utm_source: 'UTM source',
     utm_medium: 'UTM medium',
     utm_campaign: 'UTM campaign',
@@ -82,7 +82,7 @@
     'updated_by',
   ]);
 
-  /** Campos jÔøΩ tratados no separador Resumo ou nos controlos superiores ÔøΩ omitir na lista extra */
+  /** Omitir duplicados do bloco principal do resumo */
   const EXTRA_SKIP = new Set([
     'name',
     'email',
@@ -95,6 +95,9 @@
     'status',
     'pipeline_stage_name',
     'pipeline_stage_slug',
+    'next_steps',
+    'next_steps_notes',
+    'owner_name',
   ]);
 
   function stageDisplayName(lead) {
@@ -103,7 +106,7 @@
     if (typeof global.pipelineStageDisplayName === 'function') {
       return global.pipelineStageDisplayName(slug, name);
     }
-    return name || slug || 'ÔøΩ';
+    return name || slug || 'ù';
   }
 
   function formatFieldValue(key, val) {
@@ -112,9 +115,33 @@
     return escapeHtml(String(val));
   }
 
+  function ddStatic(label, innerHtml) {
+    return `<div class="lead-quick-sheet__row"><dt>${escapeHtml(label)}</dt><dd>${innerHtml}</dd></div>`;
+  }
+
+  /** Resumo principal: sempre visivel, somente leitura */
+  function renderPrimaryStaticSummary(lead) {
+    const nextBits = [lead.next_steps, lead.next_steps_notes].filter((x) => x != null && String(x).trim());
+    const nextStr = nextBits.length ? escapeHtml(nextBits.join(' ù ')) : 'ù';
+    const parts = [
+      ddStatic('Nome', lead.name ? escapeHtml(String(lead.name)) : 'ù'),
+      ddStatic('Email', lead.email ? escapeHtml(String(lead.email)) : 'ù'),
+      ddStatic('Telefone', lead.phone ? escapeHtml(String(lead.phone)) : 'ù'),
+      ddStatic('Morada', lead.address != null && String(lead.address).trim() ? escapeHtml(String(lead.address)) : 'ù'),
+      ddStatic('CEP', lead.zipcode ? escapeHtml(String(lead.zipcode)) : 'ù'),
+      ddStatic('Valor estimado', formatFieldValue('estimated_value', lead.estimated_value)),
+      ddStatic('Notas', lead.notes != null && String(lead.notes).trim() ? escapeHtml(String(lead.notes)) : 'ù'),
+      ddStatic('Proximos passos', nextStr),
+      ddStatic(
+        'Responsavel',
+        lead.owner_name ? escapeHtml(String(lead.owner_name)) : 'ù'
+      ),
+    ];
+    return `<dl class="lead-quick-sheet__dl lead-quick-sheet__dl--primary">${parts.join('')}</dl>`;
+  }
+
   function renderLeadCatalogFields(lead) {
     const ORDER = [
-      'owner_name',
       'owner_email',
       'pipeline_stage_name',
       'status',
@@ -125,10 +152,7 @@
       'estimated_value',
       'source',
       'form_type',
-      'next_steps',
-      'next_steps_notes',
       'message',
-      'notes',
       'utm_source',
       'utm_medium',
       'utm_campaign',
@@ -174,9 +198,9 @@
     });
 
     if (!rows.length) {
-      return '<p class="lead-quick-sheet__empty">Sem mais campos.</p>';
+      return '';
     }
-    return `<dl class="lead-quick-sheet__dl">${rows.join('')}</dl>`;
+    return `<h4 class="lead-quick-sheet__h4">Mais detalhes</h4><dl class="lead-quick-sheet__dl">${rows.join('')}</dl>`;
   }
 
   async function fetchJson(url) {
@@ -201,8 +225,8 @@
   const DEFAULT_STAGES = [
     { id: 1, name: 'Novo lead', slug: 'new_lead' },
     { id: 2, name: 'Contato realizado', slug: 'contacted' },
-    { id: 3, name: 'ReuniÔøΩo agendada', slug: 'meeting_scheduled' },
-    { id: 4, name: 'OrÔøΩamento enviado', slug: 'quote_sent' },
+    { id: 3, name: 'Reuniao agendada', slug: 'meeting_scheduled' },
+    { id: 4, name: 'Orcamento enviado', slug: 'quote_sent' },
     { id: 5, name: 'Follow-up 1', slug: 'follow_up_1' },
     { id: 6, name: 'Follow-up 2', slug: 'follow_up_2' },
     { id: 7, name: 'Tentativa de fechamento', slug: 'closing_attempt' },
@@ -234,84 +258,6 @@
         return `<option value="${escapeHtml(slug)}"${sel}>${escapeHtml(label)}</option>`;
       })
       .join('');
-  }
-
-  function visitStatusLabel(status) {
-    const labels = {
-      scheduled: 'Agendada',
-      confirmed: 'Confirmada',
-      completed: 'Realizada',
-      cancelled: 'Cancelada',
-      no_show: 'NÔøΩo compareceu',
-    };
-    return labels[status] || status || '';
-  }
-
-  function interactionTypeLabel(type) {
-    const labels = {
-      call: 'Chamada',
-      whatsapp: 'WhatsApp',
-      email: 'Email',
-      visit: 'Visita',
-      meeting: 'ReuniÔøΩo',
-    };
-    return labels[type] || type || '';
-  }
-
-  function renderFollowups(list) {
-    if (!list || !list.length)
-      return '<p class="lead-quick-sheet__empty">Sem follow-ups.</p>';
-    return `<ul class="lead-quick-sheet__list" data-lqs-followups-list>${list
-      .map((f) => {
-        const title = escapeHtml(f.title || 'Tarefa');
-        const due = f.due_date ? fmtDate(f.due_date) : 'ÔøΩ';
-        const who = f.assigned_to_name ? escapeHtml(f.assigned_to_name) : '';
-        const pri = f.priority ? escapeHtml(f.priority) : '';
-        const st =
-          f.status === 'completed' ? 'ConcluÔøΩdo' : f.status === 'cancelled' ? 'Cancelado' : 'Pendente';
-        const bits = [due, st, who, pri].filter(Boolean).join(' ÔøΩ ');
-        return `<li class="lead-quick-sheet__list-item"><div class="lead-quick-sheet__list-title">${title}</div><div class="lead-quick-sheet__muted">${bits}</div></li>`;
-      })
-      .join('')}</ul>`;
-  }
-
-  function buildAddressFromVisit(v) {
-    if (v.address && String(v.address).trim()) return String(v.address).trim();
-    const parts = [v.address_line1, v.city, v.zipcode].filter(Boolean).map(String).map((s) => s.trim());
-    return parts.join(', ');
-  }
-
-  function renderVisits(list) {
-    if (!list || !list.length)
-      return '<p class="lead-quick-sheet__empty">Sem visitas agendadas.</p>';
-    return `<ul class="lead-quick-sheet__list">${list
-      .map((v) => {
-        const when = v.scheduled_at ? fmtDate(v.scheduled_at) : 'ÔøΩ';
-        const st = visitStatusLabel(v.status);
-        const addr = escapeHtml(buildAddressFromVisit(v));
-        const asn = v.assigned_to_name ? escapeHtml(v.assigned_to_name) : '';
-        const meta = [st, addr, asn].filter(Boolean).join(' ÔøΩ ');
-        return `<li class="lead-quick-sheet__list-item"><div class="lead-quick-sheet__list-title">${when}</div><div class="lead-quick-sheet__muted">${meta || 'ÔøΩ'}</div></li>`;
-      })
-      .join('')}</ul>`;
-  }
-
-  function renderInteractions(list) {
-    if (!list || !list.length)
-      return '<p class="lead-quick-sheet__empty">Nenhuma interaÔøΩÔøΩo ainda.</p>';
-    return `<ul class="lead-quick-sheet__timeline">${list
-      .map((interaction) => {
-        const when = interaction.created_at ? fmtDate(interaction.created_at) : '';
-        const title = escapeHtml(interactionTypeLabel(interaction.type));
-        const subj = interaction.subject ? `<strong>${escapeHtml(interaction.subject)}</strong><br>` : '';
-        const notes = escapeHtml(interaction.notes || '');
-        const by = interaction.user_name ? `<span class="lead-quick-sheet__muted">Por: ${escapeHtml(interaction.user_name)}</span>` : '';
-        return `<li class="lead-quick-sheet__timeline-item">
-          <div class="lead-quick-sheet__timeline-head"><span>${title}</span><span class="lead-quick-sheet__muted">${when}</span></div>
-          <div class="lead-quick-sheet__timeline-body">${subj}${notes}${by ? '<br>' + by : ''}</div>
-        </li>`;
-      })
-      .join('')}</ul>`;
   }
 
   function mergeQuoteRows(quotesData, proposalsData) {
@@ -355,8 +301,8 @@
 
   function renderQuotesRows(rows, sid) {
     if (!rows.length) {
-      return `<p class="lead-quick-sheet__empty">Nenhum orÔøΩamento ligado a este lead.</p>
-        <p class="lead-quick-sheet__hint">Crie um quote no CRM ou use <strong>Novo orÔøΩamento</strong> acima.</p>`;
+      return `<p class="lead-quick-sheet__empty">Nenhum orcamento ligado a este lead.</p>
+        <p class="lead-quick-sheet__hint">Use <strong>Novo orcamento</strong> na barra superior.</p>`;
     }
     return rows
       .map((row) => {
@@ -364,7 +310,7 @@
           row.kind === 'quote'
             ? '<span class="lead-quick-sheet__qbadge lead-quick-sheet__qbadge--quote">Quote</span>'
             : '<span class="lead-quick-sheet__qbadge lead-quick-sheet__qbadge--proposal">Proposta</span>';
-        const when = row.created_at ? new Date(row.created_at).toLocaleDateString('pt-BR') : 'ÔøΩ';
+        const when = row.created_at ? new Date(row.created_at).toLocaleDateString('pt-BR') : 'ù';
         const exp =
           row.expires && row.kind === 'quote'
             ? `<p class="lead-quick-sheet__qmeta"><strong>Expira:</strong> ${escapeHtml(
@@ -400,163 +346,6 @@
       .join('');
   }
 
-  function calculateQualificationScore() {
-    const propertyType = (document.getElementById('lqsQualPropertyType')?.value || '').trim();
-    const serviceType = (document.getElementById('lqsQualServiceType')?.value || '').trim();
-    const area = parseFloat(document.getElementById('lqsQualArea')?.value) || 0;
-    const budget = parseFloat(document.getElementById('lqsQualBudget')?.value) || 0;
-    const urgency = (document.getElementById('lqsQualUrgency')?.value || 'medium').trim();
-
-    let pts = 0;
-    const propertyScores = { house: 20, apartment: 17, commercial: 12, other: 8 };
-    pts += propertyScores[propertyType] || 0;
-    const serviceScores = { installation: 20, renovation: 17, repair: 12, other: 8 };
-    pts += serviceScores[serviceType] || 0;
-    if (area > 0) {
-      if (area <= 250) pts += 5;
-      else if (area <= 500) pts += 10;
-      else if (area <= 1000) pts += 14;
-      else if (area <= 2000) pts += 18;
-      else pts += 20;
-    }
-    if (budget > 0) {
-      if (budget < 5000) pts += 5;
-      else if (budget < 15000) pts += 10;
-      else if (budget < 30000) pts += 15;
-      else pts += 20;
-    }
-    const urgencyScores = { low: 8, medium: 12, high: 17, urgent: 20 };
-    pts += urgencyScores[urgency] || 12;
-
-    return Math.min(100, Math.round(pts));
-  }
-
-  function refreshQualScoreDisplay() {
-    const el = document.getElementById('lqsQualScore');
-    if (el) el.value = String(calculateQualificationScore());
-  }
-
-  const QUAL_LABELS = {
-    property_type: { house: 'Casa', apartment: 'Apartamento', commercial: 'Comercial', other: 'Outro' },
-    service_type: { installation: 'InstalaÔøΩÔøΩo', repair: 'Reparo', renovation: 'RenovaÔøΩÔøΩo', other: 'Outro' },
-    urgency: { low: 'Baixa', medium: 'MÔøΩdia', high: 'Alta', urgent: 'Urgente' },
-    payment_type: { cash: 'Dinheiro', financing: 'Financiamento', insurance: 'Seguro' },
-  };
-
-  function qualLabel(field, value) {
-    if (!value) return 'ÔøΩ';
-    const m = QUAL_LABELS[field];
-    return (m && m[value]) || value;
-  }
-
-  function renderQualificationSummary(qual) {
-    let html = '<div class="lead-quick-sheet__qual-grid">';
-    html += `<div><span class="lead-quick-sheet__muted">Tipo prop.</span><div>${escapeHtml(
-      qualLabel('property_type', qual.property_type)
-    )}</div></div>`;
-    html += `<div><span class="lead-quick-sheet__muted">ServiÔøΩo</span><div>${escapeHtml(
-      qualLabel('service_type', qual.service_type)
-    )}</div></div>`;
-    html += `<div><span class="lead-quick-sheet__muted">ÔøΩrea</span><div>${qual.estimated_area != null ? escapeHtml(String(qual.estimated_area)) : 'ÔøΩ'}</div></div>`;
-    html += `<div><span class="lead-quick-sheet__muted">OrÔøΩamento</span><div>${
-      qual.estimated_budget != null ? '$' + Number(qual.estimated_budget).toLocaleString() : 'ÔøΩ'
-    }</div></div>`;
-    html += `<div><span class="lead-quick-sheet__muted">UrgÔøΩncia</span><div>${escapeHtml(
-      qualLabel('urgency', qual.urgency)
-    )}</div></div>`;
-    html += `<div><span class="lead-quick-sheet__muted">Score</span><div><strong>${qual.score != null ? escapeHtml(String(qual.score)) : 'ÔøΩ'}</strong></div></div>`;
-    html += '</div>';
-    if (qual.qualification_notes) {
-      html += `<p class="lead-quick-sheet__qual-notes"><span class="lead-quick-sheet__muted">Notas</span><br>${escapeHtml(
-        qual.qualification_notes
-      )}</p>`;
-    }
-    return html;
-  }
-
-  function renderQualificationForm(qual) {
-    const q = qual || {};
-    const sel = (name, val) => (String(q[name] || '') === String(val) ? ' selected' : '');
-    return `
-      <form id="lqsQualForm" class="lead-quick-sheet__form lead-quick-sheet__form--qual">
-        <div class="lead-quick-sheet__form-grid">
-          <label class="lead-quick-sheet__field">Tipo de propriedade *
-            <select id="lqsQualPropertyType" name="property_type" required class="lqs-qual-input">
-              <option value="">ÔøΩ</option>
-              <option value="house"${sel('property_type', 'house')}>Casa</option>
-              <option value="apartment"${sel('property_type', 'apartment')}>Apartamento</option>
-              <option value="commercial"${sel('property_type', 'commercial')}>Comercial</option>
-              <option value="other"${sel('property_type', 'other')}>Outro</option>
-            </select>
-          </label>
-          <label class="lead-quick-sheet__field">Tipo de serviÔøΩo *
-            <select id="lqsQualServiceType" name="service_type" required class="lqs-qual-input">
-              <option value="">ÔøΩ</option>
-              <option value="installation"${sel('service_type', 'installation')}>InstalaÔøΩÔøΩo</option>
-              <option value="repair"${sel('service_type', 'repair')}>Reparo</option>
-              <option value="renovation"${sel('service_type', 'renovation')}>RenovaÔøΩÔøΩo</option>
-              <option value="other"${sel('service_type', 'other')}>Outro</option>
-            </select>
-          </label>
-          <label class="lead-quick-sheet__field">ÔøΩrea (sqft) *
-            <input type="number" id="lqsQualArea" name="estimated_area" step="0.01" min="0" required class="lqs-qual-input" value="${q.estimated_area != null ? escapeHtml(String(q.estimated_area)) : ''}">
-          </label>
-          <label class="lead-quick-sheet__field">OrÔøΩamento estimado *
-            <input type="number" id="lqsQualBudget" name="estimated_budget" step="0.01" min="0" required class="lqs-qual-input" value="${q.estimated_budget != null ? escapeHtml(String(q.estimated_budget)) : ''}">
-          </label>
-          <label class="lead-quick-sheet__field">UrgÔøΩncia *
-            <select id="lqsQualUrgency" name="urgency" required class="lqs-qual-input">
-              <option value="low"${sel('urgency', 'low')}>Baixa</option>
-              <option value="medium"${!q.urgency ? ' selected' : sel('urgency', 'medium')}>M√©dia</option>
-              <option value="high"${sel('urgency', 'high')}>Alta</option>
-              <option value="urgent"${sel('urgency', 'urgent')}>Urgente</option>
-            </select>
-          </label>
-          <label class="lead-quick-sheet__field">Score (automÔøΩtico)
-            <input type="number" id="lqsQualScore" min="0" max="100" readonly value="">
-          </label>
-        </div>
-        <div class="lead-quick-sheet__form-grid">
-          <label class="lead-quick-sheet__field">Tomador de decisÔøΩo
-            <input type="text" name="decision_maker" value="${escapeHtml(q.decision_maker || '')}">
-          </label>
-          <label class="lead-quick-sheet__field">Prazo decisÔøΩo
-            <input type="text" name="decision_timeline" value="${escapeHtml(q.decision_timeline || '')}">
-          </label>
-          <label class="lead-quick-sheet__field">Pagamento
-            <select name="payment_type">
-              <option value="">ÔøΩ</option>
-              <option value="cash"${sel('payment_type', 'cash')}>Dinheiro</option>
-              <option value="financing"${sel('payment_type', 'financing')}>Financiamento</option>
-              <option value="insurance"${sel('payment_type', 'insurance')}>Seguro</option>
-            </select>
-          </label>
-        </div>
-        <p class="lead-quick-sheet__muted" style="margin:8px 0 4px;">Morada do serviÔøΩo</p>
-        <div class="lead-quick-sheet__form-grid">
-          <label class="lead-quick-sheet__field span-2">Rua
-            <input type="text" name="address_street" value="${escapeHtml(q.address_street || '')}">
-          </label>
-          <label class="lead-quick-sheet__field span-2">Complemento
-            <input type="text" name="address_line2" value="${escapeHtml(q.address_line2 || '')}">
-          </label>
-          <label class="lead-quick-sheet__field">Cidade
-            <input type="text" name="address_city" value="${escapeHtml(q.address_city || '')}">
-          </label>
-          <label class="lead-quick-sheet__field">Estado
-            <input type="text" name="address_state" value="${escapeHtml(q.address_state || '')}">
-          </label>
-          <label class="lead-quick-sheet__field">CEP/ZIP
-            <input type="text" name="address_zip" value="${escapeHtml(q.address_zip || '')}">
-          </label>
-        </div>
-        <label class="lead-quick-sheet__field">Notas de qualificaÔøΩÔøΩo
-          <textarea name="qualification_notes" rows="3">${escapeHtml(q.qualification_notes || '')}</textarea>
-        </label>
-        <button type="submit" class="btn btn-primary btn-sm">Guardar qualificaÔøΩÔøΩo</button>
-      </form>`;
-  }
-
   function updateHeaderBadges(lead) {
     const badgesEl = document.getElementById('leadQuickSheetBadges');
     if (!badgesEl || !lead) return;
@@ -578,7 +367,7 @@
       });
       const data = await r.json().catch(() => ({}));
       if (!r.ok || !data.success) {
-        notifySheet(data.error || 'NÔøΩo foi possÔøΩvel atualizar o lead.', 'error');
+        notifySheet(data.error || 'Nao foi possivel atualizar o lead.', 'error');
         return null;
       }
       if (data.data) {
@@ -591,24 +380,6 @@
       notifySheet(e.message || 'Erro de rede', 'error');
       return null;
     }
-  }
-
-  async function refreshFollowupsOnly() {
-    if (!sheetLeadId) return;
-    const fuRes = await fetchJson('/api/leads/' + sheetLeadId + '/followups');
-    const list =
-      fuRes.ok && fuRes.data && fuRes.data.success && Array.isArray(fuRes.data.data) ? fuRes.data.data : [];
-    const mount = document.querySelector('[data-lqs-followups-list]');
-    if (mount) mount.outerHTML = renderFollowups(list);
-  }
-
-  async function refreshInteractionsOnly() {
-    if (!sheetLeadId) return;
-    const res = await fetchJson('/api/leads/' + sheetLeadId + '/interactions');
-    const list =
-      res.ok && res.data && res.data.success && Array.isArray(res.data.data) ? res.data.data : [];
-    const mount = document.querySelector('[data-lqs-interactions-list]');
-    if (mount) mount.innerHTML = renderInteractions(list);
   }
 
   async function refreshQuotesOnly() {
@@ -637,13 +408,11 @@
     const mail = lead.email
       ? `<a class="lead-quick-sheet__action" href="mailto:${escapeHtml(lead.email)}">Email</a>`
       : '';
-    const quoteNew = `<a class="lead-quick-sheet__action" href="quote-builder.html?lead_id=${sid}" target="_blank" rel="noopener">Novo orÔøΩamento</a>`;
-    const detailLink = `<a class="lead-quick-sheet__action" href="lead-detail.html?id=${sid}" target="_blank" rel="noopener">PÔøΩgina completa</a>`;
-
-    const qual = bundle.qualification;
-    const hasQual = qual && typeof qual === 'object' && (qual.property_type || qual.id);
+    const quoteNew = `<a class="lead-quick-sheet__action" href="quote-builder.html?lead_id=${sid}" target="_blank" rel="noopener">Novo orcamento</a>`;
+    const detailLink = `<a class="lead-quick-sheet__action" href="lead-detail.html?id=${sid}" target="_blank" rel="noopener">Pagina completa</a>`;
 
     const quoteRows = mergeQuoteRows(bundle.quotesPayload, bundle.proposalsPayload);
+    const scheduleUrl = `lead-detail.html?id=${sid}&tab=visits&schedule=1`;
 
     return `
       <div class="lead-quick-sheet__toolbar lead-quick-sheet__toolbar--rich">
@@ -651,152 +420,36 @@
           ${tele}${mail}${quoteNew}${detailLink}
         </div>
         <div class="lead-quick-sheet__toolbar-row lead-quick-sheet__toolbar-row--controls">
-          <label class="lead-quick-sheet__inline">EstÔøΩgio
+          <label class="lead-quick-sheet__inline">Estagio
             <select id="lqsStatus" class="lead-quick-sheet__select">${renderStageOptions(stages, currentSlug)}</select>
           </label>
           <label class="lead-quick-sheet__inline">Prioridade
             <select id="lqsPriority" class="lead-quick-sheet__select">
               <option value="low"${pri === 'low' ? ' selected' : ''}>Baixa</option>
-              <option value="medium"${pri === 'medium' ? ' selected' : ''}>M√©dia</option>
+              <option value="medium"${pri === 'medium' ? ' selected' : ''}>Media</option>
               <option value="high"${pri === 'high' ? ' selected' : ''}>Alta</option>
             </select>
           </label>
         </div>
       </div>
 
-      <div class="lead-quick-sheet__tabs" role="tablist">
-        <button type="button" class="lead-quick-sheet__tab is-active" data-lqs-tab="summary" role="tab">Resumo</button>
-        <button type="button" class="lead-quick-sheet__tab" data-lqs-tab="qual" role="tab">QualificaÔøΩÔøΩo</button>
-        <button type="button" class="lead-quick-sheet__tab" data-lqs-tab="followups" role="tab">Follow-ups</button>
-        <button type="button" class="lead-quick-sheet__tab" data-lqs-tab="interactions" role="tab">InteraÔøΩÔøΩes</button>
-        <button type="button" class="lead-quick-sheet__tab" data-lqs-tab="visits" role="tab">Visitas</button>
-        <button type="button" class="lead-quick-sheet__tab" data-lqs-tab="quotes" role="tab">OrÔøΩamentos</button>
+      <div class="lead-quick-sheet__schedule-row">
+        <a class="btn btn-primary btn-sm lead-quick-sheet__schedule-btn" href="${scheduleUrl}" target="_blank" rel="noopener">Agendar visita</a>
       </div>
 
-      <div class="lead-quick-sheet__tab-panels">
-        <div class="lead-quick-sheet__tab-panel is-active" data-lqs-panel="summary" role="tabpanel">
-          <form id="lqsSummaryForm" class="lead-quick-sheet__form">
-            <label class="lead-quick-sheet__field">Nome *
-              <input type="text" name="name" required maxlength="255" value="${escapeHtml(lead.name || '')}">
-            </label>
-            <div class="lead-quick-sheet__form-grid">
-              <label class="lead-quick-sheet__field">Telefone *
-                <input type="text" name="phone" required maxlength="50" value="${escapeHtml(lead.phone || '')}">
-              </label>
-              <label class="lead-quick-sheet__field">Email *
-                <input type="email" name="email" required maxlength="255" value="${escapeHtml(lead.email || '')}">
-              </label>
-            </div>
-            <label class="lead-quick-sheet__field">Morada
-              <textarea name="address" rows="2" maxlength="500">${escapeHtml(lead.address != null ? String(lead.address) : '')}</textarea>
-            </label>
-            <div class="lead-quick-sheet__form-grid">
-              <label class="lead-quick-sheet__field">ZIP (?5 dÔøΩgitos) *
-                <input type="text" name="zipcode" required maxlength="10" inputmode="numeric" value="${escapeHtml(lead.zipcode || '')}">
-              </label>
-              <label class="lead-quick-sheet__field">Valor estimado
-                <input type="number" name="estimated_value" step="0.01" placeholder="0.00" value="${lead.estimated_value != null ? escapeHtml(String(lead.estimated_value)) : ''}">
-              </label>
-            </div>
-            <label class="lead-quick-sheet__field">Notas
-              <textarea name="notes" rows="3">${escapeHtml(lead.notes || '')}</textarea>
-            </label>
-            <button type="submit" class="btn btn-primary btn-sm">Guardar alteraÔøΩÔøΩes</button>
-          </form>
-          <details class="lead-quick-sheet__details">
-            <summary>Mais informaÔøΩÔøΩes (somente leitura)</summary>
-            ${renderLeadCatalogFields(lead)}
-          </details>
-        </div>
+      <section class="lead-quick-sheet__section lead-quick-sheet__section--static">
+        <h3 class="lead-quick-sheet__h3">Resumo</h3>
+        ${renderPrimaryStaticSummary(lead)}
+        ${renderLeadCatalogFields(lead)}
+      </section>
 
-        <div class="lead-quick-sheet__tab-panel" data-lqs-panel="qual" role="tabpanel">
-          ${
-            hasQual
-              ? `<div class="lead-quick-sheet__qual-summary" id="lqsQualSummaryBlock">${renderQualificationSummary(qual)}</div>`
-              : '<p class="lead-quick-sheet__hint">Preencha a qualificaÔøΩÔøΩo para pontuar o lead.</p>'
-          }
-          ${renderQualificationForm(hasQual ? qual : null)}
-        </div>
-
-        <div class="lead-quick-sheet__tab-panel" data-lqs-panel="followups" role="tabpanel">
-          <div class="lead-quick-sheet__subbar">
-            <button type="button" class="btn btn-primary btn-sm" data-lqs-new-followup>Novo follow-up</button>
-          </div>
-          <div class="lead-quick-sheet__followups-wrap">${renderFollowups(bundle.followups)}</div>
-        </div>
-
-        <div class="lead-quick-sheet__tab-panel" data-lqs-panel="interactions" role="tabpanel">
-          <form id="lqsInteractionForm" class="lead-quick-sheet__form lead-quick-sheet__form--compact">
-            <div class="lead-quick-sheet__form-grid">
-              <label class="lead-quick-sheet__field">Tipo *
-                <select name="type" required>
-                  <option value="">ÔøΩ</option>
-                  <option value="call">Chamada</option>
-                  <option value="whatsapp">WhatsApp</option>
-                  <option value="email">Email</option>
-                  <option value="visit">Visita</option>
-                  <option value="meeting">ReuniÔøΩo</option>
-                </select>
-              </label>
-              <label class="lead-quick-sheet__field">Assunto
-                <input type="text" name="subject" placeholder="Opcional">
-              </label>
-            </div>
-            <label class="lead-quick-sheet__field">Notas *
-              <textarea name="notes" rows="2" required placeholder="O que foi tratadoÔøΩ"></textarea>
-            </label>
-            <button type="submit" class="btn btn-secondary btn-sm">Registar interaÔøΩÔøΩo</button>
-          </form>
-          <div data-lqs-interactions-list>${renderInteractions(bundle.interactions)}</div>
-        </div>
-
-        <div class="lead-quick-sheet__tab-panel" data-lqs-panel="visits" role="tabpanel">
-          <div class="lead-quick-sheet__subbar">
-            <a class="btn btn-secondary btn-sm" href="lead-detail.html?id=${sid}" target="_blank" rel="noopener">Agendar / editar na pÔøΩgina completa</a>
-          </div>
-          ${renderVisits(bundle.visits)}
-        </div>
-
-        <div class="lead-quick-sheet__tab-panel" data-lqs-panel="quotes" role="tabpanel">
-          <div data-lqs-quotes-list>${renderQuotesRows(quoteRows, sid)}</div>
-        </div>
-      </div>`;
-  }
-
-  function switchSheetTab(name) {
-    document.querySelectorAll('[data-lqs-tab]').forEach((btn) => {
-      btn.classList.toggle('is-active', btn.getAttribute('data-lqs-tab') === name);
-    });
-    document.querySelectorAll('[data-lqs-panel]').forEach((panel) => {
-      panel.classList.toggle('is-active', panel.getAttribute('data-lqs-panel') === name);
-    });
-  }
-
-  function bindQualScoreListeners() {
-    document.querySelectorAll('.lqs-qual-input').forEach((el) => {
-      el.removeEventListener('input', refreshQualScoreDisplay);
-      el.removeEventListener('change', refreshQualScoreDisplay);
-      el.addEventListener('input', refreshQualScoreDisplay);
-      el.addEventListener('change', refreshQualScoreDisplay);
-    });
-    refreshQualScoreDisplay();
+      <section class="lead-quick-sheet__section">
+        <h3 class="lead-quick-sheet__h3">Orcamentos</h3>
+        <div data-lqs-quotes-list>${renderQuotesRows(quoteRows, sid)}</div>
+      </section>`;
   }
 
   function onSheetBodyClick(e) {
-    const tabBtn = e.target.closest('[data-lqs-tab]');
-    if (tabBtn) {
-      const name = tabBtn.getAttribute('data-lqs-tab');
-      if (name) switchSheetTab(name);
-      return;
-    }
-    if (e.target.closest('[data-lqs-new-followup]')) {
-      if (sheetLeadId && typeof global.showFollowupModal === 'function') {
-        global.showFollowupModal(sheetLeadId);
-      } else if (sheetLeadId) {
-        notifySheet('Modal de follow-up nÔøΩo disponÔøΩvel nesta pÔøΩgina.', 'error');
-      }
-      return;
-    }
     if (e.target.closest('[data-lqs-open-quotes-crm]')) {
       window.location.href = 'dashboard.html?page=quotes';
       return;
@@ -804,7 +457,7 @@
     const delBtn = e.target.closest('[data-lqs-delete-quote]');
     if (delBtn && sheetLeadId) {
       const qid = delBtn.getAttribute('data-lqs-delete-quote');
-      if (!qid || !confirm('Excluir este orÔøΩamento (quote)?')) return;
+      if (!qid || !confirm('Excluir este orcamento (quote)?')) return;
       void (async () => {
         try {
           const res = await fetch(
@@ -817,10 +470,10 @@
             if (t && t.trim()) data = JSON.parse(t);
           } catch (_) {}
           if (!res.ok) {
-            notifySheet(data.error || data.message || 'NÔøΩo foi possÔøΩvel excluir.', 'error');
+            notifySheet(data.error || data.message || 'Nao foi possivel excluir.', 'error');
             return;
           }
-          notifySheet('Quote excluÔøΩdo.', 'success');
+          notifySheet('Quote excluido.', 'success');
           await refreshQuotesOnly();
         } catch (err) {
           notifySheet(err.message || 'Erro de rede', 'error');
@@ -841,188 +494,6 @@
     }
   }
 
-  function onSheetBodySubmit(e) {
-    const form = e.target;
-    if (!(form instanceof HTMLFormElement)) return;
-    if (form.id === 'lqsSummaryForm') {
-      e.preventDefault();
-      void submitSummaryForm(form);
-      return;
-    }
-    if (form.id === 'lqsQualForm') {
-      e.preventDefault();
-      void submitQualForm(form);
-      return;
-    }
-    if (form.id === 'lqsInteractionForm') {
-      e.preventDefault();
-      void submitInteractionForm(form);
-    }
-  }
-
-  async function submitSummaryForm(form) {
-    if (!sheetLeadId || !sheetLead) return;
-    const fd = new FormData(form);
-    const name = String(fd.get('name') || '').trim();
-    const email = String(fd.get('email') || '').trim();
-    const phone = String(fd.get('phone') || '').trim();
-    const zipRaw = String(fd.get('zipcode') || '').replace(/\D/g, '');
-    const addressVal = String(fd.get('address') || '').trim();
-
-    if (name.length < 2) {
-      notifySheet('O nome deve ter pelo menos 2 caracteres.', 'error');
-      return;
-    }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      notifySheet('Email invÔøΩlido.', 'error');
-      return;
-    }
-    if (phone.length < 3) {
-      notifySheet('Telefone invÔøΩlido.', 'error');
-      return;
-    }
-    if (!zipRaw || zipRaw.length < 5) {
-      notifySheet('ZIP deve ter pelo menos 5 dÔøΩgitos.', 'error');
-      return;
-    }
-
-    const statusEl = document.getElementById('lqsStatus');
-    const priorityEl = document.getElementById('lqsPriority');
-    const updates = {
-      name,
-      email,
-      phone,
-      zipcode: zipRaw.slice(0, 10),
-      notes: String(fd.get('notes') || ''),
-      priority: priorityEl ? priorityEl.value : sheetLead.priority,
-      estimated_value: fd.get('estimated_value') ? parseFloat(String(fd.get('estimated_value'))) : null,
-      status: statusEl ? statusEl.value : sheetLead.status,
-      address: addressVal || null,
-    };
-
-    const r = await fetch(`/api/leads/${sheetLeadId}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify(updates),
-    });
-    const data = await r.json().catch(() => ({}));
-    if (!r.ok || !data.success) {
-      notifySheet(data.error || 'Erro ao guardar.', 'error');
-      return;
-    }
-    sheetLead = data.data || sheetLead;
-    updateHeaderBadges(sheetLead);
-    notifySheet('Lead atualizado.', 'success');
-    maybeRefreshKanban();
-    const extras = document.querySelector('.lead-quick-sheet__details');
-    if (extras && sheetLead) {
-      const inner = extras.querySelector('.lead-quick-sheet__dl') || extras.querySelector('.lead-quick-sheet__empty');
-      if (inner) {
-        inner.outerHTML = renderLeadCatalogFields(sheetLead);
-      }
-    }
-  }
-
-  async function submitQualForm(form) {
-    if (!sheetLeadId) return;
-    const fd = new FormData(form);
-    const propertyType = String(fd.get('property_type') || '').trim();
-    const serviceType = String(fd.get('service_type') || '').trim();
-    const estimatedArea = String(fd.get('estimated_area') || '').trim();
-    const estimatedBudget = String(fd.get('estimated_budget') || '').trim();
-    const urgency = String(fd.get('urgency') || '').trim();
-
-    if (!propertyType || !serviceType || !estimatedArea || parseFloat(estimatedArea) <= 0) {
-      notifySheet('Preencha tipo de propriedade, serviÔøΩo e ÔøΩrea.', 'error');
-      return;
-    }
-    if (!estimatedBudget || parseFloat(estimatedBudget) <= 0) {
-      notifySheet('Informe o orÔøΩamento estimado.', 'error');
-      return;
-    }
-    if (!urgency) {
-      notifySheet('Selecione a urgÔøΩncia.', 'error');
-      return;
-    }
-
-    const score = calculateQualificationScore();
-    const qualification = {
-      property_type: propertyType,
-      service_type: serviceType,
-      estimated_area: parseFloat(estimatedArea) || null,
-      estimated_budget: parseFloat(estimatedBudget) || null,
-      urgency,
-      decision_maker: String(fd.get('decision_maker') || '').trim() || null,
-      decision_timeline: String(fd.get('decision_timeline') || '').trim() || null,
-      payment_type: String(fd.get('payment_type') || '').trim() || null,
-      score,
-      qualification_notes: String(fd.get('qualification_notes') || '').trim() || null,
-      address_street: String(fd.get('address_street') || '').trim() || null,
-      address_line2: String(fd.get('address_line2') || '').trim() || null,
-      address_city: String(fd.get('address_city') || '').trim() || null,
-      address_state: String(fd.get('address_state') || '').trim() || null,
-      address_zip: String(fd.get('address_zip') || '').trim() || null,
-    };
-
-    try {
-      const response = await fetch(`/api/leads/${sheetLeadId}/qualification`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(qualification),
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok || !data.success) {
-        notifySheet(data.error || 'Erro ao guardar qualificaÔøΩÔøΩo.', 'error');
-        return;
-      }
-      notifySheet('QualificaÔøΩÔøΩo guardada.', 'success');
-      const qres = await fetchJson('/api/leads/' + sheetLeadId + '/qualification');
-      const qualData =
-        qres.ok && qres.data && qres.data.success && qres.data.data ? qres.data.data : qualification;
-      const sum = document.getElementById('lqsQualSummaryBlock');
-      const hint = document.getElementById('lqsQualHint');
-      if (sum) {
-        sum.style.display = '';
-        sum.innerHTML = renderQualificationSummary({ ...qualification, ...qualData });
-      }
-      if (hint) hint.style.display = 'none';
-    } catch (err) {
-      notifySheet(err.message || 'Erro de rede', 'error');
-    }
-  }
-
-  async function submitInteractionForm(form) {
-    if (!sheetLeadId) return;
-    const fd = new FormData(form);
-    const type = String(fd.get('type') || '').trim();
-    const notes = String(fd.get('notes') || '').trim();
-    const subject = String(fd.get('subject') || '').trim() || null;
-    if (!type || !notes) {
-      notifySheet('Tipo e notas sÔøΩo obrigatÔøΩrios.', 'error');
-      return;
-    }
-    try {
-      const response = await fetch(`/api/leads/${sheetLeadId}/interactions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ type, subject, notes }),
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok || !data.success) {
-        notifySheet(data.error || 'Erro ao criar interaÔøΩÔøΩo.', 'error');
-        return;
-      }
-      form.reset();
-      await refreshInteractionsOnly();
-      notifySheet('InteraÔøΩÔøΩo registada.', 'success');
-    } catch (err) {
-      notifySheet(err.message || 'Erro de rede', 'error');
-    }
-  }
-
   let sheetBodyDelegated = false;
 
   function ensureSheetDelegation() {
@@ -1032,7 +503,6 @@
     sheetBodyDelegated = true;
     body.addEventListener('click', onSheetBodyClick);
     body.addEventListener('change', onSheetBodyChange);
-    body.addEventListener('submit', onSheetBodySubmit);
   }
 
   function resetPanelTransform(panelEl) {
@@ -1120,25 +590,12 @@
     root.classList.add('is-open');
     root.setAttribute('aria-hidden', 'false');
     document.body.classList.add('lead-quick-sheet-open');
-    body.innerHTML = '<div class="lead-quick-sheet__loading">A carregarÔøΩ</div>';
+    body.innerHTML = '<div class="lead-quick-sheet__loading">A carregarù</div>';
     if (fullLink) fullLink.href = 'lead-detail.html?id=' + sid;
 
-    const [
-      leadRes,
-      fuRes,
-      viRes,
-      stagesRes,
-      qualRes,
-      intRes,
-      quotesRes,
-      proposalsRes,
-    ] = await Promise.all([
+    const [leadRes, stagesRes, quotesRes, proposalsRes] = await Promise.all([
       fetchJson('/api/leads/' + sid),
-      fetchJson('/api/leads/' + sid + '/followups'),
-      fetchJson('/api/visits?lead_id=' + encodeURIComponent(String(sid)) + '&limit=30'),
       fetchJson('/api/pipeline-stages'),
-      fetchJson('/api/leads/' + sid + '/qualification'),
-      fetchJson('/api/leads/' + sid + '/interactions'),
       fetchJson('/api/quotes?lead_id=' + encodeURIComponent(String(sid)) + '&limit=50'),
       fetchJson('/api/leads/' + sid + '/proposals'),
     ]);
@@ -1146,7 +603,7 @@
     const ld = leadRes.data;
     if (!leadRes.ok || !ld || ld.success !== true || !ld.data) {
       body.innerHTML =
-        '<p class="lead-quick-sheet__error">NÔøΩo foi possÔøΩvel carregar o lead.</p>';
+        '<p class="lead-quick-sheet__error">Nao foi possivel carregar o lead.</p>';
       requestAnimationFrame(() => {
         animatePanelFromAnchor(sheetAnchorEl, panelEl);
       });
@@ -1159,35 +616,14 @@
     updateHeaderBadges(lead);
 
     const stages = normalizeStages(stagesRes);
-    const followups =
-      fuRes.ok && fuRes.data && fuRes.data.success && Array.isArray(fuRes.data.data)
-        ? fuRes.data.data
-        : [];
-    const visits =
-      viRes.ok && viRes.data && viRes.data.success && Array.isArray(viRes.data.data)
-        ? viRes.data.data
-        : [];
-    const qualification =
-      qualRes.ok && qualRes.data && qualRes.data.success && qualRes.data.data
-        ? qualRes.data.data
-        : null;
-    const interactions =
-      intRes.ok && intRes.data && intRes.data.success && Array.isArray(intRes.data.data)
-        ? intRes.data.data
-        : [];
 
     const bundle = {
       stages,
-      followups,
-      visits,
-      qualification,
-      interactions,
       quotesPayload: quotesRes.ok ? quotesRes.data : {},
       proposalsPayload: proposalsRes.ok ? proposalsRes.data : {},
     };
 
     body.innerHTML = renderSheetBody(lead, bundle);
-    bindQualScoreListeners();
 
     requestAnimationFrame(() => {
       animatePanelFromAnchor(sheetAnchorEl, panelEl);
@@ -1204,12 +640,6 @@
     sheetLeadId = null;
     sheetAnchorEl = null;
     sheetLead = null;
-  }
-
-  async function refreshLeadQuickSheetFollowups(leadId) {
-    const lid = parseInt(leadId, 10);
-    if (!Number.isFinite(lid) || lid !== sheetLeadId) return;
-    await refreshFollowupsOnly();
   }
 
   function wire() {
@@ -1234,7 +664,6 @@
   global.openLeadQuickSheet = openLeadQuickSheet;
   global.animatePanelFromAnchor = animatePanelFromAnchor;
   global.closeLeadQuickSheet = closeLeadQuickSheet;
-  global.refreshLeadQuickSheetFollowups = refreshLeadQuickSheetFollowups;
 
   const origViewLead = typeof global.viewLead === 'function' ? global.viewLead : null;
   global.viewLead = function (id, ev) {

@@ -689,9 +689,6 @@ async function createFollowup(e) {
         
         const data = await response.json();
         if (data.success) {
-            if (typeof refreshLeadQuickSheetFollowups === 'function') {
-              refreshLeadQuickSheetFollowups(leadId);
-            }
             if (typeof crmNotify === 'function') crmNotify('Follow-up criado com sucesso!', 'success');
             else alert('Follow-up criado com sucesso!');
             closeModal('followupModal');

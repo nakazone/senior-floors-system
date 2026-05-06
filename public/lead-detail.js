@@ -86,6 +86,17 @@ async function loadLead() {
             loadVisits();
             loadProposals();
             loadLinkedClient();
+
+            const qs = new URLSearchParams(window.location.search);
+            const tabWant = qs.get('tab');
+            if (tabWant && typeof switchTab === 'function') {
+                try {
+                    switchTab(tabWant);
+                } catch (_) {}
+            }
+            if (qs.get('schedule') === '1' && typeof showNewVisitModal === 'function') {
+                setTimeout(() => showNewVisitModal(), 0);
+            }
         } else {
             notifyLead('Erro ao carregar lead: ' + (data.error || 'Desconhecido'), 'error');
             window.location.href = 'dashboard.html';
