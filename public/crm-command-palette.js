@@ -4,8 +4,7 @@
 (function () {
   const ACTIONS = [
     { id: 'dash', label: 'Dashboard', sub: 'Visão geral', href: 'dashboard.html', perm: null },
-    { id: 'leads', label: 'Leads', sub: 'Lista de leads', href: 'dashboard.html?page=leads', perm: 'leads.view' },
-    { id: 'crm', label: 'CRM Kanban', sub: 'Pipeline', href: 'dashboard.html?page=crm', perm: 'pipeline.view' },
+    { id: 'leads', label: 'Leads', sub: 'Kanban / pipeline', href: 'dashboard.html?page=leads', perm: 'leads.view' },
     { id: 'quotes', label: 'Orçamentos', sub: 'Lista de quotes', href: 'dashboard.html?page=quotes', perm: 'quotes.view' },
     { id: 'newq', label: 'Novo orçamento', sub: 'Quote builder', href: 'quote-builder.html', perm: 'quotes.edit' },
     { id: 'onsite', label: 'Quick quote', sub: 'Field · 2 steps', href: 'onsite-quote.html', perm: 'quotes.create' },

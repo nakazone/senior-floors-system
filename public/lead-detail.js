@@ -170,15 +170,15 @@ async function loadPipelineStages() {
     } catch (e) { /* ignore */ }
     if (stages.length === 0) {
         stages = [
-            { id: 1, name: 'Novo lead', slug: 'new_lead' },
-            { id: 2, name: 'Contato realizado', slug: 'contacted' },
-            { id: 3, name: 'Reunião agendada', slug: 'meeting_scheduled' },
-            { id: 4, name: 'Orçamento enviado', slug: 'quote_sent' },
-            { id: 5, name: 'Follow-up 1', slug: 'follow_up_1' },
-            { id: 6, name: 'Follow-up 2', slug: 'follow_up_2' },
-            { id: 7, name: 'Tentativa de fechamento', slug: 'closing_attempt' },
-            { id: 8, name: 'Ganho', slug: 'won' },
-            { id: 9, name: 'Perdido', slug: 'lost' },
+            { id: 1, name: 'New Lead', slug: 'new_lead' },
+            { id: 2, name: 'Contacted', slug: 'contacted' },
+            { id: 3, name: 'Meeting Scheduled', slug: 'meeting_scheduled' },
+            { id: 4, name: 'Quote Sent', slug: 'quote_sent' },
+            { id: 5, name: 'Follow Up 1', slug: 'follow_up_1' },
+            { id: 6, name: 'Follow Up 2', slug: 'follow_up_2' },
+            { id: 7, name: 'Closing Attempt', slug: 'closing_attempt' },
+            { id: 8, name: 'Won', slug: 'won' },
+            { id: 9, name: 'Lost', slug: 'lost' },
         ];
     }
 

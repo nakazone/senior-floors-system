@@ -272,13 +272,13 @@ async function ingestOneLead(req, post, isSheetsSyncRequest) {
             let defaultPipelineId = 1;
             try {
               const [st] = await pool.execute(
-                "SELECT id FROM pipeline_stages WHERE slug = 'lead_received' ORDER BY order_num ASC LIMIT 1"
+                "SELECT id FROM pipeline_stages WHERE slug IN ('new_lead','lead_received') ORDER BY FIELD(slug,'new_lead','lead_received') LIMIT 1"
               );
               if (st && st[0] && st[0].id != null) defaultPipelineId = st[0].id;
             } catch (_) {}
             let cols = 'name, email, phone, zipcode, message, source, form_type, status, priority, ip_address';
             let place = '?, ?, ?, ?, ?, ?, ?, ?, ?, ?';
-            const values = [name, email, phone, zipcode, message, source, form_name, 'lead_received', 'medium', ip_address];
+            const values = [name, email, phone, zipcode, message, source, form_name, 'new_lead', 'medium', ip_address];
             try {
               const [oc] = await pool.query("SHOW COLUMNS FROM leads LIKE 'owner_id'");
               if (oc && oc.length > 0) {

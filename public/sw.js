@@ -1,7 +1,7 @@
 /**
  * Senior Floors — service worker mínimo (assets estáticos).
  */
-const CACHE = 'sf-static-v3';
+const CACHE = 'sf-static-v4';
 const PRECACHE = [
   '/dashboard.html',
   '/styles.css',

@@ -1,28 +1,28 @@
 /**
- * Pipeline Kanban v3 ù 9 colunas (iPad): Novo lead ? Perdido.
- * Idempotente: pode rodar mais de uma vez.
+ * Pipeline Kanban v3 ó 9 columns (iPad): New Lead ? Lost.
+ * Idempotent: safe to run multiple times.
  *
  * Run: node database/migrate-pipeline-kanban-v3.js
- * Requer: DB_* no .env (igual ao app).
+ * Requires: DB_* in .env (same as app).
  */
 import 'dotenv/config';
 import mysql from 'mysql2/promise';
 
 const KANBAN_STAGES = [
-  { slug: 'new_lead', name: 'Novo lead', order_num: 1, color: '#3498db', is_closed: 0 },
-  { slug: 'contacted', name: 'Contato realizado', order_num: 2, color: '#f39c12', is_closed: 0 },
-  { slug: 'meeting_scheduled', name: 'Reuniùo agendada', order_num: 3, color: '#e67e22', is_closed: 0 },
-  { slug: 'quote_sent', name: 'Orùamento enviado', order_num: 4, color: '#9b59b6', is_closed: 0 },
-  { slug: 'follow_up_1', name: 'Follow-up 1', order_num: 5, color: '#16a085', is_closed: 0 },
-  { slug: 'follow_up_2', name: 'Follow-up 2', order_num: 6, color: '#1abc9c', is_closed: 0 },
-  { slug: 'closing_attempt', name: 'Tentativa de fechamento', order_num: 7, color: '#e74c3c', is_closed: 0 },
-  { slug: 'won', name: 'Ganho', order_num: 8, color: '#27ae60', is_closed: 1 },
-  { slug: 'lost', name: 'Perdido', order_num: 9, color: '#c0392b', is_closed: 1 },
+  { slug: 'new_lead', name: 'New Lead', order_num: 1, color: '#3498db', is_closed: 0 },
+  { slug: 'contacted', name: 'Contacted', order_num: 2, color: '#f39c12', is_closed: 0 },
+  { slug: 'meeting_scheduled', name: 'Meeting Scheduled', order_num: 3, color: '#e67e22', is_closed: 0 },
+  { slug: 'quote_sent', name: 'Quote Sent', order_num: 4, color: '#9b59b6', is_closed: 0 },
+  { slug: 'follow_up_1', name: 'Follow Up 1', order_num: 5, color: '#16a085', is_closed: 0 },
+  { slug: 'follow_up_2', name: 'Follow Up 2', order_num: 6, color: '#1abc9c', is_closed: 0 },
+  { slug: 'closing_attempt', name: 'Closing Attempt', order_num: 7, color: '#e74c3c', is_closed: 0 },
+  { slug: 'won', name: 'Won', order_num: 8, color: '#27ae60', is_closed: 1 },
+  { slug: 'lost', name: 'Lost', order_num: 9, color: '#c0392b', is_closed: 1 },
 ];
 
 const FINAL_SLUGS = new Set(KANBAN_STAGES.map((s) => s.slug));
 
-/** Map estùgio legado ou status legado ? slug novo */
+/** Map legacy stage slug or lead.status ? canonical slug */
 function mapToNewSlug(effectiveSlug, leadStatus) {
   const s = (effectiveSlug || leadStatus || '').trim();
   const legacy = {
@@ -66,13 +66,13 @@ async function main() {
   const password = process.env.DB_PASS;
   const database = process.env.DB_NAME;
   if (!host || !user || !database) {
-    console.error('Defina DB_HOST, DB_USER, DB_PASS e DB_NAME no .env');
+    console.error('Set DB_HOST, DB_USER, DB_PASS and DB_NAME in .env');
     process.exit(1);
   }
 
   const conn = await mysql.createConnection({ host, user, password, database });
 
-  console.log('Migrando pipeline Kanban v3...');
+  console.log('Migrating Kanban pipeline v3...');
   await conn.beginTransaction();
 
   try {
@@ -92,7 +92,10 @@ async function main() {
       const newSlug = mapToNewSlug(effective, row.status);
       const newId = idBySlug.get(newSlug);
       if (!newId) continue;
-      if (row.pipeline_stage_id === newId && (row.status === newSlug || mapToNewSlug(row.status, row.status) === newSlug)) {
+      if (
+        row.pipeline_stage_id === newId &&
+        (row.status === newSlug || mapToNewSlug(row.status, row.status) === newSlug)
+      ) {
         continue;
       }
       await conn.execute('UPDATE leads SET pipeline_stage_id = ?, status = ? WHERE id = ?', [
@@ -108,7 +111,7 @@ async function main() {
     );
 
     await conn.commit();
-    console.log('OK ó est·gios atualizados e leads migrados.');
+    console.log('OK ó stages updated and leads migrated.');
     const [summary] = await conn.query(
       `SELECT ps.slug, COUNT(l.id) AS n
        FROM pipeline_stages ps

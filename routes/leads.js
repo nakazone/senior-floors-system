@@ -153,7 +153,7 @@ export async function createLead(req, res) {
         : null;
     if (!Number.isFinite(finalPipelineStageId)) finalPipelineStageId = null;
 
-    let finalStatus = (status || '').trim() || 'lead_received';
+    let finalStatus = (status || '').trim() || 'new_lead';
 
     if (finalPipelineStageId) {
       const [ps] = await pool.execute('SELECT slug FROM pipeline_stages WHERE id = ? LIMIT 1', [finalPipelineStageId]);
@@ -170,11 +170,11 @@ export async function createLead(req, res) {
     }
     if (!finalPipelineStageId) {
       const [ps] = await pool.execute(
-        "SELECT id, slug FROM pipeline_stages WHERE slug = 'lead_received' ORDER BY order_num LIMIT 1"
+        "SELECT id, slug FROM pipeline_stages WHERE slug IN ('new_lead','lead_received') ORDER BY FIELD(slug,'new_lead','lead_received') LIMIT 1"
       );
       if (ps.length > 0) {
         finalPipelineStageId = ps[0].id;
-        finalStatus = 'lead_received';
+        finalStatus = 'new_lead';
       }
     }
 

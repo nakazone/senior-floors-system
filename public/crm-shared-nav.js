@@ -60,7 +60,6 @@
       items: [
         { href: 'marketing.html', label: 'Marketing', perm: 'reports.view', page: '', iconKey: 'marketing' },
         { href: 'dashboard.html?page=leads', label: 'Leads', perm: 'leads.view', page: 'leads', iconKey: 'leads' },
-        { href: 'dashboard.html?page=crm', label: 'CRM', perm: 'pipeline.view', page: 'crm', iconKey: 'crm' },
       ],
     },
     {

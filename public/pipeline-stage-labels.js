@@ -1,47 +1,48 @@
 /**
- * Rótulos em português para colunas/select do pipeline (por slug).
- * Usado no Kanban e na ficha do lead; o banco pode ainda ter nomes antigos ou em inglês.
+ * Canonical English labels for pipeline columns (by slug).
+ * Used when DB `pipeline_stages.name` differs or legacy `leads.status` values exist.
  */
 (function (global) {
-  const PIPELINE_STAGE_LABELS_PT = {
-    // Pipeline Kanban v3
-    new_lead: 'Novo lead',
-    contacted: 'Contato realizado',
-    meeting_scheduled: 'Reunião agendada',
-    quote_sent: 'Orçamento enviado',
-    follow_up_1: 'Follow-up 1',
-    follow_up_2: 'Follow-up 2',
-    closing_attempt: 'Tentativa de fechamento',
-    won: 'Ganho',
-    lost: 'Perdido',
-    // Slugs legados (pré-migração v3)
-    lead_received: 'Novo lead',
-    new: 'Novo lead',
-    contact_made: 'Contato realizado',
-    qualified: 'Qualificado',
-    visit_scheduled: 'Visita agendada',
-    measurement_done: 'Medição realizada',
-    proposal_created: 'Proposta criada',
-    proposal_sent: 'Proposta enviada',
-    negotiation: 'Em negociação',
-    closed_won: 'Ganho',
-    closed_lost: 'Perdido',
-    production: 'Produção / obra',
+  const PIPELINE_STAGE_LABELS_EN = {
+    new_lead: 'New Lead',
+    contacted: 'Contacted',
+    meeting_scheduled: 'Meeting Scheduled',
+    quote_sent: 'Quote Sent',
+    follow_up_1: 'Follow Up 1',
+    follow_up_2: 'Follow Up 2',
+    closing_attempt: 'Closing Attempt',
+    won: 'Won',
+    lost: 'Lost',
+    // Legacy slugs ? same column titles as above after migration
+    lead_received: 'New Lead',
+    new: 'New Lead',
+    contact_made: 'Contacted',
+    qualified: 'Contacted',
+    visit_scheduled: 'Meeting Scheduled',
+    measurement_done: 'Follow Up 1',
+    proposal_created: 'Quote Sent',
+    proposal_sent: 'Quote Sent',
+    negotiation: 'Closing Attempt',
+    closed_won: 'Won',
+    closed_lost: 'Lost',
+    production: 'Won',
   };
 
   /**
    * @param {string} [slug]
-   * @param {string} [nameFallback] — nome vindo da API
+   * @param {string} [nameFallback] — name from API (`pipeline_stages.name`)
    * @returns {string}
    */
   function pipelineStageDisplayName(slug, nameFallback) {
     const s = (slug || '').trim();
-    if (s && Object.prototype.hasOwnProperty.call(PIPELINE_STAGE_LABELS_PT, s)) {
-      return PIPELINE_STAGE_LABELS_PT[s];
+    if (s && Object.prototype.hasOwnProperty.call(PIPELINE_STAGE_LABELS_EN, s)) {
+      return PIPELINE_STAGE_LABELS_EN[s];
     }
     return nameFallback || s || '';
   }
 
-  global.PIPELINE_STAGE_LABELS_PT = PIPELINE_STAGE_LABELS_PT;
+  global.PIPELINE_STAGE_LABELS_EN = PIPELINE_STAGE_LABELS_EN;
+  /** @deprecated use PIPELINE_STAGE_LABELS_EN */
+  global.PIPELINE_STAGE_LABELS_PT = PIPELINE_STAGE_LABELS_EN;
   global.pipelineStageDisplayName = pipelineStageDisplayName;
 })(typeof window !== 'undefined' ? window : globalThis);

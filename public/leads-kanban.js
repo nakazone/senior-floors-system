@@ -107,29 +107,29 @@ async function loadPipelineStages() {
         
         // Fallback: Kanban v3 (9 colunas)
         pipelineStages = [
-            { id: 1, name: 'Novo lead', slug: 'new_lead', color: '#3498db', order_num: 1 },
-            { id: 2, name: 'Contato realizado', slug: 'contacted', color: '#f39c12', order_num: 2 },
-            { id: 3, name: 'Reunião agendada', slug: 'meeting_scheduled', color: '#e67e22', order_num: 3 },
-            { id: 4, name: 'Orçamento enviado', slug: 'quote_sent', color: '#9b59b6', order_num: 4 },
-            { id: 5, name: 'Follow-up 1', slug: 'follow_up_1', color: '#16a085', order_num: 5 },
-            { id: 6, name: 'Follow-up 2', slug: 'follow_up_2', color: '#1abc9c', order_num: 6 },
-            { id: 7, name: 'Tentativa de fechamento', slug: 'closing_attempt', color: '#e74c3c', order_num: 7 },
-            { id: 8, name: 'Ganho', slug: 'won', color: '#27ae60', order_num: 8 },
-            { id: 9, name: 'Perdido', slug: 'lost', color: '#c0392b', order_num: 9 },
+            { id: 1, name: 'New Lead', slug: 'new_lead', color: '#3498db', order_num: 1 },
+            { id: 2, name: 'Contacted', slug: 'contacted', color: '#f39c12', order_num: 2 },
+            { id: 3, name: 'Meeting Scheduled', slug: 'meeting_scheduled', color: '#e67e22', order_num: 3 },
+            { id: 4, name: 'Quote Sent', slug: 'quote_sent', color: '#9b59b6', order_num: 4 },
+            { id: 5, name: 'Follow Up 1', slug: 'follow_up_1', color: '#16a085', order_num: 5 },
+            { id: 6, name: 'Follow Up 2', slug: 'follow_up_2', color: '#1abc9c', order_num: 6 },
+            { id: 7, name: 'Closing Attempt', slug: 'closing_attempt', color: '#e74c3c', order_num: 7 },
+            { id: 8, name: 'Won', slug: 'won', color: '#27ae60', order_num: 8 },
+            { id: 9, name: 'Lost', slug: 'lost', color: '#c0392b', order_num: 9 },
         ];
     } catch (error) {
         console.error('Error loading pipeline stages:', error);
         // Use fallback
         pipelineStages = [
-            { id: 1, name: 'Novo lead', slug: 'new_lead', color: '#3498db', order_num: 1 },
-            { id: 2, name: 'Contato realizado', slug: 'contacted', color: '#f39c12', order_num: 2 },
-            { id: 3, name: 'Reunião agendada', slug: 'meeting_scheduled', color: '#e67e22', order_num: 3 },
-            { id: 4, name: 'Orçamento enviado', slug: 'quote_sent', color: '#9b59b6', order_num: 4 },
-            { id: 5, name: 'Follow-up 1', slug: 'follow_up_1', color: '#16a085', order_num: 5 },
-            { id: 6, name: 'Follow-up 2', slug: 'follow_up_2', color: '#1abc9c', order_num: 6 },
-            { id: 7, name: 'Tentativa de fechamento', slug: 'closing_attempt', color: '#e74c3c', order_num: 7 },
-            { id: 8, name: 'Ganho', slug: 'won', color: '#27ae60', order_num: 8 },
-            { id: 9, name: 'Perdido', slug: 'lost', color: '#c0392b', order_num: 9 },
+            { id: 1, name: 'New Lead', slug: 'new_lead', color: '#3498db', order_num: 1 },
+            { id: 2, name: 'Contacted', slug: 'contacted', color: '#f39c12', order_num: 2 },
+            { id: 3, name: 'Meeting Scheduled', slug: 'meeting_scheduled', color: '#e67e22', order_num: 3 },
+            { id: 4, name: 'Quote Sent', slug: 'quote_sent', color: '#9b59b6', order_num: 4 },
+            { id: 5, name: 'Follow Up 1', slug: 'follow_up_1', color: '#16a085', order_num: 5 },
+            { id: 6, name: 'Follow Up 2', slug: 'follow_up_2', color: '#1abc9c', order_num: 6 },
+            { id: 7, name: 'Closing Attempt', slug: 'closing_attempt', color: '#e74c3c', order_num: 7 },
+            { id: 8, name: 'Won', slug: 'won', color: '#27ae60', order_num: 8 },
+            { id: 9, name: 'Lost', slug: 'lost', color: '#c0392b', order_num: 9 },
         ];
     }
 }
@@ -159,11 +159,37 @@ function showListView() {
     showKanbanView();
 }
 
+/** Normalize legacy `leads.status` / slug typos to canonical pipeline slug (matches migrate-pipeline-kanban-v3). */
+function normalizeLeadPipelineSlug(raw) {
+    const s = String(raw || '').trim();
+    if (!s) return '';
+    const legacy = {
+        lead_received: 'new_lead',
+        new: 'new_lead',
+        contact_made: 'contacted',
+        qualified: 'contacted',
+        visit_scheduled: 'meeting_scheduled',
+        measurement_done: 'follow_up_1',
+        proposal_created: 'quote_sent',
+        proposal_sent: 'quote_sent',
+        negotiation: 'closing_attempt',
+        closed_won: 'won',
+        closed_lost: 'lost',
+        production: 'won',
+    };
+    if (legacy[s]) return legacy[s];
+    const lower = s.toLowerCase().replace(/\s+/g, '_');
+    if (legacy[lower]) return legacy[lower];
+    return s;
+}
+
 function resolveStageForLead(lead) {
     if (!pipelineStages.length) return null;
     const byId = pipelineStages.find((s) => kanbanNumericId(s.id) === kanbanNumericId(lead.pipeline_stage_id));
     if (byId) return byId;
-    const bySlug = pipelineStages.find((s) => s.slug === lead.status);
+    const fromApi = (lead.pipeline_stage_slug || '').trim();
+    const fromStatus = normalizeLeadPipelineSlug(fromApi || lead.status);
+    const bySlug = pipelineStages.find((s) => s.slug === fromStatus);
     if (bySlug) return bySlug;
     return pipelineStages[0];
 }

@@ -265,7 +265,6 @@ const MOBILE_PAGE_TITLES = {
     dashboard: 'Dashboard',
     marketing: 'Marketing',
     leads: 'Leads',
-    crm: 'CRM',
     customers: 'Clientes',
     quotes: 'Orçamentos',
     projects: 'Projetos',
@@ -279,7 +278,6 @@ const MOBILE_PAGE_TITLES = {
 const MOBILE_MORE_PAGES = new Set([
     'marketing',
     'leads',
-    'crm',
     'projects',
     'schedule',
     'financeiro',
@@ -578,19 +576,6 @@ function showPage(pageName) {
             currentPage = 1; 
             loadLeads(); 
         }
-        else if (pageName === 'crm') { 
-            currentPage = 1; 
-            if (typeof loadCRMKanban === 'function') {
-                loadCRMKanban();
-            } else {
-                // Fallback: load kanban directly
-                setTimeout(() => {
-                    if (typeof loadKanbanBoard === 'function') {
-                        loadKanbanBoard();
-                    }
-                }, 100);
-            }
-        }
         else if (pageName === 'customers') {
             customersPage = 1;
             loadCustomers();
@@ -692,7 +677,7 @@ function handleDashboardActionUrl(url) {
         return;
     }
     if (u.includes('crm')) {
-        showPage('crm');
+        showPage('leads');
         return;
     }
     showPage('leads');
@@ -864,8 +849,8 @@ function renderFunnel(funnel) {
             return `
       <div class="dash-funnel__row sf-funnel-row" style="display:flex;align-items:center;gap:8px;cursor:pointer"
            role="button" tabindex="0"
-           onclick="showPage('crm')"
-           onkeydown="if(event.key==='Enter'){showPage('crm');}">
+           onclick="showPage('leads')"
+           onkeydown="if(event.key==='Enter'){showPage('leads');}">
         <div style="font-size:10px;color:var(--sf-gold5);width:100px;flex-shrink:0;
                     font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
                     text-align:right">${label}</div>
@@ -1391,7 +1376,7 @@ function renderDashboardStats() {
                   : 'pendentes';
         const fuCardClass = fOverdue > 0 ? 'sf-card sf-warn' : 'sf-card';
         row2.innerHTML = `
-            <div class="${fuCardClass} sf-card--clickable" role="button" tabindex="0" title="Abrir CRM" onclick="showPage('crm')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();showPage('crm');}">
+            <div class="${fuCardClass} sf-card--clickable" role="button" tabindex="0" title="Abrir pipeline (Leads)" onclick="showPage('leads')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();showPage('leads');}">
                 <div class="sf-card__head">
                     <div class="sf-card-ic" aria-hidden="true"><span class="sf-card-ic-emoji">📌</span></div>
                     <span class="sf-card-badge">${escapeHtmlCrm(fuBadge)}</span>
@@ -1528,7 +1513,7 @@ function renderDashboardStats() {
                 <div class="sf-dash-insight__ic" aria-hidden="true">📄</div>
                 <div class="sf-dash-insight__body">
                   <p><strong>${pl.proposals_open_count}</strong> propostas em aberto precisam de follow-up.</p>
-                  <button type="button" class="sf-dash-insight__btn" onclick="showPage('crm')">Ver pipeline →</button>
+                  <button type="button" class="sf-dash-insight__btn" onclick="showPage('leads')">Ver pipeline →</button>
                 </div>
             </div>`);
         }
@@ -1585,7 +1570,7 @@ function renderSfMobileDashboardBlocks() {
         const mFu = Number(pl.followups_pending) || 0;
         const mFuOd = Number(pl.followups_overdue) || 0;
         kpiGrid.innerHTML = `
-            <div class="sf-kpi-card touchable" onclick="showPage('crm')">
+            <div class="sf-kpi-card touchable" onclick="showPage('leads')">
                 <div class="sf-kpi-card__value">${mFu}</div>
                 <div class="sf-kpi-card__label">Follow-ups</div>
                 <div class="sf-kpi-card__meta">${mFuOd > 0 ? mFuOd + ' atras.' : 'abertos'}</div>

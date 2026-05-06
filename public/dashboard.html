@@ -41,7 +41,6 @@
         <nav class="mobile-more-sheet__nav" aria-label="Mais módulos">
             <a href="marketing.html" class="mobile-more-sheet__btn" data-crm-permission="reports.view"><span class="mobile-more-sheet__emoji" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" style="display:block;margin:0 auto;color:var(--text-dark)" aria-hidden="true"><path d="M3 11v2a1 1 0 001 1h2l4 9V4L6 11H4a1 1 0 00-1 1z"/><path d="M16 9a4 4 0 010 8"/><path d="M19 6a8 8 0 010 12"/></svg></span> Marketing</a>
             <button type="button" class="mobile-more-sheet__btn" data-page="leads" data-crm-permission="leads.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">📋</span> Leads</button>
-            <button type="button" class="mobile-more-sheet__btn" data-page="crm" data-crm-permission="pipeline.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">🎯</span> CRM</button>
             <button type="button" class="mobile-more-sheet__btn" data-page="schedule" data-crm-permission="visits.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">📅</span> Agenda</button>
             <a href="projects.html" class="mobile-more-sheet__btn" data-crm-permission="projects.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">🔧</span> Projetos</a>
             <a href="financial.html" class="mobile-more-sheet__btn" data-crm-permission="contracts.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">💵</span> Financeiro</a>
@@ -125,10 +124,6 @@
                     <a href="#" class="nav-item" data-page="leads" data-crm-permission="leads.view">
                         <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><path d="M9 5a2 2 0 012-2h2a2 2 0 012 2v0a2 2 0 01-2 2H9a2 2 0 01-2-2v0z"/><path d="M9 12h6"/><path d="M9 16h6"/></svg>
                         Leads
-                    </a>
-                    <a href="#" class="nav-item" data-page="crm" data-crm-permission="pipeline.view">
-                        <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
-                        CRM
                     </a>
                 </div>
                 <div class="sidebar-nav-group">
@@ -373,7 +368,7 @@
                                         <div class="sf-panel-dot" aria-hidden="true"></div>
                                         <h3 class="sf-panel-title">Funil do pipeline</h3>
                                     </div>
-                                    <a href="#" class="sf-panel-link" onclick="event.preventDefault(); showPage('crm');">Ver pipeline →</a>
+                                    <a href="#" class="sf-panel-link" onclick="event.preventDefault(); showPage('leads');">Ver pipeline →</a>
                                 </div>
                                 <div id="funnel-rows" class="dash-funnel-rows"></div>
                             </div>
@@ -1423,8 +1418,8 @@
     <script src="notification-center.js"></script>
     <script src="marketing-dashboard.js"></script>
     <script src="dashboard.js"></script>
-    <script src="pipeline-stage-labels.js?v=20260506-kanban-pt"></script>
-    <script src="leads-kanban.js?v=20260506-kanban-pt"></script>
+    <script src="pipeline-stage-labels.js?v=20260506-kanban-en"></script>
+    <script src="leads-kanban.js?v=20260506-kanban-en"></script>
     <script src="schedule-engine.js"></script>
     <script src="financial-engine.js"></script>
 </body>
