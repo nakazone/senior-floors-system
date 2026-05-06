@@ -166,6 +166,7 @@ fetch('/api/auth/session', { credentials: 'include' })
         loadDashboard();
         startNewLeadPolling();
         const pageParam = new URLSearchParams(window.location.search).get('page');
+        const routePage = pageParam === 'crm' ? 'leads' : pageParam;
         if (pageParam === 'projects') {
             window.location.replace('/projects.html');
             return;
@@ -174,8 +175,8 @@ fetch('/api/auth/session', { credentials: 'include' })
             const tp = new URLSearchParams(window.location.search).get('type');
             customersTypeFilter = tp === 'builder' ? 'builder' : '';
             showPage('customers');
-        } else if (pageParam && document.querySelector(`#dashboardSidebar [data-page="${pageParam}"]`)) {
-            showPage(pageParam);
+        } else if (routePage && document.querySelector(`#dashboardSidebar [data-page="${routePage}"]`)) {
+            showPage(routePage);
         }
     })
     .catch((err) => {
@@ -235,8 +236,7 @@ function startNewLeadPolling() {
                         try { new Notification('Senior Floors CRM – Novo lead', { body: msg }); } catch (e) {}
                     }
                     if (currentPageName === 'dashboard') loadDashboard();
-                    if (currentPageName === 'leads' && typeof loadLeads === 'function') loadLeads();
-                    if (currentPageName === 'crm' && typeof loadCRMKanban === 'function') loadCRMKanban();
+                    if (currentPageName === 'leads' && typeof loadKanbanBoard === 'function') loadKanbanBoard();
                 }
                 lastLeadCount = total;
             })
@@ -525,6 +525,8 @@ if (dashboardSidebarEl) {
 
 function showPage(pageName) {
     if (!pageName || typeof pageName !== 'string') return;
+
+    if (pageName === 'crm') pageName = 'leads';
 
     if (pageName === 'financeiro') {
         window.location.href = 'financial.html';
@@ -1797,11 +1799,7 @@ async function deleteLead(id) {
             else alert(d.error || 'Não foi possível excluir o lead.');
             return;
         }
-        if (currentPageName === 'leads' && typeof loadLeads === 'function') loadLeads();
-        else if (currentPageName === 'crm') {
-            if (typeof loadCRMKanban === 'function') loadCRMKanban();
-            else if (typeof loadKanbanBoard === 'function') loadKanbanBoard();
-        }
+        if (currentPageName === 'leads' && typeof loadKanbanBoard === 'function') loadKanbanBoard();
     } catch (e) {
         if (typeof crmNotify === 'function') crmNotify('Erro de rede ao excluir.', 'error');
         else alert('Erro de rede ao excluir.');

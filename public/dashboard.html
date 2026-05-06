@@ -420,53 +420,13 @@
                         <button type="button" class="btn btn-secondary" onclick="leadsSearchClear()">Limpar</button>
                     </div>
                     
-                    <!-- List View -->
-                    <div id="listView">
-                    
-                    <div class="table-container">
-                        <table class="data-table">
-                            <thead>
-                                <tr>
-                                    <th>ID</th>
-                                    <th>Name</th>
-                                    <th>Email</th>
-                                    <th>Phone</th>
-                                    <th>Zipcode</th>
-                                    <th>Status</th>
-                                    <th>Source</th>
-                                    <th>Created</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody id="leadsTableBody">
-                                <tr><td colspan="9" class="text-center">Loading...</td></tr>
-                            </tbody>
-                        </table>
-                    </div>
-                    
-                    <div class="pagination">
-                        <button id="prevPageLeads" class="btn btn-secondary" onclick="changePageLeads(-1)">Previous</button>
-                        <span id="pageInfoLeads">Page 1</span>
-                        <button id="nextPageLeads" class="btn btn-secondary" onclick="changePageLeads(1)">Next</button>
-                    </div>
+                    <div id="kanbanView" class="kanban-view-wrap">
+                        <div class="kanban-board-wrap">
+                            <div id="kanbanBoard" class="kanban-board-grid" aria-label="Pipeline de leads"></div>
+                        </div>
                     </div>
                 </div>
                 
-                <!-- CRM Page (Kanban) -->
-                <div id="crmPage" class="page-content" style="display: none;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--spacing-md); flex-wrap: wrap; gap: var(--spacing-sm);">
-                        <h2 class="page-title">CRM - Kanban Board</h2>
-                        <div style="display: flex; gap: var(--spacing-sm);">
-                            <button class="btn btn-secondary" onclick="showNewLeadModal()">+ Novo Lead</button>
-                            <button class="btn btn-secondary" onclick="if(typeof loadKanbanBoard === 'function') loadKanbanBoard(); else if(typeof loadCRMKanban === 'function') loadCRMKanban();">Refresh</button>
-                        </div>
-                    </div>
-                    
-                    <div id="kanbanView" style="display: block;">
-                        <div id="kanbanBoard" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: var(--spacing-md);"></div>
-                    </div>
-                </div>
-
                 <!-- Marketing Analytics -->
                 <div id="marketingPage" class="page-content" style="display: none;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--spacing-md); flex-wrap: wrap; gap: var(--spacing-sm);">

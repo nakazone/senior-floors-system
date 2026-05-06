@@ -11,6 +11,11 @@ let scheduledVisitsRawForKanban = [];
 /** Instâncias Sortable ativas (destruir antes de re-render para não duplicar onEnd nem “prender” cartões) */
 let kanbanSortableInstances = [];
 
+/** Kanban iPad: cards por coluna + Ver mais */
+const KANBAN_CARDS_INITIAL = 5;
+const KANBAN_CARDS_STEP = 8;
+let kanbanColumnVisible = {};
+
 function kanbanNumericId(v) {
     const n = Number(v);
     return Number.isFinite(n) ? n : NaN;
@@ -92,35 +97,31 @@ async function loadPipelineStages() {
             }
         }
         
-        // Fallback: default stages
+        // Fallback: Kanban v3 (9 colunas)
         pipelineStages = [
-            { id: 1, name: 'Lead Recebido', slug: 'lead_received', color: '#3498db', order_num: 1 },
-            { id: 2, name: 'Contato Realizado', slug: 'contact_made', color: '#f39c12', order_num: 2 },
-            { id: 3, name: 'Qualificado', slug: 'qualified', color: '#9b59b6', order_num: 3 },
-            { id: 4, name: 'Visita Agendada', slug: 'visit_scheduled', color: '#e67e22', order_num: 4 },
-            { id: 5, name: 'Medição Realizada', slug: 'measurement_done', color: '#16a085', order_num: 5 },
-            { id: 6, name: 'Proposta Criada', slug: 'proposal_created', color: '#34495e', order_num: 6 },
-            { id: 7, name: 'Proposta Enviada', slug: 'proposal_sent', color: '#95a5a6', order_num: 7 },
-            { id: 8, name: 'Em Negociação', slug: 'negotiation', color: '#e74c3c', order_num: 8 },
-            { id: 9, name: 'Fechado - Ganhou', slug: 'closed_won', color: '#27ae60', order_num: 9 },
-            { id: 10, name: 'Fechado - Perdido', slug: 'closed_lost', color: '#c0392b', order_num: 10 },
-            { id: 11, name: 'Produção / Obra', slug: 'production', color: '#8e44ad', order_num: 11 }
+            { id: 1, name: 'New Lead', slug: 'new_lead', color: '#3498db', order_num: 1 },
+            { id: 2, name: 'Contacted', slug: 'contacted', color: '#f39c12', order_num: 2 },
+            { id: 3, name: 'Meeting Scheduled', slug: 'meeting_scheduled', color: '#e67e22', order_num: 3 },
+            { id: 4, name: 'Quote Sent', slug: 'quote_sent', color: '#9b59b6', order_num: 4 },
+            { id: 5, name: 'Follow Up 1', slug: 'follow_up_1', color: '#16a085', order_num: 5 },
+            { id: 6, name: 'Follow Up 2', slug: 'follow_up_2', color: '#1abc9c', order_num: 6 },
+            { id: 7, name: 'Closing Attempt', slug: 'closing_attempt', color: '#e74c3c', order_num: 7 },
+            { id: 8, name: 'Won', slug: 'won', color: '#27ae60', order_num: 8 },
+            { id: 9, name: 'Lost', slug: 'lost', color: '#c0392b', order_num: 9 },
         ];
     } catch (error) {
         console.error('Error loading pipeline stages:', error);
         // Use fallback
         pipelineStages = [
-            { id: 1, name: 'Lead Recebido', slug: 'lead_received', color: '#3498db', order_num: 1 },
-            { id: 2, name: 'Contato Realizado', slug: 'contact_made', color: '#f39c12', order_num: 2 },
-            { id: 3, name: 'Qualificado', slug: 'qualified', color: '#9b59b6', order_num: 3 },
-            { id: 4, name: 'Visita Agendada', slug: 'visit_scheduled', color: '#e67e22', order_num: 4 },
-            { id: 5, name: 'Medição Realizada', slug: 'measurement_done', color: '#16a085', order_num: 5 },
-            { id: 6, name: 'Proposta Criada', slug: 'proposal_created', color: '#34495e', order_num: 6 },
-            { id: 7, name: 'Proposta Enviada', slug: 'proposal_sent', color: '#95a5a6', order_num: 7 },
-            { id: 8, name: 'Em Negociação', slug: 'negotiation', color: '#e74c3c', order_num: 8 },
-            { id: 9, name: 'Fechado - Ganhou', slug: 'closed_won', color: '#27ae60', order_num: 9 },
-            { id: 10, name: 'Fechado - Perdido', slug: 'closed_lost', color: '#c0392b', order_num: 10 },
-            { id: 11, name: 'Produção / Obra', slug: 'production', color: '#8e44ad', order_num: 11 }
+            { id: 1, name: 'New Lead', slug: 'new_lead', color: '#3498db', order_num: 1 },
+            { id: 2, name: 'Contacted', slug: 'contacted', color: '#f39c12', order_num: 2 },
+            { id: 3, name: 'Meeting Scheduled', slug: 'meeting_scheduled', color: '#e67e22', order_num: 3 },
+            { id: 4, name: 'Quote Sent', slug: 'quote_sent', color: '#9b59b6', order_num: 4 },
+            { id: 5, name: 'Follow Up 1', slug: 'follow_up_1', color: '#16a085', order_num: 5 },
+            { id: 6, name: 'Follow Up 2', slug: 'follow_up_2', color: '#1abc9c', order_num: 6 },
+            { id: 7, name: 'Closing Attempt', slug: 'closing_attempt', color: '#e74c3c', order_num: 7 },
+            { id: 8, name: 'Won', slug: 'won', color: '#27ae60', order_num: 8 },
+            { id: 9, name: 'Lost', slug: 'lost', color: '#c0392b', order_num: 9 },
         ];
     }
 }
@@ -147,34 +148,36 @@ function showKanbanView() {
 
 // Show List View (deprecated - kept for compatibility)
 function showListView() {
-    currentView = 'list';
-    const kanbanView = document.getElementById('kanbanView');
-    const listView = document.getElementById('listView');
-    if (kanbanView) kanbanView.style.display = 'none';
-    if (listView) listView.style.display = 'block';
+    showKanbanView();
+}
+
+function resolveStageForLead(lead) {
+    if (!pipelineStages.length) return null;
+    const byId = pipelineStages.find((s) => kanbanNumericId(s.id) === kanbanNumericId(lead.pipeline_stage_id));
+    if (byId) return byId;
+    const bySlug = pipelineStages.find((s) => s.slug === lead.status);
+    if (bySlug) return bySlug;
+    return pipelineStages[0];
 }
 
 // Load Kanban Board
 async function loadKanbanBoard() {
     try {
-        const response = await fetch('/api/leads?limit=1000', { credentials: 'include' });
+        const searchEl = document.getElementById('leadsListSearchInput');
+        const q =
+            searchEl && searchEl.value && String(searchEl.value).trim()
+                ? '&q=' + encodeURIComponent(String(searchEl.value).trim())
+                : '';
+        const response = await fetch('/api/leads?limit=5000&page=1' + q, { credentials: 'include' });
         const data = await response.json();
 
         scheduledVisitsRawForKanban = [];
-        try {
-            const vr = await fetch('/api/visits?limit=500&status=scheduled', { credentials: 'include' });
-            const vj = await vr.json();
-            if (vj.success && Array.isArray(vj.data)) {
-                scheduledVisitsRawForKanban = vj.data.slice();
-            }
-        } catch (ve) {
-            console.warn('Kanban: visitas não carregadas', ve);
-        }
 
         if (data.success && data.data) {
             allLeads = data.data;
             renderKanbanBoard();
             initKanbanDragDrop();
+            bindKanbanLoadMore();
         }
     } catch (error) {
         console.error('Error loading kanban:', error);
@@ -259,29 +262,23 @@ function renderKanbanBoard() {
     if (!board) return;
 
     destroyKanbanSortables();
-
-    const visitsForColumn = getScheduledVisitsForKanbanColumn();
-    const visitColumnLeadIds = new Set(
-        visitsForColumn.map((v) => kanbanNumericId(v.lead_id)).filter((n) => Number.isFinite(n))
-    );
+    board.classList.add('kanban-board-grid');
 
     board.innerHTML = '';
 
-    const visitsColumnEl = buildVisitsKanbanColumnElement(visitsForColumn);
-    let visitsColumnInserted = false;
-
-    const appendStageColumn = (stage) => {
+    pipelineStages.forEach((stage) => {
         const stageLeads = allLeads.filter((lead) => {
-            const matchesStage =
-                kanbanNumericId(lead.pipeline_stage_id) === kanbanNumericId(stage.id) ||
-                (lead.status === stage.slug && (lead.pipeline_stage_id == null || lead.pipeline_stage_id === ''));
-            if (!matchesStage) return false;
-            // Lead já está na coluna "Visitas agendadas": não repetir cartão nas colunas de estágio
-            if (visitColumnLeadIds.has(kanbanNumericId(lead.id))) {
-                return false;
-            }
-            return true;
+            const st = resolveStageForLead(lead);
+            return st && kanbanNumericId(st.id) === kanbanNumericId(stage.id);
         });
+
+        const total = stageLeads.length;
+        const visibleCap =
+            typeof kanbanColumnVisible[stage.id] === 'number'
+                ? kanbanColumnVisible[stage.id]
+                : KANBAN_CARDS_INITIAL;
+        const visibleLeads = stageLeads.slice(0, visibleCap);
+        const remaining = total - visibleLeads.length;
 
         const column = document.createElement('div');
         column.className = 'kanban-column';
@@ -291,33 +288,42 @@ function renderKanbanBoard() {
         column.innerHTML = `
             <div class="kanban-column-header" style="background: ${stage.color || '#3498db'}">
                 <div class="kanban-column-title">
-                    <span>${stage.name}</span>
-                    <span class="kanban-column-count">${stageLeads.length}</span>
+                    <span>${escapeKanbanHtml(stage.name)}</span>
+                    <span class="kanban-column-count">${total}</span>
                 </div>
             </div>
             <div class="kanban-column-cards" id="kanban-stage-${stage.id}">
-                ${stageLeads.map((lead) => renderKanbanCard(lead)).join('')}
+                ${visibleLeads.map((lead) => renderKanbanCard(lead)).join('')}
             </div>
+            ${
+                remaining > 0
+                    ? `<div class="kanban-column-footer">
+                <button type="button" class="btn btn-secondary btn-sm kanban-load-more-btn" data-stage-id="${stage.id}">
+                    Ver mais (${remaining})
+                </button>
+            </div>`
+                    : ''
+            }
         `;
 
         board.appendChild(column);
-    };
-
-    pipelineStages.forEach((stage) => {
-        if (!visitsColumnInserted && stage.slug === 'visit_scheduled') {
-            board.appendChild(visitsColumnEl);
-            visitsColumnInserted = true;
-        }
-        appendStageColumn(stage);
-        if (!visitsColumnInserted && isKanbanQualificationStage(stage)) {
-            board.appendChild(visitsColumnEl);
-            visitsColumnInserted = true;
-        }
     });
+}
 
-    if (!visitsColumnInserted) {
-        board.appendChild(visitsColumnEl);
-    }
+function bindKanbanLoadMore() {
+    const board = document.getElementById('kanbanBoard');
+    if (!board) return;
+    board.querySelectorAll('.kanban-load-more-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const sid = parseInt(btn.dataset.stageId, 10);
+            if (!sid) return;
+            const cur = kanbanColumnVisible[sid] ?? KANBAN_CARDS_INITIAL;
+            kanbanColumnVisible[sid] = cur + KANBAN_CARDS_STEP;
+            renderKanbanBoard();
+            initKanbanDragDrop();
+            bindKanbanLoadMore();
+        });
+    });
 }
 
 function visitKanbanAddress(v) {
@@ -761,13 +767,17 @@ if (typeof window !== 'undefined') {
     
     // loadCRMKanban is already defined above
     
-    // Load data when leads page is shown
+    // Leads = só Kanban (lista desativada na UI)
     const originalLoadLeads = window.loadLeads;
     if (originalLoadLeads) {
         window.loadLeads = async function() {
-            await originalLoadLeads();
             await loadLeadFormUsers();
             await loadPipelineStages();
+            if (typeof loadCRMKanban === 'function') {
+                await loadCRMKanban();
+            } else {
+                await originalLoadLeads();
+            }
         };
     }
 }
