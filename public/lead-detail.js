@@ -134,17 +134,27 @@ function renderLead() {
 
 function getStatusColor(status) {
     const colors = {
-        'lead_received': '#3498db',
-        'contact_made': '#f39c12',
-        'qualified': '#9b59b6',
-        'visit_scheduled': '#e67e22',
-        'measurement_done': '#16a085',
-        'proposal_created': '#34495e',
-        'proposal_sent': '#95a5a6',
-        'negotiation': '#e74c3c',
-        'closed_won': '#27ae60',
-        'closed_lost': '#c0392b',
-        'production': '#8e44ad'
+        new_lead: '#3498db',
+        contacted: '#f39c12',
+        meeting_scheduled: '#e67e22',
+        quote_sent: '#9b59b6',
+        follow_up_1: '#16a085',
+        follow_up_2: '#1abc9c',
+        closing_attempt: '#e74c3c',
+        won: '#27ae60',
+        lost: '#c0392b',
+        lead_received: '#3498db',
+        contact_made: '#f39c12',
+        qualified: '#9b59b6',
+        visit_scheduled: '#e67e22',
+        measurement_done: '#16a085',
+        proposal_created: '#34495e',
+        proposal_sent: '#95a5a6',
+        negotiation: '#e74c3c',
+        closed_won: '#27ae60',
+        closed_lost: '#c0392b',
+        production: '#8e44ad',
+        new: '#3498db',
     };
     return colors[status] || '#95a5a6';
 }
@@ -160,17 +170,15 @@ async function loadPipelineStages() {
     } catch (e) { /* ignore */ }
     if (stages.length === 0) {
         stages = [
-            { id: 1, name: 'Lead Recebido', slug: 'lead_received' },
-            { id: 2, name: 'Contato Realizado', slug: 'contact_made' },
-            { id: 3, name: 'Qualificado', slug: 'qualified' },
-            { id: 4, name: 'Visita Agendada', slug: 'visit_scheduled' },
-            { id: 5, name: 'Medição Realizada', slug: 'measurement_done' },
-            { id: 6, name: 'Proposta Criada', slug: 'proposal_created' },
-            { id: 7, name: 'Proposta Enviada', slug: 'proposal_sent' },
-            { id: 8, name: 'Em Negociação', slug: 'negotiation' },
-            { id: 9, name: 'Fechado - Ganhou', slug: 'closed_won' },
-            { id: 10, name: 'Fechado - Perdido', slug: 'closed_lost' },
-            { id: 11, name: 'Produção / Obra', slug: 'production' }
+            { id: 1, name: 'New Lead', slug: 'new_lead' },
+            { id: 2, name: 'Contacted', slug: 'contacted' },
+            { id: 3, name: 'Meeting Scheduled', slug: 'meeting_scheduled' },
+            { id: 4, name: 'Quote Sent', slug: 'quote_sent' },
+            { id: 5, name: 'Follow Up 1', slug: 'follow_up_1' },
+            { id: 6, name: 'Follow Up 2', slug: 'follow_up_2' },
+            { id: 7, name: 'Closing Attempt', slug: 'closing_attempt' },
+            { id: 8, name: 'Won', slug: 'won' },
+            { id: 9, name: 'Lost', slug: 'lost' },
         ];
     }
 

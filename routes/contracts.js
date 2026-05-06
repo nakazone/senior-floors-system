@@ -98,7 +98,7 @@ export async function createContract(req, res) {
     );
 
     if (lead_id) {
-      await setLeadPipelineBySlug(lead_id, 'closed_won');
+      await setLeadPipelineBySlug(lead_id, 'won');
     }
 
     res.status(201).json({ success: true, data: { id: result.insertId }, message: 'Contract created' });

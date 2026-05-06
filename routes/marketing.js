@@ -345,13 +345,13 @@ router.get('/metrics', async (req, res) => {
     const avg_ticket = total_deals > 0 ? total_revenue / total_deals : null;
 
     const funnelSlugs = [
-      'lead_received',
-      'contact_made',
-      'qualified',
-      'proposal_sent',
-      'negotiation',
-      'closed_won',
-      'closed_lost',
+      'new_lead',
+      'contacted',
+      'meeting_scheduled',
+      'quote_sent',
+      'closing_attempt',
+      'won',
+      'lost',
     ];
     const funnel = [];
     for (const slug of funnelSlugs) {
@@ -1441,7 +1441,11 @@ router.get('/alerts/not-contacted', async (req, res) => {
        FROM leads l
        LEFT JOIN pipeline_stages ps ON l.pipeline_stage_id = ps.id
        WHERE l.created_at <= DATE_SUB(NOW(), INTERVAL 5 MINUTE)
-         AND (l.status = 'lead_received' OR ps.slug = 'lead_received' OR (l.status = 'new' AND (ps.slug IS NULL OR ps.slug = 'lead_received')))
+         AND (
+           l.status IN ('new_lead','new','lead_received')
+           OR ps.slug IN ('new_lead','lead_received')
+           OR (l.status = 'new' AND (ps.slug IS NULL OR ps.slug IN ('new_lead','lead_received')))
+         )
        ORDER BY l.created_at ASC
        LIMIT 50`
     );

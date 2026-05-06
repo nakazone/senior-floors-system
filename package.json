@@ -11,6 +11,8 @@
     "migrate:marketing": "node database/migrate-marketing-analytics.js",
     "migrate:marketing-complete": "node database/migrate-marketing-complete.js",
     "migrate:quote-pdf-blob": "node database/migrate-quote-invoice-pdf-blob.js",
+    "migrate:kanban-pipeline": "node database/migrate-pipeline-kanban-v3.js",
+    "migrate:kanban-pipeline:railway": "railway run npm run migrate:kanban-pipeline",
     "fix:lead-names-csv": "node database/fix-lead-names-from-csv.js",
     "migrate:lead-address": "node database/add-lead-address-column.js",
     "migrate:lead-qualification-columns": "node database/run-add-lead-qualification-columns.js",

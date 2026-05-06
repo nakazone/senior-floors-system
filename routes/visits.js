@@ -147,13 +147,17 @@ async function updateLeadToVisitScheduled(pool, leadId) {
   if (!leadId) return;
   try {
     const [stageRows] = await pool.query(
-      "SELECT id FROM pipeline_stages WHERE slug = 'visit_scheduled' LIMIT 1"
+      `SELECT id, slug FROM pipeline_stages
+       WHERE slug IN ('meeting_scheduled','visit_scheduled')
+       ORDER BY FIELD(slug,'meeting_scheduled','visit_scheduled') LIMIT 1`
     );
     if (stageRows.length > 0) {
-      await pool.execute(
-        'UPDATE leads SET pipeline_stage_id = ?, status = ? WHERE id = ?',
-        [stageRows[0].id, 'visit_scheduled', leadId]
-      );
+      const row = stageRows[0];
+      await pool.execute('UPDATE leads SET pipeline_stage_id = ?, status = ? WHERE id = ?', [
+        row.id,
+        row.slug,
+        leadId,
+      ]);
     }
   } catch (updateErr) {
     console.warn('Could not update lead pipeline stage:', updateErr.message);

@@ -61,7 +61,7 @@ CREATE TABLE IF NOT EXISTS `leads` (
   `message` text DEFAULT NULL,
   `source` varchar(100) DEFAULT NULL COMMENT 'LP-Hero, LP-Contact, Referral, etc.',
   `form_type` varchar(50) DEFAULT NULL,
-  `status` varchar(50) DEFAULT 'lead_received' COMMENT 'Status atual do lead',
+  `status` varchar(50) DEFAULT 'new_lead' COMMENT 'Status atual do lead (slug do pipeline)',
   `priority` varchar(50) DEFAULT 'medium' COMMENT 'low, medium, high',
   `ip_address` varchar(45) DEFAULT NULL,
   `owner_id` int(11) DEFAULT NULL COMMENT 'FK users - vendedor responsável',
@@ -360,14 +360,12 @@ CREATE TABLE IF NOT EXISTS `audit_logs` (
 -- DADOS INICIAIS - ESTÁGIOS DO PIPELINE
 -- ============================================
 INSERT IGNORE INTO `pipeline_stages` (`id`, `name`, `slug`, `description`, `order_num`, `color`, `sla_hours`, `is_closed`) VALUES
-(1, 'Lead Recebido', 'lead_received', 'Lead recém-cadastrado, aguardando primeiro contato', 1, '#3498db', 24, 0),
-(2, 'Contato Realizado', 'contact_made', 'Primeiro contato realizado com o lead', 2, '#f39c12', 48, 0),
-(3, 'Qualificado', 'qualified', 'Lead qualificado e com potencial de conversão', 3, '#9b59b6', 72, 0),
-(4, 'Visita Agendada', 'visit_scheduled', 'Visita ao local agendada', 4, '#e67e22', 168, 0),
-(5, 'Medição Realizada', 'measurement_done', 'Medição do local realizada', 5, '#16a085', 72, 0),
-(6, 'Proposta Criada', 'proposal_created', 'Proposta criada e pronta para envio', 6, '#34495e', 72, 0),
-(7, 'Proposta Enviada', 'proposal_sent', 'Proposta enviada ao cliente', 7, '#95a5a6', 168, 0),
-(8, 'Em Negociação', 'negotiation', 'Em negociação de termos e valores', 8, '#e74c3c', 336, 0),
-(9, 'Fechado - Ganhou', 'closed_won', 'Lead convertido em cliente', 9, '#27ae60', NULL, 1),
-(10, 'Fechado - Perdido', 'closed_lost', 'Lead perdido ou arquivado', 10, '#c0392b', NULL, 1),
-(11, 'Produção / Obra', 'production', 'Projeto em produção/obra', 11, '#8e44ad', NULL, 0);
+(1, 'New Lead', 'new_lead', 'Lead novo — primeiro contacto pendente', 1, '#3498db', 24, 0),
+(2, 'Contacted', 'contacted', 'Contacto realizado', 2, '#f39c12', 48, 0),
+(3, 'Meeting Scheduled', 'meeting_scheduled', 'Reunião ou visita agendada', 3, '#e67e22', 72, 0),
+(4, 'Quote Sent', 'quote_sent', 'Orçamento enviado', 4, '#9b59b6', 96, 0),
+(5, 'Follow Up 1', 'follow_up_1', 'Primeiro follow-up', 5, '#16a085', 72, 0),
+(6, 'Follow Up 2', 'follow_up_2', 'Segundo follow-up', 6, '#1abc9c', 72, 0),
+(7, 'Closing Attempt', 'closing_attempt', 'Tentativa de fecho', 7, '#e74c3c', 72, 0),
+(8, 'Won', 'won', 'Ganho', 8, '#27ae60', NULL, 1),
+(9, 'Lost', 'lost', 'Perdido', 9, '#c0392b', NULL, 1);

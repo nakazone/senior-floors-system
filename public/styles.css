@@ -1860,6 +1860,62 @@ input.score-auto {
 }
 
 /* Kanban Styles */
+.kanban-view-wrap {
+    width: 100%;
+}
+
+.kanban-board-wrap {
+    width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: var(--spacing-xs);
+}
+
+/* 9 colunas visíveis em landscape iPad; scroll horizontal em ecrãs mais estreitos */
+.kanban-board-grid {
+    display: grid;
+    grid-template-columns: repeat(9, minmax(96px, 1fr));
+    gap: 6px;
+    align-items: start;
+    min-width: min(100%, 1080px);
+}
+
+.kanban-board-grid .kanban-column {
+    min-width: 0;
+    min-height: 260px;
+    padding: 6px;
+}
+
+.kanban-board-grid .kanban-column-cards {
+    max-height: min(58vh, 520px);
+    overflow-y: auto;
+}
+
+.kanban-column-footer {
+    padding-top: 6px;
+}
+
+.kanban-board-grid .kanban-load-more-btn {
+    width: 100%;
+    font-size: 0.75rem;
+    padding: 6px 8px;
+    white-space: normal;
+    line-height: 1.2;
+}
+
+.kanban-board-grid .kanban-card-title {
+    font-size: 0.8rem;
+}
+
+.kanban-board-grid .kanban-card-body {
+    font-size: 0.72rem;
+}
+
+.kanban-board-grid .kanban-card-footer {
+    font-size: 0.72rem;
+}
+
 .kanban-column {
     background: var(--bg-light);
     border-radius: 8px;

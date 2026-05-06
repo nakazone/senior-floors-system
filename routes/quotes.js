@@ -249,7 +249,7 @@ export async function createQuote(req, res) {
 
     const st = String(status || 'draft').toLowerCase();
     if (lead_id && ['sent', 'approved', 'accepted'].includes(st)) {
-      await setLeadPipelineBySlug(lead_id, 'proposal_sent');
+      await setLeadPipelineBySlug(lead_id, 'quote_sent');
     }
 
     res.status(201).json({ success: true, data: { id: quoteId, quote_number: quoteNumber }, message: 'Quote created' });
@@ -298,7 +298,7 @@ export async function updateQuote(req, res) {
     const newStatus = req.body.status != null ? String(req.body.status).toLowerCase() : prevStatus;
     const becameSent = ['sent', 'approved', 'accepted'].includes(newStatus) && !['sent', 'approved', 'accepted'].includes(prevStatus);
     if (becameSent && existing.lead_id) {
-      await setLeadPipelineBySlug(existing.lead_id, 'proposal_sent');
+      await setLeadPipelineBySlug(existing.lead_id, 'quote_sent');
     }
 
     const becameApproved =
