@@ -1,5 +1,5 @@
 /**
- * Pipeline Kanban v3 ù 9 colunas (iPad): New Lead ? Lost.
+ * Pipeline Kanban v3 ù 9 colunas (iPad): Novo lead ? Perdido.
  * Idempotente: pode rodar mais de uma vez.
  *
  * Run: node database/migrate-pipeline-kanban-v3.js
@@ -11,8 +11,8 @@ import mysql from 'mysql2/promise';
 const KANBAN_STAGES = [
   { slug: 'new_lead', name: 'Novo lead', order_num: 1, color: '#3498db', is_closed: 0 },
   { slug: 'contacted', name: 'Contato realizado', order_num: 2, color: '#f39c12', is_closed: 0 },
-  { slug: 'meeting_scheduled', name: 'Reuni„o agendada', order_num: 3, color: '#e67e22', is_closed: 0 },
-  { slug: 'quote_sent', name: 'OrÁamento enviado', order_num: 4, color: '#9b59b6', is_closed: 0 },
+  { slug: 'meeting_scheduled', name: 'Reuniùo agendada', order_num: 3, color: '#e67e22', is_closed: 0 },
+  { slug: 'quote_sent', name: 'Orùamento enviado', order_num: 4, color: '#9b59b6', is_closed: 0 },
   { slug: 'follow_up_1', name: 'Follow-up 1', order_num: 5, color: '#16a085', is_closed: 0 },
   { slug: 'follow_up_2', name: 'Follow-up 2', order_num: 6, color: '#1abc9c', is_closed: 0 },
   { slug: 'closing_attempt', name: 'Tentativa de fechamento', order_num: 7, color: '#e74c3c', is_closed: 0 },
@@ -108,7 +108,7 @@ async function main() {
     );
 
     await conn.commit();
-    console.log('OK ù estùgios atualizados e leads migrados.');
+    console.log('OK ó est·gios atualizados e leads migrados.');
     const [summary] = await conn.query(
       `SELECT ps.slug, COUNT(l.id) AS n
        FROM pipeline_stages ps
