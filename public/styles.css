@@ -2065,6 +2065,124 @@ input.score-auto {
     font-size: 0.68rem;
 }
 
+/* Kanban compact cards (layout limpo; abrir pelo nome) */
+.kanban-card--compact {
+    padding: 8px 10px;
+    margin-bottom: 6px;
+}
+
+.kanban-card-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 6px;
+    margin-bottom: 6px;
+}
+
+.kanban-card-title-btn {
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: none;
+    background: none;
+    font: inherit;
+    font-weight: 600;
+    color: var(--text-dark);
+    text-align: left;
+    cursor: pointer;
+    line-height: 1.25;
+}
+
+.kanban-card-title-btn:hover {
+    color: var(--primary-color);
+    text-decoration: underline;
+}
+
+.kanban-card-title-fallback {
+    flex: 1;
+    min-width: 0;
+    font-weight: 600;
+    color: var(--text-dark);
+    line-height: 1.25;
+}
+
+.kanban-card-priority--chip {
+    flex-shrink: 0;
+    margin: 0;
+    font-size: 0.58rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 3px 5px;
+    border-radius: 4px;
+    line-height: 1;
+}
+
+.kanban-card-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.kanban-card-row {
+    display: grid;
+    grid-template-columns: 38px minmax(0, 1fr);
+    gap: 4px 6px;
+    align-items: baseline;
+    font-size: 0.72rem;
+    line-height: 1.3;
+}
+
+.kanban-card-label {
+    color: var(--text-muted);
+    font-weight: 500;
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.kanban-card-value {
+    color: var(--text-dark);
+    word-break: break-word;
+}
+
+.kanban-card-truncate {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.kanban-card-owner {
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px solid var(--border-color);
+    font-size: 0.68rem;
+    color: var(--text-muted);
+    line-height: 1.25;
+}
+
+.kanban-card-owner--hint {
+    border-top: none;
+    margin-top: 4px;
+    padding-top: 0;
+    font-size: 0.62rem;
+    font-style: italic;
+    opacity: 0.85;
+}
+
+.kanban-board-grid .kanban-card-title-btn {
+    font-size: 0.8rem;
+}
+
+.kanban-board-grid .kanban-card-meta .kanban-card-row {
+    font-size: 0.72rem;
+}
+
+.kanban-board-grid .kanban-card-owner {
+    font-size: 0.68rem;
+}
+
 /* Mobile Modal */
 @media (max-width: 768px) {
     .modal-content {

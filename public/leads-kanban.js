@@ -435,26 +435,21 @@ function renderVisitKanbanCard(visit) {
     const priorityClass = lead?.priority || 'medium';
     const leadId = kanbanNumericId(visit.lead_id);
     const leadIdAttr = Number.isFinite(leadId) ? leadId : '';
+    const titleBtn = Number.isFinite(leadId)
+        ? `<button type="button" class="kanban-card-title-btn" onclick="viewLead(${leadId})" title="Abrir lead">${name}</button>`
+        : `<span class="kanban-card-title-fallback">${name}</span>`;
     return `
-        <div class="kanban-card kanban-card--visit" data-lead-id="${leadIdAttr}" data-visit-id="${visit.id}">
-            <div class="kanban-card-header">
-                <div class="kanban-card-title">${name}</div>
-                <div class="kanban-card-actions">
-                    <button type="button" onclick="viewLead(${leadIdAttr})" title="Ver lead"><span class="action-btn-icon">V</span></button>
-                    <button type="button" onclick="showAssignLeadModal(${leadIdAttr})" title="Designar"><span class="action-btn-icon">U</span></button>
-                    <button type="button" onclick="showFollowupModal(${leadIdAttr})" title="Follow-up"><span class="action-btn-icon">D</span></button>
-                    ${Number.isFinite(leadId) ? `<button type="button" class="btn-lead-delete-kanban" onclick="deleteLead(${leadId})" title="Excluir lead">✕</button>` : ''}
-                </div>
+        <div class="kanban-card kanban-card--visit kanban-card--compact" data-lead-id="${leadIdAttr}" data-visit-id="${visit.id}">
+            <div class="kanban-card-top">
+                ${titleBtn}
+                <span class="kanban-card-priority kanban-card-priority--chip ${priorityClass}">${priorityClass}</span>
             </div>
-            <div class="kanban-card-body kanban-card-body--visit">
-                <div class="kanban-visit-datetime"><strong>Quando:</strong> ${escapeKanbanHtml(when)}</div>
-                <div><strong>Local:</strong> ${addr}</div>
-                ${assignee ? `<div><strong>Responsável:</strong> ${assignee}</div>` : ''}
+            <div class="kanban-card-meta kanban-card-body--visit">
+                <div class="kanban-card-row"><span class="kanban-card-label">Quando</span><span class="kanban-card-value">${escapeKanbanHtml(when)}</span></div>
+                <div class="kanban-card-row"><span class="kanban-card-label">Local</span><span class="kanban-card-value">${addr}</span></div>
+                ${assignee ? `<div class="kanban-card-row"><span class="kanban-card-label">Resp.</span><span class="kanban-card-value">${assignee}</span></div>` : ''}
             </div>
-            <div class="kanban-card-footer">
-                <span class="kanban-card-priority ${priorityClass}">${priorityClass}</span>
-                <span class="kanban-visit-hint">Arraste para mudar o estágio do lead</span>
-            </div>
+            <div class="kanban-card-owner kanban-card-owner--hint">Arraste para outra coluna para mudar o estágio</div>
         </div>
     `;
 }
@@ -462,28 +457,33 @@ function renderVisitKanbanCard(visit) {
 // Render Kanban Card
 function renderKanbanCard(lead) {
     const priorityClass = lead.priority || 'medium';
-    const ownerName = lead.owner_name || 'Não designado';
-    
+    const ownerName = escapeKanbanHtml(lead.owner_name || 'Não designado');
+    const name = escapeKanbanHtml(lead.name || 'Sem nome');
+    const email = lead.email ? escapeKanbanHtml(lead.email) : '';
+    const phone = lead.phone ? escapeKanbanHtml(lead.phone) : '';
+    const emailRow = email
+        ? `<div class="kanban-card-row"><span class="kanban-card-label">Email</span><span class="kanban-card-value kanban-card-truncate" title="${email}">${email}</span></div>`
+        : '';
+    const phoneRow = phone
+        ? `<div class="kanban-card-row"><span class="kanban-card-label">Tel.</span><span class="kanban-card-value">${phone}</span></div>`
+        : '';
+    const valueRow =
+        lead.estimated_value != null && lead.estimated_value !== ''
+            ? `<div class="kanban-card-row"><span class="kanban-card-label">Valor</span><span class="kanban-card-value">$${parseFloat(lead.estimated_value).toLocaleString()}</span></div>`
+            : '';
+
     return `
-        <div class="kanban-card" data-lead-id="${lead.id}">
-            <div class="kanban-card-header">
-                <div class="kanban-card-title">${lead.name || 'Sem nome'}</div>
-                <div class="kanban-card-actions">
-                    <button onclick="viewLead(${lead.id})" title="Ver"><span class="action-btn-icon">V</span></button>
-                    <button onclick="showAssignLeadModal(${lead.id})" title="Designar"><span class="action-btn-icon">U</span></button>
-                    <button onclick="showFollowupModal(${lead.id})" title="Follow-up"><span class="action-btn-icon">D</span></button>
-                    <button type="button" class="btn-lead-delete-kanban" onclick="deleteLead(${lead.id})" title="Excluir">✕</button>
-                </div>
+        <div class="kanban-card kanban-card--compact" data-lead-id="${lead.id}">
+            <div class="kanban-card-top">
+                <button type="button" class="kanban-card-title-btn" onclick="viewLead(${lead.id})" title="Abrir lead">${name}</button>
+                <span class="kanban-card-priority kanban-card-priority--chip ${priorityClass}">${priorityClass}</span>
             </div>
-            <div class="kanban-card-body">
-                <div><strong>Email:</strong> ${lead.email || '-'}</div>
-                <div><strong>Phone:</strong> ${lead.phone || '-'}</div>
-                ${lead.estimated_value ? `<div><strong>Value:</strong> $${parseFloat(lead.estimated_value).toLocaleString()}</div>` : ''}
+            <div class="kanban-card-meta">
+                ${emailRow}
+                ${phoneRow}
+                ${valueRow}
             </div>
-            <div class="kanban-card-footer">
-                <span class="kanban-card-priority ${priorityClass}">${priorityClass}</span>
-                <span><span class="action-btn-icon small">U</span> ${ownerName}</span>
-            </div>
+            <div class="kanban-card-owner">${ownerName}</div>
         </div>
     `;
 }
@@ -506,7 +506,7 @@ function initKanbanDragDrop() {
 const KANBAN_SORTABLE_SHARED = {
     animation: 150,
     emptyInsertThreshold: 48,
-    filter: 'button, .kanban-card-actions, .btn-lead-delete-kanban',
+    filter: 'button, input, textarea, select, a',
     preventOnFilter: true,
 };
 
