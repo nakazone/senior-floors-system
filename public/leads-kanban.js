@@ -11,9 +11,9 @@ let scheduledVisitsRawForKanban = [];
 /** Instâncias Sortable ativas (destruir antes de re-render para não duplicar onEnd nem “prender” cartões) */
 let kanbanSortableInstances = [];
 
-/** Kanban iPad: cards por coluna + Ver mais */
-const KANBAN_CARDS_INITIAL = 5;
-const KANBAN_CARDS_STEP = 8;
+/** Inicial: 2 cards por coluna; "Ver mais" +4 */
+const KANBAN_CARDS_INITIAL = 2;
+const KANBAN_CARDS_STEP = 4;
 /** Chave = slug do estágio (ex.: meeting_scheduled); usado em "Ver mais" */
 let kanbanColumnVisible = {};
 
