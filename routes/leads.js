@@ -100,7 +100,15 @@ export async function getLead(req, res) {
   if (!id) return res.status(400).json({ error: 'Invalid id' });
   try {
     const pool = await getDBConnection();
-    const [rows] = await pool.query('SELECT * FROM leads WHERE id = ?', [id]);
+    const [rows] = await pool.query(
+      `SELECT l.*, u.name AS owner_name, u.email AS owner_email,
+              ps.name AS pipeline_stage_name, ps.slug AS pipeline_stage_slug, ps.color AS pipeline_stage_color
+       FROM leads l
+       LEFT JOIN users u ON l.owner_id = u.id
+       LEFT JOIN pipeline_stages ps ON l.pipeline_stage_id = ps.id
+       WHERE l.id = ?`,
+      [id]
+    );
     if (!rows.length) return res.status(404).json({ error: 'Lead not found' });
     res.json({ success: true, data: rows[0] });
   } catch (e) {

@@ -419,10 +419,13 @@ function renderVisitKanbanCard(visit) {
     const leadId = kanbanNumericId(visit.lead_id);
     const leadIdAttr = Number.isFinite(leadId) ? leadId : '';
     const titleBtn = Number.isFinite(leadId)
-        ? `<button type="button" class="kanban-card-title-btn" onclick="viewLead(${leadId})" title="Abrir lead">${name}</button>`
+        ? `<span class="kanban-card-title-btn">${name}</span>`
         : `<span class="kanban-card-title-fallback">${name}</span>`;
+    const sheetAttrs = Number.isFinite(leadId)
+        ? ` role="button" tabindex="0" onclick="viewLead(${leadId})" title="Ver detalhes do lead" class="kanban-card kanban-card--visit kanban-card--compact kanban-card--open-sheet"`
+        : ` class="kanban-card kanban-card--visit kanban-card--compact"`;
     return `
-        <div class="kanban-card kanban-card--visit kanban-card--compact" data-lead-id="${leadIdAttr}" data-visit-id="${visit.id}">
+        <div${sheetAttrs} data-lead-id="${leadIdAttr}" data-visit-id="${visit.id}">
             <div class="kanban-card-top">
                 ${titleBtn}
                 <span class="kanban-card-priority kanban-card-priority--chip ${priorityClass}">${priorityClass}</span>
@@ -455,9 +458,9 @@ function renderKanbanCard(lead) {
             : '';
 
     return `
-        <div class="kanban-card kanban-card--compact" data-lead-id="${lead.id}">
+        <div class="kanban-card kanban-card--compact kanban-card--open-sheet" data-lead-id="${lead.id}" role="button" tabindex="0" onclick="viewLead(${lead.id})" title="Ver detalhes do lead">
             <div class="kanban-card-top">
-                <button type="button" class="kanban-card-title-btn" onclick="viewLead(${lead.id})" title="Abrir lead">${name}</button>
+                <span class="kanban-card-title-btn">${name}</span>
                 <span class="kanban-card-priority kanban-card-priority--chip ${priorityClass}">${priorityClass}</span>
             </div>
             <div class="kanban-card-meta">

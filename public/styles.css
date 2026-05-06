@@ -5512,3 +5512,253 @@ input.score-auto {
     border: 1px solid var(--border-color);
     font-size: 12px;
 }
+
+/* ========== Lead quick sheet (bottom sheet, estilo Calendar mobile) ========== */
+body.lead-quick-sheet-open {
+    overflow: hidden;
+}
+
+.lead-quick-sheet {
+    position: fixed;
+    inset: 0;
+    z-index: 12000;
+    pointer-events: none;
+    visibility: hidden;
+}
+
+.lead-quick-sheet.is-open {
+    pointer-events: auto;
+    visibility: visible;
+}
+
+.lead-quick-sheet__backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.45);
+    opacity: 0;
+    transition: opacity 0.25s ease;
+}
+
+.lead-quick-sheet.is-open .lead-quick-sheet__backdrop {
+    opacity: 1;
+}
+
+.lead-quick-sheet__panel {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    max-height: min(88vh, 720px);
+    background: var(--bg-white, #fff);
+    border-radius: 16px 16px 0 0;
+    box-shadow: 0 -8px 40px rgba(0, 0, 0, 0.18);
+    transform: translateY(105%);
+    transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+    display: flex;
+    flex-direction: column;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.lead-quick-sheet.is-open .lead-quick-sheet__panel {
+    transform: translateY(0);
+}
+
+.lead-quick-sheet__handle {
+    width: 36px;
+    height: 4px;
+    border-radius: 99px;
+    background: var(--border-color, #e2e8f0);
+    margin: 10px auto 4px;
+    flex-shrink: 0;
+}
+
+.lead-quick-sheet__header {
+    padding: 0 16px 12px;
+    border-bottom: 1px solid var(--border-color, #e2e8f0);
+    flex-shrink: 0;
+}
+
+.lead-quick-sheet__header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 8px;
+}
+
+.lead-quick-sheet__close {
+    border: none;
+    background: var(--bg-light, #f1f5f9);
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+    color: var(--text-dark);
+}
+
+.lead-quick-sheet__full-link {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--primary-color, #2563eb);
+    text-decoration: none;
+}
+
+.lead-quick-sheet__full-link:hover {
+    text-decoration: underline;
+}
+
+.lead-quick-sheet__title {
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 700;
+    line-height: 1.25;
+    color: var(--text-dark);
+}
+
+.lead-quick-sheet__badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 10px;
+}
+
+.lead-quick-sheet__badge {
+    display: inline-block;
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.lead-quick-sheet__badge--stage {
+    background: rgba(37, 99, 235, 0.12);
+    color: #1d4ed8;
+}
+
+.lead-quick-sheet__badge--pri {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.lead-quick-sheet__badge--pri-high {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.lead-quick-sheet__badge--pri-low {
+    background: #d1fae5;
+    color: #065f46;
+}
+
+.lead-quick-sheet__body {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 12px 16px 20px;
+    flex: 1;
+    min-height: 0;
+}
+
+.lead-quick-sheet__loading,
+.lead-quick-sheet__error,
+.lead-quick-sheet__empty {
+    margin: 12px 0;
+    font-size: 0.9rem;
+    color: var(--text-muted);
+}
+
+.lead-quick-sheet__error {
+    color: #b91c1c;
+}
+
+.lead-quick-sheet__toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.lead-quick-sheet__action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px 16px;
+    border-radius: 999px;
+    background: var(--primary-color, #1a2036);
+    color: #fff !important;
+    font-weight: 600;
+    font-size: 0.85rem;
+    text-decoration: none;
+}
+
+.lead-quick-sheet__section {
+    margin-bottom: 20px;
+}
+
+.lead-quick-sheet__h3 {
+    margin: 0 0 10px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+}
+
+.lead-quick-sheet__dl {
+    margin: 0;
+}
+
+.lead-quick-sheet__row {
+    display: grid;
+    grid-template-columns: minmax(100px, 38%) 1fr;
+    gap: 8px 12px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border-color, #f1f5f9);
+    font-size: 0.88rem;
+}
+
+.lead-quick-sheet__row:last-child {
+    border-bottom: none;
+}
+
+.lead-quick-sheet__row dt {
+    margin: 0;
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+.lead-quick-sheet__row dd {
+    margin: 0;
+    color: var(--text-dark);
+    word-break: break-word;
+}
+
+.lead-quick-sheet__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.lead-quick-sheet__list-item {
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: var(--bg-light, #f8fafc);
+    margin-bottom: 8px;
+}
+
+.lead-quick-sheet__list-title {
+    font-weight: 600;
+    font-size: 0.88rem;
+    margin-bottom: 4px;
+}
+
+.lead-quick-sheet__muted {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    line-height: 1.35;
+}
+
+.kanban-card--open-sheet { cursor: pointer; }
