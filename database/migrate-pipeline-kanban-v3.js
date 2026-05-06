@@ -9,15 +9,15 @@ import 'dotenv/config';
 import mysql from 'mysql2/promise';
 
 const KANBAN_STAGES = [
-  { slug: 'new_lead', name: 'New Lead', order_num: 1, color: '#3498db', is_closed: 0 },
-  { slug: 'contacted', name: 'Contacted', order_num: 2, color: '#f39c12', is_closed: 0 },
-  { slug: 'meeting_scheduled', name: 'Meeting Scheduled', order_num: 3, color: '#e67e22', is_closed: 0 },
-  { slug: 'quote_sent', name: 'Quote Sent', order_num: 4, color: '#9b59b6', is_closed: 0 },
-  { slug: 'follow_up_1', name: 'Follow Up 1', order_num: 5, color: '#16a085', is_closed: 0 },
-  { slug: 'follow_up_2', name: 'Follow Up 2', order_num: 6, color: '#1abc9c', is_closed: 0 },
-  { slug: 'closing_attempt', name: 'Closing Attempt', order_num: 7, color: '#e74c3c', is_closed: 0 },
-  { slug: 'won', name: 'Won', order_num: 8, color: '#27ae60', is_closed: 1 },
-  { slug: 'lost', name: 'Lost', order_num: 9, color: '#c0392b', is_closed: 1 },
+  { slug: 'new_lead', name: 'Novo lead', order_num: 1, color: '#3498db', is_closed: 0 },
+  { slug: 'contacted', name: 'Contato realizado', order_num: 2, color: '#f39c12', is_closed: 0 },
+  { slug: 'meeting_scheduled', name: 'Reunião agendada', order_num: 3, color: '#e67e22', is_closed: 0 },
+  { slug: 'quote_sent', name: 'Orçamento enviado', order_num: 4, color: '#9b59b6', is_closed: 0 },
+  { slug: 'follow_up_1', name: 'Follow-up 1', order_num: 5, color: '#16a085', is_closed: 0 },
+  { slug: 'follow_up_2', name: 'Follow-up 2', order_num: 6, color: '#1abc9c', is_closed: 0 },
+  { slug: 'closing_attempt', name: 'Tentativa de fechamento', order_num: 7, color: '#e74c3c', is_closed: 0 },
+  { slug: 'won', name: 'Ganho', order_num: 8, color: '#27ae60', is_closed: 1 },
+  { slug: 'lost', name: 'Perdido', order_num: 9, color: '#c0392b', is_closed: 1 },
 ];
 
 const FINAL_SLUGS = new Set(KANBAN_STAGES.map((s) => s.slug));

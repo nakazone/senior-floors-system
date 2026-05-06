@@ -5,11 +5,6 @@
 let currentLeadId = null;
 let currentLead = null;
 
-function notifyLead(msg, type) {
-    if (typeof window.crmNotify === 'function') window.crmNotify(msg, type || 'info');
-    else alert(msg);
-}
-
 // Check authentication and get lead ID from URL
 window.addEventListener('DOMContentLoaded', () => {
     // Get lead ID from URL
@@ -17,7 +12,7 @@ window.addEventListener('DOMContentLoaded', () => {
     currentLeadId = parseInt(urlParams.get('id'));
 
     if (!currentLeadId) {
-        notifyLead('Lead ID não encontrado na URL', 'error');
+        alert('Lead ID não encontrado na URL');
         window.location.href = 'dashboard.html';
         return;
     }
@@ -39,6 +34,12 @@ window.addEventListener('DOMContentLoaded', () => {
             window.location.href = '/login.html';
         });
 
+    // Logout
+    document.getElementById('logoutBtn').addEventListener('click', async () => {
+        await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+        window.location.href = '/login.html';
+    });
+
     // Tab switching
     document.querySelectorAll('.tab').forEach(tab => {
         tab.addEventListener('click', () => {
@@ -52,23 +53,14 @@ window.addEventListener('DOMContentLoaded', () => {
 
     wireVisitScheduleHalfHourInputs_();
 
+    // Menu lateral fixo: toggle mobile
     const sidebar = document.getElementById('dashboardSidebar');
     const overlay = document.getElementById('mobileOverlay');
     const menuBtn = document.getElementById('mobileMenuToggle');
     if (menuBtn && sidebar && overlay) {
-        menuBtn.addEventListener('click', () => {
-            const open = sidebar.classList.toggle('mobile-open');
-            overlay.classList.toggle('active', open);
-            menuBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
-        });
-        overlay.addEventListener('click', () => {
-            sidebar.classList.remove('mobile-open');
-            overlay.classList.remove('active');
-            menuBtn.setAttribute('aria-expanded', 'false');
-        });
+        menuBtn.addEventListener('click', () => { sidebar.classList.toggle('mobile-open'); overlay.classList.toggle('active'); });
+        overlay.addEventListener('click', () => { sidebar.classList.remove('mobile-open'); overlay.classList.remove('active'); });
     }
-
-    setupLeadImportInvoicePdfForm();
 });
 
 async function loadLead() {
@@ -85,14 +77,13 @@ async function loadLead() {
             loadInteractions();
             loadVisits();
             loadProposals();
-            loadLinkedClient();
         } else {
-            notifyLead('Erro ao carregar lead: ' + (data.error || 'Desconhecido'), 'error');
+            alert('Erro ao carregar lead: ' + (data.error || 'Desconhecido'));
             window.location.href = 'dashboard.html';
         }
     } catch (error) {
         console.error('Error loading lead:', error);
-        notifyLead('Erro ao carregar lead', 'error');
+        alert('Erro ao carregar lead');
     }
 }
 
@@ -170,15 +161,15 @@ async function loadPipelineStages() {
     } catch (e) { /* ignore */ }
     if (stages.length === 0) {
         stages = [
-            { id: 1, name: 'New Lead', slug: 'new_lead' },
-            { id: 2, name: 'Contacted', slug: 'contacted' },
-            { id: 3, name: 'Meeting Scheduled', slug: 'meeting_scheduled' },
-            { id: 4, name: 'Quote Sent', slug: 'quote_sent' },
-            { id: 5, name: 'Follow Up 1', slug: 'follow_up_1' },
-            { id: 6, name: 'Follow Up 2', slug: 'follow_up_2' },
-            { id: 7, name: 'Closing Attempt', slug: 'closing_attempt' },
-            { id: 8, name: 'Won', slug: 'won' },
-            { id: 9, name: 'Lost', slug: 'lost' },
+            { id: 1, name: 'Novo lead', slug: 'new_lead' },
+            { id: 2, name: 'Contato realizado', slug: 'contacted' },
+            { id: 3, name: 'Reunião agendada', slug: 'meeting_scheduled' },
+            { id: 4, name: 'Orçamento enviado', slug: 'quote_sent' },
+            { id: 5, name: 'Follow-up 1', slug: 'follow_up_1' },
+            { id: 6, name: 'Follow-up 2', slug: 'follow_up_2' },
+            { id: 7, name: 'Tentativa de fechamento', slug: 'closing_attempt' },
+            { id: 8, name: 'Ganho', slug: 'won' },
+            { id: 9, name: 'Perdido', slug: 'lost' },
         ];
     }
 
@@ -188,7 +179,10 @@ async function loadPipelineStages() {
         stages.forEach(stage => {
             const option = document.createElement('option');
             option.value = stage.slug;
-            option.textContent = stage.name;
+            option.textContent =
+                typeof pipelineStageDisplayName === 'function'
+                    ? pipelineStageDisplayName(stage.slug, stage.name)
+                    : stage.name;
             if (currentLead && currentLead.status === stage.slug) {
                 option.selected = true;
             }
@@ -203,28 +197,9 @@ async function loadPipelineStages() {
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include',
                 body: JSON.stringify({ status: newStatus })
-            })
-                .then((r) => r.json())
-                .then((data) => {
-                    if (data.success) currentLead.status = newStatus;
-                    if (data.success && data.project_auto) {
-                        if (data.project_auto.created && data.project_auto.project_id) {
-                            notifyLead(
-                                'Projeto criado automaticamente (ID ' + data.project_auto.project_id + ').',
-                                'success'
-                            );
-                        } else if (data.project_auto.ok === false && data.project_auto.error) {
-                            notifyLead(
-                                'Projeto automático falhou: ' +
-                                    (data.project_auto.error === 'invalid_email'
-                                        ? 'email inválido — corrija no lead'
-                                        : data.project_auto.error),
-                                'error'
-                            );
-                        }
-                    }
-                })
-                .catch(() => {});
+            }).then(r => r.json()).then(data => {
+                if (data.success) currentLead.status = newStatus;
+            }).catch(() => {});
         });
     } catch (error) {
         console.error('Error loading pipeline stages:', error);
@@ -240,19 +215,19 @@ async function saveLead() {
     const addressVal = addrEl ? addrEl.value.trim() : '';
 
     if (name.length < 2) {
-        notifyLead('Full name deve ter pelo menos 2 caracteres.', 'error');
+        alert('Full name deve ter pelo menos 2 caracteres.');
         return;
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-        notifyLead('Email inválido.', 'error');
+        alert('Email inválido.');
         return;
     }
     if (phone.length < 3) {
-        notifyLead('Telefone inválido.', 'error');
+        alert('Telefone inválido.');
         return;
     }
     if (!zipRaw || zipRaw.length < 5) {
-        notifyLead('ZIP code deve ter pelo menos 5 dígitos.', 'error');
+        alert('ZIP code deve ter pelo menos 5 dígitos.');
         return;
     }
 
@@ -278,117 +253,15 @@ async function saveLead() {
 
         const data = await response.json();
         if (data.success) {
-            if (data.client_conversion && data.client_conversion.created && data.client_conversion.customer_id) {
-                notifyLead(
-                    'Cliente CRM criado automaticamente (ID ' +
-                        data.client_conversion.customer_id +
-                        '). Aparece em Dashboard → Clients quando o estágio é Fechado - Ganhou ou Produção.',
-                    'success'
-                );
-            }
-            if (data.project_auto) {
-                if (data.project_auto.created && data.project_auto.project_id) {
-                    notifyLead(
-                        'Projeto criado automaticamente (ID ' + data.project_auto.project_id + '). Ver Projetos no menu.',
-                        'success'
-                    );
-                } else if (data.project_auto.ok === false && data.project_auto.error) {
-                    notifyLead(
-                        'Projeto automático: não foi possível criar (' +
-                            (data.project_auto.error === 'invalid_email'
-                                ? 'email do lead inválido — corrija e guarde de novo'
-                                : data.project_auto.error) +
-                            ').',
-                        'error'
-                    );
-                }
-            }
             loadLead();
         } else {
-            notifyLead('Erro ao atualizar: ' + (data.error || 'Desconhecido'), 'error');
+            alert('Erro ao atualizar: ' + (data.error || 'Desconhecido'));
         }
     } catch (error) {
         console.error('Error saving lead:', error);
-        notifyLead('Erro ao salvar', 'error');
+        alert('Erro ao salvar');
     }
 }
-
-async function loadLinkedClient() {
-    const wrap = document.getElementById('leadClientBanner');
-    if (!wrap || !currentLeadId) return;
-    wrap.style.display = 'none';
-    wrap.classList.remove('lead-client-banner--ok');
-    try {
-        const res = await fetch('/api/customers/by-lead/' + encodeURIComponent(currentLeadId), {
-            credentials: 'include',
-        });
-        const data = await res.json();
-        if (!data.success) return;
-        if (data.data && data.data.id) {
-            const c = data.data;
-            wrap.classList.add('lead-client-banner--ok');
-            wrap.innerHTML =
-                '<strong>Cliente no CRM:</strong> ' +
-                escapeHtml(c.name || '') +
-                ' · ID ' +
-                c.id +
-                ' · <a href="dashboard.html?page=customers">Abrir Clients</a>';
-            wrap.style.display = 'block';
-            return;
-        }
-        const st = (currentLead && (currentLead.pipeline_stage_slug || currentLead.status)) || '';
-        const hint =
-            st === 'closed_won' || st === 'production'
-                ? ' O estágio já é ganho/produção — se não vir cliente, verifique o email do lead ou crie manualmente.'
-                : ' Ao mover para <strong>Fechado - Ganhou</strong> ou <strong>Produção / Obra</strong>, o cliente é criado automaticamente (com email válido).';
-        wrap.innerHTML =
-            '<span class="text-muted">Sem cliente CRM ligado.</span>' +
-            hint +
-            '<div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;">' +
-            '<label style="font-size:0.85rem;">Tipo: <select id="leadConvertClientType">' +
-            '<option value="residential">Cliente final (residencial)</option>' +
-            '<option value="builder">Builder</option>' +
-            '<option value="commercial">Comercial</option>' +
-            '<option value="property_manager">Property manager</option>' +
-            '<option value="investor">Investidor</option>' +
-            '</select></label>' +
-            '<button type="button" class="btn btn-secondary btn-sm" onclick="convertLeadToClient()">Criar cliente agora</button>' +
-            '</div>';
-        wrap.style.display = 'block';
-    } catch (e) {
-        console.warn('loadLinkedClient:', e);
-    }
-}
-
-async function convertLeadToClient() {
-    if (!currentLeadId) return;
-    const sel = document.getElementById('leadConvertClientType');
-    const customer_type = sel && sel.value ? sel.value : 'residential';
-    try {
-        const res = await fetch('/api/customers/from-lead', {
-            method: 'POST',
-            credentials: 'include',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ lead_id: currentLeadId, customer_type: customer_type }),
-        });
-        const data = await res.json().catch(() => ({}));
-        if (res.status === 403) {
-            notifyLead('Sem permissão para criar clientes (customers.create).', 'error');
-            return;
-        }
-        if (!data.success) {
-            notifyLead(data.error || 'Não foi possível criar o cliente (HTTP ' + res.status + ').', 'error');
-            return;
-        }
-        const cid = data.data && data.data.id;
-        notifyLead(cid ? 'Cliente CRM #' + cid + ' criado ou já existia.' : 'Cliente atualizado.', 'success');
-        loadLinkedClient();
-    } catch (err) {
-        notifyLead(err.message || 'Erro de rede', 'error');
-    }
-}
-
-window.convertLeadToClient = convertLeadToClient;
 
 /**
  * Calcula score de qualificação (0-100) com base em: tipo, serviço, área, orçamento, urgência.
@@ -563,23 +436,23 @@ async function saveQualification() {
     const urgency = document.getElementById('qualUrgency').value?.trim();
 
     if (!propertyType) {
-        notifyLead('Selecione o Tipo de Propriedade.', 'error');
+        alert('Selecione o Tipo de Propriedade.');
         return;
     }
     if (!serviceType) {
-        notifyLead('Selecione o Tipo de Serviço.', 'error');
+        alert('Selecione o Tipo de Serviço.');
         return;
     }
     if (!estimatedArea || parseFloat(estimatedArea) <= 0) {
-        notifyLead('Informe a Área estimada (sqft).', 'error');
+        alert('Informe a Área estimada (sqft).');
         return;
     }
     if (!estimatedBudget || parseFloat(estimatedBudget) <= 0) {
-        notifyLead('Informe o Orçamento estimado.', 'error');
+        alert('Informe o Orçamento estimado.');
         return;
     }
     if (!urgency) {
-        notifyLead('Selecione a Urgência.', 'error');
+        alert('Selecione a Urgência.');
         return;
     }
 
@@ -614,11 +487,11 @@ async function saveQualification() {
         if (data.success) {
             loadQualification();
         } else {
-            notifyLead('Erro ao salvar: ' + (data.error || 'Desconhecido'), 'error');
+            alert('Erro ao salvar: ' + (data.error || 'Desconhecido'));
         }
     } catch (error) {
         console.error('Error saving qualification:', error);
-        notifyLead('Erro ao salvar', 'error');
+        alert('Erro ao salvar');
     }
 }
 
@@ -752,8 +625,8 @@ function submitFollowupForm(e) {
         body: JSON.stringify({ title: title, description: description, due_date: due_date, priority: priority, assigned_to: assigned_to ? parseInt(assigned_to, 10) : null })
     }).then(r => r.json()).then(data => {
         if (data.success) loadFollowups();
-        else notifyLead('Erro ao criar follow-up: ' + (data.error || 'Desconhecido'), 'error');
-    }).catch(() => notifyLead('Erro ao criar follow-up', 'error'));
+        else alert('Erro ao criar follow-up: ' + (data.error || 'Desconhecido'));
+    }).catch(() => alert('Erro ao criar follow-up'));
     return false;
 }
 
@@ -855,261 +728,26 @@ async function loadVisits() {
 }
 
 async function loadProposals() {
-    const container = document.getElementById('proposalsList');
-    if (!container) return;
-    container.innerHTML = '<div class="empty-state">A carregar orçamentos…</div>';
     try {
-        const quotesUrl = `/api/quotes?lead_id=${encodeURIComponent(currentLeadId)}&limit=50`;
-        const proposalsRes = await fetch(`/api/leads/${currentLeadId}/proposals`, {
-            credentials: 'include',
-            cache: 'no-store',
-        }).catch(() => null);
-
-        let quotesRes;
-        let quotesText = '';
-        const maxQuoteAttempts = 4;
-        for (let attempt = 1; attempt <= maxQuoteAttempts; attempt++) {
-            quotesRes = await fetch(quotesUrl, { credentials: 'include', cache: 'no-store' });
-            quotesText = await quotesRes.text();
-            let bodyIsJson = false;
-            if (quotesText && quotesText.trim()) {
-                try {
-                    JSON.parse(quotesText);
-                    bodyIsJson = true;
-                } catch (e) {
-                    bodyIsJson = false;
-                }
-            }
-            const transient =
-                quotesRes.status === 502 ||
-                quotesRes.status === 503 ||
-                quotesRes.status === 504 ||
-                (quotesRes.status >= 500 && !bodyIsJson);
-            if (transient && attempt < maxQuoteAttempts) {
-                await new Promise((r) => setTimeout(r, 700 * attempt));
-                continue;
-            }
-            break;
-        }
-
-        let quotesData;
-        try {
-            quotesData = quotesText && quotesText.trim() ? JSON.parse(quotesText) : {};
-        } catch (parseErr) {
-            console.warn('loadProposals: resposta quotes não é JSON', quotesRes.status, quotesText.slice(0, 400));
-            container.innerHTML =
-                '<div class="empty-state"><p>Não foi possível carregar os orçamentos.</p>' +
-                '<p><strong>HTTP ' +
-                quotesRes.status +
-                '</strong> — o proxy (ex.: Railway) ou a app não devolveram JSON. Isto costuma indicar CRM a reiniciar, base de dados desligada ou limite de recursos.</p>' +
-                (quotesText.trim()
-                    ? '<p style="font-size:0.85rem;color:#64748b;">' + escapeHtml(quotesText.trim().slice(0, 240)) + '</p>'
-                    : '') +
-                '<p><strong>No Railway:</strong> confirme o serviço <em>web</em> em execução (sem crash loop), o plugin <strong>MySQL</strong> ligado e variáveis <code>DATABASE_URL</code> ou <code>MYSQL_URL</code> / <code>DB_*</code> definidas. Veja os logs do deploy.</p>' +
-                '<p><button type="button" class="btn btn-secondary btn-sm" onclick="loadProposals()">Tentar outra vez</button></p></div>';
-            return;
-        }
-
-        if (!quotesRes.ok) {
-            const msg =
-                (quotesData && (quotesData.error || quotesData.message)) ||
-                'Pedido falhou (HTTP ' + quotesRes.status + ')';
-            container.innerHTML =
-                '<div class="empty-state"><p>Erro ao carregar quotes.</p><p>' + escapeHtml(String(msg)) + '</p>' +
-                '<p><button type="button" class="btn btn-secondary btn-sm" onclick="loadProposals()">Tentar outra vez</button></p></div>';
-            return;
-        }
-
-        let proposalsPayload = { success: false, data: [] };
-        if (proposalsRes && proposalsRes.ok) {
-            try {
-                const proposalsText = await proposalsRes.text();
-                proposalsPayload =
-                    proposalsText && proposalsText.trim() ? JSON.parse(proposalsText) : { success: false, data: [] };
-            } catch (e) {
-                proposalsPayload = { success: false, data: [] };
-            }
-        }
-
-        const quotes = quotesData.success && Array.isArray(quotesData.data) ? quotesData.data : [];
-        const proposals =
-            proposalsPayload.success && Array.isArray(proposalsPayload.data) ? proposalsPayload.data : [];
-
-        const rows = [];
-        quotes.forEach((q) => {
-            rows.push({
-                kind: 'quote',
-                id: q.id,
-                label: q.quote_number || `Quote #${q.id}`,
-                amount: q.total_amount,
-                status: q.status || 'draft',
-                created_at: q.created_at,
-                expires: q.expiration_date,
-                pdfUrl:
-                  q.pdf_path || q.has_invoice_pdf
-                    ? `/api/quotes/${q.id}/invoice-pdf`
-                    : null,
-            });
-        });
-        proposals.forEach((p) => {
-            rows.push({
-                kind: 'proposal',
-                id: p.id,
-                label: p.proposal_number || `Proposta #${p.id}`,
-                amount: p.total_value,
-                status: p.status || 'draft',
-                created_at: p.created_at,
-                expires: null,
-            });
-        });
-
-        rows.sort((a, b) => {
-            const ta = a.created_at ? new Date(a.created_at).getTime() : 0;
-            const tb = b.created_at ? new Date(b.created_at).getTime() : 0;
-            return tb - ta;
-        });
-
-        if (rows.length === 0) {
-            container.innerHTML =
-                '<div class="empty-state"><p>Nenhum orçamento (quote) ligado a este lead.</p><p>Os orçamentos criados no CRM em <strong>Quotes</strong> aparecem aqui automaticamente.</p></div>';
-            return;
-        }
-
-        container.innerHTML = rows
-            .map((row) => {
-                const badge =
-                    row.kind === 'quote'
-                        ? '<span class="proposal-kind-badge proposal-kind-badge--quote">Quote</span>'
-                        : '<span class="proposal-kind-badge proposal-kind-badge--proposal">Proposta</span>';
-                const when = row.created_at ? new Date(row.created_at).toLocaleDateString('pt-BR') : '—';
-                const exp =
-                    row.expires && row.kind === 'quote'
-                        ? `<p><strong>Expira:</strong> ${escapeHtml(new Date(row.expires).toLocaleDateString('pt-BR'))}</p>`
-                        : '';
-                const pdfPreview =
-                    row.pdfUrl && row.kind === 'quote'
-                        ? `<div class="lead-quote-pdf-preview">
-                            <p class="lead-quote-pdf-preview-label">PDF anexado a este quote</p>
-                            <iframe class="lead-quote-pdf-iframe" src="${row.pdfUrl}" title="${escapeHtml(row.label)}"></iframe>
-                        </div>`
-                        : '';
-                return `<div class="lead-proposal-card" data-quote-id="${row.kind === 'quote' ? row.id : ''}">
-                    <div class="lead-proposal-card__head">
-                        <h3>${escapeHtml(row.label)}</h3>
-                        ${badge}
-                    </div>
-                    <p><strong>Valor:</strong> $${parseFloat(row.amount || 0).toLocaleString()}</p>
-                    <p><strong>Status:</strong> ${escapeHtml(row.status)}</p>
-                    <p><strong>Criada em:</strong> ${escapeHtml(when)}</p>
-                    ${exp}
-                    <div class="lead-proposal-card__actions">
-                        ${row.pdfUrl ? `<a class="btn btn-secondary btn-sm" href="${row.pdfUrl}" target="_blank" rel="noopener">Abrir PDF (nova janela)</a>` : ''}
-                        ${
-                          row.kind === 'quote'
-                            ? `<button type="button" class="btn btn-danger btn-sm" onclick="deleteLeadQuote(${row.id})">Excluir quote</button>`
-                            : ''
-                        }
-                        <button type="button" class="btn btn-secondary btn-sm" onclick="openLeadQuotesInCrm()">Abrir Quotes no CRM</button>
-                    </div>
-                    ${pdfPreview}
-                </div>`;
-            })
-            .join('');
-    } catch (error) {
-        console.error('Error loading quotes/proposals:', error);
-        container.innerHTML =
-            '<div class="empty-state">Erro ao carregar orçamentos. ' + escapeHtml(error.message || '') + '</div>';
-    }
-}
-
-function openLeadQuotesInCrm() {
-    window.location.href = 'dashboard.html?page=quotes';
-}
-
-async function deleteLeadQuote(quoteId) {
-    if (!currentLeadId || !quoteId) return;
-    if (!confirm('Excluir este orçamento (quote)? Esta ação não pode ser desfeita.')) return;
-    try {
-        const res = await fetch(
-            `/api/quotes/${encodeURIComponent(quoteId)}?lead_id=${encodeURIComponent(currentLeadId)}`,
-            { method: 'DELETE', credentials: 'include', cache: 'no-store' }
-        );
-        let data = {};
-        try {
-            const t = await res.text();
-            if (t && t.trim()) data = JSON.parse(t);
-        } catch (_) {
-            /* ignore */
-        }
-        if (!res.ok) {
-            notifyLead(data.error || data.message || 'Não foi possível excluir o quote (HTTP ' + res.status + ').', 'error');
-            return;
-        }
-        loadProposals();
-    } catch (e) {
-        notifyLead(e.message || 'Erro de rede ao excluir o quote.', 'error');
-    }
-}
-
-function setupLeadImportInvoicePdfForm() {
-    const fileInput = document.getElementById('leadImportInvoicePdfFile');
-    const amountWrap = document.getElementById('leadImportInvoicePdfAmountWrap');
-    const amountEl = document.getElementById('leadImportInvoicePdfAmount');
-    const submitBtn = document.getElementById('leadImportInvoicePdfSubmit');
-    const form = document.getElementById('leadImportInvoicePdfForm');
-    if (!fileInput || !amountEl || !submitBtn || !form || !amountWrap) return;
-
-    function refreshSubmit() {
-        const hasFile = fileInput.files && fileInput.files.length > 0;
-        const amt = parseFloat(String(amountEl.value || '').replace(',', '.'), 10);
-        submitBtn.disabled = !(hasFile && Number.isFinite(amt) && amt >= 0);
-    }
-
-    fileInput.addEventListener('change', () => {
-        const has = fileInput.files && fileInput.files.length > 0;
-        amountWrap.style.display = has ? 'block' : 'none';
-        if (has) {
-            amountEl.setAttribute('required', 'required');
+        const response = await fetch(`/api/leads/${currentLeadId}/proposals`, { credentials: 'include' });
+        const data = await response.json();
+        
+        const container = document.getElementById('proposalsList');
+        if (data.success && data.data && data.data.length > 0) {
+            container.innerHTML = data.data.map(proposal => `
+                <div style="padding: 15px; border: 1px solid #ddd; border-radius: 4px; margin-bottom: 10px;">
+                    <h3>${proposal.proposal_number || `Proposta #${proposal.id}`}</h3>
+                    <p><strong>Valor:</strong> $${parseFloat(proposal.total_value || 0).toLocaleString()}</p>
+                    <p><strong>Status:</strong> ${proposal.status || 'draft'}</p>
+                    <p><strong>Criada em:</strong> ${new Date(proposal.created_at).toLocaleDateString()}</p>
+                </div>
+            `).join('');
         } else {
-            amountEl.removeAttribute('required');
-            amountEl.value = '';
+            container.innerHTML = '<div class="empty-state">Nenhuma proposta criada ainda.</div>';
         }
-        refreshSubmit();
-    });
-    amountEl.addEventListener('input', refreshSubmit);
-
-    form.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        if (!currentLeadId || !fileInput.files || !fileInput.files[0]) return;
-        const fd = new FormData();
-        fd.append('file', fileInput.files[0]);
-        fd.append('total_amount', amountEl.value);
-        fd.append('lead_id', String(currentLeadId));
-        submitBtn.disabled = true;
-        const prev = submitBtn.textContent;
-        submitBtn.textContent = 'A guardar…';
-        try {
-            const res = await fetch('/api/quotes/import-invoice-pdf', {
-                method: 'POST',
-                credentials: 'include',
-                body: fd,
-            });
-            const json = await res.json().catch(() => ({}));
-            if (json.success) {
-                form.reset();
-                amountWrap.style.display = 'none';
-                amountEl.removeAttribute('required');
-                await loadProposals();
-            } else {
-                notifyLead(json.error || 'Erro ao importar PDF', 'error');
-            }
-        } catch (err) {
-            notifyLead('Erro de rede ao importar PDF', 'error');
-        } finally {
-            submitBtn.textContent = prev;
-            refreshSubmit();
-        }
-    });
+    } catch (error) {
+        console.error('Error loading proposals:', error);
+    }
 }
 
 function switchTab(tabName) {
@@ -1118,10 +756,6 @@ function switchTab(tabName) {
     
     document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
     document.getElementById(`${tabName}Tab`).classList.add('active');
-
-    if (tabName === 'proposals' && typeof loadProposals === 'function') {
-        loadProposals();
-    }
 }
 
 function showNewInteractionModal() {
@@ -1266,7 +900,7 @@ async function showEditVisitModal(visitId) {
         const response = await fetch('/api/visits/' + visitId, { credentials: 'include' });
         const data = await response.json();
         if (!data.success || !data.data) {
-            notifyLead('Não foi possível carregar a visita.', 'error');
+            alert('Não foi possível carregar a visita.');
             return;
         }
         var v = data.data;
@@ -1285,7 +919,7 @@ async function showEditVisitModal(visitId) {
         document.body.style.overflow = 'hidden';
     } catch (err) {
         console.error('Error loading visit:', err);
-        notifyLead('Erro ao carregar visita.', 'error');
+        alert('Erro ao carregar visita.');
     }
 }
 
@@ -1305,7 +939,7 @@ function submitEditVisitForm(e) {
     var sellerId = document.getElementById('editVisitAssignedSelect').value || null;
     var status = document.getElementById('editVisitStatus').value || 'scheduled';
     if (!scheduledAt || !addressLine1 || !city) {
-        notifyLead('Preencha data/hora, endereço (linha 1) e cidade.', 'error');
+        alert('Preencha data/hora, endereço (linha 1) e cidade.');
         return false;
     }
     var btn = document.querySelector('#editVisitForm button[type="submit"]');
@@ -1334,12 +968,12 @@ async function updateVisit(visitId, payload, submitBtn) {
             closeEditVisitModal();
             await loadVisits();
         } else {
-            notifyLead('Erro ao salvar: ' + (data.error || 'Desconhecido'), 'error');
+            alert('Erro ao salvar: ' + (data.error || 'Desconhecido'));
         }
     } catch (error) {
         if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Salvar alterações'; }
         console.error('Error updating visit:', error);
-        notifyLead('Erro ao salvar visita.', 'error');
+        alert('Erro ao salvar visita.');
     }
 }
 
@@ -1355,7 +989,7 @@ function submitVisitForm(e) {
     const notes = document.getElementById('visitNotes').value.trim() || null;
     const sellerId = document.getElementById('visitAssignedSelect').value || null;
     if (!scheduledAt || !addressLine1 || !city) {
-        notifyLead('Preencha data/hora, Address line 1 e City.', 'error');
+        alert('Preencha data/hora, Address line 1 e City.');
         return false;
     }
     var btn = document.querySelector('#newVisitForm button[type="submit"]');
@@ -1388,19 +1022,17 @@ async function createVisit(payload, submitBtn) {
             await loadLead();
             switchTab('visits');
         } else {
-            notifyLead('Erro ao agendar visita: ' + (data.error || 'Desconhecido'), 'error');
+            alert('Erro ao agendar visita: ' + (data.error || 'Desconhecido'));
         }
     } catch (error) {
         if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Agendar visita'; }
         console.error('Error creating visit:', error);
-        notifyLead('Erro ao agendar visita', 'error');
+        alert('Erro ao agendar visita');
     }
 }
 
 function showNewProposalModal() {
-    if (!currentLeadId) return;
-    window.location.href =
-        'quote-builder.html?lead_id=' + encodeURIComponent(String(currentLeadId));
+    alert('Funcionalidade de criar proposta em desenvolvimento');
 }
 
 async function createInteraction(interaction) {
@@ -1417,10 +1049,10 @@ async function createInteraction(interaction) {
             await loadInteractions();
             switchTab('interactions');
         } else {
-            notifyLead('Erro: ' + (data.error || 'Desconhecido'), 'error');
+            alert('Erro: ' + (data.error || 'Desconhecido'));
         }
     } catch (error) {
         console.error('Error creating interaction:', error);
-        notifyLead('Erro ao criar interação', 'error');
+        alert('Erro ao criar interação');
     }
 }
