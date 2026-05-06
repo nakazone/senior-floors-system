@@ -5763,4 +5763,296 @@ body.lead-quick-sheet-open {
     line-height: 1.35;
 }
 
+/* Appended into styles.css: interactive lead quick sheet (tabs, forms) */
+
+.lead-quick-sheet__toolbar--rich {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+}
+
+.lead-quick-sheet__toolbar-row--actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.lead-quick-sheet__toolbar-row--controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 16px;
+    align-items: flex-end;
+}
+
+.lead-quick-sheet__inline {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.lead-quick-sheet__select {
+    min-width: 160px;
+    max-width: 100%;
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border-color, #e2e8f0);
+    font-size: 0.9rem;
+    background: var(--bg-white, #fff);
+    color: var(--text-dark);
+}
+
+.lead-quick-sheet__tabs {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 4px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    margin: 0 -4px 10px;
+    padding-bottom: 2px;
+    border-bottom: 1px solid var(--border-color, #e2e8f0);
+}
+
+.lead-quick-sheet__tab {
+    flex: 0 0 auto;
+    border: none;
+    background: transparent;
+    padding: 8px 10px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    cursor: pointer;
+    border-radius: 8px 8px 0 0;
+    white-space: nowrap;
+}
+
+.lead-quick-sheet__tab.is-active {
+    color: var(--primary-color, #2563eb);
+    background: rgba(37, 99, 235, 0.08);
+}
+
+.lead-quick-sheet__tab-panels {
+    min-height: 200px;
+}
+
+.lead-quick-sheet__tab-panel {
+    display: none;
+}
+
+.lead-quick-sheet__tab-panel.is-active {
+    display: block;
+}
+
+.lead-quick-sheet__form {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.lead-quick-sheet__form--compact {
+    padding-bottom: 12px;
+    margin-bottom: 12px;
+    border-bottom: 1px solid var(--border-color, #f1f5f9);
+}
+
+.lead-quick-sheet__form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+.lead-quick-sheet__form-grid .span-2 {
+    grid-column: 1 / -1;
+}
+
+@media (max-width: 480px) {
+    .lead-quick-sheet__form-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.lead-quick-sheet__field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--text-muted);
+}
+
+.lead-quick-sheet__field input,
+.lead-quick-sheet__field select,
+.lead-quick-sheet__field textarea {
+    font-weight: 400;
+    font-size: 0.88rem;
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border-color, #e2e8f0);
+    color: var(--text-dark);
+    background: var(--bg-white, #fff);
+}
+
+.lead-quick-sheet__details {
+    margin-top: 14px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: var(--bg-light, #f8fafc);
+    border: 1px solid var(--border-color, #e2e8f0);
+}
+
+.lead-quick-sheet__details summary {
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: var(--text-dark);
+}
+
+.lead-quick-sheet__subbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.lead-quick-sheet__hint {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin: 0 0 10px;
+    line-height: 1.4;
+}
+
+.lead-quick-sheet__qual-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px 12px;
+    font-size: 0.85rem;
+    margin-bottom: 8px;
+}
+
+.lead-quick-sheet__qual-summary {
+    margin-bottom: 12px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: rgba(16, 185, 129, 0.08);
+    border: 1px solid rgba(16, 185, 129, 0.25);
+}
+
+.lead-quick-sheet__qual-notes {
+    font-size: 0.85rem;
+    margin: 8px 0 0;
+    line-height: 1.4;
+}
+
+.lead-quick-sheet__timeline {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.lead-quick-sheet__timeline-item {
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: var(--bg-light, #f8fafc);
+    margin-bottom: 8px;
+    border-left: 3px solid var(--primary-color, #2563eb);
+}
+
+.lead-quick-sheet__timeline-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.lead-quick-sheet__timeline-body {
+    font-size: 0.82rem;
+    line-height: 1.4;
+    color: var(--text-dark);
+}
+
+.lead-quick-sheet__qcard {
+    padding: 12px;
+    border-radius: 10px;
+    border: 1px solid var(--border-color, #e2e8f0);
+    margin-bottom: 10px;
+    background: var(--bg-white, #fff);
+}
+
+.lead-quick-sheet__qhead {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 6px;
+}
+
+.lead-quick-sheet__qh4 {
+    margin: 0;
+    font-size: 0.95rem;
+    font-weight: 700;
+}
+
+.lead-quick-sheet__qbadge {
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    padding: 2px 8px;
+    border-radius: 6px;
+}
+
+.lead-quick-sheet__qbadge--quote {
+    background: rgba(37, 99, 235, 0.12);
+    color: #1d4ed8;
+}
+
+.lead-quick-sheet__qbadge--proposal {
+    background: rgba(124, 58, 237, 0.12);
+    color: #6d28d9;
+}
+
+.lead-quick-sheet__qmeta {
+    margin: 4px 0;
+    font-size: 0.82rem;
+}
+
+.lead-quick-sheet__qactions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+}
+
+.lead-quick-sheet__btn-sm {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px 10px;
+    border-radius: 8px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    border: 1px solid var(--border-color, #e2e8f0);
+    background: var(--bg-light, #f8fafc);
+    color: var(--text-dark);
+    cursor: pointer;
+    text-decoration: none;
+}
+
+.lead-quick-sheet__btn-sm--primary {
+    background: var(--primary-color, #1a2036);
+    color: #fff !important;
+    border-color: transparent;
+}
+
+.lead-quick-sheet__btn-sm--danger {
+    border-color: rgba(185, 28, 28, 0.35);
+    color: #b91c1c;
+    background: #fef2f2;
+}
+
 .kanban-card--open-sheet { cursor: pointer; }
