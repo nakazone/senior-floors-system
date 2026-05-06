@@ -422,7 +422,7 @@ function renderVisitKanbanCard(visit) {
         ? `<span class="kanban-card-title-btn">${name}</span>`
         : `<span class="kanban-card-title-fallback">${name}</span>`;
     const sheetAttrs = Number.isFinite(leadId)
-        ? ` role="button" tabindex="0" onclick="viewLead(${leadId})" title="Ver detalhes do lead" class="kanban-card kanban-card--visit kanban-card--compact kanban-card--open-sheet"`
+        ? ` role="button" tabindex="0" onclick="viewLead(${leadId}, event)" title="Ver detalhes do lead" class="kanban-card kanban-card--visit kanban-card--compact kanban-card--open-sheet"`
         : ` class="kanban-card kanban-card--visit kanban-card--compact"`;
     return `
         <div${sheetAttrs} data-lead-id="${leadIdAttr}" data-visit-id="${visit.id}">
@@ -458,7 +458,7 @@ function renderKanbanCard(lead) {
             : '';
 
     return `
-        <div class="kanban-card kanban-card--compact kanban-card--open-sheet" data-lead-id="${lead.id}" role="button" tabindex="0" onclick="viewLead(${lead.id})" title="Ver detalhes do lead">
+        <div class="kanban-card kanban-card--compact kanban-card--open-sheet" data-lead-id="${lead.id}" role="button" tabindex="0" onclick="viewLead(${lead.id}, event)" title="Ver detalhes do lead">
             <div class="kanban-card-top">
                 <span class="kanban-card-title-btn">${name}</span>
                 <span class="kanban-card-priority kanban-card-priority--chip ${priorityClass}">${priorityClass}</span>

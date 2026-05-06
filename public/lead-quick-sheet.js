@@ -1,5 +1,5 @@
 /**
- * Bottom sheet estilo Google Calendar (mobile) para prù-visualizar o lead no dashboard.
+ * Bottom sheet estilo Google Calendar (mobile) para prÔøΩ-visualizar o lead no dashboard.
  */
 (function (global) {
   function escapeHtml(s) {
@@ -12,7 +12,7 @@
   }
 
   function fmtDate(iso) {
-    if (!iso) return 'ù';
+    if (!iso) return 'ÔøΩ';
     try {
       const d = new Date(iso);
       if (Number.isNaN(d.getTime())) return escapeHtml(String(iso));
@@ -23,7 +23,7 @@
   }
 
   function fmtMoney(n) {
-    if (n == null || n === '') return 'ù';
+    if (n == null || n === '') return 'ÔøΩ';
     const x = parseFloat(n);
     if (Number.isNaN(x)) return escapeHtml(String(n));
     return escapeHtml(
@@ -43,13 +43,13 @@
     estimated_value: 'Valor estimado',
     created_at: 'Criado em',
     updated_at: 'Atualizado em',
-    owner_name: 'Responsùvel',
-    owner_email: 'Email do responsùvel',
-    pipeline_stage_name: 'Estùgio',
-    pipeline_stage_slug: 'Estùgio (slug)',
-    form_type: 'Tipo de formulùrio',
-    next_steps: 'Prùximos passos',
-    next_steps_notes: 'Notas prùximos passos',
+    owner_name: 'ResponsÔøΩvel',
+    owner_email: 'Email do responsÔøΩvel',
+    pipeline_stage_name: 'EstÔøΩgio',
+    pipeline_stage_slug: 'EstÔøΩgio (slug)',
+    form_type: 'Tipo de formulÔøΩrio',
+    next_steps: 'PrÔøΩximos passos',
+    next_steps_notes: 'Notas prÔøΩximos passos',
     utm_source: 'UTM source',
     utm_medium: 'UTM medium',
     utm_campaign: 'UTM campaign',
@@ -82,7 +82,7 @@
     if (typeof global.pipelineStageDisplayName === 'function') {
       return global.pipelineStageDisplayName(slug, name);
     }
-    return name || slug || 'ù';
+    return name || slug || 'ÔøΩ';
   }
 
   function formatFieldValue(key, val) {
@@ -170,10 +170,10 @@
     return `<ul class="lead-quick-sheet__list">${list
       .map((f) => {
         const title = escapeHtml(f.title || 'Tarefa');
-        const due = f.due_date ? fmtDate(f.due_date) : 'ù';
+        const due = f.due_date ? fmtDate(f.due_date) : 'ÔøΩ';
         const who = f.assigned_to_name ? escapeHtml(f.assigned_to_name) : '';
         const pri = f.priority ? escapeHtml(f.priority) : '';
-        const bits = [due, who, pri].filter(Boolean).join(' ù ');
+        const bits = [due, who, pri].filter(Boolean).join(' ÔøΩ ');
         return `<li class="lead-quick-sheet__list-item"><div class="lead-quick-sheet__list-title">${title}</div><div class="lead-quick-sheet__muted">${bits}</div></li>`;
       })
       .join('')}</ul>`;
@@ -190,20 +190,84 @@
       return '<p class="lead-quick-sheet__empty">Sem visitas agendadas.</p>';
     return `<ul class="lead-quick-sheet__list">${list
       .map((v) => {
-        const when = v.scheduled_at ? fmtDate(v.scheduled_at) : 'ù';
+        const when = v.scheduled_at ? fmtDate(v.scheduled_at) : 'ÔøΩ';
         const st = v.status ? escapeHtml(v.status) : '';
         const addr = escapeHtml(buildAddressFromVisit(v));
         const asn = v.assigned_to_name ? escapeHtml(v.assigned_to_name) : '';
-        const meta = [st, addr, asn].filter(Boolean).join(' ù ');
-        return `<li class="lead-quick-sheet__list-item"><div class="lead-quick-sheet__list-title">${when}</div><div class="lead-quick-sheet__muted">${meta || 'ù'}</div></li>`;
+        const meta = [st, addr, asn].filter(Boolean).join(' ÔøΩ ');
+        return `<li class="lead-quick-sheet__list-item"><div class="lead-quick-sheet__list-title">${when}</div><div class="lead-quick-sheet__muted">${meta || 'ÔøΩ'}</div></li>`;
       })
       .join('')}</ul>`;
   }
 
-  async function openLeadQuickSheet(id) {
+  function resetPanelTransform(panelEl) {
+    if (!panelEl) return;
+    panelEl.style.transition = '';
+    panelEl.style.transform = '';
+    panelEl.style.opacity = '';
+    panelEl.style.transformOrigin = '';
+    panelEl.style.pointerEvents = '';
+  }
+
+  function animatePanelFromAnchor(anchorEl, panelEl) {
+    if (!panelEl) return;
+    panelEl.style.transition = 'none';
+
+    if (!anchorEl || !(anchorEl instanceof Element)) {
+      panelEl.style.opacity = '0';
+      panelEl.style.transform = 'translate(-50%, -50%) scale(0.88)';
+      panelEl.style.transformOrigin = 'center center';
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          panelEl.style.transition =
+            'opacity 0.28s ease, transform 0.38s cubic-bezier(0.22, 1, 0.36, 1)';
+          panelEl.style.opacity = '1';
+          panelEl.style.transform = 'translate(-50%, -50%) scale(1)';
+          const done = () => resetPanelTransform(panelEl);
+          panelEl.addEventListener('transitionend', done, { once: true });
+          setTimeout(done, 480);
+        });
+      });
+      return;
+    }
+
+    const card = anchorEl.getBoundingClientRect();
+    const final = panelEl.getBoundingClientRect();
+
+    const cx = card.left + card.width / 2;
+    const cy = card.top + card.height / 2;
+    const px = final.left + final.width / 2;
+    const py = final.top + final.height / 2;
+
+    let scale = Math.min(card.width / final.width, card.height / final.height, 1);
+    scale = Math.max(scale, 0.14);
+
+    const dx = cx - px;
+    const dy = cy - py;
+
+    panelEl.style.transformOrigin = 'center center';
+    panelEl.style.transform =
+      'translate(-50%, -50%) translate(' + dx + 'px, ' + dy + 'px) scale(' + scale + ')';
+    panelEl.style.opacity = '0.94';
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        panelEl.style.transition =
+          'transform 0.42s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.32s ease';
+        panelEl.style.transform = 'translate(-50%, -50%) scale(1)';
+        panelEl.style.opacity = '1';
+        const done = () => resetPanelTransform(panelEl);
+        panelEl.addEventListener('transitionend', done, { once: true });
+        setTimeout(done, 520);
+      });
+    });
+  }
+
+  async function openLeadQuickSheet(id, anchorEl) {
     const sid = parseInt(id, 10);
     if (!Number.isFinite(sid)) return;
     const root = document.getElementById('leadQuickSheet');
+    const panelEl = root ? root.querySelector('.lead-quick-sheet__panel') : null;
     const body = document.getElementById('leadQuickSheetBody');
     const titleEl = document.getElementById('leadQuickSheetTitle');
     const badgesEl = document.getElementById('leadQuickSheetBadges');
@@ -216,7 +280,7 @@
     root.classList.add('is-open');
     root.setAttribute('aria-hidden', 'false');
     document.body.classList.add('lead-quick-sheet-open');
-    body.innerHTML = '<div class="lead-quick-sheet__loading">A carregarù</div>';
+    body.innerHTML = '<div class="lead-quick-sheet__loading">A carregar‚Ä¶</div>';
     if (fullLink) fullLink.href = 'lead-detail.html?id=' + sid;
 
     const [leadRes, fuRes, viRes] = await Promise.all([
@@ -228,7 +292,10 @@
     const ld = leadRes.data;
     if (!leadRes.ok || !ld || ld.success !== true || !ld.data) {
       body.innerHTML =
-        '<p class="lead-quick-sheet__error">Nùo foi possùvel carregar o lead.</p>';
+        '<p class="lead-quick-sheet__error">N√£o foi poss√≠vel carregar o lead.</p>';
+      requestAnimationFrame(() => {
+        animatePanelFromAnchor(anchorEl, panelEl);
+      });
       return;
     }
 
@@ -272,11 +339,16 @@
         ${renderVisits(visits)}
       </section>
     `;
+
+    requestAnimationFrame(() => {
+      animatePanelFromAnchor(anchorEl, panelEl);
+    });
   }
 
   function closeLeadQuickSheet() {
     const root = document.getElementById('leadQuickSheet');
     if (!root) return;
+    resetPanelTransform(root.querySelector('.lead-quick-sheet__panel'));
     root.classList.remove('is-open');
     root.setAttribute('aria-hidden', 'true');
     document.body.classList.remove('lead-quick-sheet-open');
@@ -301,13 +373,20 @@
   }
 
   global.openLeadQuickSheet = openLeadQuickSheet;
+  global.animatePanelFromAnchor = animatePanelFromAnchor;
   global.closeLeadQuickSheet = closeLeadQuickSheet;
 
   const origViewLead = typeof global.viewLead === 'function' ? global.viewLead : null;
-  global.viewLead = function (id) {
+  global.viewLead = function (id, ev) {
     const root = document.getElementById('leadQuickSheet');
+    let anchorEl = null;
+    if (ev && ev.currentTarget && ev.currentTarget.closest) {
+      anchorEl = ev.currentTarget.closest('.kanban-card');
+    } else if (ev && ev.target && ev.target.closest) {
+      anchorEl = ev.target.closest('.kanban-card');
+    }
     if (root && typeof openLeadQuickSheet === 'function') {
-      void openLeadQuickSheet(id);
+      void openLeadQuickSheet(id, anchorEl);
     } else if (origViewLead) {
       origViewLead(id);
     } else {

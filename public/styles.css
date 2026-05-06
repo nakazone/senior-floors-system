@@ -5513,7 +5513,7 @@ input.score-auto {
     font-size: 12px;
 }
 
-/* ========== Lead quick sheet (bottom sheet, estilo Calendar mobile) ========== */
+/* ========== Lead quick sheet (popup a partir do cartao / centro) ========== */
 body.lead-quick-sheet-open {
     overflow: hidden;
 }
@@ -5544,23 +5544,25 @@ body.lead-quick-sheet-open {
 }
 
 .lead-quick-sheet__panel {
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    max-height: min(88vh, 720px);
+    position: fixed;
+    left: 50%;
+    top: 50%;
+    width: min(560px, calc(100vw - 24px));
+    max-height: min(85vh, 720px);
     background: var(--bg-white, #fff);
-    border-radius: 16px 16px 0 0;
-    box-shadow: 0 -8px 40px rgba(0, 0, 0, 0.18);
-    transform: translateY(105%);
-    transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+    border-radius: 16px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.22);
+    transform: translate(-50%, -50%);
     display: flex;
     flex-direction: column;
     padding-bottom: env(safe-area-inset-bottom, 0px);
+    overflow: hidden;
+    bottom: auto;
+    right: auto;
 }
 
 .lead-quick-sheet.is-open .lead-quick-sheet__panel {
-    transform: translateY(0);
+    /* Posicao final em CSS; animacao FLIP vem do JS a partir do cartao */
 }
 
 .lead-quick-sheet__handle {
