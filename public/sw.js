@@ -1,7 +1,7 @@
 /**
  * Senior Floors — service worker mínimo (assets estáticos).
  */
-const CACHE = 'sf-static-v2';
+const CACHE = 'sf-static-v3';
 const PRECACHE = [
   '/dashboard.html',
   '/styles.css',
@@ -18,7 +18,12 @@ self.addEventListener('install', (event) => {
 });
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(self.clients.claim());
+  event.waitUntil(
+    caches
+      .keys()
+      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+      .then(() => self.clients.claim())
+  );
 });
 
 self.addEventListener('fetch', (event) => {
@@ -30,7 +35,8 @@ self.addEventListener('fetch', (event) => {
     fetch(event.request)
       .then((res) => {
         const copy = res.clone();
-        if (res.ok && /\.(css|js|png|jpg|svg|woff2?)$/i.test(url.pathname)) {
+        // Não cachear .js: evita Kanban/CRM com bundle antigo após deploy.
+        if (res.ok && /\.(css|png|jpg|svg|woff2?)$/i.test(url.pathname)) {
           caches.open(CACHE).then((c) => c.put(event.request, copy));
         }
         return res;
