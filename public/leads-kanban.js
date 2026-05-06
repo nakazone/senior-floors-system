@@ -219,7 +219,11 @@ async function loadKanbanBoard() {
 }
 
 function getVisitScheduledPipelineStage() {
-    return pipelineStages.find((s) => s.slug === 'visit_scheduled') || null;
+    return (
+        pipelineStages.find((s) => s.slug === 'meeting_scheduled') ||
+        pipelineStages.find((s) => s.slug === 'visit_scheduled') ||
+        null
+    );
 }
 
 function leadIsInVisitScheduledStage(lead, visitStage) {
@@ -558,27 +562,28 @@ async function populateNewLeadPipelineSelect() {
     }
     if (stages.length === 0) {
         stages = [
-            { id: 1, slug: 'lead_received', name: 'Lead Recebido' },
-            { id: 2, slug: 'contact_made', name: 'Contato Realizado' },
-            { id: 3, slug: 'qualified', name: 'Qualificado' },
-            { id: 4, slug: 'visit_scheduled', name: 'Visita Agendada' },
-            { id: 5, slug: 'measurement_done', name: 'Medição Realizada' },
-            { id: 6, slug: 'proposal_created', name: 'Proposta Criada' },
-            { id: 7, slug: 'proposal_sent', name: 'Proposta Enviada' },
-            { id: 8, slug: 'negotiation', name: 'Em Negociação' },
-            { id: 9, slug: 'closed_won', name: 'Fechado - Ganhou' },
-            { id: 10, slug: 'closed_lost', name: 'Fechado - Perdido' },
-            { id: 11, slug: 'production', name: 'Produção / Obra' },
+            { id: 1, slug: 'new_lead', name: 'New Lead' },
+            { id: 2, slug: 'contacted', name: 'Contacted' },
+            { id: 3, slug: 'meeting_scheduled', name: 'Meeting Scheduled' },
+            { id: 4, slug: 'quote_sent', name: 'Quote Sent' },
+            { id: 5, slug: 'follow_up_1', name: 'Follow Up 1' },
+            { id: 6, slug: 'follow_up_2', name: 'Follow Up 2' },
+            { id: 7, slug: 'closing_attempt', name: 'Closing Attempt' },
+            { id: 8, slug: 'won', name: 'Won' },
+            { id: 9, slug: 'lost', name: 'Lost' },
         ];
     }
-    const prev = select.value || 'lead_received';
+    const prev = select.value || 'new_lead';
     select.innerHTML = '';
     stages.forEach((s) => {
         const slug = s.slug || s.name;
         if (!slug) return;
         const opt = document.createElement('option');
         opt.value = slug;
-        opt.textContent = s.name || slug;
+        opt.textContent =
+            typeof pipelineStageDisplayName === 'function'
+                ? pipelineStageDisplayName(slug, s.name)
+                : s.name || slug;
         if (s.id != null) opt.dataset.stageId = String(s.id);
         select.appendChild(opt);
     });
@@ -592,7 +597,7 @@ async function populateNewLeadPipelineSelect() {
     }
     if (!found) {
         for (let j = 0; j < select.options.length; j++) {
-            if (select.options[j].value === 'lead_received') {
+            if (select.options[j].value === 'new_lead') {
                 select.selectedIndex = j;
                 break;
             }
@@ -615,7 +620,7 @@ async function createLeadManual(e) {
     const formData = new FormData(form);
     
     const stageSelect = document.getElementById('newLeadPipelineStage');
-    const stageSlug = (stageSelect && stageSelect.value) || 'lead_received';
+    const stageSlug = (stageSelect && stageSelect.value) || 'new_lead';
     const stageOpt = stageSelect && stageSelect.options[stageSelect.selectedIndex];
     const stageIdRaw = stageOpt && stageOpt.dataset && stageOpt.dataset.stageId;
     const pipelineStageId = stageIdRaw ? parseInt(stageIdRaw, 10) : null;

@@ -567,8 +567,16 @@
                             </div>
                             <div class="form-group">
                                 <label>Estágio / status</label>
-                                <select id="newLeadPipelineStage" name="pipeline_stage_slug" aria-label="Estágio do lead no pipeline">
-                                    <option value="lead_received">Lead Recebido</option>
+                                <select id="newLeadPipelineStage" name="pipeline_stage_slug" aria-label="Pipeline stage">
+                                    <option value="new_lead" selected>New Lead</option>
+                                    <option value="contacted">Contacted</option>
+                                    <option value="meeting_scheduled">Meeting Scheduled</option>
+                                    <option value="quote_sent">Quote Sent</option>
+                                    <option value="follow_up_1">Follow Up 1</option>
+                                    <option value="follow_up_2">Follow Up 2</option>
+                                    <option value="closing_attempt">Closing Attempt</option>
+                                    <option value="won">Won</option>
+                                    <option value="lost">Lost</option>
                                 </select>
                             </div>
                             <div class="form-row">
@@ -1419,7 +1427,7 @@
     <script src="marketing-dashboard.js"></script>
     <script src="dashboard.js"></script>
     <script src="pipeline-stage-labels.js?v=20260506-kanban-en"></script>
-    <script src="leads-kanban.js?v=20260506-kanban-en"></script>
+    <script src="leads-kanban.js?v=20260506-pipeline-select"></script>
     <script src="schedule-engine.js"></script>
     <script src="financial-engine.js"></script>
 </body>
