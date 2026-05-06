@@ -14,6 +14,7 @@ let kanbanSortableInstances = [];
 /** Kanban iPad: cards por coluna + Ver mais */
 const KANBAN_CARDS_INITIAL = 5;
 const KANBAN_CARDS_STEP = 8;
+/** Chave = slug do estágio (ex.: meeting_scheduled); usado em "Ver mais" */
 let kanbanColumnVisible = {};
 
 function kanbanNumericId(v) {
@@ -100,7 +101,11 @@ async function loadPipelineStages() {
         if (response && response.ok) {
             const data = await response.json();
             if (data.success) {
-                pipelineStages = data.data.sort((a, b) => (a.order_num || 0) - (b.order_num || 0));
+                const merged =
+                    typeof mergePipelineStagesForKanban === 'function'
+                        ? mergePipelineStagesForKanban(data.data || [])
+                        : data.data || [];
+                pipelineStages = merged.sort((a, b) => (a.order_num || 0) - (b.order_num || 0));
                 return;
             }
         }
@@ -188,10 +193,43 @@ function resolveStageForLead(lead) {
     const byId = pipelineStages.find((s) => kanbanNumericId(s.id) === kanbanNumericId(lead.pipeline_stage_id));
     if (byId) return byId;
     const fromApi = (lead.pipeline_stage_slug || '').trim();
-    const fromStatus = normalizeLeadPipelineSlug(fromApi || lead.status);
-    const bySlug = pipelineStages.find((s) => s.slug === fromStatus);
+    const raw = fromApi || lead.status || '';
+    const leadCanon =
+        typeof normalizePipelineSlug === 'function'
+            ? normalizePipelineSlug(raw)
+            : normalizeLeadPipelineSlug(raw);
+    const bySlug = pipelineStages.find((s) => {
+        const stageCanon =
+            typeof normalizePipelineSlug === 'function'
+                ? normalizePipelineSlug(s.slug || '')
+                : normalizeLeadPipelineSlug(s.slug || '');
+        return stageCanon === leadCanon;
+    });
     if (bySlug) return bySlug;
     return pipelineStages[0];
+}
+
+function kanbanStageDomId(stage) {
+    if (stage.slug != null && stage.slug !== '') {
+        return `kanban-stage-${stage.slug}`;
+    }
+    return `kanban-stage-${stage.id}`;
+}
+
+function kanbanColumnVisibilityKey(stage) {
+    if (stage.slug != null && stage.slug !== '') {
+        return String(stage.slug);
+    }
+    return String(stage.id);
+}
+
+function leadMatchesKanbanColumn(lead, stage) {
+    const st = resolveStageForLead(lead);
+    if (!st || !stage) return false;
+    if (typeof normalizePipelineSlug === 'function') {
+        return normalizePipelineSlug(st.slug || '') === normalizePipelineSlug(stage.slug || '');
+    }
+    return kanbanNumericId(st.id) === kanbanNumericId(stage.id);
 }
 
 // Load Kanban Board
@@ -305,23 +343,24 @@ function renderKanbanBoard() {
     board.innerHTML = '';
 
     pipelineStages.forEach((stage) => {
-        const stageLeads = allLeads.filter((lead) => {
-            const st = resolveStageForLead(lead);
-            return st && kanbanNumericId(st.id) === kanbanNumericId(stage.id);
-        });
+        const stageLeads = allLeads.filter((lead) => leadMatchesKanbanColumn(lead, stage));
 
         const total = stageLeads.length;
+        const colKey = kanbanColumnVisibilityKey(stage);
         const visibleCap =
-            typeof kanbanColumnVisible[stage.id] === 'number'
-                ? kanbanColumnVisible[stage.id]
+            typeof kanbanColumnVisible[colKey] === 'number'
+                ? kanbanColumnVisible[colKey]
                 : KANBAN_CARDS_INITIAL;
         const visibleLeads = stageLeads.slice(0, visibleCap);
         const remaining = total - visibleLeads.length;
 
         const column = document.createElement('div');
         column.className = 'kanban-column';
-        column.dataset.stageId = stage.id;
-        column.dataset.stageSlug = stage.slug;
+        column.dataset.stageId =
+            stage.id != null && stage.id !== '' ? String(stage.id) : '';
+        column.dataset.stageSlug = stage.slug || '';
+
+        const stageCardsId = kanbanStageDomId(stage);
 
         column.innerHTML = `
             <div class="kanban-column-header" style="background: ${stage.color || '#3498db'}">
@@ -330,13 +369,13 @@ function renderKanbanBoard() {
                     <span class="kanban-column-count">${total}</span>
                 </div>
             </div>
-            <div class="kanban-column-cards" id="kanban-stage-${stage.id}">
+            <div class="kanban-column-cards" id="${stageCardsId}">
                 ${visibleLeads.map((lead) => renderKanbanCard(lead)).join('')}
             </div>
             ${
                 remaining > 0
                     ? `<div class="kanban-column-footer">
-                <button type="button" class="btn btn-secondary btn-sm kanban-load-more-btn" data-stage-id="${stage.id}">
+                <button type="button" class="btn btn-secondary btn-sm kanban-load-more-btn" data-stage-id="${stage.id != null && stage.id !== '' ? stage.id : ''}" data-stage-slug="${stage.slug || ''}">
                     Ver mais (${remaining})
                 </button>
             </div>`
@@ -353,10 +392,10 @@ function bindKanbanLoadMore() {
     if (!board) return;
     board.querySelectorAll('.kanban-load-more-btn').forEach((btn) => {
         btn.addEventListener('click', () => {
-            const sid = parseInt(btn.dataset.stageId, 10);
-            if (!sid) return;
-            const cur = kanbanColumnVisible[sid] ?? KANBAN_CARDS_INITIAL;
-            kanbanColumnVisible[sid] = cur + KANBAN_CARDS_STEP;
+            const slug = (btn.dataset.stageSlug || '').trim();
+            if (!slug) return;
+            const cur = kanbanColumnVisible[slug] ?? KANBAN_CARDS_INITIAL;
+            kanbanColumnVisible[slug] = cur + KANBAN_CARDS_STEP;
             renderKanbanBoard();
             initKanbanDragDrop();
             bindKanbanLoadMore();
@@ -474,7 +513,7 @@ function setupSortable() {
     }
 
     pipelineStages.forEach((stage) => {
-        const cardsContainer = document.getElementById(`kanban-stage-${stage.id}`);
+        const cardsContainer = document.getElementById(kanbanStageDomId(stage));
         if (cardsContainer) {
             kanbanSortableInstances.push(
                 new Sortable(cardsContainer, {
@@ -485,9 +524,11 @@ function setupSortable() {
                         const leadId = kanbanNumericId(evt.item.dataset.leadId);
                         const col = evt.to.closest('.kanban-column');
                         if (!col || col.dataset.visitOnly === 'true') return;
-                        const newStageId = parseInt(col.dataset.stageId, 10);
+                        const rawId = col.dataset.stageId;
+                        const parsed = rawId ? parseInt(rawId, 10) : NaN;
+                        const newStageId = Number.isFinite(parsed) && parsed > 0 ? parsed : null;
                         const newStageSlug = col.dataset.stageSlug;
-                        if (Number.isFinite(leadId) && newStageId) {
+                        if (Number.isFinite(leadId) && newStageSlug) {
                             void updateLeadStage(leadId, newStageId, newStageSlug);
                         }
                     },
@@ -504,10 +545,11 @@ async function updateLeadStage(leadId, stageId, stageSlug) {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
-            body: JSON.stringify({
-                pipeline_stage_id: stageId,
-                status: stageSlug
-            })
+            body: JSON.stringify(
+                stageId != null && Number(stageId) > 0
+                    ? { pipeline_stage_id: stageId, status: stageSlug }
+                    : { status: stageSlug }
+            )
         });
         
         const data = await response.json();

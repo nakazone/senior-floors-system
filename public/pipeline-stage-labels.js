@@ -3,7 +3,7 @@
  * Used when DB `pipeline_stages.name` differs or legacy `leads.status` values exist.
  */
 (function (global) {
-  /** Kanban v3 order — always show these in dropdowns even if DB only has legacy rows. */
+  /** Kanban v3 order — always show these in dropdowns and board even if DB only has legacy rows. */
   const PIPELINE_V9_SLUGS = [
     'new_lead',
     'contacted',
@@ -15,6 +15,19 @@
     'won',
     'lost',
   ];
+
+  /** Default colors / order for Kanban columns (when API row missing). */
+  const PIPELINE_V9_KANBAN_DEFAULTS = {
+    new_lead: { color: '#3498db', order_num: 1 },
+    contacted: { color: '#f39c12', order_num: 2 },
+    meeting_scheduled: { color: '#e67e22', order_num: 3 },
+    quote_sent: { color: '#9b59b6', order_num: 4 },
+    follow_up_1: { color: '#16a085', order_num: 5 },
+    follow_up_2: { color: '#1abc9c', order_num: 6 },
+    closing_attempt: { color: '#e74c3c', order_num: 7 },
+    won: { color: '#27ae60', order_num: 8 },
+    lost: { color: '#c0392b', order_num: 9 },
+  };
 
   const LEGACY_SLUG_TO_CANONICAL = {
     lead_received: 'new_lead',
@@ -64,7 +77,6 @@
 
   /**
    * Merge API `pipeline_stages` rows with the 9 canonical slugs.
-   * Fills gaps (e.g. missing follow_up_1 in DB) so dropdowns always match the Kanban.
    * @param {Array<object>} apiRows
    * @returns {Array<{ id?: number, slug: string, name?: string|null, order_num: number }>}
    */
@@ -105,6 +117,33 @@
   }
 
   /**
+   * Same as mergePipelineStagesForUi plus `color` for Kanban columns (always 9 columns).
+   * @param {Array<object>} apiRows
+   * @returns {Array<{ id?: number|null, slug: string, name?: string|null, color: string, order_num: number, is_active: number }>}
+   */
+  function mergePipelineStagesForKanban(apiRows) {
+    const merged = mergePipelineStagesForUi(apiRows);
+    const rows = Array.isArray(apiRows) ? apiRows : [];
+    return merged.map((row) => {
+      const def = PIPELINE_V9_KANBAN_DEFAULTS[row.slug] || { color: '#3498db', order_num: 99 };
+      const raw = rows.find((r) => {
+        if (!r || r.slug == null) return false;
+        return normalizePipelineSlug(String(r.slug).trim()) === row.slug;
+      });
+      const color = raw && raw.color ? raw.color : def.color;
+      const order_num = row.order_num != null ? row.order_num : def.order_num;
+      return {
+        id: row.id != null ? row.id : null,
+        slug: row.slug,
+        name: row.name,
+        color,
+        order_num,
+        is_active: 1,
+      };
+    });
+  }
+
+  /**
    * @param {string} [slug]
    * @param {string} [nameFallback] — name from API (`pipeline_stages.name`)
    * @returns {string}
@@ -118,8 +157,10 @@
   }
 
   global.PIPELINE_V9_SLUGS = PIPELINE_V9_SLUGS;
+  global.PIPELINE_V9_KANBAN_DEFAULTS = PIPELINE_V9_KANBAN_DEFAULTS;
   global.normalizePipelineSlug = normalizePipelineSlug;
   global.mergePipelineStagesForUi = mergePipelineStagesForUi;
+  global.mergePipelineStagesForKanban = mergePipelineStagesForKanban;
   global.PIPELINE_STAGE_LABELS_EN = PIPELINE_STAGE_LABELS_EN;
   /** @deprecated use PIPELINE_STAGE_LABELS_EN */
   global.PIPELINE_STAGE_LABELS_PT = PIPELINE_STAGE_LABELS_EN;
