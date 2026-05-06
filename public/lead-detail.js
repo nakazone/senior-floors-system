@@ -164,8 +164,10 @@ async function loadPipelineStages() {
     try {
         const res = await fetch('/api/pipeline-stages', { credentials: 'include' });
         const data = await res.json();
-        if (data.success && Array.isArray(data.data)) {
-            stages = data.data.map(s => ({ id: s.id, name: s.name, slug: s.slug || s.name }));
+        if (data.success && Array.isArray(data.data) && typeof mergePipelineStagesForUi === 'function') {
+            stages = mergePipelineStagesForUi(data.data);
+        } else if (data.success && Array.isArray(data.data)) {
+            stages = data.data.map((s) => ({ id: s.id, name: s.name, slug: s.slug || s.name }));
         }
     } catch (e) { /* ignore */ }
     if (stages.length === 0) {
@@ -185,19 +187,27 @@ async function loadPipelineStages() {
     try {
         const select = document.getElementById('leadStatusSelect');
         select.innerHTML = '<option value="">Selecione...</option>';
-        stages.forEach(stage => {
+        const leadCanon =
+            currentLead && typeof normalizePipelineSlug === 'function'
+                ? normalizePipelineSlug(currentLead.pipeline_stage_slug || currentLead.status || '')
+                : String((currentLead && currentLead.status) || '').trim();
+        stages.forEach((stage) => {
             const option = document.createElement('option');
             option.value = stage.slug;
-            option.textContent = typeof pipelineStageDisplayName === 'function'
-                ? pipelineStageDisplayName(stage.slug, stage.name)
-                : stage.name;
-            if (currentLead && currentLead.status === stage.slug) {
+            if (stage.id != null) option.dataset.stageId = String(stage.id);
+            option.textContent =
+                typeof pipelineStageDisplayName === 'function'
+                    ? pipelineStageDisplayName(stage.slug, stage.name)
+                    : stage.name || stage.slug;
+            if (currentLead && leadCanon === stage.slug) {
                 option.selected = true;
             }
             select.appendChild(option);
         });
         // Save status when user changes dropdown (header)
-        select.addEventListener('change', function onStatusChange() {
+        if (!select.dataset.sfPipelineChangeBound) {
+            select.dataset.sfPipelineChangeBound = '1';
+            select.addEventListener('change', function onStatusChange() {
             const newStatus = select.value;
             if (!newStatus || !currentLeadId) return;
             fetch(`/api/leads/${currentLeadId}`, {
@@ -227,7 +237,8 @@ async function loadPipelineStages() {
                     }
                 })
                 .catch(() => {});
-        });
+            });
+        }
     } catch (error) {
         console.error('Error loading pipeline stages:', error);
     }

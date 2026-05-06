@@ -552,7 +552,9 @@ async function populateNewLeadPipelineSelect() {
     try {
         const res = await fetch('/api/pipeline-stages', { credentials: 'include' });
         const data = await res.json();
-        if (data.success && Array.isArray(data.data)) {
+        if (data.success && Array.isArray(data.data) && typeof mergePipelineStagesForUi === 'function') {
+            stages = mergePipelineStagesForUi(data.data);
+        } else if (data.success && Array.isArray(data.data)) {
             stages = data.data
                 .filter((s) => s.is_active !== 0)
                 .sort((a, b) => (a.order_num || 0) - (b.order_num || 0));
