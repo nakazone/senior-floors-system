@@ -6445,15 +6445,21 @@ body.lead-quick-sheet-open {
     justify-content: center;
 }
 
+/* Sem padding extra do .modal-lightbox; reverte max-height:90vh do lightbox genérico */
+.lqs-visit-modal.modal.modal-lightbox {
+    padding: 0;
+}
+
 .lqs-visit-modal .modal-backdrop,
 .lqs-visit-modal__backdrop {
     background: rgba(15, 23, 42, 0.45);
 }
 
-/* Mesmas dimensões que .lead-quick-sheet--minimal .lead-quick-sheet__panel */
-.lqs-visit-modal .modal-content-lightbox.lqs-visit-modal__sheet {
+/* Mesmas dimensões que .lead-quick-sheet--minimal .lead-quick-sheet__panel (especificidade > .modal.modal-lightbox .modal-content…) */
+.lqs-visit-modal.modal.modal-lightbox .modal-content.modal-content-lightbox.lqs-visit-modal__sheet {
     position: relative;
     width: min(480px, calc(100vw - 20px));
+    max-width: min(480px, calc(100vw - 20px));
     max-height: min(82vh, 640px);
     border-radius: 14px;
     box-shadow: 0 14px 44px rgba(15, 23, 42, 0.12);
@@ -6485,7 +6491,7 @@ body.lead-quick-sheet-open {
     color: var(--text-dark);
 }
 
-.lqs-visit-modal .modal-content-lightbox.lqs-visit-modal__sheet > form {
+.lqs-visit-modal.modal.modal-lightbox .modal-content.modal-content-lightbox.lqs-visit-modal__sheet > form {
     display: flex;
     flex-direction: column;
     flex: 1 1 auto;
@@ -6494,7 +6500,7 @@ body.lead-quick-sheet-open {
     margin: 0;
 }
 
-.lqs-visit-modal .modal-content-lightbox.lqs-visit-modal__sheet > form .modal-body {
+.lqs-visit-modal.modal.modal-lightbox .modal-content.modal-content-lightbox.lqs-visit-modal__sheet > form .modal-body {
     overflow-y: auto;
     flex: 1 1 auto;
     min-height: 0;

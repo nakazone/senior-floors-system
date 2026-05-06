@@ -20,7 +20,7 @@
   }
 
   function fmtDate(iso) {
-    if (!iso) return 'ù';
+    if (!iso) return 'ÔøΩ';
     try {
       const d = new Date(iso);
       if (Number.isNaN(d.getTime())) return escapeHtml(String(iso));
@@ -31,7 +31,7 @@
   }
 
   function fmtMoney(n) {
-    if (n == null || n === '') return 'ù';
+    if (n == null || n === '') return 'ÔøΩ';
     const x = parseFloat(n);
     if (Number.isNaN(x)) return escapeHtml(String(n));
     return escapeHtml(
@@ -108,7 +108,7 @@
     if (typeof global.pipelineStageDisplayName === 'function') {
       return global.pipelineStageDisplayName(slug, name);
     }
-    return name || slug || 'ù';
+    return name || slug || 'ÔøΩ';
   }
 
   function formatFieldValue(key, val) {
@@ -616,11 +616,46 @@
   }
 
   function maybeRefreshKanban() {
-    if (typeof global.loadKanbanBoard === 'function') {
-      try {
-        void global.loadKanbanBoard();
-      } catch (_) {}
+    try {
+      if (typeof global.loadKanbanBoard === 'function') void global.loadKanbanBoard();
+      else if (typeof global.loadCRMKanban === 'function') void global.loadCRMKanban();
+    } catch (_) {}
+  }
+
+  /** Payload PUT: slug + pipeline_stage_id (Kanban usa pipeline_stage_id na coluna). */
+  function payloadForStatusSlug(slug) {
+    const raw = String(slug || '').trim();
+    if (!raw) return {};
+    const hit = sheetStagesCache.find((s) => slugMatchesCurrent(s.slug, raw));
+    const canonical = hit && hit.slug ? String(hit.slug).trim() : raw;
+    const id = hit && hit.id != null ? Number(hit.id) : NaN;
+    if (Number.isFinite(id) && id > 0) {
+      return { status: canonical, pipeline_stage_id: id };
     }
+    return { status: canonical };
+  }
+
+  function applyStatusSlugFromPicker(slug) {
+    if (!sheetLeadId || !slug) return;
+    const sel = document.getElementById('lqsStatus');
+    if (!sel) return;
+    const payload = payloadForStatusSlug(slug);
+    if (!payload.status) return;
+    sel.value = payload.status;
+    syncStatusDotFromSelect();
+    closeStatusMenu();
+    void patchLead(payload).then(() => syncStatusDotFromSelect());
+  }
+
+  function onDocumentStatusOptionClick(e) {
+    const statusOpt = e.target.closest('[data-lqs-status-option]');
+    if (!statusOpt || !sheetLeadId) return;
+    const menu = document.getElementById('lqsStatusMenu');
+    if (!menu || menu.hidden) return;
+    const slug = statusOpt.getAttribute('data-value');
+    if (!slug) return;
+    e.preventDefault();
+    applyStatusSlugFromPicker(slug);
   }
 
   const DEFAULT_STAGES = [
@@ -755,6 +790,8 @@
 
   function onStatusMenuDocClick(e) {
     if (e.target.closest('#lqsStatusPicker')) return;
+    /* Menu pode estar em document.body (dropdown fixo); clique na lista nÔøΩo fecha antes de aplicar */
+    if (e.target.closest('#lqsStatusMenu')) return;
     closeStatusMenu();
   }
 
@@ -868,7 +905,7 @@
           row.kind === 'quote'
             ? '<span class="lead-quick-sheet__qbadge lead-quick-sheet__qbadge--quote">Quote</span>'
             : '<span class="lead-quick-sheet__qbadge lead-quick-sheet__qbadge--proposal">Proposta</span>';
-        const when = row.created_at ? new Date(row.created_at).toLocaleDateString('pt-BR') : 'ù';
+        const when = row.created_at ? new Date(row.created_at).toLocaleDateString('pt-BR') : 'ÔøΩ';
         const exp =
           row.expires && row.kind === 'quote'
             ? `<p class="lead-quick-sheet__qmeta"><strong>Expira:</strong> ${escapeHtml(
@@ -980,7 +1017,7 @@
   function renderSheetBody(lead, bundle) {
     const sid = sheetLeadId;
     const stages = bundle.stages;
-    const currentSlug = lead.status || '';
+    const currentSlug = lead.pipeline_stage_slug || lead.status || '';
     const pri = String(lead.priority || 'medium').toLowerCase();
     const tele =
       lead.phone
@@ -1079,12 +1116,8 @@
     if (statusOpt && sheetLeadId) {
       e.preventDefault();
       const slug = statusOpt.getAttribute('data-value');
-      const sel = document.getElementById('lqsStatus');
-      if (!sel || !slug) return;
-      sel.value = slug;
-      syncStatusDotFromSelect();
-      closeStatusMenu();
-      void patchLead({ status: slug }).then(() => syncStatusDotFromSelect());
+      if (!slug) return;
+      applyStatusSlugFromPicker(slug);
       return;
     }
     if (e.target.closest('[data-lqs-open-quotes-crm]')) {
@@ -1124,18 +1157,23 @@
     if (!sheetLeadId) return;
     if (t.id === 'lqsStatus') {
       syncStatusDotFromSelect();
-      void patchLead({ status: t.value }).then(() => syncStatusDotFromSelect());
+      void patchLead(payloadForStatusSlug(t.value)).then(() => syncStatusDotFromSelect());
       return;
     }
   }
 
   let sheetBodyDelegated = false;
+  let docStatusOptionDelegated = false;
 
   function ensureSheetDelegation() {
     if (sheetBodyDelegated) return;
     const body = document.getElementById('leadQuickSheetBody');
     if (!body) return;
     sheetBodyDelegated = true;
+    if (!docStatusOptionDelegated) {
+      docStatusOptionDelegated = true;
+      document.addEventListener('click', onDocumentStatusOptionClick);
+    }
     body.addEventListener('click', onSheetBodyClick);
     body.addEventListener('change', onSheetBodyChange);
     body.addEventListener('keydown', (e) => {
@@ -1245,7 +1283,7 @@
     root.classList.add('is-open');
     root.setAttribute('aria-hidden', 'false');
     document.body.classList.add('lead-quick-sheet-open');
-    body.innerHTML = '<div class="lead-quick-sheet__loading">A carregarù</div>';
+    body.innerHTML = '<div class="lead-quick-sheet__loading">A carregarÔøΩ</div>';
 
     const [leadRes, stagesRes, quotesRes, proposalsRes] = await Promise.all([
       fetchJson('/api/leads/' + sid),
