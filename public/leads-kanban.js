@@ -105,7 +105,18 @@ async function loadPipelineStages() {
                     typeof mergePipelineStagesForKanban === 'function'
                         ? mergePipelineStagesForKanban(data.data || [])
                         : data.data || [];
-                pipelineStages = merged.sort((a, b) => (a.order_num || 0) - (b.order_num || 0));
+                pipelineStages = merged.sort((a, b) => {
+                    const slugs =
+                        typeof PIPELINE_V9_SLUGS !== 'undefined' && Array.isArray(PIPELINE_V9_SLUGS)
+                            ? PIPELINE_V9_SLUGS
+                            : null;
+                    if (slugs) {
+                        const ia = slugs.indexOf(a.slug);
+                        const ib = slugs.indexOf(b.slug);
+                        if (ia !== -1 && ib !== -1) return ia - ib;
+                    }
+                    return (a.order_num || 0) - (b.order_num || 0);
+                });
                 return;
             }
         }

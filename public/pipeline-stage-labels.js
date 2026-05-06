@@ -3,7 +3,7 @@
  * Used when DB `pipeline_stages.name` differs or legacy `leads.status` values exist.
  */
 (function (global) {
-  /** Kanban v3 order — always show these in dropdowns and board even if DB only has legacy rows. */
+  /** Kanban v3 order - always show these in dropdowns and board even if DB only has legacy rows. */
   const PIPELINE_V9_SLUGS = [
     'new_lead',
     'contacted',
@@ -104,15 +104,16 @@
 
     return PIPELINE_V9_SLUGS.map((slug, i) => {
       const row = byCanon.get(slug);
+      const order_num = i + 1;
       if (row) {
         return {
           id: row.id,
           slug,
           name: row.name,
-          order_num: row.order_num != null ? row.order_num : i + 1,
+          order_num,
         };
       }
-      return { slug, name: null, order_num: i + 1 };
+      return { slug, name: null, order_num };
     });
   }
 
@@ -131,7 +132,8 @@
         return normalizePipelineSlug(String(r.slug).trim()) === row.slug;
       });
       const color = raw && raw.color ? raw.color : def.color;
-      const order_num = row.order_num != null ? row.order_num : def.order_num;
+      // Canonical v9 order (1-9); ignore DB order_num (may be legacy).
+      const order_num = def.order_num;
       return {
         id: row.id != null ? row.id : null,
         slug: row.slug,
@@ -145,7 +147,7 @@
 
   /**
    * @param {string} [slug]
-   * @param {string} [nameFallback] — name from API (`pipeline_stages.name`)
+   * @param {string} [nameFallback] - name from API (`pipeline_stages.name`)
    * @returns {string}
    */
   function pipelineStageDisplayName(slug, nameFallback) {
