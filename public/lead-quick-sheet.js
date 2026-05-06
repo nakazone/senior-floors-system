@@ -990,6 +990,7 @@
       ? `<a class="lead-quick-sheet__action" href="mailto:${escapeHtml(lead.email)}">Email</a>`
       : '';
     const quoteNew = `<a class="lead-quick-sheet__action" href="quote-builder.html?lead_id=${sid}" target="_blank" rel="noopener">Novo orcamento</a>`;
+    const scheduleVisit = `<button type="button" class="lead-quick-sheet__action" data-lqs-open-schedule>Agendar visita</button>`;
 
     const quoteRows = mergeQuoteRows(bundle.quotesPayload, bundle.proposalsPayload);
     const priLow = pri === 'low';
@@ -998,7 +999,7 @@
     return `
       <div class="lead-quick-sheet__toolbar lead-quick-sheet__toolbar--minimal">
         <div class="lead-quick-sheet__toolbar-row lead-quick-sheet__toolbar-row--actions">
-          ${tele}${mail}${quoteNew}
+          ${tele}${mail}${quoteNew}${scheduleVisit}
         </div>
         <div class="lead-quick-sheet__toolbar-row lead-quick-sheet__toolbar-row--controls">
           <label class="lead-quick-sheet__inline lead-quick-sheet__inline--status">
@@ -1017,10 +1018,6 @@
             </div>
           </div>
         </div>
-      </div>
-
-      <div class="lead-quick-sheet__schedule-row lead-quick-sheet__schedule-row--min">
-        <button type="button" class="lead-quick-sheet__schedule-btn-min" data-lqs-open-schedule>Agendar visita</button>
       </div>
 
       <section class="lead-quick-sheet__section lead-quick-sheet__section--static">

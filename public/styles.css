@@ -6357,6 +6357,14 @@ body.lead-quick-sheet-open {
     background: var(--bg-light, #f1f5f9);
 }
 
+.lead-quick-sheet__toolbar--minimal button.lead-quick-sheet__action {
+    appearance: none;
+    -webkit-appearance: none;
+    font-family: inherit;
+    cursor: pointer;
+    margin: 0;
+}
+
 .lead-quick-sheet__toolbar--minimal .lead-quick-sheet__toolbar-row--controls {
     display: flex;
     flex-wrap: wrap;
@@ -6442,12 +6450,13 @@ body.lead-quick-sheet-open {
     background: rgba(15, 23, 42, 0.45);
 }
 
+/* Mesmas dimensões que .lead-quick-sheet--minimal .lead-quick-sheet__panel */
 .lqs-visit-modal .modal-content-lightbox.lqs-visit-modal__sheet {
     position: relative;
-    width: min(480px, calc(100vw - 24px));
-    max-height: min(85vh, 720px);
-    border-radius: 16px;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.22);
+    width: min(480px, calc(100vw - 20px));
+    max-height: min(82vh, 640px);
+    border-radius: 14px;
+    box-shadow: 0 14px 44px rgba(15, 23, 42, 0.12);
     background: var(--bg-white, #fff);
     overflow: hidden;
     display: flex;
