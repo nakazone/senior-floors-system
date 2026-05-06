@@ -408,6 +408,192 @@
     if (result != null) refreshSummarySections();
   }
 
+  function snapVisitDatetimeLocalToHalfHour(val) {
+    if (!val || typeof val !== 'string') return val;
+    const parts = val.split('T');
+    if (parts.length !== 2) return val;
+    let datePart = parts[0];
+    const tm = parts[1].match(/^(\d{2}):(\d{2})/);
+    if (!tm) return val;
+    let h = parseInt(tm[1], 10);
+    let min = parseInt(tm[2], 10);
+    if (isNaN(h) || isNaN(min)) return val;
+    if (min >= 45) {
+      h += 1;
+      min = 0;
+    } else if (min >= 15) {
+      min = 30;
+    } else {
+      min = 0;
+    }
+    if (h >= 24) {
+      const d = new Date(datePart + 'T12:00:00');
+      d.setDate(d.getDate() + 1);
+      datePart = d.toISOString().slice(0, 10);
+      h = 0;
+    }
+    return datePart + 'T' + String(h).padStart(2, '0') + ':' + String(min).padStart(2, '0');
+  }
+
+  function parseAddressForVisit(addressStr) {
+    if (!addressStr || typeof addressStr !== 'string') {
+      return { addressLine1: '', addressLine2: '', city: '', zipcode: '' };
+    }
+    const s = addressStr.trim();
+    const parts = s.split(',').map((p) => p.trim()).filter(Boolean);
+    if (parts.length >= 3) {
+      return {
+        addressLine1: parts[0],
+        addressLine2: parts.slice(1, -2).join(', '),
+        city: parts[parts.length - 2],
+        zipcode: parts[parts.length - 1] || '',
+      };
+    }
+    if (parts.length === 2) return { addressLine1: parts[0], addressLine2: '', city: parts[1], zipcode: '' };
+    if (parts.length === 1) return { addressLine1: parts[0], addressLine2: '', city: '', zipcode: '' };
+    return { addressLine1: s, addressLine2: '', city: '', zipcode: '' };
+  }
+
+  function setLqsVisitAddressFields(obj) {
+    const o = obj || {};
+    const line1 = document.getElementById('lqsVisitAddressLine1');
+    const line2 = document.getElementById('lqsVisitAddressLine2');
+    const city = document.getElementById('lqsVisitCity');
+    const zip = document.getElementById('lqsVisitZipCode');
+    if (line1) line1.value = o.addressLine1 || '';
+    if (line2) line2.value = o.addressLine2 || '';
+    if (city) city.value = o.city || '';
+    if (zip) zip.value = o.zipcode || '';
+  }
+
+  async function loadLqsVisitUsers() {
+    const sel = document.getElementById('lqsVisitAssignedSelect');
+    if (!sel) return;
+    try {
+      const r = await fetch('/api/users?limit=100', { credentials: 'include', cache: 'no-store' });
+      const d = await r.json().catch(() => ({}));
+      sel.innerHTML = '<option value="">Eu mesmo</option>';
+      if (d.success && d.data && d.data.length) {
+        d.data.forEach((u) => {
+          if (!u.id) return;
+          const opt = document.createElement('option');
+          opt.value = u.id;
+          opt.textContent = u.name || u.email || 'User ' + u.id;
+          sel.appendChild(opt);
+        });
+      }
+    } catch (_) {}
+  }
+
+  let lqsVisitModalWired = false;
+
+  function wireLqsVisitModalOnce() {
+    if (lqsVisitModalWired) return;
+    const modal = document.getElementById('lqsScheduleVisitModal');
+    const form = document.getElementById('lqsNewVisitForm');
+    if (!modal || !form) return;
+    lqsVisitModalWired = true;
+    modal.querySelectorAll('[data-lqs-visit-close]').forEach((el) => {
+      el.addEventListener('click', () => closeLqsScheduleVisitModal());
+    });
+    form.addEventListener('submit', onLqsVisitFormSubmit);
+  }
+
+  function openLqsScheduleVisitModal() {
+    wireLqsVisitModalOnce();
+    if (!sheetLead || !sheetLeadId) return;
+    const modal = document.getElementById('lqsScheduleVisitModal');
+    if (!modal) return;
+    const clientEl = document.getElementById('lqsVisitClientName');
+    if (clientEl) clientEl.textContent = sheetLead.name ? String(sheetLead.name) : '\u2014';
+    const scheduled = document.getElementById('lqsVisitScheduledAt');
+    if (scheduled) {
+      const d = new Date();
+      d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+      scheduled.value = snapVisitDatetimeLocalToHalfHour(d.toISOString().slice(0, 16));
+    }
+    let addr = sheetLead.address || sheetLead.address_line1 || '';
+    if (!addr && sheetLead.zipcode) addr = 'CEP: ' + sheetLead.zipcode;
+    setLqsVisitAddressFields(parseAddressForVisit(addr));
+    const notesEl = document.getElementById('lqsVisitNotes');
+    if (notesEl) notesEl.value = '';
+    void loadLqsVisitUsers();
+    modal.classList.add('active');
+    modal.setAttribute('aria-hidden', 'false');
+  }
+
+  function closeLqsScheduleVisitModal() {
+    const modal = document.getElementById('lqsScheduleVisitModal');
+    if (modal) {
+      modal.classList.remove('active');
+      modal.setAttribute('aria-hidden', 'true');
+    }
+    const root = document.getElementById('leadQuickSheet');
+    if (!root || !root.classList.contains('is-open')) {
+      document.body.style.overflow = '';
+    }
+  }
+
+  async function onLqsVisitFormSubmit(e) {
+    e.preventDefault();
+    if (!sheetLeadId) return false;
+    const schedEl = document.getElementById('lqsVisitScheduledAt');
+    const scheduledAt = snapVisitDatetimeLocalToHalfHour(schedEl ? schedEl.value : '');
+    if (schedEl) schedEl.value = scheduledAt;
+    const addressLine1 = (document.getElementById('lqsVisitAddressLine1') || {}).value.trim();
+    const addressLine2 = (document.getElementById('lqsVisitAddressLine2') || {}).value.trim();
+    const city = (document.getElementById('lqsVisitCity') || {}).value.trim();
+    const zipcode = (document.getElementById('lqsVisitZipCode') || {}).value.trim();
+    const notes = (document.getElementById('lqsVisitNotes') || {}).value.trim() || null;
+    const sellerSel = document.getElementById('lqsVisitAssignedSelect');
+    const sellerId = sellerSel && sellerSel.value ? sellerSel.value : null;
+    if (!scheduledAt || !addressLine1 || !city) {
+      notifySheet('Preencha data/hora, morada (linha 1) e cidade.', 'error');
+      return false;
+    }
+    const btn = document.querySelector('#lqsNewVisitForm button[type="submit"]');
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'A agendar...';
+    }
+    try {
+      const response = await fetch('/api/visits', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          lead_id: parseInt(String(sheetLeadId), 10),
+          scheduled_at: scheduledAt,
+          address_line1: addressLine1,
+          address_line2: addressLine2 || null,
+          city: city,
+          zipcode: zipcode || null,
+          notes: notes,
+          seller_id: sellerId ? parseInt(sellerId, 10) : null,
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = 'Agendar visita';
+      }
+      if (data.success) {
+        closeLqsScheduleVisitModal();
+        notifySheet('Visita agendada.', 'success');
+        maybeRefreshKanban();
+      } else {
+        notifySheet(data.error || 'Nao foi possivel agendar a visita.', 'error');
+      }
+    } catch (err) {
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = 'Agendar visita';
+      }
+      notifySheet(err.message || 'Erro de rede', 'error');
+    }
+    return false;
+  }
+
   async function fetchJson(url) {
     const r = await fetch(url, { credentials: 'include' });
     const j = await r.json().catch(() => ({}));
@@ -708,15 +894,36 @@
       .join('');
   }
 
+  function priorityBadgeMarkup(lead) {
+    const pri = String(lead.priority || 'medium').toLowerCase().replace(/[^a-z]/g, '') || 'medium';
+    if (pri === 'high') {
+      return `<span class="lead-quick-sheet__badge lead-quick-sheet__badge--pri lead-quick-sheet__badge--pri-fire" title="Alta">\u{1F525}</span>`;
+    }
+    if (pri === 'low') {
+      return `<span class="lead-quick-sheet__badge lead-quick-sheet__badge--pri lead-quick-sheet__badge--pri-ice" title="Baixa">\u{1F9CA}</span>`;
+    }
+    return `<span class="lead-quick-sheet__badge lead-quick-sheet__badge--pri lead-quick-sheet__badge--pri-neutral" title="Media">\u2014</span>`;
+  }
+
+  function syncPriorityToolbarButtons() {
+    if (!sheetLead) return;
+    const p = String(sheetLead.priority || 'medium').toLowerCase();
+    document.querySelectorAll('[data-lqs-priority]').forEach((btn) => {
+      const v = btn.getAttribute('data-lqs-priority');
+      const active = (v === 'low' && p === 'low') || (v === 'high' && p === 'high');
+      btn.classList.toggle('is-active', active);
+      btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+    });
+  }
+
   function updateHeaderBadges(lead) {
     const badgesEl = document.getElementById('leadQuickSheetBadges');
     if (!badgesEl || !lead) return;
     const stageLabel = stageDisplayName(lead);
-    const pri = String(lead.priority || 'medium').toLowerCase().replace(/[^a-z]/g, '') || 'medium';
     const stageHex = escapeHtml(stageColorForLead(lead, sheetStagesCache));
     badgesEl.innerHTML =
       `<span class="lead-quick-sheet__badge lead-quick-sheet__badge--stage" style="--lqs-stage:${stageHex}">${escapeHtml(stageLabel)}</span>` +
-      `<span class="lead-quick-sheet__badge lead-quick-sheet__badge--pri lead-quick-sheet__badge--pri-${escapeHtml(pri)}">${escapeHtml(lead.priority || 'medium')}</span>`;
+      priorityBadgeMarkup(lead);
   }
 
   async function patchLead(partial) {
@@ -736,6 +943,7 @@
       if (data.data) {
         sheetLead = data.data;
         updateHeaderBadges(sheetLead);
+        syncPriorityToolbarButtons();
       }
       maybeRefreshKanban();
       return data;
@@ -774,7 +982,8 @@
     const quoteNew = `<a class="lead-quick-sheet__action" href="quote-builder.html?lead_id=${sid}" target="_blank" rel="noopener">Novo orcamento</a>`;
 
     const quoteRows = mergeQuoteRows(bundle.quotesPayload, bundle.proposalsPayload);
-    const scheduleUrl = `lead-detail.html?id=${sid}&tab=visits&schedule=1`;
+    const priLow = pri === 'low';
+    const priHigh = pri === 'high';
 
     return `
       <div class="lead-quick-sheet__toolbar lead-quick-sheet__toolbar--minimal">
@@ -788,18 +997,20 @@
             </span>
             ${renderStatusPicker(stages, currentSlug)}
           </label>
-          <label class="lead-quick-sheet__inline">Prioridade
-            <select id="lqsPriority" class="lead-quick-sheet__select">
-              <option value="low"${pri === 'low' ? ' selected' : ''}>Baixa</option>
-              <option value="medium"${pri === 'medium' ? ' selected' : ''}>Media</option>
-              <option value="high"${pri === 'high' ? ' selected' : ''}>Alta</option>
-            </select>
-          </label>
+          <div class="lead-quick-sheet__inline lead-quick-sheet__inline--pri-icons">
+            <span class="lead-quick-sheet__status-label-row">
+              <span>Prioridade</span>
+            </span>
+            <div class="lead-quick-sheet__pri-btns" role="group" aria-label="Prioridade">
+              <button type="button" class="lead-quick-sheet__pri-icon${priLow ? ' is-active' : ''}" data-lqs-priority="low" title="Baixa (frio)" aria-pressed="${priLow ? 'true' : 'false'}">\u{1F9CA}</button>
+              <button type="button" class="lead-quick-sheet__pri-icon${priHigh ? ' is-active' : ''}" data-lqs-priority="high" title="Alta (quente)" aria-pressed="${priHigh ? 'true' : 'false'}">\u{1F525}</button>
+            </div>
+          </div>
         </div>
       </div>
 
       <div class="lead-quick-sheet__schedule-row lead-quick-sheet__schedule-row--min">
-        <a class="lead-quick-sheet__schedule-btn-min" href="${scheduleUrl}" target="_blank" rel="noopener">Agendar visita</a>
+        <button type="button" class="lead-quick-sheet__schedule-btn-min" data-lqs-open-schedule>Agendar visita</button>
       </div>
 
       <section class="lead-quick-sheet__section lead-quick-sheet__section--static">
@@ -815,6 +1026,18 @@
   }
 
   function onSheetBodyClick(e) {
+    if (e.target.closest('[data-lqs-open-schedule]')) {
+      e.preventDefault();
+      openLqsScheduleVisitModal();
+      return;
+    }
+    const priBtn = e.target.closest('[data-lqs-priority]');
+    if (priBtn && sheetLeadId) {
+      e.preventDefault();
+      const pv = priBtn.getAttribute('data-lqs-priority');
+      if (pv === 'low' || pv === 'high') void patchLead({ priority: pv });
+      return;
+    }
     const editBtn = e.target.closest('[data-lqs-edit]');
     if (editBtn && sheetLeadId) {
       const fk = editBtn.getAttribute('data-lqs-edit');
@@ -896,9 +1119,6 @@
       syncStatusDotFromSelect();
       void patchLead({ status: t.value }).then(() => syncStatusDotFromSelect());
       return;
-    }
-    if (t.id === 'lqsPriority') {
-      void patchLead({ priority: t.value });
     }
   }
 
@@ -1013,6 +1233,7 @@
     }
 
     ensureSheetDelegation();
+    wireLqsVisitModalOnce();
 
     root.classList.add('is-open');
     root.setAttribute('aria-hidden', 'false');
@@ -1051,6 +1272,7 @@
 
     body.innerHTML = renderSheetBody(lead, bundle);
     updateHeaderBadges(lead);
+    syncPriorityToolbarButtons();
     syncStatusDotFromSelect();
 
     requestAnimationFrame(() => {
@@ -1059,6 +1281,7 @@
   }
 
   function closeLeadQuickSheet() {
+    closeLqsScheduleVisitModal();
     closeStatusMenu();
     ownerUsersCache = null;
     const root = document.getElementById('leadQuickSheet');
@@ -1083,6 +1306,12 @@
     if (closeBtn) closeBtn.addEventListener('click', closeLeadQuickSheet);
     document.addEventListener('keydown', (e) => {
       if (e.key !== 'Escape' || !root.classList.contains('is-open')) return;
+      const visitModal = document.getElementById('lqsScheduleVisitModal');
+      if (visitModal && visitModal.classList.contains('active')) {
+        closeLqsScheduleVisitModal();
+        e.preventDefault();
+        return;
+      }
       const editing = root.querySelector('#leadQuickSheetBody [data-lqs-editing]');
       if (editing) {
         refreshSummarySections();

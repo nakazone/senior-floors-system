@@ -13,7 +13,7 @@
     <link rel="icon" type="image/png" sizes="16x16" href="/assets/SeniorFloors.png">
     <link rel="apple-touch-icon" sizes="180x180" href="/assets/SeniorFloors.png">
     <link rel="icon" type="image/png" href="/assets/SeniorFloors.png">
-    <link rel="stylesheet" href="styles.css?v=20260506-lqs-inline-edit">
+    <link rel="stylesheet" href="styles.css?v=20260506-lqs-visit-pri-icons">
     <link rel="stylesheet" href="design-system.css">
     <link rel="stylesheet" href="mobile-design-system.css">
     <link rel="stylesheet" href="crm-toast.css">
@@ -1436,6 +1436,61 @@
         </div>
     </div>
 
+    <!-- Popup agendar visita (sem sair do dashboard / painel do lead) -->
+    <div id="lqsScheduleVisitModal" class="modal modal-lightbox lqs-visit-modal" aria-hidden="true">
+        <div class="modal-backdrop" data-lqs-visit-close tabindex="-1" aria-hidden="true"></div>
+        <div class="modal-content modal-content-lightbox">
+            <div class="modal-header modal-header-lightbox">
+                <h3>Agendar visita</h3>
+                <button type="button" class="modal-close modal-close-lightbox" data-lqs-visit-close aria-label="Fechar">&times;</button>
+            </div>
+            <form id="lqsNewVisitForm">
+                <div class="modal-body">
+                    <div class="form-group form-group-readonly">
+                        <label>Cliente</label>
+                        <p id="lqsVisitClientName" class="form-readonly-value">—</p>
+                    </div>
+                    <div class="form-group">
+                        <label>Data e hora * <span class="optional">(:00 ou :30)</span></label>
+                        <input type="datetime-local" id="lqsVisitScheduledAt" name="scheduled_at" required step="1800">
+                    </div>
+                    <div class="form-group">
+                        <label>Morada (linha 1) *</label>
+                        <input type="text" id="lqsVisitAddressLine1" name="address_line1" required placeholder="Rua, número">
+                    </div>
+                    <div class="form-group">
+                        <label>Morada (linha 2) <span class="optional">(opcional)</span></label>
+                        <input type="text" id="lqsVisitAddressLine2" name="address_line2" placeholder="Complemento">
+                    </div>
+                    <div class="form-group form-row-2">
+                        <div class="form-group">
+                            <label>Cidade *</label>
+                            <input type="text" id="lqsVisitCity" name="city" required placeholder="Cidade">
+                        </div>
+                        <div class="form-group">
+                            <label>CEP</label>
+                            <input type="text" id="lqsVisitZipCode" name="zipcode" placeholder="CEP">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Notas <span class="optional">(opcional)</span></label>
+                        <textarea id="lqsVisitNotes" name="notes" rows="3" placeholder="Instruções, portaria, código…"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Destinar visita para</label>
+                        <select name="assigned_to" id="lqsVisitAssignedSelect">
+                            <option value="">Eu mesmo</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer-lightbox">
+                    <button type="button" class="btn btn-secondary" data-lqs-visit-close>Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Agendar visita</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <script src="crm-toast.js"></script>
@@ -1444,7 +1499,7 @@
     <script src="marketing-dashboard.js"></script>
     <script src="dashboard.js"></script>
     <script src="pipeline-stage-labels.js?v=20260508-k9-order"></script>
-    <script src="lead-quick-sheet.js?v=20260506-lqs-inline-edit"></script>
+    <script src="lead-quick-sheet.js?v=20260506-lqs-visit-pri-icons"></script>
     <script src="leads-kanban.js?v=20260506-lead-sheet-slim-v2"></script>
     <script src="schedule-engine.js"></script>
     <script src="financial-engine.js"></script>
