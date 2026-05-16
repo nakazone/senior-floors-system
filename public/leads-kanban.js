@@ -201,23 +201,40 @@ function normalizeLeadPipelineSlug(raw) {
 
 function resolveStageForLead(lead) {
     if (!pipelineStages.length) return null;
-    const byId = pipelineStages.find((s) => kanbanNumericId(s.id) === kanbanNumericId(lead.pipeline_stage_id));
-    if (byId) return byId;
     const fromApi = (lead.pipeline_stage_slug || '').trim();
     const raw = fromApi || lead.status || '';
     const leadCanon =
         typeof normalizePipelineSlug === 'function'
             ? normalizePipelineSlug(raw)
             : normalizeLeadPipelineSlug(raw);
-    const bySlug = pipelineStages.find((s) => {
-        const stageCanon =
-            typeof normalizePipelineSlug === 'function'
-                ? normalizePipelineSlug(s.slug || '')
-                : normalizeLeadPipelineSlug(s.slug || '');
-        return stageCanon === leadCanon;
-    });
-    if (bySlug) return bySlug;
+    if (leadCanon) {
+        const bySlug = pipelineStages.find((s) => {
+            const stageCanon =
+                typeof normalizePipelineSlug === 'function'
+                    ? normalizePipelineSlug(s.slug || '')
+                    : normalizeLeadPipelineSlug(s.slug || '');
+            return stageCanon === leadCanon;
+        });
+        if (bySlug) return bySlug;
+    }
+    const byId = pipelineStages.find((s) => kanbanNumericId(s.id) === kanbanNumericId(lead.pipeline_stage_id));
+    if (byId) return byId;
     return pipelineStages[0];
+}
+
+/** Atualiza lead em memoria e re-renderiza colunas (apos PUT do painel). */
+function patchKanbanLeadCache(updatedLead) {
+    if (!updatedLead || updatedLead.id == null) return;
+    const nid = kanbanNumericId(updatedLead.id);
+    if (!Number.isFinite(nid)) return;
+    const idx = allLeads.findIndex((l) => kanbanNumericId(l.id) === nid);
+    if (idx >= 0) {
+        allLeads[idx] = { ...allLeads[idx], ...updatedLead };
+    } else {
+        allLeads.push(updatedLead);
+    }
+    renderKanbanBoard();
+    bindKanbanLoadMore();
 }
 
 function kanbanStageDomId(stage) {
@@ -746,6 +763,7 @@ if (typeof window !== 'undefined') {
     window.createFollowup = createFollowup;
     window.closeModal = closeModal;
     window.loadKanbanBoard = loadKanbanBoard;
+    window.patchKanbanLeadCache = patchKanbanLeadCache;
     
     // loadCRMKanban is already defined above
     

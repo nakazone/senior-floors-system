@@ -21,6 +21,26 @@ const LEGACY_SLUG_TO_CANONICAL = {
   production: 'won',
 };
 
+
+async function resolvePipelineStageForStatus(pool, canonicalSlug) {
+  const [direct] = await pool.execute(
+    'SELECT id, slug FROM pipeline_stages WHERE slug = ? AND (is_active IS NULL OR is_active != 0) LIMIT 1',
+    [canonicalSlug]
+  );
+  if (direct.length > 0) return { id: direct[0].id, slug: canonicalSlug };
+  const legacySlugs = Object.entries(LEGACY_SLUG_TO_CANONICAL)
+    .filter(([, canon]) => canon === canonicalSlug)
+    .map(([leg]) => leg);
+  for (const leg of legacySlugs) {
+    const [rows] = await pool.execute(
+      'SELECT id, slug FROM pipeline_stages WHERE slug = ? LIMIT 1',
+      [leg]
+    );
+    if (rows.length > 0) return { id: rows[0].id, slug: canonicalSlug };
+  }
+  return null;
+}
+
 function normalizePipelineSlugForDb(slug) {
   const s = String(slug || '').trim();
   if (!s) return '';
@@ -266,17 +286,14 @@ export async function updateLead(req, res) {
       ...OPTIONAL_DIRECT_STRING.filter((k) => colSet.has(k)),
     ];
     
-    // Status no painel do lead: sempre resolver pipeline_stage_id pelo slug (Kanban usa o id na coluna)
+    // Status no painel do lead: slug canonico + pipeline_stage_id (slug tem prioridade no Kanban)
     if (body.status !== undefined && body.status !== null && String(body.status).trim() !== '') {
       const canonical = normalizePipelineSlugForDb(body.status);
       body.status = canonical;
-      const [stages] = await pool.execute(
-        'SELECT id, slug FROM pipeline_stages WHERE slug = ? LIMIT 1',
-        [canonical]
-      );
-      if (stages.length > 0) {
-        body.pipeline_stage_id = stages[0].id;
-        body.status = stages[0].slug;
+      const resolved = await resolvePipelineStageForStatus(pool, canonical);
+      if (resolved) {
+        body.pipeline_stage_id = resolved.id;
+        body.status = resolved.slug;
       }
     } else if (body.pipeline_stage_id && !body.status) {
       const [stages] = await pool.execute(

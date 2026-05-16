@@ -615,8 +615,12 @@
     else if (kind === 'error') alert(msg);
   }
 
-  function maybeRefreshKanban() {
+  function maybeRefreshKanban(updatedLead) {
     try {
+      if (updatedLead && typeof global.patchKanbanLeadCache === 'function') {
+        global.patchKanbanLeadCache(updatedLead);
+        return;
+      }
       if (typeof global.loadKanbanBoard === 'function') void global.loadKanbanBoard();
       else if (typeof global.loadCRMKanban === 'function') void global.loadCRMKanban();
     } catch (_) {}
@@ -680,28 +684,64 @@
     const payload = payloadForStatusSlug(slug);
     if (!payload.status) return;
     const prevValue = sel.value;
+    const prevLead = sheetLead ? { ...sheetLead } : null;
     sel.value = payload.status;
     syncStatusDotFromSelect();
+    if (sheetLead) {
+      sheetLead = {
+        ...sheetLead,
+        status: payload.status,
+        pipeline_stage_slug: payload.status,
+      };
+      const st = sheetStagesCache.find((s) => slugMatchesCurrent(s.slug, payload.status));
+      if (st && st.id != null) sheetLead.pipeline_stage_id = st.id;
+      updateHeaderBadges(sheetLead);
+    }
     closeStatusMenu();
     const data = await patchLead(payload);
     if (data && data.success) {
       syncStatusPickerFromLead(sheetLead);
     } else {
       sel.value = prevValue;
+      if (prevLead) {
+        sheetLead = prevLead;
+        updateHeaderBadges(sheetLead);
+      }
       syncStatusDotFromSelect();
     }
   }
 
-  function onDocumentStatusOptionClick(e) {
+  function onStatusMenuPick(e) {
     const statusOpt = e.target.closest('[data-lqs-status-option]');
     if (!statusOpt || !sheetLeadId) return;
-    const menu = document.getElementById('lqsStatusMenu');
-    if (!menu || menu.hidden) return;
     const slug = statusOpt.getAttribute('data-value');
     if (!slug) return;
     e.preventDefault();
     e.stopPropagation();
+    e.stopImmediatePropagation();
     void applyStatusSlugFromPicker(slug);
+  }
+
+  let statusMenuInteractionWired = false;
+
+  function wireStatusMenuInteractions() {
+    const menu = document.getElementById('lqsStatusMenu');
+    if (!menu || statusMenuInteractionWired) return;
+    statusMenuInteractionWired = true;
+    menu.addEventListener('mousedown', onStatusMenuPick);
+    menu.addEventListener('click', onStatusMenuPick);
+    menu.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      const opt = e.target.closest('[data-lqs-status-option]');
+      if (!opt) return;
+      e.preventDefault();
+      const slug = opt.getAttribute('data-value');
+      if (slug) void applyStatusSlugFromPicker(slug);
+    });
+  }
+
+  function onDocumentStatusOptionClick(e) {
+    onStatusMenuPick(e);
   }
 
   const DEFAULT_STAGES = [
@@ -1039,7 +1079,7 @@
         syncPriorityToolbarButtons();
         if (partial.status !== undefined) syncStatusPickerFromLead(sheetLead);
       }
-      maybeRefreshKanban();
+      maybeRefreshKanban(sheetLead);
       return data;
     } catch (e) {
       notifySheet(e.message || 'Erro de rede', 'error');
@@ -1363,6 +1403,8 @@
     };
 
     body.innerHTML = renderSheetBody(lead, bundle);
+    statusMenuInteractionWired = false;
+    wireStatusMenuInteractions();
     updateHeaderBadges(lead);
     syncPriorityToolbarButtons();
     syncStatusPickerFromLead(lead);
