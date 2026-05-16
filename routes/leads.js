@@ -5,6 +5,30 @@ import { getDBConnection, isDatabaseConfigured } from '../config/db.js';
 import { getLeadsTableColumns } from '../lib/leadColumns.js';
 import { extractMarketingFromBody, MARKETING_KEYS } from '../lib/marketingLeadFields.js';
 
+/** Alinhado a public/pipeline-stage-labels.js — normaliza status legado para slug canonico. */
+const LEGACY_SLUG_TO_CANONICAL = {
+  lead_received: 'new_lead',
+  new: 'new_lead',
+  contact_made: 'contacted',
+  qualified: 'contacted',
+  visit_scheduled: 'meeting_scheduled',
+  measurement_done: 'follow_up_1',
+  proposal_created: 'quote_sent',
+  proposal_sent: 'quote_sent',
+  negotiation: 'closing_attempt',
+  closed_won: 'won',
+  closed_lost: 'lost',
+  production: 'won',
+};
+
+function normalizePipelineSlugForDb(slug) {
+  const s = String(slug || '').trim();
+  if (!s) return '';
+  if (LEGACY_SLUG_TO_CANONICAL[s]) return LEGACY_SLUG_TO_CANONICAL[s];
+  const lower = s.toLowerCase().replace(/\s+/g, '_');
+  return LEGACY_SLUG_TO_CANONICAL[lower] || s;
+}
+
 export async function listLeads(req, res) {
   if (!isDatabaseConfigured()) return res.status(503).json({ success: false, error: 'Database not configured' });
   try {
@@ -242,19 +266,19 @@ export async function updateLead(req, res) {
       ...OPTIONAL_DIRECT_STRING.filter((k) => colSet.has(k)),
     ];
     
-    // If status is updated but pipeline_stage_id is not, try to find matching stage
-    if (body.status && !body.pipeline_stage_id) {
+    // Status no painel do lead: sempre resolver pipeline_stage_id pelo slug (Kanban usa o id na coluna)
+    if (body.status !== undefined && body.status !== null && String(body.status).trim() !== '') {
+      const canonical = normalizePipelineSlugForDb(body.status);
+      body.status = canonical;
       const [stages] = await pool.execute(
-        'SELECT id FROM pipeline_stages WHERE slug = ? LIMIT 1',
-        [body.status]
+        'SELECT id, slug FROM pipeline_stages WHERE slug = ? LIMIT 1',
+        [canonical]
       );
       if (stages.length > 0) {
         body.pipeline_stage_id = stages[0].id;
+        body.status = stages[0].slug;
       }
-    }
-    
-    // If pipeline_stage_id is updated but status is not, get the slug
-    if (body.pipeline_stage_id && !body.status) {
+    } else if (body.pipeline_stage_id && !body.status) {
       const [stages] = await pool.execute(
         'SELECT slug FROM pipeline_stages WHERE id = ? LIMIT 1',
         [body.pipeline_stage_id]

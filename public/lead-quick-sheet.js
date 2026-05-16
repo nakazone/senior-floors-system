@@ -622,29 +622,74 @@
     } catch (_) {}
   }
 
-  /** Payload PUT: slug + pipeline_stage_id (Kanban usa pipeline_stage_id na coluna). */
+  /** PUT so com status canonico; API resolve pipeline_stage_id (Kanban coloca pela id). */
   function payloadForStatusSlug(slug) {
     const raw = String(slug || '').trim();
     if (!raw) return {};
+    if (typeof global.normalizePipelineSlug === 'function') {
+      return { status: global.normalizePipelineSlug(raw) };
+    }
     const hit = sheetStagesCache.find((s) => slugMatchesCurrent(s.slug, raw));
     const canonical = hit && hit.slug ? String(hit.slug).trim() : raw;
-    const id = hit && hit.id != null ? Number(hit.id) : NaN;
-    if (Number.isFinite(id) && id > 0) {
-      return { status: canonical, pipeline_stage_id: id };
-    }
     return { status: canonical };
   }
 
-  function applyStatusSlugFromPicker(slug) {
+  function leadCurrentPipelineSlug(lead) {
+    if (!lead) return '';
+    const raw = String(lead.pipeline_stage_slug || lead.status || '').trim();
+    if (typeof global.normalizePipelineSlug === 'function') {
+      return global.normalizePipelineSlug(raw);
+    }
+    return raw;
+  }
+
+  function syncStatusPickerFromLead(lead) {
+    const sel = document.getElementById('lqsStatus');
+    if (!sel || !lead) return;
+    const slug = leadCurrentPipelineSlug(lead);
+    if (!slug) return;
+    let matched = false;
+    for (let i = 0; i < sel.options.length; i++) {
+      if (slugMatchesCurrent(sel.options[i].value, slug)) {
+        sel.selectedIndex = i;
+        matched = true;
+        break;
+      }
+    }
+    if (!matched) {
+      const st = sheetStagesCache.find((s) => slugMatchesCurrent(s.slug, slug));
+      if (st && st.slug) {
+        const opt = document.createElement('option');
+        opt.value = st.slug;
+        opt.textContent =
+          typeof global.pipelineStageDisplayName === 'function'
+            ? global.pipelineStageDisplayName(st.slug, st.name)
+            : st.name || st.slug;
+        opt.setAttribute('data-color', st.color || '#94a3b8');
+        opt.selected = true;
+        sel.appendChild(opt);
+      }
+    }
+    syncStatusDotFromSelect();
+  }
+
+  async function applyStatusSlugFromPicker(slug) {
     if (!sheetLeadId || !slug) return;
     const sel = document.getElementById('lqsStatus');
     if (!sel) return;
     const payload = payloadForStatusSlug(slug);
     if (!payload.status) return;
+    const prevValue = sel.value;
     sel.value = payload.status;
     syncStatusDotFromSelect();
     closeStatusMenu();
-    void patchLead(payload).then(() => syncStatusDotFromSelect());
+    const data = await patchLead(payload);
+    if (data && data.success) {
+      syncStatusPickerFromLead(sheetLead);
+    } else {
+      sel.value = prevValue;
+      syncStatusDotFromSelect();
+    }
   }
 
   function onDocumentStatusOptionClick(e) {
@@ -655,7 +700,8 @@
     const slug = statusOpt.getAttribute('data-value');
     if (!slug) return;
     e.preventDefault();
-    applyStatusSlugFromPicker(slug);
+    e.stopPropagation();
+    void applyStatusSlugFromPicker(slug);
   }
 
   const DEFAULT_STAGES = [
@@ -683,7 +729,7 @@
     }
     const defs = global.PIPELINE_V9_KANBAN_DEFAULTS || {};
     return DEFAULT_STAGES.map((s, i) => ({
-      id: s.id,
+      id: null,
       slug: s.slug,
       name: s.name,
       color: (defs[s.slug] && defs[s.slug].color) || '#64748b',
@@ -991,6 +1037,7 @@
         sheetLead = data.data;
         updateHeaderBadges(sheetLead);
         syncPriorityToolbarButtons();
+        if (partial.status !== undefined) syncStatusPickerFromLead(sheetLead);
       }
       maybeRefreshKanban();
       return data;
@@ -1017,7 +1064,7 @@
   function renderSheetBody(lead, bundle) {
     const sid = sheetLeadId;
     const stages = bundle.stages;
-    const currentSlug = lead.pipeline_stage_slug || lead.status || '';
+    const currentSlug = leadCurrentPipelineSlug(lead);
     const pri = String(lead.priority || 'medium').toLowerCase();
     const tele =
       lead.phone
@@ -1115,9 +1162,10 @@
     const statusOpt = e.target.closest('[data-lqs-status-option]');
     if (statusOpt && sheetLeadId) {
       e.preventDefault();
+      e.stopPropagation();
       const slug = statusOpt.getAttribute('data-value');
       if (!slug) return;
-      applyStatusSlugFromPicker(slug);
+      void applyStatusSlugFromPicker(slug);
       return;
     }
     if (e.target.closest('[data-lqs-open-quotes-crm]')) {
@@ -1156,8 +1204,7 @@
     const t = e.target;
     if (!sheetLeadId) return;
     if (t.id === 'lqsStatus') {
-      syncStatusDotFromSelect();
-      void patchLead(payloadForStatusSlug(t.value)).then(() => syncStatusDotFromSelect());
+      void applyStatusSlugFromPicker(t.value);
       return;
     }
   }
@@ -1172,7 +1219,7 @@
     sheetBodyDelegated = true;
     if (!docStatusOptionDelegated) {
       docStatusOptionDelegated = true;
-      document.addEventListener('click', onDocumentStatusOptionClick);
+      document.addEventListener('click', onDocumentStatusOptionClick, true);
     }
     body.addEventListener('click', onSheetBodyClick);
     body.addEventListener('change', onSheetBodyChange);
@@ -1318,7 +1365,7 @@
     body.innerHTML = renderSheetBody(lead, bundle);
     updateHeaderBadges(lead);
     syncPriorityToolbarButtons();
-    syncStatusDotFromSelect();
+    syncStatusPickerFromLead(lead);
 
     requestAnimationFrame(() => {
       animatePanelFromAnchor(sheetAnchorEl, panelEl);
