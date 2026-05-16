@@ -186,6 +186,10 @@ function normalizeLeadPipelineSlug(raw) {
         qualified: 'contacted',
         visit_scheduled: 'meeting_scheduled',
         measurement_done: 'follow_up_1',
+        followup_1: 'follow_up_1',
+        follow_up1: 'follow_up_1',
+        followup_2: 'follow_up_2',
+        follow_up2: 'follow_up_2',
         proposal_created: 'quote_sent',
         proposal_sent: 'quote_sent',
         negotiation: 'closing_attempt',
@@ -201,12 +205,16 @@ function normalizeLeadPipelineSlug(raw) {
 
 function resolveStageForLead(lead) {
     if (!pipelineStages.length) return null;
-    const fromApi = (lead.pipeline_stage_slug || '').trim();
-    const raw = fromApi || lead.status || '';
-    const leadCanon =
+    const norm =
         typeof normalizePipelineSlug === 'function'
-            ? normalizePipelineSlug(raw)
-            : normalizeLeadPipelineSlug(raw);
+            ? normalizePipelineSlug
+            : normalizeLeadPipelineSlug;
+    const statusRaw = (lead.status || '').trim();
+    const joinRaw = (lead.pipeline_stage_slug || '').trim();
+    const statusCanon = statusRaw ? norm(statusRaw) : '';
+    const joinCanon = joinRaw ? norm(joinRaw) : '';
+    // leads.status (alterado no painel) tem prioridade sobre JOIN legado desatualizado
+    const leadCanon = statusCanon || joinCanon;
     if (leadCanon) {
         const bySlug = pipelineStages.find((s) => {
             const stageCanon =
@@ -229,9 +237,19 @@ function patchKanbanLeadCache(updatedLead) {
     if (!Number.isFinite(nid)) return;
     const idx = allLeads.findIndex((l) => kanbanNumericId(l.id) === nid);
     if (idx >= 0) {
-        allLeads[idx] = { ...allLeads[idx], ...updatedLead };
+        const merged = { ...allLeads[idx], ...updatedLead };
+        if (updatedLead.status) {
+            merged.status = updatedLead.status;
+            merged.pipeline_stage_slug =
+                updatedLead.pipeline_stage_slug || updatedLead.status;
+        }
+        allLeads[idx] = merged;
     } else {
-        allLeads.push(updatedLead);
+        const row = { ...updatedLead };
+        if (row.status && !row.pipeline_stage_slug) {
+            row.pipeline_stage_slug = row.status;
+        }
+        allLeads.push(row);
     }
     renderKanbanBoard();
     bindKanbanLoadMore();
