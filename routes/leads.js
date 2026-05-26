@@ -13,14 +13,6 @@ const LEGACY_SLUG_TO_CANONICAL = {
   qualified: 'contacted',
   visit_scheduled: 'meeting_scheduled',
   measurement_done: 'follow_up_1',
-  followup_1: 'follow_up_1',
-  follow_up1: 'follow_up_1',
-  'follow-up-1': 'follow_up_1',
-  followup1: 'follow_up_1',
-  followup_2: 'follow_up_2',
-  follow_up2: 'follow_up_2',
-  'follow-up-2': 'follow_up_2',
-  followup2: 'follow_up_2',
   proposal_created: 'quote_sent',
   proposal_sent: 'quote_sent',
   negotiation: 'closing_attempt',
@@ -29,82 +21,17 @@ const LEGACY_SLUG_TO_CANONICAL = {
   production: 'won',
 };
 
-/** Kanban v3 — usado para criar estagio em falta (ex.: follow_up_1/2). */
-const KANBAN_V9_STAGE_DEFS = {
-  new_lead: { name: 'New Lead', order_num: 1, color: '#3498db', is_closed: 0 },
-  contacted: { name: 'Contacted', order_num: 2, color: '#f39c12', is_closed: 0 },
-  meeting_scheduled: { name: 'Meeting Scheduled', order_num: 3, color: '#e67e22', is_closed: 0 },
-  quote_sent: { name: 'Quote Sent', order_num: 4, color: '#9b59b6', is_closed: 0 },
-  follow_up_1: { name: 'Follow Up 1', order_num: 5, color: '#16a085', is_closed: 0 },
-  follow_up_2: { name: 'Follow Up 2', order_num: 6, color: '#1abc9c', is_closed: 0 },
-  closing_attempt: { name: 'Closing Attempt', order_num: 7, color: '#e74c3c', is_closed: 0 },
-  won: { name: 'Won', order_num: 8, color: '#27ae60', is_closed: 1 },
-  lost: { name: 'Lost', order_num: 9, color: '#c0392b', is_closed: 1 },
-};
-
-async function findPipelineStageRow(pool, slug) {
-  const [rows] = await pool.execute(
-    'SELECT id, slug FROM pipeline_stages WHERE slug = ? LIMIT 1',
-    [slug]
-  );
-  return rows.length > 0 ? rows[0] : null;
-}
-
-async function resolvePipelineStageForStatus(pool, canonicalSlug) {
-  const row = await findPipelineStageRow(pool, canonicalSlug);
-  if (row) return { id: row.id, slug: canonicalSlug };
-
-  const legacySlugs = Object.entries(LEGACY_SLUG_TO_CANONICAL)
-    .filter(([, canon]) => canon === canonicalSlug)
-    .map(([leg]) => leg);
-  for (const leg of legacySlugs) {
-    const legRow = await findPipelineStageRow(pool, leg);
-    if (legRow) return { id: legRow.id, slug: canonicalSlug };
-  }
-
-  const nameHints = {
-    follow_up_1: ['Follow Up 1', 'Follow-up 1', 'Follow up 1'],
-    follow_up_2: ['Follow Up 2', 'Follow-up 2', 'Follow up 2'],
-  };
-  const hints = nameHints[canonicalSlug];
-  if (hints) {
-    for (const nm of hints) {
-      const [byName] = await pool.execute(
-        'SELECT id, slug FROM pipeline_stages WHERE name = ? LIMIT 1',
-        [nm]
-      );
-      if (byName.length > 0) return { id: byName[0].id, slug: canonicalSlug };
-    }
-  }
-  return null;
-}
-
-async function ensurePipelineStageForStatus(pool, canonicalSlug) {
-  let resolved = await resolvePipelineStageForStatus(pool, canonicalSlug);
-  if (resolved) return resolved;
-  const def = KANBAN_V9_STAGE_DEFS[canonicalSlug];
-  if (!def) return null;
-  await pool.execute(
-    `INSERT INTO pipeline_stages (name, slug, description, order_num, color, is_closed, is_active)
-     VALUES (?, ?, '', ?, ?, ?, 1)
-     ON DUPLICATE KEY UPDATE
-       name = VALUES(name),
-       order_num = VALUES(order_num),
-       color = VALUES(color),
-       is_closed = VALUES(is_closed),
-       is_active = 1`,
-    [def.name, canonicalSlug, def.order_num, def.color, def.is_closed]
-  );
-  resolved = await resolvePipelineStageForStatus(pool, canonicalSlug);
-  return resolved;
-}
-
 function normalizePipelineSlugForDb(slug) {
   const s = String(slug || '').trim();
   if (!s) return '';
   if (LEGACY_SLUG_TO_CANONICAL[s]) return LEGACY_SLUG_TO_CANONICAL[s];
   const lower = s.toLowerCase().replace(/\s+/g, '_');
   return LEGACY_SLUG_TO_CANONICAL[lower] || s;
+}
+
+/** Escapa % e _ para uso seguro em LIKE. */
+function escapeLikePattern(q) {
+  return String(q).replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
 }
 
 export async function listLeads(req, res) {
@@ -152,6 +79,40 @@ export async function listLeads(req, res) {
     if (createdTo && /^\d{4}-\d{2}-\d{2}$/.test(createdTo)) {
       whereClause += ' AND DATE(l.created_at) <= ?';
       params.push(createdTo);
+    }
+
+    const searchQ = (req.query.q || req.query.search || '').trim();
+    if (searchQ) {
+      const colSet = await getLeadsTableColumns(pool);
+      const idToken = searchQ.replace(/^#/, '').trim();
+      const idNum = parseInt(idToken, 10);
+      if (idToken && String(idNum) === idToken && idNum > 0) {
+        whereClause += ' AND l.id = ?';
+        params.push(idNum);
+      } else {
+        const like = `%${escapeLikePattern(searchQ)}%`;
+        const parts = [
+          'l.name LIKE ?',
+          'l.email LIKE ?',
+          'l.phone LIKE ?',
+          'CAST(l.id AS CHAR) LIKE ?',
+        ];
+        const likeParams = [like, like, like, like];
+        if (colSet.has('zipcode')) {
+          parts.push('l.zipcode LIKE ?');
+          likeParams.push(like);
+        }
+        if (colSet.has('address')) {
+          parts.push('l.address LIKE ?');
+          likeParams.push(like);
+        }
+        if (colSet.has('company_name')) {
+          parts.push('l.company_name LIKE ?');
+          likeParams.push(like);
+        }
+        whereClause += ` AND (${parts.join(' OR ')})`;
+        params.push(...likeParams);
+      }
     }
 
     const [rows] = await pool.query(
@@ -344,14 +305,17 @@ export async function updateLead(req, res) {
       ...OPTIONAL_DIRECT_STRING.filter((k) => colSet.has(k)),
     ];
     
-    // Status no painel do lead: slug canonico + pipeline_stage_id (slug tem prioridade no Kanban)
+    // Status no painel do lead: sempre resolver pipeline_stage_id pelo slug (Kanban usa o id na coluna)
     if (body.status !== undefined && body.status !== null && String(body.status).trim() !== '') {
       const canonical = normalizePipelineSlugForDb(body.status);
       body.status = canonical;
-      const resolved = await ensurePipelineStageForStatus(pool, canonical);
-      if (resolved) {
-        body.pipeline_stage_id = resolved.id;
-        body.status = resolved.slug;
+      const [stages] = await pool.execute(
+        'SELECT id, slug FROM pipeline_stages WHERE slug = ? LIMIT 1',
+        [canonical]
+      );
+      if (stages.length > 0) {
+        body.pipeline_stage_id = stages[0].id;
+        body.status = stages[0].slug;
       }
     } else if (body.pipeline_stage_id && !body.status) {
       const [stages] = await pool.execute(

@@ -1679,7 +1679,11 @@ function leadsSearchSubmit() {
     const el = document.getElementById('leadsListSearchInput');
     leadsListSearch = el ? el.value.trim() : '';
     leadsPage = 1;
-    loadLeads();
+    if (typeof loadKanbanBoard === 'function') {
+        void loadKanbanBoard();
+    } else {
+        loadLeads();
+    }
 }
 
 function leadsSearchClear() {
@@ -1687,7 +1691,11 @@ function leadsSearchClear() {
     if (el) el.value = '';
     leadsListSearch = '';
     leadsPage = 1;
-    loadLeads();
+    if (typeof loadKanbanBoard === 'function') {
+        void loadKanbanBoard();
+    } else {
+        loadLeads();
+    }
 }
 
 async function loadLeads() {
