@@ -541,8 +541,37 @@
   }
 }
 
-/* Pull-to-refresh — telemóvel e tablet (portrait/landscape até 1024px) */
-@media (max-width: 1024px) {
+/* iPad/tablet: área principal faz scroll (PTR fiável no Safari) */
+@media (hover: none) and (pointer: coarse) {
+  .dashboard-app-body {
+    height: 100dvh;
+    overflow: hidden;
+  }
+
+  .dashboard-app-body .dashboard-main {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+    max-height: 100dvh;
+    height: 100dvh;
+  }
+
+  /* Shell mobile (≤768): main flexível entre header e tab bar */
+  .dashboard-app-body.sf-mobile-shell {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .dashboard-app-body.sf-mobile-shell .dashboard-main {
+    flex: 1;
+    min-height: 0;
+    height: auto;
+    max-height: none;
+  }
+}
+
+/* Pull-to-refresh — telemóvel e tablet */
+@media (max-width: 1366px) {
   .sf-ptr-indicator {
     text-align: center;
     font-size: 12px;

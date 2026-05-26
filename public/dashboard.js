@@ -261,20 +261,55 @@ function isMobile() {
     return window.innerWidth <= 768;
 }
 
-/** Telefone e tablet — pull-to-refresh e gestos touch */
+/** Telefone, tablet e iPad — pull-to-refresh */
 function isTouchViewport() {
+    if (navigator.maxTouchPoints > 0) return true;
+    if (window.matchMedia('(hover: none) and (pointer: coarse)').matches) return true;
     return window.innerWidth <= 1024;
 }
 
 function getSfScrollRoot() {
     const main = document.querySelector('.dashboard-main');
-    if (main && main.scrollHeight > main.clientHeight + 2) return main;
+    if (!main) return null;
+    const oy = window.getComputedStyle(main).overflowY;
+    if (
+        (oy === 'auto' || oy === 'scroll' || oy === 'overlay') &&
+        main.scrollHeight > main.clientHeight + 2
+    ) {
+        return main;
+    }
     return null;
 }
 
 function getSfScrollTop(scrollRoot) {
-    if (scrollRoot) return scrollRoot.scrollTop;
-    return window.scrollY || document.documentElement.scrollTop || 0;
+    const tops = [
+        window.scrollY || 0,
+        document.documentElement.scrollTop || 0,
+        document.body.scrollTop || 0,
+    ];
+    if (scrollRoot) tops.unshift(scrollRoot.scrollTop || 0);
+    return Math.max(...tops);
+}
+
+/** Só permite PTR se a janela e colunas Kanban tocadas estão no topo. */
+function isSfPtrAtScrollTop(target) {
+    if (getSfScrollTop(getSfScrollRoot()) > 2) return false;
+    let el = target;
+    while (el && el !== document.body) {
+        if (el.classList && el.classList.contains('kanban-column-cards')) {
+            if (el.scrollTop > 2) return false;
+        }
+        const oy = window.getComputedStyle(el).overflowY;
+        if (
+            (oy === 'auto' || oy === 'scroll' || oy === 'overlay') &&
+            el.scrollHeight > el.clientHeight + 2 &&
+            el.scrollTop > 2
+        ) {
+            return false;
+        }
+        el = el.parentElement;
+    }
+    return true;
 }
 
 function sfPtrTouchStartsInsideScrolledColumn(target) {
@@ -288,86 +323,103 @@ function getSfPtrIndicatorForPage(pageName) {
     return null;
 }
 
-function runSfPtrRefresh(pageName) {
+async function runSfPtrRefresh(pageName) {
     if (pageName === 'leads') {
-        void refreshLeads();
+        await refreshLeads();
         return;
     }
     if (pageName === 'quotes') {
         quotesListPage = 1;
-        loadQuotes();
+        await loadQuotes();
         return;
     }
     if (pageName === 'dashboard') {
-        loadDashboard(currentDashboardPeriod);
+        await loadDashboard(currentDashboardPeriod);
         return;
     }
     if (pageName === 'marketing' && typeof loadMarketingDashboard === 'function') {
-        loadMarketingDashboard();
+        await loadMarketingDashboard();
     }
 }
 
 let sfPtrPulling = false;
 let sfPtrStartY = 0;
 let sfPtrArmed = false;
+let sfPtrRefreshing = false;
+
+function sfPtrResetState() {
+    sfPtrPulling = false;
+    sfPtrArmed = false;
+    const ind = getSfPtrIndicatorForPage(currentPageName);
+    if (ind) ind.classList.remove('sf-ptr-visible');
+}
 
 function initSfPullToRefresh() {
-    const host = document.querySelector('.dashboard-main');
-    if (!host || host.dataset.sfPtrBound) return;
-    host.dataset.sfPtrBound = '1';
+    if (document.documentElement.dataset.sfPtrBound) return;
+    document.documentElement.dataset.sfPtrBound = '1';
 
-    host.addEventListener(
-        'touchstart',
-        (e) => {
-            if (!isTouchViewport()) return;
-            if (!getSfPtrIndicatorForPage(currentPageName)) return;
-            if (sfPtrTouchStartsInsideScrolledColumn(e.target)) return;
-            sfPtrPulling = true;
-            sfPtrStartY = e.touches[0].clientY;
-            sfPtrArmed = getSfScrollTop(getSfScrollRoot()) <= 2;
-        },
-        { passive: true }
-    );
+    const onTouchStart = (e) => {
+        if (!isTouchViewport()) return;
+        if (!getSfPtrIndicatorForPage(currentPageName)) return;
+        if (!e.touches || !e.touches.length) return;
+        if (sfPtrTouchStartsInsideScrolledColumn(e.target)) return;
+        sfPtrPulling = true;
+        sfPtrStartY = e.touches[0].clientY;
+        sfPtrArmed = isSfPtrAtScrollTop(e.target);
+    };
 
-    host.addEventListener(
-        'touchmove',
-        (e) => {
-            if (!isTouchViewport() || !sfPtrPulling || !sfPtrArmed) return;
-            const ind = getSfPtrIndicatorForPage(currentPageName);
-            if (!ind) return;
-            if (getSfScrollTop(getSfScrollRoot()) > 2) {
-                ind.classList.remove('sf-ptr-visible');
-                return;
-            }
-            const dy = e.touches[0].clientY - sfPtrStartY;
-            if (dy > 48) {
-                ind.classList.add('sf-ptr-visible');
-                ind.textContent = dy > 88 ? '↓ Largar para atualizar' : '↓ Puxe para atualizar';
-            } else {
-                ind.classList.remove('sf-ptr-visible');
-            }
-        },
-        { passive: true }
-    );
-
-    host.addEventListener(
-        'touchend',
-        () => {
-            if (!isTouchViewport()) return;
-            const ind = getSfPtrIndicatorForPage(currentPageName);
-            const refresh = !!(ind && ind.classList.contains('sf-ptr-visible'));
-            if (ind) ind.classList.remove('sf-ptr-visible');
-            sfPtrPulling = false;
+    const onTouchMove = (e) => {
+        if (!isTouchViewport() || !sfPtrPulling || !sfPtrArmed) return;
+        if (!e.touches || !e.touches.length) return;
+        const ind = getSfPtrIndicatorForPage(currentPageName);
+        if (!ind) return;
+        if (!isSfPtrAtScrollTop(e.target)) {
+            ind.classList.remove('sf-ptr-visible');
             sfPtrArmed = false;
-            if (refresh && getSfScrollTop(getSfScrollRoot()) <= 2) {
-                try {
-                    navigator.vibrate(12);
-                } catch (err) {}
-                runSfPtrRefresh(currentPageName);
+            return;
+        }
+        const dy = e.touches[0].clientY - sfPtrStartY;
+        if (dy > 0 && dy < 120) {
+            try {
+                e.preventDefault();
+            } catch (err) {}
+        }
+        if (dy > 48) {
+            ind.classList.add('sf-ptr-visible');
+            ind.textContent = dy > 88 ? '↓ Largar para atualizar' : '↓ Puxe para atualizar';
+        } else {
+            ind.classList.remove('sf-ptr-visible');
+        }
+    };
+
+    const onTouchEnd = async () => {
+        if (!isTouchViewport()) return;
+        const ind = getSfPtrIndicatorForPage(currentPageName);
+        const refresh = !!(ind && ind.classList.contains('sf-ptr-visible'));
+        sfPtrPulling = false;
+        sfPtrArmed = false;
+        if (ind) {
+            ind.classList.remove('sf-ptr-visible');
+            if (refresh) ind.textContent = 'A atualizar…';
+        }
+        if (refresh && isSfPtrAtScrollTop(document.body) && !sfPtrRefreshing) {
+            sfPtrRefreshing = true;
+            try {
+                navigator.vibrate(12);
+            } catch (err) {}
+            try {
+                await runSfPtrRefresh(currentPageName);
+            } finally {
+                sfPtrRefreshing = false;
+                if (ind) ind.textContent = '↓ Puxe para atualizar';
             }
-        },
-        { passive: true }
-    );
+        }
+    };
+
+    document.addEventListener('touchstart', onTouchStart, { passive: true, capture: true });
+    document.addEventListener('touchmove', onTouchMove, { passive: false, capture: true });
+    document.addEventListener('touchend', onTouchEnd, { passive: true, capture: true });
+    document.addEventListener('touchcancel', sfPtrResetState, { passive: true, capture: true });
 }
 
 const MOBILE_PAGE_TITLES = {

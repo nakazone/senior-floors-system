@@ -2375,6 +2375,12 @@ input.score-auto {
         overscroll-behavior-y: contain;
     }
 
+    .dashboard-app-body .dashboard-main {
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior-y: contain;
+    }
+
     .mobile-app-header {
         display: flex;
         align-items: center;
