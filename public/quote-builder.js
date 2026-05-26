@@ -11,10 +11,11 @@
   /** Lead escolhido na pesquisa de cliente. */
   let selectedQuoteLead = null;
   let clientSearchTimer = null;
+  let lineNameSuggestTimer = null;
+  let lineNameSuggestIdx = null;
   let catalog = [];
   let templates = [];
   /** @type {Array<Record<string, unknown>>} */
-  let erpProducts = [];
   /** @type {Array<Record<string, unknown>>} */
   let items = [];
 
@@ -307,6 +308,111 @@
     const c = Number(row.rate_customer != null ? row.rate_customer : row.default_rate) || 0;
     return source === 'builder' ? b : c;
   }
+
+
+  function serviceTypeFromCatalogCategory(category) {
+    const catStr = String(category || '');
+    if (catStr === 'Supply' || catStr.toLowerCase() === 'supply') return 'Supply';
+    if (catStr === 'Sand & Finishing' || catStr.includes('Sand')) return 'Sand & Finishing';
+    return 'Installation';
+  }
+
+  function filterCatalogForServiceSearch(query) {
+    const q = String(query || '').trim().toLowerCase();
+    const list = !q
+      ? catalog.slice(0, 40)
+      : catalog.filter((row) => {
+          const blob = `${row.name || ''} ${row.category || ''} ${row.unit_type || ''} ${row.default_description || ''}`.toLowerCase();
+          return blob.includes(q);
+        });
+    return list.slice(0, 40);
+  }
+
+  function hideLineNameSuggest() {
+    const box = $('lineNameSuggest');
+    if (box) {
+      box.classList.add('hidden');
+      box.innerHTML = '';
+    }
+    lineNameSuggestIdx = null;
+  }
+
+  function positionLineNameSuggest(anchor) {
+    const box = $('lineNameSuggest');
+    if (!box || !anchor) return;
+    const r = anchor.getBoundingClientRect();
+    box.style.position = 'fixed';
+    box.style.left = `${Math.max(8, r.left)}px`;
+    box.style.top = `${r.bottom + 4}px`;
+    box.style.width = `${Math.max(200, r.width)}px`;
+    box.style.zIndex = '10050';
+  }
+
+  function renderLineNameSuggest(rows, anchor, idx) {
+    const box = $('lineNameSuggest');
+    if (!box) return;
+    lineNameSuggestIdx = idx;
+    positionLineNameSuggest(anchor);
+    if (!rows.length) {
+      box.innerHTML = '<div class="qb-client-search__empty">Sem resultados.</div>';
+      box.classList.remove('hidden');
+      return;
+    }
+    const src = catalogPricingSource();
+    box.innerHTML = rows
+      .map((row) => {
+        const id = Number(row.id);
+        const rate = effectiveCatalogRate(row, src);
+        return `<button type="button" class="qb-client-search__item" data-line-catalog-id="${id}" data-line-idx="${idx}">
+          <span class="qb-client-search__item-name">${escapeHtmlText(row.name || '')}</span>
+          <span class="qb-client-search__item-meta">${escapeHtmlText(row.unit_type || '')} · ${money(rate)}</span>
+        </button>`;
+      })
+      .join('');
+    box.classList.remove('hidden');
+  }
+
+  function applyCatalogToLine(idx, row) {
+    if (!items[idx] || !row) return;
+    const src = catalogPricingSource();
+    const rate = effectiveCatalogRate(row, src);
+    const catNotes = row.notes_customer != null ? String(row.notes_customer).trim() : '';
+    items[idx].name = row.name || '';
+    items[idx].description = row.default_description != null ? String(row.default_description).trim() : '';
+    items[idx].unit_type = row.unit_type || 'sq_ft';
+    items[idx].rate = rate;
+    items[idx].service_type = serviceTypeFromCatalogCategory(row.category);
+    items[idx].catalog_customer_notes = catNotes || null;
+    items[idx].service_catalog_id = normalizeCatalogId(row.id);
+    renderItems();
+    hideLineNameSuggest();
+  }
+
+  function wireLineNameAutocomplete(tb) {
+    tb.querySelectorAll('input[data-k="name"]').forEach((input) => {
+      const idx = parseInt(input.dataset.i, 10);
+      if (!Number.isFinite(idx) || items[idx]?.item_type === 'product') return;
+      input.setAttribute('autocomplete', 'off');
+      input.addEventListener('focus', () => {
+        lineNameSuggestIdx = idx;
+        const q = input.value;
+        renderLineNameSuggest(filterCatalogForServiceSearch(q), input, idx);
+      });
+      input.addEventListener('input', () => {
+        lineNameSuggestIdx = idx;
+        clearTimeout(lineNameSuggestTimer);
+        lineNameSuggestTimer = setTimeout(() => {
+          renderLineNameSuggest(filterCatalogForServiceSearch(input.value), input, idx);
+        }, 180);
+      });
+      input.addEventListener('blur', () => {
+        setTimeout(() => {
+          if (lineNameSuggestIdx === idx) hideLineNameSuggest();
+        }, 200);
+      });
+    });
+  }
+
 
   function sumItems() {
     return items.reduce((s, it) => s + lineAmount(Number(it.quantity) || 0, Number(it.rate) || 0), 0);
@@ -696,7 +802,7 @@
       tr.innerHTML =
         '<td colspan="10" class="py-10 px-4 text-center text-slate-500 text-sm leading-relaxed">' +
         'Nenhuma linha neste orçamento.<br />' +
-        'Use <strong class="text-slate-700">+ Adicionar item</strong> ou escolha uma linha no <strong class="text-slate-700">catálogo</strong> abaixo.</td>';
+        'Use <strong class="text-slate-700">+ Adicionar serviço</strong> ou escolha uma linha no <strong class="text-slate-700">catálogo</strong> abaixo.</td>';
       tb.appendChild(tr);
       recalc();
       return;
@@ -757,6 +863,7 @@
     });
 
     bindItemInputs(tb);
+    wireLineNameAutocomplete(tb);
     attachItemsTableHandlers(tb);
     recalc();
   }
@@ -920,14 +1027,21 @@
     catalog = catRes.data || [];
     templates = tplRes.data || [];
 
-    try {
-      const pr = await api('/api/erp/products?limit=500').catch(() => ({ data: [] }));
-      erpProducts = pr.data || [];
-    } catch {
-      erpProducts = [];
+    wireClientLeadSearch();
+    const lineNameSuggest = $('lineNameSuggest');
+    if (lineNameSuggest && !lineNameSuggest.dataset.bound) {
+      lineNameSuggest.dataset.bound = '1';
+      lineNameSuggest.addEventListener('mousedown', (e) => {
+        const btn = e.target.closest('[data-line-catalog-id]');
+        if (!btn) return;
+        e.preventDefault();
+        const cid = parseInt(btn.getAttribute('data-line-catalog-id'), 10);
+        const idx = parseInt(btn.getAttribute('data-line-idx'), 10);
+        const row = catalog.find((c) => Number(c.id) === cid);
+        if (row && Number.isFinite(idx)) applyCatalogToLine(idx, row);
+      });
     }
 
-    wireClientLeadSearch();
 
     const cp = $('catalogPick');
     cp.innerHTML = '<option value="">— Linha do catálogo —</option>';
@@ -971,161 +1085,166 @@
     }
 
     const modal = $('addItemModal');
-    const modalProductSection = $('modalProductSection');
-    const modalConfirmProduct = $('modalConfirmProduct');
     const modalError = $('modalError');
-    const modalHint = $('modalProductHint');
-    let modalPreview = null;
+    let modalSelectedCatalogRow = null;
+    let modalServiceSearchTimer = null;
+
+    function hideModalServiceResults() {
+      const box = $('modalServiceResults');
+      if (box) {
+        box.classList.add('hidden');
+        box.innerHTML = '';
+      }
+    }
+
+    function showModalServiceResults(html) {
+      const box = $('modalServiceResults');
+      if (!box) return;
+      box.innerHTML = html;
+      box.classList.remove('hidden');
+    }
+
+    function renderModalServiceResults(rows) {
+      if (!rows.length) {
+        showModalServiceResults('<div class="qb-client-search__empty">Nenhum serviço no catálogo.</div>');
+        return;
+      }
+      const src = catalogPricingSource();
+      const html = rows
+        .map((row) => {
+          const id = Number(row.id);
+          const rate = effectiveCatalogRate(row, src);
+          const meta = [
+            row.category ? escapeHtmlText(row.category) : '',
+            row.unit_type ? escapeHtmlText(row.unit_type) : '',
+            money(rate),
+          ]
+            .filter(Boolean)
+            .join(' · ');
+          return `<button type="button" class="qb-client-search__item" data-catalog-id="${id}" role="option">
+            <span class="qb-client-search__item-name">${escapeHtmlText(row.name || `Serviço #${id}`)}</span>
+            <span class="qb-client-search__item-meta">${meta}</span>
+          </button>`;
+        })
+        .join('');
+      showModalServiceResults(html);
+    }
+
+    function applyCatalogRowToServiceModal(row) {
+      if (!row) return;
+      modalSelectedCatalogRow = row;
+      const src = catalogPricingSource();
+      const rate = effectiveCatalogRate(row, src);
+      const catNotes = row.notes_customer != null ? String(row.notes_customer).trim() : '';
+      $('modalServiceName').value = row.name || '';
+      $('modalServiceDesc').value =
+        row.default_description != null ? String(row.default_description).trim() : '';
+      $('modalServiceType').value = serviceTypeFromCatalogCategory(row.category);
+      $('modalServiceUnit').value = row.unit_type || 'sq_ft';
+      $('modalServiceRate').value = String(rate);
+      hideModalServiceResults();
+    }
+
+    function resetServiceModalForm() {
+      modalSelectedCatalogRow = null;
+      $('modalServiceName').value = '';
+      $('modalServiceDesc').value = '';
+      $('modalServiceType').value = 'Installation';
+      $('modalServiceUnit').value = 'sq_ft';
+      $('modalServiceQty').value = '1';
+      $('modalServiceRate').value = '0';
+      hideModalServiceResults();
+    }
+
+    function scheduleModalServiceSearch() {
+      const q = ($('modalServiceName') && $('modalServiceName').value) || '';
+      clearTimeout(modalServiceSearchTimer);
+      modalServiceSearchTimer = setTimeout(() => {
+        renderModalServiceResults(filterCatalogForServiceSearch(q));
+      }, 180);
+    }
 
     function openAddItemModal() {
       modalError.classList.add('hidden');
-      modalHint.classList.add('hidden');
-      modalProductSection.classList.add('hidden');
-      modalConfirmProduct.classList.add('hidden');
+      resetServiceModalForm();
       modal.classList.remove('hidden');
       modal.classList.add('flex');
+      const nameEl = $('modalServiceName');
+      if (nameEl) nameEl.focus();
+      scheduleModalServiceSearch();
     }
+
     function closeAddItemModal() {
       modal.classList.add('hidden');
       modal.classList.remove('flex');
+      hideModalServiceResults();
     }
 
-    function fillProductSelect(filterRaw) {
-      const sel = $('modalProductSelect');
-      const q = String(filterRaw || '')
-        .trim()
-        .toLowerCase();
-      sel.innerHTML = '<option value="">— Escolher produto —</option>';
-      const list = !q
-        ? erpProducts
-        : erpProducts.filter((p) => {
-            const blob = `${p.supplier_name || ''} ${p.name || ''} ${p.sku || ''} ${p.category || ''}`.toLowerCase();
-            return blob.includes(q);
-          });
-      list.forEach((p) => {
-        const lab = `${escapeAttr(p.supplier_name || '')}: ${escapeAttr(p.name)} (${escapeAttr(p.category)})`;
-        sel.innerHTML += `<option value="${p.id}">${lab}</option>`;
-      });
-    }
-
-    const modalProductSearch = $('modalProductSearch');
-    if (modalProductSearch) {
-      modalProductSearch.addEventListener('input', () => {
-        fillProductSelect(modalProductSearch.value);
-      });
-    }
-
-    async function loadProductPreview(pid) {
-      const r = await api('/api/erp/products/preview/' + pid);
-      modalPreview = r.data;
-      const pr = r.data.product;
-      $('modalDispCost').textContent = money(pr.cost_price);
-      $('modalDispDefMargin').textContent = `${r.data.default_markup_percentage}%`;
-      $('modalMarkup').value = String(r.data.default_markup_percentage);
-      $('modalSell').value = String(r.data.suggested_sell_price);
-      modalHint.textContent = (r.data.warnings || []).join(' ') || '';
-      modalHint.classList.toggle('hidden', !modalHint.textContent);
-    }
-
-    $('modalBtnService').addEventListener('click', () => {
-      items.push(emptyLine());
-      closeAddItemModal();
-      renderItems();
-    });
-
-    $('modalBtnProduct').addEventListener('click', () => {
-      modalProductSection.classList.remove('hidden');
-      modalConfirmProduct.classList.remove('hidden');
-      if (modalProductSearch) modalProductSearch.value = '';
-      fillProductSelect('');
-      modalPreview = null;
-      $('modalDispCost').textContent = '—';
-      $('modalDispDefMargin').textContent = '—';
-      $('modalMarkup').value = '';
-      $('modalSell').value = '';
-      $('modalQty').value = '1';
-    });
-
-    $('modalProductSelect').addEventListener('change', async () => {
-      const pid = parseInt($('modalProductSelect').value, 10);
+    function confirmAddServiceLine() {
       modalError.classList.add('hidden');
-      if (!pid) {
-        modalPreview = null;
-        return;
-      }
-      try {
-        await loadProductPreview(pid);
-      } catch (e) {
-        modalError.textContent = e.message;
-        modalError.classList.remove('hidden');
-      }
-    });
-
-    $('modalMarkup').addEventListener('input', () => {
-      if (!modalPreview) return;
-      const cost = modalPreview.product.cost_price;
-      const m = parseFloat($('modalMarkup').value) || 0;
-      $('modalSell').value = String(sellFromCostMarkup(cost, m));
-    });
-
-    $('modalSell').addEventListener('input', () => {
-      if (!modalPreview) return;
-      const cost = Number(modalPreview.product.cost_price);
-      const sell = parseFloat($('modalSell').value);
-      if (cost > 0 && Number.isFinite(sell)) {
-        const m = ((sell - cost) / cost) * 100;
-        $('modalMarkup').value = String(Math.round(m * 100) / 100);
-      }
-    });
-
-    $('modalConfirmProduct').addEventListener('click', () => {
-      modalError.classList.add('hidden');
-      const pid = parseInt($('modalProductSelect').value, 10);
-      if (!pid || !modalPreview) {
-        modalError.textContent = 'Select a product.';
+      const name = String(($('modalServiceName') && $('modalServiceName').value) || '').trim();
+      if (!name) {
+        modalError.textContent = 'Indique o nome do serviço.';
         modalError.classList.remove('hidden');
         return;
       }
-      const m = parseFloat($('modalMarkup').value);
-      if (!Number.isFinite(m) || m < 0) {
-        modalError.textContent = 'Margin must be ≥ 0.';
-        modalError.classList.remove('hidden');
-        return;
-      }
-      if (m < 15) {
-        if (!window.confirm('Margin is below 15%. Add this line anyway?')) return;
-      }
-      const sell = parseFloat($('modalSell').value);
-      if (!Number.isFinite(sell) || sell < 0) {
-        modalError.textContent = 'Invalid sell price.';
-        modalError.classList.remove('hidden');
-        return;
-      }
-      const qty = parseFloat($('modalQty').value) || 1;
-      const pr = modalPreview.product;
-      const descFromProduct =
-        pr.description != null && String(pr.description).trim() ? String(pr.description).trim() : '';
+      const qty = parseFloat($('modalServiceQty').value) || 1;
+      const rate = parseFloat($('modalServiceRate').value) || 0;
+      const row = modalSelectedCatalogRow;
+      const catNotes = row && row.notes_customer != null ? String(row.notes_customer).trim() : '';
       items.push({
-        item_type: 'product',
-        product_id: pr.id,
-        name: pr.name || '',
-        description: descFromProduct,
-        unit_type: pr.unit_type || 'sq_ft',
+        item_type: 'service',
+        name,
+        description: String(($('modalServiceDesc') && $('modalServiceDesc').value) || '').trim(),
+        unit_type: $('modalServiceUnit').value || 'sq_ft',
         quantity: qty,
-        rate: sell,
-        cost_price: pr.cost_price,
-        markup_percentage: m,
-        sell_price: sell,
-        service_type: null,
+        rate,
+        service_type: $('modalServiceType').value || 'Installation',
         notes: null,
-        catalog_customer_notes: null,
-        service_catalog_id: null,
+        catalog_customer_notes: catNotes || null,
+        service_catalog_id: row ? normalizeCatalogId(row.id) : null,
+        product_id: null,
+        cost_price: null,
+        markup_percentage: null,
+        sell_price: null,
         estimateAuto: false,
       });
       closeAddItemModal();
       renderItems();
+    }
+
+    const modalServiceName = $('modalServiceName');
+    const modalServiceResults = $('modalServiceResults');
+    const modalServiceWrap = $('modalServiceSearchWrap');
+
+    if (modalServiceName) {
+      modalServiceName.addEventListener('focus', scheduleModalServiceSearch);
+      modalServiceName.addEventListener('input', () => {
+        modalSelectedCatalogRow = null;
+        scheduleModalServiceSearch();
+      });
+      modalServiceName.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') hideModalServiceResults();
+      });
+    }
+
+    if (modalServiceResults) {
+      modalServiceResults.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-catalog-id]');
+        if (!btn) return;
+        const cid = parseInt(btn.getAttribute('data-catalog-id'), 10);
+        const row = catalog.find((c) => Number(c.id) === cid);
+        if (row) applyCatalogRowToServiceModal(row);
+      });
+    }
+
+    document.addEventListener('click', (e) => {
+      if (!modalServiceWrap || !modal.classList.contains('flex')) return;
+      if (modalServiceWrap.contains(e.target)) return;
+      hideModalServiceResults();
     });
 
+    $('modalConfirmService').addEventListener('click', confirmAddServiceLine);
     $('modalCancel').addEventListener('click', closeAddItemModal);
     $('addItemModal').addEventListener('click', (e) => {
       if (e.target.id === 'addItemModal') closeAddItemModal();
