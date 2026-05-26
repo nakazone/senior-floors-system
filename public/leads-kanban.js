@@ -13,6 +13,10 @@ const KANBAN_CARDS_INITIAL = 5;
 const KANBAN_CARDS_STEP = 5;
 /** Colunas com leads mais antigos no topo */
 const KANBAN_OLDEST_FIRST_SLUGS = new Set(['quote_sent', 'follow_up_1']);
+/** Colunas ocultas no quadro principal (acessíveis via botão Lost). */
+const KANBAN_HIDDEN_BOARD_SLUGS = new Set(['lost']);
+let kanbanShowLostColumn = false;
+let kanbanLostToggleBound = false;
 /** Chave = slug do estágio (ex.: meeting_scheduled); usado em "Ver mais" */
 let kanbanColumnVisible = {};
 
@@ -250,6 +254,7 @@ function patchKanbanLeadCache(updatedLead) {
     }
     renderKanbanBoard();
     bindKanbanLoadMore();
+    syncKanbanLostToggleUi();
 }
 
 function kanbanStageDomId(stage) {
@@ -313,6 +318,8 @@ async function loadKanbanBoard() {
         allLeads = Array.isArray(data.data) ? data.data : [];
         renderKanbanBoard();
         bindKanbanLoadMore();
+        bindKanbanLostToggle();
+        syncKanbanLostToggleUi();
     } catch (error) {
         console.error('Error loading kanban:', error);
         setKanbanBoardMessage(
@@ -397,12 +404,74 @@ function buildVisitsKanbanColumnElement(visitsForColumn) {
     return visitsColumn;
 }
 
+function getLostPipelineStage() {
+    return pipelineStages.find((s) => kanbanCanonicalStageSlug(s.slug) === 'lost') || null;
+}
+
+function countKanbanLostLeads() {
+    const lostStage = getLostPipelineStage();
+    if (!lostStage) return 0;
+    return allLeads.filter((lead) => leadMatchesKanbanColumn(lead, lostStage)).length;
+}
+
+function getKanbanBoardStages() {
+    return pipelineStages.filter((stage) => {
+        const canon = kanbanCanonicalStageSlug(stage.slug);
+        if (KANBAN_HIDDEN_BOARD_SLUGS.has(canon) && !kanbanShowLostColumn) return false;
+        return true;
+    });
+}
+
+function syncKanbanLostToggleUi() {
+    const btn = document.getElementById('kanbanToggleLostBtn');
+    const countEl = document.getElementById('kanbanLostCount');
+    const count = countKanbanLostLeads();
+    if (countEl) countEl.textContent = String(count);
+    if (!btn) return;
+    const label = btn.querySelector('.kanban-lost-toggle__label');
+    btn.setAttribute('aria-pressed', kanbanShowLostColumn ? 'true' : 'false');
+    btn.setAttribute('aria-expanded', kanbanShowLostColumn ? 'true' : 'false');
+    if (label) {
+        label.textContent = kanbanShowLostColumn
+            ? 'Ocultar Lost'
+            : count > 0
+              ? `Ver Lost (${count})`
+              : 'Ver Lost';
+    }
+    btn.disabled = !getLostPipelineStage();
+}
+
+function toggleKanbanLostColumn() {
+    kanbanShowLostColumn = !kanbanShowLostColumn;
+    renderKanbanBoard();
+    bindKanbanLoadMore();
+    syncKanbanLostToggleUi();
+    if (kanbanShowLostColumn) {
+        const lostStage = getLostPipelineStage();
+        if (lostStage) {
+            const col = document.querySelector(
+                `.kanban-column[data-stage-slug="${lostStage.slug}"]`
+            );
+            col?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'end' });
+        }
+    }
+}
+
+function bindKanbanLostToggle() {
+    if (kanbanLostToggleBound) return;
+    const btn = document.getElementById('kanbanToggleLostBtn');
+    if (!btn) return;
+    kanbanLostToggleBound = true;
+    btn.addEventListener('click', () => toggleKanbanLostColumn());
+}
+
 // Render Kanban Board
 function renderKanbanBoard() {
     const board = document.getElementById('kanbanBoard');
     if (!board) return;
 
     board.classList.add('kanban-board-grid');
+    board.classList.toggle('kanban-board-grid--with-lost', kanbanShowLostColumn);
     board.removeAttribute('aria-busy');
 
     if (!pipelineStages.length) {
@@ -413,7 +482,7 @@ function renderKanbanBoard() {
     board.innerHTML = '';
 
     try {
-    pipelineStages.forEach((stage) => {
+    getKanbanBoardStages().forEach((stage) => {
         const stageLeads = sortKanbanColumnLeads(
             allLeads.filter((lead) => leadMatchesKanbanColumn(lead, stage)),
             stage.slug
@@ -474,6 +543,7 @@ function renderKanbanBoard() {
             '<p class="kanban-board-message kanban-board-message--error">Erro ao mostrar o pipeline.</p>'
         );
     }
+    syncKanbanLostToggleUi();
 }
 
 function bindKanbanLoadMore() {
@@ -897,6 +967,7 @@ if (typeof window !== 'undefined') {
     window.closeModal = closeModal;
     window.loadKanbanBoard = loadKanbanBoard;
     window.patchKanbanLeadCache = patchKanbanLeadCache;
+    window.toggleKanbanLostColumn = toggleKanbanLostColumn;
     
     // loadCRMKanban is already defined above
     

@@ -1890,14 +1890,57 @@ input.score-auto {
     padding-bottom: var(--spacing-xs);
 }
 
-/* Duas linhas: 4 colunas em cima + 3 em baixo (7 estágios) */
+.kanban-board-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.kanban-lost-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.kanban-lost-toggle__count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.25rem;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.08);
+    font-size: 0.72rem;
+    font-weight: 700;
+    line-height: 1.4;
+}
+
+.kanban-lost-toggle[aria-pressed='true'] {
+    background: #c0392b;
+    border-color: #a93226;
+    color: #fff;
+}
+
+.kanban-lost-toggle[aria-pressed='true'] .kanban-lost-toggle__count {
+    background: rgba(255, 255, 255, 0.22);
+    color: #fff;
+}
+
+/* Duas linhas: 3 colunas em cima + 3 em baixo (6 estágios; Lost oculto por defeito) */
 .kanban-board-grid {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 8px;
     align-items: start;
     width: 100%;
     min-width: 0;
+}
+
+/* Com Lost visível: 4 + 3 (7 colunas) */
+.kanban-board-grid.kanban-board-grid--with-lost {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 @media (max-width: 900px) {

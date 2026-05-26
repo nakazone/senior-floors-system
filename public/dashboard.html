@@ -417,6 +417,19 @@
                     </div>
                     
                     <div id="kanbanView" class="kanban-view-wrap">
+                        <div class="kanban-board-toolbar" id="kanbanBoardToolbar">
+                            <button
+                                type="button"
+                                id="kanbanToggleLostBtn"
+                                class="btn btn-secondary btn-sm kanban-lost-toggle"
+                                aria-pressed="false"
+                                aria-expanded="false"
+                                title="Mostrar ou ocultar coluna Lost"
+                            >
+                                <span class="kanban-lost-toggle__label">Ver Lost</span>
+                                <span class="kanban-lost-toggle__count" id="kanbanLostCount" aria-hidden="true">0</span>
+                            </button>
+                        </div>
                         <div class="kanban-board-wrap">
                             <div id="kanbanBoard" class="kanban-board-grid" aria-label="Pipeline de leads"></div>
                         </div>
@@ -573,7 +586,8 @@
                                     <option value="contacted">Contacted</option>
                                     <option value="meeting_scheduled">Meeting Scheduled</option>
                                     <option value="quote_sent">Quote Sent</option>
-                                    <option value="follow_up_1">Follow Up</option>
+                                    <option value="follow_up_1">Follow Up 1</option>
+                                    <option value="follow_up_2">Follow Up 2</option>
                                     <option value="closing_attempt">Closing Attempt</option>
                                     <option value="won">Won</option>
                                     <option value="lost">Lost</option>
@@ -1499,10 +1513,10 @@
     <script src="notification-center.js"></script>
     <script src="marketing-dashboard.js"></script>
     <script src="dashboard.js?v=20260526-kanban-load-fix"></script>
-    <script src="pipeline-stage-labels.js?v=20260526-follow-up-single"></script>
+    <script src="pipeline-stage-labels.js?v=20260510-follow-up-status"></script>
     <script src="lead-contact-links.js?v=20260526-utf8"></script>
     <script src="lead-quick-sheet.js?v=20260526-utf8"></script>
-    <script src="leads-kanban.js?v=20260526-kanban-layout"></script>
+    <script src="leads-kanban.js?v=20260526-lost-toggle"></script>
     <script src="schedule-engine.js"></script>
     <script src="financial-engine.js"></script>
 </body>
