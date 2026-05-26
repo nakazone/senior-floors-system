@@ -61,6 +61,11 @@ window.addEventListener('DOMContentLoaded', () => {
         menuBtn.addEventListener('click', () => { sidebar.classList.toggle('mobile-open'); overlay.classList.toggle('active'); });
         overlay.addEventListener('click', () => { sidebar.classList.remove('mobile-open'); overlay.classList.remove('active'); });
     }
+
+    const phoneActions = document.getElementById('leadPhoneActions');
+    if (phoneActions) {
+        phoneActions.addEventListener('click', onLeadDetailPhoneActionsClick);
+    }
 });
 
 async function loadLead() {
@@ -107,9 +112,11 @@ function renderLeadContactActions(lead) {
     }
     const tel =
         typeof window.sfBuildTelHref === 'function' ? window.sfBuildTelHref(lead.phone) : '';
-    const sms =
-        typeof window.sfBuildLeadSmsHref === 'function' ? window.sfBuildLeadSmsHref(lead) : '';
-    if (!tel && !sms) {
+    const smsHtml =
+        typeof window.sfRenderLeadSmsActionHtml === 'function'
+            ? window.sfRenderLeadSmsActionHtml(lead, 'btn btn-sm btn-secondary lead-contact-actions__btn')
+            : '';
+    if (!tel && !smsHtml) {
         mount.innerHTML = '';
         return;
     }
@@ -117,10 +124,17 @@ function renderLeadContactActions(lead) {
     if (tel) {
         html += `<a class="btn btn-sm btn-secondary lead-contact-actions__btn" href="${tel}">Ligar</a>`;
     }
-    if (sms) {
-        html += `<a class="btn btn-sm btn-secondary lead-contact-actions__btn" href="${sms}">SMS</a>`;
-    }
+    html += smsHtml;
     mount.innerHTML = html;
+}
+
+function onLeadDetailPhoneActionsClick(e) {
+    const btn = e.target.closest('[data-sf-sms-picker-btn]');
+    if (!btn || !currentLead) return;
+    e.preventDefault();
+    if (typeof window.sfOpenSmsChoiceMenu === 'function') {
+        window.sfOpenSmsChoiceMenu(btn, currentLead);
+    }
 }
 
 function renderLead() {
@@ -167,6 +181,7 @@ function getStatusColor(status) {
         meeting_scheduled: '#e67e22',
         quote_sent: '#9b59b6',
         follow_up_1: '#16a085',
+        follow_up_2: '#1abc9c',
         won: '#27ae60',
         lost: '#c0392b',
         lead_received: '#3498db',
@@ -200,9 +215,10 @@ async function loadPipelineStages() {
             { id: 2, name: 'Contato realizado', slug: 'contacted' },
             { id: 3, name: 'Reunião agendada', slug: 'meeting_scheduled' },
             { id: 4, name: 'Orçamento enviado', slug: 'quote_sent' },
-            { id: 5, name: 'Follow-up', slug: 'follow_up_1' },
-            { id: 6, name: 'Ganho', slug: 'won' },
-            { id: 7, name: 'Perdido', slug: 'lost' },
+            { id: 5, name: 'Follow-up 1', slug: 'follow_up_1' },
+            { id: 6, name: 'Follow-up 2', slug: 'follow_up_2' },
+            { id: 7, name: 'Ganho', slug: 'won' },
+            { id: 8, name: 'Perdido', slug: 'lost' },
         ];
     }
 

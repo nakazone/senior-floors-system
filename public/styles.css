@@ -6262,11 +6262,17 @@ body.lead-quick-sheet-open {
     white-space: nowrap;
 }
 
-.lead-quick-sheet__status-chevron {
+.lead-quick-sheet__status-chevron,
+.lead-quick-sheet__sms-chevron {
     flex-shrink: 0;
     font-size: 0.65rem;
     color: var(--text-muted);
     opacity: 0.85;
+}
+
+.lead-quick-sheet__sms-menu .lead-quick-sheet__sms-option {
+    text-decoration: none;
+    color: inherit;
 }
 
 .lead-quick-sheet__status-menu {
