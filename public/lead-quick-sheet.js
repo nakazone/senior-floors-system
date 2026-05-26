@@ -20,7 +20,7 @@
   }
 
   function fmtDate(iso) {
-    if (!iso) return 'ÔøΩ';
+    if (!iso) return 'ù';
     try {
       const d = new Date(iso);
       if (Number.isNaN(d.getTime())) return escapeHtml(String(iso));
@@ -31,7 +31,7 @@
   }
 
   function fmtMoney(n) {
-    if (n == null || n === '') return 'ÔøΩ';
+    if (n == null || n === '') return 'ù';
     const x = parseFloat(n);
     if (Number.isNaN(x)) return escapeHtml(String(n));
     return escapeHtml(
@@ -108,7 +108,7 @@
     if (typeof global.pipelineStageDisplayName === 'function') {
       return global.pipelineStageDisplayName(slug, name);
     }
-    return name || slug || 'ÔøΩ';
+    return name || slug || 'ù';
   }
 
   function formatFieldValue(key, val) {
@@ -622,7 +622,7 @@
     } catch (_) {}
   }
 
-  /** Payload PUT com slug + pipeline_stage_id quando o estÔøΩgio estÔøΩ na lista (Kanban usa o id). */
+  /** Payload PUT com slug + pipeline_stage_id quando o estùgio estù na lista (Kanban usa o id). */
   function payloadForStatusSlug(slug) {
     const raw = String(slug || '').trim();
     if (!raw) return {};
@@ -633,6 +633,45 @@
       return { status: canonical, pipeline_stage_id: id };
     }
     return { status: canonical };
+  }
+
+  function leadCurrentPipelineSlug(lead) {
+    if (!lead) return '';
+    const raw = String(lead.pipeline_stage_slug || lead.status || '').trim();
+    if (typeof global.normalizePipelineSlug === 'function') {
+      return global.normalizePipelineSlug(raw);
+    }
+    return raw;
+  }
+
+  function syncStatusPickerFromLead(lead) {
+    const sel = document.getElementById('lqsStatus');
+    if (!sel || !lead) return;
+    const slug = leadCurrentPipelineSlug(lead);
+    if (!slug) return;
+    let matched = false;
+    for (let i = 0; i < sel.options.length; i++) {
+      if (slugMatchesCurrent(sel.options[i].value, slug)) {
+        sel.selectedIndex = i;
+        matched = true;
+        break;
+      }
+    }
+    if (!matched) {
+      const st = sheetStagesCache.find((s) => slugMatchesCurrent(s.slug, slug));
+      if (st && st.slug) {
+        const opt = document.createElement('option');
+        opt.value = st.slug;
+        opt.textContent =
+          typeof global.pipelineStageDisplayName === 'function'
+            ? global.pipelineStageDisplayName(st.slug, st.name)
+            : st.name || st.slug;
+        opt.setAttribute('data-color', st.color || '#94a3b8');
+        opt.selected = true;
+        sel.appendChild(opt);
+      }
+    }
+    syncStatusDotFromSelect();
   }
 
   function applyStatusSlugFromPicker(slug) {
@@ -789,7 +828,7 @@
 
   function onStatusMenuDocClick(e) {
     if (e.target.closest('#lqsStatusPicker')) return;
-    /* Menu pode estar em document.body (dropdown fixo); clique na lista nÔøΩo fecha antes de aplicar */
+    /* Menu pode estar em document.body (dropdown fixo); clique na lista nùo fecha antes de aplicar */
     if (e.target.closest('#lqsStatusMenu')) return;
     closeStatusMenu();
   }
@@ -904,7 +943,7 @@
           row.kind === 'quote'
             ? '<span class="lead-quick-sheet__qbadge lead-quick-sheet__qbadge--quote">Quote</span>'
             : '<span class="lead-quick-sheet__qbadge lead-quick-sheet__qbadge--proposal">Proposta</span>';
-        const when = row.created_at ? new Date(row.created_at).toLocaleDateString('pt-BR') : 'ÔøΩ';
+        const when = row.created_at ? new Date(row.created_at).toLocaleDateString('pt-BR') : 'ù';
         const exp =
           row.expires && row.kind === 'quote'
             ? `<p class="lead-quick-sheet__qmeta"><strong>Expira:</strong> ${escapeHtml(
@@ -1283,20 +1322,14 @@
     root.classList.add('is-open');
     root.setAttribute('aria-hidden', 'false');
     document.body.classList.add('lead-quick-sheet-open');
-    body.innerHTML = '<div class="lead-quick-sheet__loading">A carregar‚Ä¶</div>';
+    body.innerHTML = '<div class="lead-quick-sheet__loading">A carregarù</div>';
 
-    const settled = await Promise.allSettled([
+    const [leadRes, stagesRes, quotesRes, proposalsRes] = await Promise.all([
       fetchJson('/api/leads/' + sid),
       fetchJson('/api/pipeline-stages'),
       fetchJson('/api/quotes?lead_id=' + encodeURIComponent(String(sid)) + '&limit=50'),
       fetchJson('/api/leads/' + sid + '/proposals'),
     ]);
-    const pick = (i) =>
-      settled[i] && settled[i].status === 'fulfilled' ? settled[i].value : { ok: false, data: {} };
-    const leadRes = pick(0);
-    const stagesRes = pick(1);
-    const quotesRes = pick(2);
-    const proposalsRes = pick(3);
 
     const ld = leadRes.data;
     if (!leadRes.ok || !ld || ld.success !== true || !ld.data) {
@@ -1321,16 +1354,10 @@
       proposalsPayload: proposalsRes.ok ? proposalsRes.data : {},
     };
 
-    try {
-      body.innerHTML = renderSheetBody(lead, bundle);
-      updateHeaderBadges(lead);
-      syncPriorityToolbarButtons();
-      syncStatusPickerFromLead(lead);
-    } catch (renderErr) {
-      console.error('lead quick sheet render error', renderErr);
-      body.innerHTML =
-        '<p class="lead-quick-sheet__error">Nao foi possivel mostrar o lead.</p>';
-    }
+    body.innerHTML = renderSheetBody(lead, bundle);
+    updateHeaderBadges(lead);
+    syncPriorityToolbarButtons();
+    syncStatusPickerFromLead(lead);
 
     requestAnimationFrame(() => {
       animatePanelFromAnchor(sheetAnchorEl, panelEl);
