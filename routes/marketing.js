@@ -350,7 +350,6 @@ router.get('/metrics', async (req, res) => {
       'meeting_scheduled',
       'quote_sent',
       'follow_up_1',
-      'follow_up_2',
       'won',
       'lost',
     ];

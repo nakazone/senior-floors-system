@@ -1,5 +1,5 @@
 /**
- * Pipeline Kanban v3 � 8 columns (iPad): New Lead ? Lost.
+ * Pipeline Kanban v3 � 7 columns (iPad): New Lead ? Lost.
  * Idempotent: safe to run multiple times.
  *
  * Run: node database/migrate-pipeline-kanban-v3.js
@@ -13,10 +13,9 @@ const KANBAN_STAGES = [
   { slug: 'contacted', name: 'Contacted', order_num: 2, color: '#f39c12', is_closed: 0 },
   { slug: 'meeting_scheduled', name: 'Meeting Scheduled', order_num: 3, color: '#e67e22', is_closed: 0 },
   { slug: 'quote_sent', name: 'Quote Sent', order_num: 4, color: '#9b59b6', is_closed: 0 },
-  { slug: 'follow_up_1', name: 'Follow Up 1', order_num: 5, color: '#16a085', is_closed: 0 },
-  { slug: 'follow_up_2', name: 'Follow Up 2', order_num: 6, color: '#1abc9c', is_closed: 0 },
-  { slug: 'won', name: 'Won', order_num: 7, color: '#27ae60', is_closed: 1 },
-  { slug: 'lost', name: 'Lost', order_num: 8, color: '#c0392b', is_closed: 1 },
+  { slug: 'follow_up_1', name: 'Follow Up', order_num: 5, color: '#16a085', is_closed: 0 },
+  { slug: 'won', name: 'Won', order_num: 6, color: '#27ae60', is_closed: 1 },
+  { slug: 'lost', name: 'Lost', order_num: 7, color: '#c0392b', is_closed: 1 },
 ];
 
 const FINAL_SLUGS = new Set(KANBAN_STAGES.map((s) => s.slug));
@@ -31,10 +30,13 @@ function mapToNewSlug(effectiveSlug, leadStatus) {
     qualified: 'contacted',
     visit_scheduled: 'meeting_scheduled',
     measurement_done: 'follow_up_1',
+    followup_2: 'follow_up_1',
+    follow_up2: 'follow_up_1',
+    followup2: 'follow_up_1',
     proposal_created: 'quote_sent',
     proposal_sent: 'quote_sent',
-    negotiation: 'follow_up_2',
-    closing_attempt: 'follow_up_2',
+    negotiation: 'follow_up_1',
+    closing_attempt: 'follow_up_1',
     closed_won: 'won',
     closed_lost: 'lost',
     production: 'won',

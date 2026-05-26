@@ -17,14 +17,14 @@ const LEGACY_SLUG_TO_CANONICAL = {
   follow_up1: 'follow_up_1',
   'follow-up-1': 'follow_up_1',
   followup1: 'follow_up_1',
-  followup_2: 'follow_up_2',
-  follow_up2: 'follow_up_2',
-  'follow-up-2': 'follow_up_2',
-  followup2: 'follow_up_2',
+  followup_2: 'follow_up_1',
+  follow_up2: 'follow_up_1',
+  'follow-up-2': 'follow_up_1',
+  followup2: 'follow_up_1',
   proposal_created: 'quote_sent',
   proposal_sent: 'quote_sent',
-  negotiation: 'follow_up_2',
-  closing_attempt: 'follow_up_2',
+  negotiation: 'follow_up_1',
+  closing_attempt: 'follow_up_1',
   closed_won: 'won',
   closed_lost: 'lost',
   production: 'won',
@@ -35,10 +35,9 @@ const KANBAN_V9_STAGE_DEFS = {
   contacted: { name: 'Contacted', order_num: 2, color: '#f39c12', is_closed: 0 },
   meeting_scheduled: { name: 'Meeting Scheduled', order_num: 3, color: '#e67e22', is_closed: 0 },
   quote_sent: { name: 'Quote Sent', order_num: 4, color: '#9b59b6', is_closed: 0 },
-  follow_up_1: { name: 'Follow Up 1', order_num: 5, color: '#16a085', is_closed: 0 },
-  follow_up_2: { name: 'Follow Up 2', order_num: 6, color: '#1abc9c', is_closed: 0 },
-  won: { name: 'Won', order_num: 7, color: '#27ae60', is_closed: 1 },
-  lost: { name: 'Lost', order_num: 8, color: '#c0392b', is_closed: 1 },
+  follow_up_1: { name: 'Follow Up', order_num: 5, color: '#16a085', is_closed: 0 },
+  won: { name: 'Won', order_num: 6, color: '#27ae60', is_closed: 1 },
+  lost: { name: 'Lost', order_num: 7, color: '#c0392b', is_closed: 1 },
 };
 
 async function findPipelineStageRow(pool, slug) {
@@ -60,8 +59,7 @@ async function resolvePipelineStageForStatus(pool, canonicalSlug) {
     if (legRow) return { id: legRow.id, slug: canonicalSlug };
   }
   const nameHints = {
-    follow_up_1: ['Follow Up 1', 'Follow-up 1', 'Follow up 1'],
-    follow_up_2: ['Follow Up 2', 'Follow-up 2', 'Follow up 2'],
+    follow_up_1: ['Follow Up', 'Follow Up 1', 'Follow-up 1', 'Follow up 1'],
   };
   const hints = nameHints[canonicalSlug];
   if (hints) {

@@ -167,7 +167,6 @@ function getStatusColor(status) {
         meeting_scheduled: '#e67e22',
         quote_sent: '#9b59b6',
         follow_up_1: '#16a085',
-        follow_up_2: '#1abc9c',
         won: '#27ae60',
         lost: '#c0392b',
         lead_received: '#3498db',
@@ -201,10 +200,9 @@ async function loadPipelineStages() {
             { id: 2, name: 'Contato realizado', slug: 'contacted' },
             { id: 3, name: 'Reunião agendada', slug: 'meeting_scheduled' },
             { id: 4, name: 'Orçamento enviado', slug: 'quote_sent' },
-            { id: 5, name: 'Follow-up 1', slug: 'follow_up_1' },
-            { id: 6, name: 'Follow-up 2', slug: 'follow_up_2' },
-            { id: 7, name: 'Ganho', slug: 'won' },
-            { id: 8, name: 'Perdido', slug: 'lost' },
+            { id: 5, name: 'Follow-up', slug: 'follow_up_1' },
+            { id: 6, name: 'Ganho', slug: 'won' },
+            { id: 7, name: 'Perdido', slug: 'lost' },
         ];
     }
 

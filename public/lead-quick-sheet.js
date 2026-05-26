@@ -20,7 +20,7 @@
   }
 
   function fmtDate(iso) {
-    if (!iso) return 'ù';
+    if (!iso) return 'ÔøΩ';
     try {
       const d = new Date(iso);
       if (Number.isNaN(d.getTime())) return escapeHtml(String(iso));
@@ -31,7 +31,7 @@
   }
 
   function fmtMoney(n) {
-    if (n == null || n === '') return 'ù';
+    if (n == null || n === '') return 'ÔøΩ';
     const x = parseFloat(n);
     if (Number.isNaN(x)) return escapeHtml(String(n));
     return escapeHtml(
@@ -108,7 +108,7 @@
     if (typeof global.pipelineStageDisplayName === 'function') {
       return global.pipelineStageDisplayName(slug, name);
     }
-    return name || slug || 'ù';
+    return name || slug || 'ÔøΩ';
   }
 
   function formatFieldValue(key, val) {
@@ -622,7 +622,7 @@
     } catch (_) {}
   }
 
-  /** Payload PUT com slug + pipeline_stage_id quando o estùgio estù na lista (Kanban usa o id). */
+  /** Payload PUT com slug + pipeline_stage_id quando o estÔøΩgio estÔøΩ na lista (Kanban usa o id). */
   function payloadForStatusSlug(slug) {
     const raw = String(slug || '').trim();
     if (!raw) return {};
@@ -702,10 +702,9 @@
     { id: 2, name: 'Contato realizado', slug: 'contacted' },
     { id: 3, name: 'Reuniao agendada', slug: 'meeting_scheduled' },
     { id: 4, name: 'Orcamento enviado', slug: 'quote_sent' },
-    { id: 5, name: 'Follow-up 1', slug: 'follow_up_1' },
-    { id: 6, name: 'Follow-up 2', slug: 'follow_up_2' },
-    { id: 7, name: 'Ganho', slug: 'won' },
-    { id: 8, name: 'Perdido', slug: 'lost' },
+    { id: 5, name: 'Follow-up', slug: 'follow_up_1' },
+    { id: 6, name: 'Ganho', slug: 'won' },
+    { id: 7, name: 'Perdido', slug: 'lost' },
   ];
 
   function normalizeStages(stagesRes) {
@@ -828,7 +827,7 @@
 
   function onStatusMenuDocClick(e) {
     if (e.target.closest('#lqsStatusPicker')) return;
-    /* Menu pode estar em document.body (dropdown fixo); clique na lista nùo fecha antes de aplicar */
+    /* Menu pode estar em document.body (dropdown fixo); clique na lista nÔøΩo fecha antes de aplicar */
     if (e.target.closest('#lqsStatusMenu')) return;
     closeStatusMenu();
   }
@@ -943,7 +942,7 @@
           row.kind === 'quote'
             ? '<span class="lead-quick-sheet__qbadge lead-quick-sheet__qbadge--quote">Quote</span>'
             : '<span class="lead-quick-sheet__qbadge lead-quick-sheet__qbadge--proposal">Proposta</span>';
-        const when = row.created_at ? new Date(row.created_at).toLocaleDateString('pt-BR') : 'ù';
+        const when = row.created_at ? new Date(row.created_at).toLocaleDateString('pt-BR') : 'ÔøΩ';
         const exp =
           row.expires && row.kind === 'quote'
             ? `<p class="lead-quick-sheet__qmeta"><strong>Expira:</strong> ${escapeHtml(
@@ -1333,7 +1332,7 @@
     root.classList.add('is-open');
     root.setAttribute('aria-hidden', 'false');
     document.body.classList.add('lead-quick-sheet-open');
-    body.innerHTML = '<div class="lead-quick-sheet__loading">A carregarù</div>';
+    body.innerHTML = '<div class="lead-quick-sheet__loading">A carregarÔøΩ</div>';
 
     const [leadRes, stagesRes, quotesRes, proposalsRes] = await Promise.all([
       fetchJson('/api/leads/' + sid),

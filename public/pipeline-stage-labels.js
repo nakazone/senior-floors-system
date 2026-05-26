@@ -3,14 +3,13 @@
  * Used when DB `pipeline_stages.name` differs or legacy `leads.status` values exist.
  */
 (function (global) {
-  /** Kanban v3 order (8 columns) - always show these in dropdowns and board even if DB only has legacy rows. */
+  /** Kanban v3 order (7 columns) - always show these in dropdowns and board even if DB only has legacy rows. */
   const PIPELINE_V9_SLUGS = [
     'new_lead',
     'contacted',
     'meeting_scheduled',
     'quote_sent',
     'follow_up_1',
-    'follow_up_2',
     'won',
     'lost',
   ];
@@ -22,9 +21,8 @@
     meeting_scheduled: { color: '#e67e22', order_num: 3 },
     quote_sent: { color: '#9b59b6', order_num: 4 },
     follow_up_1: { color: '#16a085', order_num: 5 },
-    follow_up_2: { color: '#1abc9c', order_num: 6 },
-    won: { color: '#27ae60', order_num: 7 },
-    lost: { color: '#c0392b', order_num: 8 },
+    won: { color: '#27ae60', order_num: 6 },
+    lost: { color: '#c0392b', order_num: 7 },
   };
 
   const LEGACY_SLUG_TO_CANONICAL = {
@@ -36,12 +34,14 @@
     measurement_done: 'follow_up_1',
     followup_1: 'follow_up_1',
     follow_up1: 'follow_up_1',
-    followup_2: 'follow_up_2',
-    follow_up2: 'follow_up_2',
+    followup_2: 'follow_up_1',
+    follow_up2: 'follow_up_1',
+    'follow-up-2': 'follow_up_1',
+    followup2: 'follow_up_1',
     proposal_created: 'quote_sent',
     proposal_sent: 'quote_sent',
-    negotiation: 'follow_up_2',
-    closing_attempt: 'follow_up_2',
+    negotiation: 'follow_up_1',
+    closing_attempt: 'follow_up_1',
     closed_won: 'won',
     closed_lost: 'lost',
     production: 'won',
@@ -52,8 +52,7 @@
     contacted: 'Contacted',
     meeting_scheduled: 'Meeting Scheduled',
     quote_sent: 'Quote Sent',
-    follow_up_1: 'Follow Up 1',
-    follow_up_2: 'Follow Up 2',
+    follow_up_1: 'Follow Up',
     won: 'Won',
     lost: 'Lost',
     lead_received: 'New Lead',
@@ -61,10 +60,10 @@
     contact_made: 'Contacted',
     qualified: 'Contacted',
     visit_scheduled: 'Meeting Scheduled',
-    measurement_done: 'Follow Up 1',
+    measurement_done: 'Follow Up',
     proposal_created: 'Quote Sent',
     proposal_sent: 'Quote Sent',
-    negotiation: 'Follow Up 2',
+    negotiation: 'Follow Up',
     closed_won: 'Won',
     closed_lost: 'Lost',
     production: 'Won',
