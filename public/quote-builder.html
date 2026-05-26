@@ -190,6 +190,71 @@
     .qb-notify--error .qb-notify__panel {
       border-top-color: #b91c1c;
     }
+    .qb-client-search {
+      position: relative;
+    }
+    .qb-client-search__input {
+      width: 100%;
+      border: 1px solid #cbd5e1;
+      border-radius: 0.5rem;
+      padding: 0.5rem 0.75rem;
+      font-size: 0.875rem;
+      background: #fff;
+    }
+    .qb-client-search__results {
+      position: absolute;
+      z-index: 120;
+      left: 0;
+      right: 0;
+      top: calc(100% + 4px);
+      max-height: 280px;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 0.5rem;
+      box-shadow: 0 12px 32px rgba(15, 23, 42, 0.12);
+    }
+    .qb-client-search__results.hidden {
+      display: none !important;
+    }
+    .qb-client-search__item {
+      display: block;
+      width: 100%;
+      text-align: left;
+      padding: 0.65rem 0.75rem;
+      border: 0;
+      border-bottom: 1px solid #f1f5f9;
+      background: #fff;
+      cursor: pointer;
+      font-size: 0.8125rem;
+      line-height: 1.35;
+      color: #0f172a;
+    }
+    .qb-client-search__item:last-child {
+      border-bottom: 0;
+    }
+    .qb-client-search__item:hover,
+    .qb-client-search__item:focus {
+      background: #f8fafc;
+      outline: none;
+    }
+    .qb-client-search__item-name {
+      display: block;
+      font-weight: 600;
+    }
+    .qb-client-search__item-meta {
+      display: block;
+      font-size: 0.75rem;
+      color: #64748b;
+      margin-top: 2px;
+    }
+    .qb-client-search__empty {
+      padding: 0.75rem;
+      font-size: 0.8125rem;
+      color: #64748b;
+      text-align: center;
+    }
     .qb-notify__close {
       position: absolute;
       top: 0.4rem;
@@ -385,8 +450,19 @@
             <div class="space-y-4 mt-4">
               <div class="grid md:grid-cols-2 gap-4">
                 <div>
-                  <label class="block text-xs font-semibold text-slate-500 mb-1">Cliente *</label>
-                  <select id="customerId" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"></select>
+                  <label class="block text-xs font-semibold text-slate-500 mb-1" for="customerSearch">Cliente (lead) *</label>
+                  <div class="qb-client-search" id="qbClientSearchWrap">
+                    <input
+                      type="search"
+                      id="customerSearch"
+                      class="qb-client-search__input"
+                      autocomplete="off"
+                      placeholder="Pesquisar lead por nome, email, telefone ou ID…"
+                    />
+                    <input type="hidden" id="customerId" value="" />
+                    <div id="customerSearchResults" class="qb-client-search__results hidden" role="listbox" aria-label="Resultados de leads"></div>
+                  </div>
+                  <p class="text-xs text-slate-500 mt-1">Lista todos os leads do CRM; ao selecionar, o orçamento fica associado ao lead.</p>
                 </div>
                 <div>
                   <label class="block text-xs font-semibold text-slate-500 mb-1">Preço do catálogo (linhas do catálogo)</label>
@@ -645,6 +721,6 @@
 
   <script src="crm-shared-nav.js?v=8"></script>
   <script src="crm-toast.js"></script>
-  <script src="quote-builder.js?v=quotes-erp-8"></script>
+  <script src="quote-builder.js?v=20260526-lead-client-search"></script>
 </body>
 </html>

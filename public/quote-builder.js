@@ -8,6 +8,9 @@
   let loadedQuoteLeadId = null;
   /** Lista de clientes CRM (`/api/customers` — builders e clientes finais convertidos). */
   let clients = [];
+  /** Lead escolhido na pesquisa de cliente. */
+  let selectedQuoteLead = null;
+  let clientSearchTimer = null;
   let catalog = [];
   let templates = [];
   /** @type {Array<Record<string, unknown>>} */
@@ -328,6 +331,274 @@
     return { sub, total, disc, tax };
   }
 
+
+  function escapeHtmlText(s) {
+    if (s == null || s === '') return '';
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  }
+
+  function formatLeadClientLabel(lead) {
+    if (!lead) return '';
+    const name = lead.name ? String(lead.name).trim() : `Lead #${lead.id}`;
+    const bits = [];
+    if (lead.email) bits.push(String(lead.email).trim());
+    if (lead.phone) bits.push(String(lead.phone).trim());
+    if (lead.id != null) bits.push(`#${lead.id}`);
+    return bits.length ? `${name} (${bits.join(' · ')})` : name;
+  }
+
+  function formatCustomerLabel(c) {
+    if (!c) return '';
+    if (c.customer_type === 'builder' && c.responsible_name) {
+      return `${c.name} · ${c.responsible_name} (${c.email || ''})`;
+    }
+    return `${c.name} (${c.email || ''})`;
+  }
+
+  function upsertClientInCache(c) {
+    if (!c || c.id == null) return;
+    const id = Number(c.id);
+    const idx = clients.findIndex((x) => Number(x.id) === id);
+    if (idx >= 0) clients[idx] = { ...clients[idx], ...c };
+    else clients.push(c);
+  }
+
+  function hideClientSearchResults() {
+    const box = $('customerSearchResults');
+    if (box) {
+      box.classList.add('hidden');
+      box.innerHTML = '';
+    }
+  }
+
+  function showClientSearchResults(html) {
+    const box = $('customerSearchResults');
+    if (!box) return;
+    box.innerHTML = html;
+    box.classList.remove('hidden');
+  }
+
+  async function fetchLeadsForClientSearch(query) {
+    const q = String(query || '').trim();
+    const params = new URLSearchParams({ limit: '40', page: '1' });
+    if (q) params.set('q', q);
+    const res = await fetch(`/api/leads?${params.toString()}`, { credentials: 'include' });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || 'Não foi possível pesquisar leads.');
+    }
+    return Array.isArray(data.data) ? data.data : [];
+  }
+
+  function renderClientSearchResults(leads) {
+    if (!leads.length) {
+      showClientSearchResults('<div class="qb-client-search__empty">Nenhum lead encontrado.</div>');
+      return;
+    }
+    const html = leads
+      .map((lead) => {
+        const id = Number(lead.id);
+        const stage = lead.pipeline_stage_name || lead.pipeline_stage_slug || lead.status || '';
+        const meta = [
+          lead.email ? escapeHtmlText(lead.email) : '',
+          lead.phone ? escapeHtmlText(lead.phone) : '',
+          stage ? escapeHtmlText(stage) : '',
+        ]
+          .filter(Boolean)
+          .join(' · ');
+        return `<button type="button" class="qb-client-search__item" data-lead-id="${id}" role="option">
+          <span class="qb-client-search__item-name">${escapeHtmlText(lead.name || `Lead #${id}`)}</span>
+          <span class="qb-client-search__item-meta">${meta || `ID ${id}`}</span>
+        </button>`;
+      })
+      .join('');
+    showClientSearchResults(html);
+  }
+
+  async function resolveCustomerForLead(leadId) {
+    const lid = parseInt(String(leadId), 10);
+    if (!Number.isFinite(lid) || lid <= 0) return null;
+
+    const byLead = await fetch(`/api/customers/by-lead/${lid}`, { credentials: 'include' }).then((r) =>
+      r.json()
+    );
+    if (byLead.success && byLead.data && byLead.data.id != null) {
+      upsertClientInCache(byLead.data);
+      return Number(byLead.data.id);
+    }
+
+    const created = await fetch('/api/customers/from-lead', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ lead_id: lid, customer_type: 'customer' }),
+    }).then((r) => r.json());
+
+    if (created.success && created.data && created.data.id != null) {
+      const cid = Number(created.data.id);
+      try {
+        const cr = await api(`/api/customers/${cid}`);
+        if (cr.data) upsertClientInCache(cr.data);
+        else upsertClientInCache({ id: cid, customer_type: 'customer' });
+      } catch (_) {
+        upsertClientInCache({ id: cid, customer_type: 'customer' });
+      }
+      return cid;
+    }
+    throw new Error(created.error || 'Não foi possível criar cliente a partir do lead.');
+  }
+
+  async function selectLeadAsClient(lead) {
+    if (!lead || lead.id == null) return;
+    selectedQuoteLead = lead;
+    pendingLeadId = Number(lead.id);
+    loadedQuoteLeadId = null;
+    const search = $('customerSearch');
+    if (search) search.value = formatLeadClientLabel(lead);
+    hideClientSearchResults();
+
+    const hint = $('leadContextHint');
+    if (hint) {
+      hint.textContent = `Associado ao lead: ${lead.name || '#' + lead.id}. O orçamento ficará ligado a este lead ao guardar.`;
+      hint.classList.remove('hidden');
+    }
+
+    try {
+      const cid = await resolveCustomerForLead(lead.id);
+      if (cid) {
+        $('customerId').value = String(cid);
+        applyPricingFromCustomerId(String(cid));
+        refreshRatesForCatalogLines();
+        renderItems();
+      }
+    } catch (e) {
+      $('customerId').value = '';
+      qbToast(e.message || 'Lead sem email válido para criar cliente.', 'error');
+    }
+  }
+
+  async function ensureCustomerForQuote() {
+    let cid = parseInt(String($('customerId') && $('customerId').value), 10);
+    if (Number.isFinite(cid) && cid > 0) return cid;
+
+    const leadId =
+      (selectedQuoteLead && selectedQuoteLead.id != null && Number(selectedQuoteLead.id)) ||
+      (pendingLeadId != null && Number.isFinite(pendingLeadId) ? pendingLeadId : null) ||
+      (loadedQuoteLeadId != null && Number.isFinite(loadedQuoteLeadId) ? loadedQuoteLeadId : null);
+
+    if (!leadId) {
+      throw new Error('Selecione um cliente (lead).');
+    }
+    cid = await resolveCustomerForLead(leadId);
+    if (!cid) throw new Error('Selecione um cliente (lead).');
+    $('customerId').value = String(cid);
+    return cid;
+  }
+
+  function getClientEmailForQuote() {
+    const cid = parseInt(String($('customerId') && $('customerId').value), 10);
+    if (Number.isFinite(cid) && cid > 0) {
+      const c = clients.find((x) => Number(x.id) === cid);
+      if (c && c.email) return String(c.email).trim();
+    }
+    if (selectedQuoteLead && selectedQuoteLead.email) return String(selectedQuoteLead.email).trim();
+    return '';
+  }
+
+  async function setClientSearchFromLoadedQuote(q) {
+    const search = $('customerSearch');
+    if (!search || !q) return;
+    $('customerId').value = q.customer_id != null ? String(q.customer_id) : '';
+
+    if (q.lead_id != null && q.lead_id !== '') {
+      const lid = Number(q.lead_id);
+      if (Number.isFinite(lid)) {
+        loadedQuoteLeadId = lid;
+        selectedQuoteLead = null;
+        pendingLeadId = null;
+        try {
+          const lr = await fetch(`/api/leads/${lid}`, { credentials: 'include' }).then((r) => r.json());
+          if (lr.success && lr.data) {
+            selectedQuoteLead = lr.data;
+            search.value = formatLeadClientLabel(lr.data);
+            const hint = $('leadContextHint');
+            if (hint) {
+              hint.textContent = `Associado ao lead: ${lr.data.name || '#' + lid}.`;
+              hint.classList.remove('hidden');
+            }
+            return;
+          }
+        } catch (_) {
+          /* ignore */
+        }
+      }
+    }
+
+    if (q.customer_id) {
+      const c = clients.find((x) => Number(x.id) === Number(q.customer_id));
+      if (c) search.value = formatCustomerLabel(c);
+    }
+  }
+
+  function scheduleClientLeadSearch() {
+    const search = $('customerSearch');
+    if (!search) return;
+    const q = search.value.trim();
+    clearTimeout(clientSearchTimer);
+    clientSearchTimer = setTimeout(async () => {
+      try {
+        const leads = await fetchLeadsForClientSearch(q);
+        renderClientSearchResults(leads);
+      } catch (e) {
+        showClientSearchResults(
+          `<div class="qb-client-search__empty">${escapeHtmlText(e.message || 'Erro na pesquisa')}</div>`
+        );
+      }
+    }, 220);
+  }
+
+  function wireClientLeadSearch() {
+    const search = $('customerSearch');
+    const box = $('customerSearchResults');
+    const wrap = $('qbClientSearchWrap');
+    if (!search || !box) return;
+
+    search.addEventListener('focus', () => {
+      scheduleClientLeadSearch();
+    });
+    search.addEventListener('input', () => {
+      selectedQuoteLead = null;
+      pendingLeadId = null;
+      loadedQuoteLeadId = null;
+      $('customerId').value = '';
+      scheduleClientLeadSearch();
+    });
+    search.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') hideClientSearchResults();
+    });
+
+    box.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-lead-id]');
+      if (!btn) return;
+      const lid = parseInt(btn.getAttribute('data-lead-id'), 10);
+      if (!Number.isFinite(lid)) return;
+      fetch(`/api/leads/${lid}`, { credentials: 'include' })
+        .then((r) => r.json())
+        .then((data) => {
+          if (data.success && data.data) void selectLeadAsClient(data.data);
+        })
+        .catch(() => qbToast('Erro ao carregar lead.', 'error'));
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!wrap || wrap.contains(e.target)) return;
+      hideClientSearchResults();
+    });
+  }
+
   function escapeAttr(s) {
     return String(s)
       .replace(/&/g, '&amp;')
@@ -527,6 +798,7 @@
     loadedQuoteLeadId = q.lead_id != null && q.lead_id !== '' ? Number(q.lead_id) : null;
     if (!Number.isFinite(loadedQuoteLeadId)) loadedQuoteLeadId = null;
     $('customerId').value = q.customer_id || '';
+    await setClientSearchFromLoadedQuote(q);
     $('status').value = q.status || 'draft';
     $('expirationDate').value = q.expiration_date ? String(q.expiration_date).slice(0, 10) : '';
     $('notes').value = q.notes || '';
@@ -563,7 +835,8 @@
     const dt = $('discountType').value;
     const dv = parseFloat($('discountValue').value) || 0;
     let lead_id = null;
-    if (loadedQuoteLeadId != null && Number.isFinite(loadedQuoteLeadId)) lead_id = loadedQuoteLeadId;
+    if (selectedQuoteLead && selectedQuoteLead.id != null) lead_id = Number(selectedQuoteLead.id);
+    else if (loadedQuoteLeadId != null && Number.isFinite(loadedQuoteLeadId)) lead_id = loadedQuoteLeadId;
     else if (pendingLeadId != null && Number.isFinite(pendingLeadId)) lead_id = pendingLeadId;
     const base = {
       customer_id: parseInt($('customerId').value, 10) || null,
@@ -597,9 +870,11 @@
   }
 
   async function saveQuote() {
-    const cid = parseInt($('customerId').value, 10);
-    if (!cid) {
-      qbToast('Selecione um cliente.', 'error');
+    let cid;
+    try {
+      cid = await ensureCustomerForQuote();
+    } catch (e) {
+      qbToast(e.message || 'Selecione um cliente (lead).', 'error');
       return;
     }
     const body = payload();
@@ -652,15 +927,7 @@
       erpProducts = [];
     }
 
-    const cs = $('customerId');
-    cs.innerHTML = '<option value="">— Selecionar cliente —</option>';
-    clients.forEach((c) => {
-      const label =
-        c.customer_type === 'builder' && c.responsible_name
-          ? `${c.name} · ${c.responsible_name} (${c.email})`
-          : `${c.name} (${c.email})`;
-      cs.innerHTML += `<option value="${c.id}">${escapeAttr(label)}</option>`;
-    });
+    wireClientLeadSearch();
 
     const cp = $('catalogPick');
     cp.innerHTML = '<option value="">— Linha do catálogo —</option>';
@@ -697,22 +964,7 @@
     if (pendingLeadId != null && Number.isFinite(pendingLeadId)) {
       try {
         const lr = await fetch(`/api/leads/${pendingLeadId}`, { credentials: 'include' }).then((r) => r.json());
-        const hint = $('leadContextHint');
-        if (lr.success && lr.data && hint) {
-          const name = lr.data.name ? String(lr.data.name) : `Lead #${pendingLeadId}`;
-          hint.textContent = `Associado ao lead: ${name}. O orçamento ficará ligado a este lead ao guardar.`;
-          hint.classList.remove('hidden');
-        }
-        const em = lr.success && lr.data && lr.data.email ? String(lr.data.email).trim().toLowerCase() : '';
-        if (em) {
-          const match = clients.find((c) => String(c.email || '').trim().toLowerCase() === em);
-          if (match) {
-            $('customerId').value = String(match.id);
-            applyPricingFromCustomerId(String(match.id));
-            refreshRatesForCatalogLines();
-            renderItems();
-          }
-        }
+        if (lr.success && lr.data) await selectLeadAsClient(lr.data);
       } catch (_) {
         /* ignore */
       }
@@ -901,12 +1153,6 @@
         renderItems();
       });
     });
-    $('customerId').addEventListener('change', () => {
-      applyPricingFromCustomerId($('customerId').value);
-      refreshRatesForCatalogLines();
-      renderItems();
-    });
-
     $('catalogPick').addEventListener('change', () => {
       const idc = parseInt($('catalogPick').value, 10);
       if (!idc) return;
@@ -990,18 +1236,19 @@
 
     $('btnEmail').addEventListener('click', async () => {
       if (!quoteId) return;
-      const cid = parseInt(String($('customerId') && $('customerId').value), 10);
-      if (!Number.isFinite(cid) || cid <= 0) {
+      let cid;
+      try {
+        cid = await ensureCustomerForQuote();
+      } catch (e) {
         showQuoteNotify({
           type: 'error',
           title: 'Cliente necessário',
-          message: 'Selecione um cliente. O e-mail enviado é o cadastrado no CRM.',
+          message: e.message || 'Selecione um lead na pesquisa de cliente.',
           ms: 8000,
         });
         return;
       }
-      const cust = clients.find((c) => Number(c.id) === cid);
-      const preview = cust && cust.email ? String(cust.email).trim() : '';
+      const preview = getClientEmailForQuote();
       if (!preview) {
         showQuoteNotify({
           type: 'error',
