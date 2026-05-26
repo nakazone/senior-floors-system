@@ -154,8 +154,7 @@ async function loadCRMKanban() {
     // Load required data first
     await loadLeadFormUsers();
     await loadPipelineStages();
-    // Then load kanban board
-    loadKanbanBoard();
+    await loadKanbanBoard();
 }
 
 // Show Kanban View (deprecated - kept for compatibility)
@@ -486,9 +485,17 @@ function renderVisitKanbanCard(visit) {
     `;
 }
 
+
+function formatKanbanLeadEnteredAt(createdAt) {
+    if (!createdAt) return 'Data não disponível';
+    const d = new Date(createdAt);
+    if (Number.isNaN(d.getTime())) return 'Data não disponível';
+    return d.toLocaleDateString('pt-PT', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
 // Render Kanban Card
 function renderKanbanCard(lead) {
-    const ownerName = escapeKanbanHtml(lead.owner_name || 'Não designado');
+    const enteredAt = escapeKanbanHtml(formatKanbanLeadEnteredAt(lead.created_at));
     const name = escapeKanbanHtml(lead.name || 'Sem nome');
     const email = lead.email ? escapeKanbanHtml(lead.email) : '';
     const phone = lead.phone ? escapeKanbanHtml(lead.phone) : '';
@@ -514,7 +521,7 @@ function renderKanbanCard(lead) {
                 ${phoneRow}
                 ${valueRow}
             </div>
-            <div class="kanban-card-owner">${ownerName}</div>
+            <div class="kanban-card-owner" title="Entrou no sistema">${enteredAt}</div>
         </div>
     `;
 }

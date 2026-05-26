@@ -1864,6 +1864,12 @@ input.score-auto {
     width: 100%;
 }
 
+#kanbanBoard[aria-busy='true'] {
+    opacity: 0.55;
+    pointer-events: none;
+    transition: opacity 0.15s ease;
+}
+
 .kanban-board-wrap {
     width: 100%;
     overflow-x: visible;

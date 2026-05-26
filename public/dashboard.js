@@ -261,6 +261,115 @@ function isMobile() {
     return window.innerWidth <= 768;
 }
 
+/** Telefone e tablet — pull-to-refresh e gestos touch */
+function isTouchViewport() {
+    return window.innerWidth <= 1024;
+}
+
+function getSfScrollRoot() {
+    const main = document.querySelector('.dashboard-main');
+    if (main && main.scrollHeight > main.clientHeight + 2) return main;
+    return null;
+}
+
+function getSfScrollTop(scrollRoot) {
+    if (scrollRoot) return scrollRoot.scrollTop;
+    return window.scrollY || document.documentElement.scrollTop || 0;
+}
+
+function sfPtrTouchStartsInsideScrolledColumn(target) {
+    const col = target && target.closest && target.closest('.kanban-column-cards');
+    return !!(col && col.scrollHeight > col.clientHeight + 2 && col.scrollTop > 2);
+}
+
+function getSfPtrIndicatorForPage(pageName) {
+    if (pageName === 'quotes') return document.getElementById('quotesPtrIndicator');
+    if (pageName === 'leads') return document.getElementById('leadsPtrIndicator');
+    return null;
+}
+
+function runSfPtrRefresh(pageName) {
+    if (pageName === 'leads') {
+        void refreshLeads();
+        return;
+    }
+    if (pageName === 'quotes') {
+        quotesListPage = 1;
+        loadQuotes();
+        return;
+    }
+    if (pageName === 'dashboard') {
+        loadDashboard(currentDashboardPeriod);
+        return;
+    }
+    if (pageName === 'marketing' && typeof loadMarketingDashboard === 'function') {
+        loadMarketingDashboard();
+    }
+}
+
+let sfPtrPulling = false;
+let sfPtrStartY = 0;
+let sfPtrArmed = false;
+
+function initSfPullToRefresh() {
+    const host = document.querySelector('.dashboard-main');
+    if (!host || host.dataset.sfPtrBound) return;
+    host.dataset.sfPtrBound = '1';
+
+    host.addEventListener(
+        'touchstart',
+        (e) => {
+            if (!isTouchViewport()) return;
+            if (!getSfPtrIndicatorForPage(currentPageName)) return;
+            if (sfPtrTouchStartsInsideScrolledColumn(e.target)) return;
+            sfPtrPulling = true;
+            sfPtrStartY = e.touches[0].clientY;
+            sfPtrArmed = getSfScrollTop(getSfScrollRoot()) <= 2;
+        },
+        { passive: true }
+    );
+
+    host.addEventListener(
+        'touchmove',
+        (e) => {
+            if (!isTouchViewport() || !sfPtrPulling || !sfPtrArmed) return;
+            const ind = getSfPtrIndicatorForPage(currentPageName);
+            if (!ind) return;
+            if (getSfScrollTop(getSfScrollRoot()) > 2) {
+                ind.classList.remove('sf-ptr-visible');
+                return;
+            }
+            const dy = e.touches[0].clientY - sfPtrStartY;
+            if (dy > 48) {
+                ind.classList.add('sf-ptr-visible');
+                ind.textContent = dy > 88 ? '↓ Largar para atualizar' : '↓ Puxe para atualizar';
+            } else {
+                ind.classList.remove('sf-ptr-visible');
+            }
+        },
+        { passive: true }
+    );
+
+    host.addEventListener(
+        'touchend',
+        () => {
+            if (!isTouchViewport()) return;
+            const ind = getSfPtrIndicatorForPage(currentPageName);
+            const refresh = !!(ind && ind.classList.contains('sf-ptr-visible'));
+            if (ind) ind.classList.remove('sf-ptr-visible');
+            sfPtrPulling = false;
+            sfPtrArmed = false;
+            if (refresh && getSfScrollTop(getSfScrollRoot()) <= 2) {
+                try {
+                    navigator.vibrate(12);
+                } catch (err) {}
+                runSfPtrRefresh(currentPageName);
+            }
+        },
+        { passive: true }
+    );
+}
+
 const MOBILE_PAGE_TITLES = {
     dashboard: 'Dashboard',
     marketing: 'Marketing',
@@ -1772,10 +1881,25 @@ function changePageLeads(delta) {
     loadLeads();
 }
 
-function refreshLeads() {
+async function refreshLeads() {
     leadsPage = 1;
+    const searchEl = document.getElementById('leadsListSearchInput');
+    leadsListSearch = searchEl ? searchEl.value.trim() : '';
     leadsPipelineSlugToColor = null;
-    loadLeads();
+    const board = document.getElementById('kanbanBoard');
+    if (board) board.setAttribute('aria-busy', 'true');
+    try {
+        if (typeof loadCRMKanban === 'function') {
+            await loadCRMKanban();
+        } else if (typeof loadKanbanBoard === 'function') {
+            if (typeof loadPipelineStages === 'function') await loadPipelineStages();
+            await loadKanbanBoard();
+        } else {
+            await loadLeads();
+        }
+    } finally {
+        if (board) board.removeAttribute('aria-busy');
+    }
 }
 
 function viewLead(id) {
@@ -1805,6 +1929,7 @@ window.deleteLead = deleteLead;
 window.deleteQuote = deleteQuote;
 window.leadsSearchSubmit = leadsSearchSubmit;
 window.leadsSearchClear = leadsSearchClear;
+window.refreshLeads = refreshLeads;
 
 // Clients (/api/customers)
 let customersPage = 1;
@@ -2431,10 +2556,6 @@ function updateQuotesMobileChrome(total, totalPages) {
     }
 }
 
-let sfQuotesPtrPulling = false;
-let sfQuotesPtrStartY = 0;
-let sfQuotesPtrArmed = false;
-
 function initQuotesMobileUx() {
     const search = document.getElementById('quotesMobileSearch');
     if (search && !search.dataset.sfBound) {
@@ -2446,57 +2567,7 @@ function initQuotesMobileUx() {
         });
     }
 
-    const main = document.querySelector('.dashboard-main');
-    const ind = document.getElementById('quotesPtrIndicator');
-    if (main && ind && !main.dataset.sfQuotesPtr) {
-        main.dataset.sfQuotesPtr = '1';
-        main.addEventListener(
-            'touchstart',
-            (e) => {
-                if (currentPageName !== 'quotes' || !isMobile()) return;
-                sfQuotesPtrPulling = true;
-                sfQuotesPtrStartY = e.touches[0].clientY;
-                sfQuotesPtrArmed = main.scrollTop <= 0;
-            },
-            { passive: true }
-        );
-        main.addEventListener(
-            'touchmove',
-            (e) => {
-                if (currentPageName !== 'quotes' || !isMobile() || !sfQuotesPtrPulling || !sfQuotesPtrArmed) return;
-                if (main.scrollTop > 0) {
-                    ind.classList.remove('sf-ptr-visible');
-                    return;
-                }
-                const dy = e.touches[0].clientY - sfQuotesPtrStartY;
-                if (dy > 48) {
-                    ind.classList.add('sf-ptr-visible');
-                    ind.textContent = dy > 88 ? '↓ Largar para atualizar' : '↓ Puxe para atualizar';
-                } else {
-                    ind.classList.remove('sf-ptr-visible');
-                }
-            },
-            { passive: true }
-        );
-        main.addEventListener(
-            'touchend',
-            () => {
-                if (currentPageName !== 'quotes' || !isMobile()) return;
-                const refresh = ind.classList.contains('sf-ptr-visible');
-                ind.classList.remove('sf-ptr-visible');
-                sfQuotesPtrPulling = false;
-                sfQuotesPtrArmed = false;
-                if (refresh && main.scrollTop <= 0) {
-                    quotesListPage = 1;
-                    try {
-                        navigator.vibrate(12);
-                    } catch (err) {}
-                    loadQuotes();
-                }
-            },
-            { passive: true }
-        );
-    }
+    initSfPullToRefresh();
 
     const lm = document.getElementById('quotesMobileLoadMore');
     if (lm && !lm.dataset.sfBound) {
@@ -2506,6 +2577,7 @@ function initQuotesMobileUx() {
 }
 
 initQuotesMobileUx();
+initSfPullToRefresh();
 
 function formatQuoteExpiryHtml(expirationDateStr, status) {
     const st = String(status || '').toLowerCase();

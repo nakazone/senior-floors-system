@@ -402,6 +402,7 @@
                 
                 <!-- Leads Page -->
                 <div id="leadsPage" class="page-content" style="display: none;">
+                    <div class="sf-ptr-indicator" id="leadsPtrIndicator" aria-hidden="true">↓ Puxe para atualizar</div>
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--spacing-md); flex-wrap: wrap; gap: var(--spacing-sm);">
                         <h2 class="page-title">Leads</h2>
                         <div style="display: flex; gap: var(--spacing-sm);">
@@ -574,6 +575,7 @@
                                     <option value="quote_sent">Quote Sent</option>
                                     <option value="follow_up_1">Follow Up 1</option>
                                     <option value="follow_up_2">Follow Up 2</option>
+                                    <option value="closing_attempt">Closing Attempt</option>
                                     <option value="won">Won</option>
                                     <option value="lost">Lost</option>
                                 </select>
@@ -1497,8 +1499,8 @@
     <script src="crm-command-palette.js"></script>
     <script src="notification-center.js"></script>
     <script src="marketing-dashboard.js"></script>
-    <script src="dashboard.js"></script>
-    <script src="pipeline-stage-labels.js?v=20260510-no-closing-attempt"></script>
+    <script src="dashboard.js?v=20260526-ptr-refresh"></script>
+    <script src="pipeline-stage-labels.js?v=20260510-follow-up-status"></script>
     <script src="lead-quick-sheet.js?v=20260510-follow-up-status"></script>
     <script src="leads-kanban.js?v=20260510-follow-up-status"></script>
     <script src="schedule-engine.js"></script>
