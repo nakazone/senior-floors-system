@@ -98,12 +98,38 @@ async function loadLead() {
     }
 }
 
+function renderLeadContactActions(lead) {
+    const mount = document.getElementById('leadPhoneActions');
+    if (!mount) return;
+    if (!lead || !lead.phone) {
+        mount.innerHTML = '';
+        return;
+    }
+    const tel =
+        typeof window.sfBuildTelHref === 'function' ? window.sfBuildTelHref(lead.phone) : '';
+    const sms =
+        typeof window.sfBuildLeadSmsHref === 'function' ? window.sfBuildLeadSmsHref(lead) : '';
+    if (!tel && !sms) {
+        mount.innerHTML = '';
+        return;
+    }
+    let html = '';
+    if (tel) {
+        html += `<a class="btn btn-sm btn-secondary lead-contact-actions__btn" href="${tel}">Ligar</a>`;
+    }
+    if (sms) {
+        html += `<a class="btn btn-sm btn-secondary lead-contact-actions__btn" href="${sms}">SMS</a>`;
+    }
+    mount.innerHTML = html;
+}
+
 function renderLead() {
     if (!currentLead) return;
 
     document.getElementById('leadName').textContent = currentLead.name || 'Sem nome';
     document.getElementById('leadEmail').textContent = currentLead.email || '-';
     document.getElementById('leadPhone').textContent = currentLead.phone || '-';
+    renderLeadContactActions(currentLead);
     var nextStepsEl = document.getElementById('leadNextSteps');
     if (nextStepsEl) nextStepsEl.textContent = currentLead.next_steps || currentLead.next_steps_notes || '-';
 

@@ -51,6 +51,16 @@
             display: flex;
             align-items: center;
             gap: 8px;
+            flex-wrap: wrap;
+        }
+        .lead-contact-actions {
+            display: inline-flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+        .lead-contact-actions__btn {
+            text-decoration: none;
+            white-space: nowrap;
         }
         .lead-meta-item strong {
             color: #666;
@@ -352,6 +362,7 @@
                         <div class="lead-meta-item">
                             <strong>Phone:</strong>
                             <span id="leadPhone">-</span>
+                            <span id="leadPhoneActions" class="lead-contact-actions"></span>
                         </div>
                         <div class="lead-meta-item">
                             <strong>Next Steps:</strong>
@@ -839,6 +850,7 @@
     <script src="crm-toast.js"></script>
     <script src="crm-shared-nav.js?v=8"></script>
     <script src="pipeline-stage-labels.js?v=20260508-k9-order"></script>
+    <script src="lead-contact-links.js?v=20260526-sms"></script>
     <script src="lead-detail.js?v=20260507-merge-v9"></script>
 </body>
 </html>

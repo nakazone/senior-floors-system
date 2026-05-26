@@ -1058,9 +1058,20 @@
     const stages = bundle.stages;
     const currentSlug = leadCurrentPipelineSlug(lead);
     const pri = String(lead.priority || 'medium').toLowerCase();
-    const tele =
-      lead.phone
-        ? `<a class="lead-quick-sheet__action" href="tel:${encodeURIComponent(String(lead.phone))}">Ligar</a>`
+    const telHref =
+      typeof global.sfBuildTelHref === 'function'
+        ? global.sfBuildTelHref(lead.phone)
+        : lead.phone
+          ? `tel:${String(lead.phone).replace(/[^\d+]/g, '')}`
+          : '';
+    const smsHref =
+      typeof global.sfBuildLeadSmsHref === 'function' ? global.sfBuildLeadSmsHref(lead) : '';
+    const tele = telHref
+      ? `<a class="lead-quick-sheet__action" href="${escapeHtml(telHref)}">Ligar</a>`
+      : '';
+    const sms =
+      smsHref
+        ? `<a class="lead-quick-sheet__action" href="${escapeHtml(smsHref)}">SMS</a>`
         : '';
     const mail = lead.email
       ? `<a class="lead-quick-sheet__action" href="mailto:${escapeHtml(lead.email)}">Email</a>`
@@ -1075,7 +1086,7 @@
     return `
       <div class="lead-quick-sheet__toolbar lead-quick-sheet__toolbar--minimal">
         <div class="lead-quick-sheet__toolbar-row lead-quick-sheet__toolbar-row--actions">
-          ${tele}${mail}${quoteNew}${scheduleVisit}
+          ${tele}${sms}${mail}${quoteNew}${scheduleVisit}
         </div>
         <div class="lead-quick-sheet__toolbar-row lead-quick-sheet__toolbar-row--controls">
           <label class="lead-quick-sheet__inline lead-quick-sheet__inline--status">
