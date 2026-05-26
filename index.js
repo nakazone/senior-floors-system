@@ -214,6 +214,16 @@ if (!Number.isFinite(PORT) || PORT < 1 || PORT > 65535) {
 // res.json não serializa BigInt (quebra APIs/sessão se algum campo escapar)
 app.set('json replacer', (_, value) => (typeof value === 'bigint' ? value.toString() : value));
 
+// UTF-8 explícito em JSON (evita ? em acentos no cliente quando o proxy omite charset)
+app.use((req, res, next) => {
+  const sendJson = res.json.bind(res);
+  res.json = (body) => {
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    return sendJson(body);
+  };
+  next();
+});
+
 // Railway / reverse proxy — necessário para cookie Secure e req.secure corretos
 app.set('trust proxy', 1);
 
@@ -631,6 +641,13 @@ app.use(
   express.static(path.join(__dirname, 'public'), {
     setHeaders(res, filePath) {
       const lower = String(filePath).toLowerCase();
+      if (lower.endsWith('.html')) {
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      } else if (lower.endsWith('.js')) {
+        res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+      } else if (lower.endsWith('.css')) {
+        res.setHeader('Content-Type', 'text/css; charset=utf-8');
+      }
       if (lower.endsWith('.html') || lower.endsWith('.js')) {
         res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
         res.setHeader('Pragma', 'no-cache');

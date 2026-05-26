@@ -9,7 +9,7 @@
     new_lead: [
       {
         id: 'new_lead_intro',
-        label: 'New lead ù introduction',
+        label: 'New lead ‚Äî introduction',
         template:
           "Hi [name], thanks for reaching out to Senior Floors. I'd be happy to help. Can you tell me a little about the project?",
       },
@@ -17,7 +17,7 @@
     quote_sent: [
       {
         id: 'quote_sent_followup',
-        label: 'Quote sent ù thank you',
+        label: 'Quote sent ‚Äî thank you',
         template:
           "Hello [name], thank you for your time today. I've sent email and attached the quote PDF with the options we discussed. Thank you!\n\nFor know more about us\nhttps://senior-floors.com/",
       },
@@ -25,15 +25,15 @@
     follow_up_1: [
       {
         id: 'follow_up_quote_reminder',
-        label: 'Follow up ù quote reminder',
+        label: 'Follow up ‚Äî quote reminder',
         template:
           "Hello [name], I hope all is well. Just following up on the quote I sent a few days ago. If everything looks good, I'd be happy to help get your project scheduled and reserve a spot for you.",
       },
       {
         id: 'follow_up_last_check',
-        label: 'Follow up ù last check-in',
+        label: 'Follow up ‚Äî last check-in',
         template:
-          "Hello [name], just wanted to check in one last time regarding your flooring project. If timing is better later, no problem at all ù I'd still be happy to help whenever you're ready.",
+          "Hello [name], just wanted to check in one last time regarding your flooring project. If timing is better later, no problem at all ‚Äî I'd still be happy to help whenever you're ready.",
       },
     ],
   };

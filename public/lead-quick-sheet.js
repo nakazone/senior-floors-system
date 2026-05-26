@@ -1,13 +1,13 @@
 /**
- * Painel rapido do lead no dashboard (popup centrado + animacao FLIP a partir do cartao Kanban).
- * Resumo estatico sempre visivel; estagio/prioridade; botao Agendar visita; orcamentos.
+ * Painel rápido do lead no dashboard (popup centrado + animacao FLIP a partir do cartao Kanban).
+ * Resumo estatico sempre visivel; estágio/prioridade; botao Agendar visita; orcamentos.
  */
 (function (global) {
   let sheetLeadId = null;
   let sheetAnchorEl = null;
   /** @type {Record<string, unknown> | null} */
   let sheetLead = null;
-  /** Cache dos estagios do pipeline (com cores), alinhado ao Kanban */
+  /** Cache dos estágios do pipeline (com cores), alinhado ao Kanban */
   let sheetStagesCache = [];
 
   function escapeHtml(s) {
@@ -20,7 +20,7 @@
   }
 
   function fmtDate(iso) {
-    if (!iso) return '�';
+    if (!iso) return '—';
     try {
       const d = new Date(iso);
       if (Number.isNaN(d.getTime())) return escapeHtml(String(iso));
@@ -31,7 +31,7 @@
   }
 
   function fmtMoney(n) {
-    if (n == null || n === '') return '�';
+    if (n == null || n === '') return '—';
     const x = parseFloat(n);
     if (Number.isNaN(x)) return escapeHtml(String(n));
     return escapeHtml(
@@ -51,7 +51,7 @@
     estimated_value: 'Valor estimado',
     created_at: 'Criado em',
     updated_at: 'Atualizado em',
-    owner_name: 'Responsavel',
+    owner_name: 'Responsável',
     owner_email: 'Email do responsavel',
     pipeline_stage_name: 'Estagio',
     pipeline_stage_slug: 'Estagio (slug)',
@@ -108,7 +108,7 @@
     if (typeof global.pipelineStageDisplayName === 'function') {
       return global.pipelineStageDisplayName(slug, name);
     }
-    return name || slug || '�';
+    return name || slug || '—';
   }
 
   function formatFieldValue(key, val) {
@@ -220,7 +220,7 @@
       ? escapeHtml(String(lead.owner_name))
       : '<span class="lead-quick-sheet__empty-field">\u2014</span>';
     return `<div class="lead-quick-sheet__row lead-quick-sheet__row--editable" data-lqs-row="owner_id">
-      <dt>Responsavel</dt>
+      <dt>Responsável</dt>
       <dd class="lead-quick-sheet__dd-field" data-lqs-dd="owner_id">
         <div class="lead-quick-sheet__field-view" data-lqs-view="owner_id">
           <span class="lead-quick-sheet__field-val">${display}</span>
@@ -353,7 +353,7 @@
     if (fieldKey === 'owner_id') {
       const users = await fetchUsersForOwnerSelect();
       if (!users.length) {
-        notifySheet('Nao foi possivel carregar utilizadores.', 'error');
+        notifySheet('Não foi possível carregar utilizadores.', 'error');
         return;
       }
       const cur = sheetLead.owner_id != null ? String(sheetLead.owner_id) : '';
@@ -404,7 +404,7 @@
       const v = input.value;
       payload.owner_id = v === '' ? null : parseInt(v, 10);
       if (payload.owner_id !== null && Number.isNaN(payload.owner_id)) {
-        notifySheet('Responsavel invalido.', 'error');
+        notifySheet('Responsável inválido.', 'error');
         return;
       }
     } else if (fieldKey === 'zipcode') {
@@ -622,7 +622,7 @@
     } catch (_) {}
   }
 
-  /** Payload PUT com slug + pipeline_stage_id quando o est�gio est� na lista (Kanban usa o id). */
+  /** Payload PUT com slug + pipeline_stage_id quando o estágio está na lista (Kanban usa o id). */
   function payloadForStatusSlug(slug) {
     const raw = String(slug || '').trim();
     if (!raw) return {};
@@ -701,7 +701,7 @@
     { id: 1, name: 'Novo lead', slug: 'new_lead' },
     { id: 2, name: 'Contato realizado', slug: 'contacted' },
     { id: 3, name: 'Reuniao agendada', slug: 'meeting_scheduled' },
-    { id: 4, name: 'Orcamento enviado', slug: 'quote_sent' },
+    { id: 4, name: 'Orçamento enviado', slug: 'quote_sent' },
     { id: 5, name: 'Follow-up 1', slug: 'follow_up_1' },
     { id: 6, name: 'Follow-up 2', slug: 'follow_up_2' },
     { id: 7, name: 'Ganho', slug: 'won' },
@@ -828,7 +828,7 @@
 
   function onStatusMenuDocClick(e) {
     if (e.target.closest('#lqsStatusPicker')) return;
-    /* Menu pode estar em document.body (dropdown fixo); clique na lista n�o fecha antes de aplicar */
+    /* Menu pode estar em document.body (dropdown fixo); clique na lista não fecha antes de aplicar */
     if (e.target.closest('#lqsStatusMenu')) return;
     closeStatusMenu();
   }
@@ -943,7 +943,7 @@
           row.kind === 'quote'
             ? '<span class="lead-quick-sheet__qbadge lead-quick-sheet__qbadge--quote">Quote</span>'
             : '<span class="lead-quick-sheet__qbadge lead-quick-sheet__qbadge--proposal">Proposta</span>';
-        const when = row.created_at ? new Date(row.created_at).toLocaleDateString('pt-BR') : '�';
+        const when = row.created_at ? new Date(row.created_at).toLocaleDateString('pt-BR') : '—';
         const exp =
           row.expires && row.kind === 'quote'
             ? `<p class="lead-quick-sheet__qmeta"><strong>Expira:</strong> ${escapeHtml(
@@ -1112,7 +1112,7 @@
       </section>
 
       <section class="lead-quick-sheet__section lead-quick-sheet__section--quotes">
-        <h3 class="lead-quick-sheet__h3 lead-quick-sheet__h3--minimal">Orcamentos</h3>
+        <h3 class="lead-quick-sheet__h3 lead-quick-sheet__h3--minimal">Orçamentos</h3>
         <div data-lqs-quotes-list>${renderQuotesRows(quoteRows, sid)}</div>
       </section>`;
   }
@@ -1339,7 +1339,7 @@
     root.classList.add('is-open');
     root.setAttribute('aria-hidden', 'false');
     document.body.classList.add('lead-quick-sheet-open');
-    body.innerHTML = '<div class="lead-quick-sheet__loading">A carregar�</div>';
+    body.innerHTML = '<div class="lead-quick-sheet__loading">A carregar…</div>';
 
     const [leadRes, stagesRes, quotesRes, proposalsRes] = await Promise.all([
       fetchJson('/api/leads/' + sid),
@@ -1351,7 +1351,7 @@
     const ld = leadRes.data;
     if (!leadRes.ok || !ld || ld.success !== true || !ld.data) {
       body.innerHTML =
-        '<p class="lead-quick-sheet__error">Nao foi possivel carregar o lead.</p>';
+        '<p class="lead-quick-sheet__error">Não foi possível carregar o lead.</p>';
       requestAnimationFrame(() => {
         animatePanelFromAnchor(sheetAnchorEl, panelEl);
       });

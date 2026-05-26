@@ -1,5 +1,5 @@
 /**
- * Pipeline Kanban v3 � 7 columns (iPad): New Lead ? Lost.
+ * Pipeline Kanban v3 — 7 columns (iPad): New Lead → Lost.
  * Idempotent: safe to run multiple times.
  *
  * Run: node database/migrate-pipeline-kanban-v3.js
@@ -113,7 +113,7 @@ async function main() {
     );
 
     await conn.commit();
-    console.log('OK � stages updated and leads migrated.');
+    console.log('OK — stages updated and leads migrated.');
     const [summary] = await conn.query(
       `SELECT ps.slug, COUNT(l.id) AS n
        FROM pipeline_stages ps
