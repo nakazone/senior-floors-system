@@ -1,5 +1,5 @@
 /**
- * Pipeline Kanban v3 — 9 columns (iPad): New Lead ? Lost.
+ * Pipeline Kanban v3 ï¿½ 8 columns (iPad): New Lead ? Lost.
  * Idempotent: safe to run multiple times.
  *
  * Run: node database/migrate-pipeline-kanban-v3.js
@@ -15,9 +15,8 @@ const KANBAN_STAGES = [
   { slug: 'quote_sent', name: 'Quote Sent', order_num: 4, color: '#9b59b6', is_closed: 0 },
   { slug: 'follow_up_1', name: 'Follow Up 1', order_num: 5, color: '#16a085', is_closed: 0 },
   { slug: 'follow_up_2', name: 'Follow Up 2', order_num: 6, color: '#1abc9c', is_closed: 0 },
-  { slug: 'closing_attempt', name: 'Closing Attempt', order_num: 7, color: '#e74c3c', is_closed: 0 },
-  { slug: 'won', name: 'Won', order_num: 8, color: '#27ae60', is_closed: 1 },
-  { slug: 'lost', name: 'Lost', order_num: 9, color: '#c0392b', is_closed: 1 },
+  { slug: 'won', name: 'Won', order_num: 7, color: '#27ae60', is_closed: 1 },
+  { slug: 'lost', name: 'Lost', order_num: 8, color: '#c0392b', is_closed: 1 },
 ];
 
 const FINAL_SLUGS = new Set(KANBAN_STAGES.map((s) => s.slug));
@@ -34,7 +33,8 @@ function mapToNewSlug(effectiveSlug, leadStatus) {
     measurement_done: 'follow_up_1',
     proposal_created: 'quote_sent',
     proposal_sent: 'quote_sent',
-    negotiation: 'closing_attempt',
+    negotiation: 'follow_up_2',
+    closing_attempt: 'follow_up_2',
     closed_won: 'won',
     closed_lost: 'lost',
     production: 'won',
@@ -111,7 +111,7 @@ async function main() {
     );
 
     await conn.commit();
-    console.log('OK — stages updated and leads migrated.');
+    console.log('OK ï¿½ stages updated and leads migrated.');
     const [summary] = await conn.query(
       `SELECT ps.slug, COUNT(l.id) AS n
        FROM pipeline_stages ps

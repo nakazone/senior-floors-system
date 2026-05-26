@@ -3,7 +3,7 @@
  * Used when DB `pipeline_stages.name` differs or legacy `leads.status` values exist.
  */
 (function (global) {
-  /** Kanban v3 order - always show these in dropdowns and board even if DB only has legacy rows. */
+  /** Kanban v3 order (8 columns) - always show these in dropdowns and board even if DB only has legacy rows. */
   const PIPELINE_V9_SLUGS = [
     'new_lead',
     'contacted',
@@ -11,7 +11,6 @@
     'quote_sent',
     'follow_up_1',
     'follow_up_2',
-    'closing_attempt',
     'won',
     'lost',
   ];
@@ -24,9 +23,8 @@
     quote_sent: { color: '#9b59b6', order_num: 4 },
     follow_up_1: { color: '#16a085', order_num: 5 },
     follow_up_2: { color: '#1abc9c', order_num: 6 },
-    closing_attempt: { color: '#e74c3c', order_num: 7 },
-    won: { color: '#27ae60', order_num: 8 },
-    lost: { color: '#c0392b', order_num: 9 },
+    won: { color: '#27ae60', order_num: 7 },
+    lost: { color: '#c0392b', order_num: 8 },
   };
 
   const LEGACY_SLUG_TO_CANONICAL = {
@@ -42,7 +40,8 @@
     follow_up2: 'follow_up_2',
     proposal_created: 'quote_sent',
     proposal_sent: 'quote_sent',
-    negotiation: 'closing_attempt',
+    negotiation: 'follow_up_2',
+    closing_attempt: 'follow_up_2',
     closed_won: 'won',
     closed_lost: 'lost',
     production: 'won',
@@ -55,7 +54,6 @@
     quote_sent: 'Quote Sent',
     follow_up_1: 'Follow Up 1',
     follow_up_2: 'Follow Up 2',
-    closing_attempt: 'Closing Attempt',
     won: 'Won',
     lost: 'Lost',
     lead_received: 'New Lead',
@@ -66,7 +64,7 @@
     measurement_done: 'Follow Up 1',
     proposal_created: 'Quote Sent',
     proposal_sent: 'Quote Sent',
-    negotiation: 'Closing Attempt',
+    negotiation: 'Follow Up 2',
     closed_won: 'Won',
     closed_lost: 'Lost',
     production: 'Won',
@@ -122,7 +120,7 @@
   }
 
   /**
-   * Same as mergePipelineStagesForUi plus `color` for Kanban columns (always 9 columns).
+   * Same as mergePipelineStagesForUi plus `color` for Kanban columns (always 8 columns).
    * @param {Array<object>} apiRows
    * @returns {Array<{ id?: number|null, slug: string, name?: string|null, color: string, order_num: number, is_active: number }>}
    */

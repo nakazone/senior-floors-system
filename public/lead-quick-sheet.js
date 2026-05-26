@@ -615,133 +615,47 @@
     else if (kind === 'error') alert(msg);
   }
 
-  function maybeRefreshKanban(updatedLead) {
+  function maybeRefreshKanban() {
     try {
-      if (updatedLead && typeof global.patchKanbanLeadCache === 'function') {
-        global.patchKanbanLeadCache(updatedLead);
-        return;
-      }
       if (typeof global.loadKanbanBoard === 'function') void global.loadKanbanBoard();
       else if (typeof global.loadCRMKanban === 'function') void global.loadCRMKanban();
     } catch (_) {}
   }
 
-  /** PUT so com status canonico; API resolve pipeline_stage_id (Kanban coloca pela id). */
+  /** Payload PUT com slug + pipeline_stage_id quando o est�gio est� na lista (Kanban usa o id). */
   function payloadForStatusSlug(slug) {
     const raw = String(slug || '').trim();
     if (!raw) return {};
-    if (typeof global.normalizePipelineSlug === 'function') {
-      return { status: global.normalizePipelineSlug(raw) };
-    }
     const hit = sheetStagesCache.find((s) => slugMatchesCurrent(s.slug, raw));
     const canonical = hit && hit.slug ? String(hit.slug).trim() : raw;
+    const id = hit && hit.id != null ? Number(hit.id) : NaN;
+    if (Number.isFinite(id) && id > 0) {
+      return { status: canonical, pipeline_stage_id: id };
+    }
     return { status: canonical };
   }
 
-  function leadCurrentPipelineSlug(lead) {
-    if (!lead) return '';
-    const raw = String(lead.pipeline_stage_slug || lead.status || '').trim();
-    if (typeof global.normalizePipelineSlug === 'function') {
-      return global.normalizePipelineSlug(raw);
-    }
-    return raw;
-  }
-
-  function syncStatusPickerFromLead(lead) {
-    const sel = document.getElementById('lqsStatus');
-    if (!sel || !lead) return;
-    const slug = leadCurrentPipelineSlug(lead);
-    if (!slug) return;
-    let matched = false;
-    for (let i = 0; i < sel.options.length; i++) {
-      if (slugMatchesCurrent(sel.options[i].value, slug)) {
-        sel.selectedIndex = i;
-        matched = true;
-        break;
-      }
-    }
-    if (!matched) {
-      const st = sheetStagesCache.find((s) => slugMatchesCurrent(s.slug, slug));
-      if (st && st.slug) {
-        const opt = document.createElement('option');
-        opt.value = st.slug;
-        opt.textContent =
-          typeof global.pipelineStageDisplayName === 'function'
-            ? global.pipelineStageDisplayName(st.slug, st.name)
-            : st.name || st.slug;
-        opt.setAttribute('data-color', st.color || '#94a3b8');
-        opt.selected = true;
-        sel.appendChild(opt);
-      }
-    }
-    syncStatusDotFromSelect();
-  }
-
-  async function applyStatusSlugFromPicker(slug) {
+  function applyStatusSlugFromPicker(slug) {
     if (!sheetLeadId || !slug) return;
     const sel = document.getElementById('lqsStatus');
     if (!sel) return;
     const payload = payloadForStatusSlug(slug);
     if (!payload.status) return;
-    const prevValue = sel.value;
-    const prevLead = sheetLead ? { ...sheetLead } : null;
     sel.value = payload.status;
     syncStatusDotFromSelect();
-    if (sheetLead) {
-      sheetLead = {
-        ...sheetLead,
-        status: payload.status,
-        pipeline_stage_slug: payload.status,
-      };
-      const st = sheetStagesCache.find((s) => slugMatchesCurrent(s.slug, payload.status));
-      if (st && st.id != null) sheetLead.pipeline_stage_id = st.id;
-      updateHeaderBadges(sheetLead);
-    }
     closeStatusMenu();
-    const data = await patchLead(payload);
-    if (data && data.success) {
-      syncStatusPickerFromLead(sheetLead);
-    } else {
-      sel.value = prevValue;
-      if (prevLead) {
-        sheetLead = prevLead;
-        updateHeaderBadges(sheetLead);
-      }
-      syncStatusDotFromSelect();
-    }
-  }
-
-  function onStatusMenuPick(e) {
-    const statusOpt = e.target.closest('[data-lqs-status-option]');
-    if (!statusOpt || !sheetLeadId) return;
-    const slug = statusOpt.getAttribute('data-value');
-    if (!slug) return;
-    e.preventDefault();
-    e.stopPropagation();
-    e.stopImmediatePropagation();
-    void applyStatusSlugFromPicker(slug);
-  }
-
-  let statusMenuInteractionWired = false;
-
-  function wireStatusMenuInteractions() {
-    const menu = document.getElementById('lqsStatusMenu');
-    if (!menu || statusMenuInteractionWired) return;
-    statusMenuInteractionWired = true;
-    menu.addEventListener('mousedown', onStatusMenuPick);
-    menu.addEventListener('click', onStatusMenuPick);
-    menu.addEventListener('keydown', (e) => {
-      if (e.key !== 'Enter' && e.key !== ' ') return;
-      const opt = e.target.closest('[data-lqs-status-option]');
-      if (!opt) return;
-      e.preventDefault();
-      const slug = opt.getAttribute('data-value');
-      if (slug) void applyStatusSlugFromPicker(slug);
-    });
+    void patchLead(payload).then(() => syncStatusDotFromSelect());
   }
 
   function onDocumentStatusOptionClick(e) {
-    onStatusMenuPick(e);
+    const statusOpt = e.target.closest('[data-lqs-status-option]');
+    if (!statusOpt || !sheetLeadId) return;
+    const menu = document.getElementById('lqsStatusMenu');
+    if (!menu || menu.hidden) return;
+    const slug = statusOpt.getAttribute('data-value');
+    if (!slug) return;
+    e.preventDefault();
+    applyStatusSlugFromPicker(slug);
   }
 
   const DEFAULT_STAGES = [
@@ -751,9 +665,8 @@
     { id: 4, name: 'Orcamento enviado', slug: 'quote_sent' },
     { id: 5, name: 'Follow-up 1', slug: 'follow_up_1' },
     { id: 6, name: 'Follow-up 2', slug: 'follow_up_2' },
-    { id: 7, name: 'Tentativa de fechamento', slug: 'closing_attempt' },
-    { id: 8, name: 'Ganho', slug: 'won' },
-    { id: 9, name: 'Perdido', slug: 'lost' },
+    { id: 7, name: 'Ganho', slug: 'won' },
+    { id: 8, name: 'Perdido', slug: 'lost' },
   ];
 
   function normalizeStages(stagesRes) {
@@ -1079,7 +992,7 @@
         syncPriorityToolbarButtons();
         if (partial.status !== undefined) syncStatusPickerFromLead(sheetLead);
       }
-      maybeRefreshKanban(sheetLead);
+      maybeRefreshKanban();
       return data;
     } catch (e) {
       notifySheet(e.message || 'Erro de rede', 'error');
@@ -1403,8 +1316,6 @@
     };
 
     body.innerHTML = renderSheetBody(lead, bundle);
-    statusMenuInteractionWired = false;
-    wireStatusMenuInteractions();
     updateHeaderBadges(lead);
     syncPriorityToolbarButtons();
     syncStatusPickerFromLead(lead);
