@@ -315,8 +315,12 @@ export async function createLead(req, res) {
     }
     const colSql = cols.map((c) => `\`${c}\``).join(', ');
     const qmarks = cols.map(() => '?').join(', ');
+    const stageEnteredSql = colSet.has('pipeline_stage_entered_at')
+      ? ', `pipeline_stage_entered_at`'
+      : '';
+    const stageEnteredVal = colSet.has('pipeline_stage_entered_at') ? ', NOW()' : '';
     const [result] = await pool.execute(
-      `INSERT INTO leads (${colSql}, \`created_at\`) VALUES (${qmarks}, NOW())`,
+      `INSERT INTO leads (${colSql}, \`created_at\`${stageEnteredSql}) VALUES (${qmarks}, NOW()${stageEnteredVal})`,
       vals
     );
     
@@ -348,6 +352,14 @@ export async function updateLead(req, res) {
   try {
     const pool = await getDBConnection();
     const colSet = await getLeadsTableColumns(pool);
+    const [existingRows] = await pool.query(
+      'SELECT pipeline_stage_id, status FROM leads WHERE id = ? LIMIT 1',
+      [id]
+    );
+    if (!existingRows.length) {
+      return res.status(404).json({ success: false, error: 'Lead not found' });
+    }
+    const currentLead = existingRows[0];
     const OPTIONAL_DIRECT_STRING = [
       'source',
       'form_type',
@@ -442,6 +454,17 @@ export async function updateLead(req, res) {
     }
     
     if (set.length === 0) return res.status(400).json({ success: false, error: 'No fields to update' });
+
+    const stageIdChanged =
+      body.pipeline_stage_id !== undefined &&
+      parseInt(body.pipeline_stage_id, 10) !== parseInt(currentLead.pipeline_stage_id, 10);
+    const statusChanged =
+      body.status !== undefined &&
+      normalizePipelineSlugForDb(String(body.status || '')) !==
+        normalizePipelineSlugForDb(String(currentLead.status || ''));
+    if (colSet.has('pipeline_stage_entered_at') && (stageIdChanged || statusChanged)) {
+      set.push('`pipeline_stage_entered_at` = NOW()');
+    }
     
     values.push(id);
     await pool.execute(`UPDATE leads SET ${set.join(', ')}, updated_at = NOW() WHERE id = ?`, values);

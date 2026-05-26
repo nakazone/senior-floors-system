@@ -108,6 +108,7 @@ import { getHealth } from './routes/health.js';
 import { ensureQuoteInvoicePdfColumn } from './lib/ensureQuoteInvoicePdfColumn.js';
 import { ensureUserModuleColumns } from './lib/ensureUserModuleColumns.js';
 import { ensureCustomersResponsibleNameColumn } from './lib/ensureCustomersResponsibleNameColumn.js';
+import { ensureLeadPipelineStageEnteredAt } from './lib/ensureLeadPipelineStageEnteredAt.js';
 import { ensurePayrollTimesheetDailyOverrideColumn } from './lib/ensurePayrollTimesheetDailyOverrideColumn.js';
 import { ensurePayrollEmployeeAllowOutsidePeriodColumn } from './lib/ensurePayrollEmployeeAllowOutsidePeriodColumn.js';
 import { ensureBuilderPaymentForecastsTable } from './lib/ensureBuilderPaymentForecastsTable.js';
@@ -760,6 +761,7 @@ async function start() {
       await ensureQuoteInvoicePdfColumn(pool);
       await ensureUserModuleColumns(pool);
       await ensureCustomersResponsibleNameColumn(pool);
+      await ensureLeadPipelineStageEnteredAt(pool);
       await ensurePayrollTimesheetDailyOverrideColumn(pool);
       await ensurePayrollEmployeeAllowOutsidePeriodColumn(pool);
       await ensureBuilderPaymentForecastsTable(pool);

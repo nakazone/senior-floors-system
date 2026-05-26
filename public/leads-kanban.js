@@ -8,9 +8,11 @@ let allLeads = [];
 let allUsers = [];
 /** Todas as visitas scheduled da API (Kanban filtra por estágio do lead) */
 let scheduledVisitsRawForKanban = [];
-/** Inicial: 2 cards por coluna; "Ver mais" +4 */
-const KANBAN_CARDS_INITIAL = 2;
-const KANBAN_CARDS_STEP = 4;
+/** Inicial: 5 cards por coluna; "Ver mais" +5 */
+const KANBAN_CARDS_INITIAL = 5;
+const KANBAN_CARDS_STEP = 5;
+/** Colunas com leads mais antigos no topo */
+const KANBAN_OLDEST_FIRST_SLUGS = new Set(['quote_sent', 'follow_up_1']);
 /** Chave = slug do estágio (ex.: meeting_scheduled); usado em "Ver mais" */
 let kanbanColumnVisible = {};
 
@@ -412,7 +414,10 @@ function renderKanbanBoard() {
 
     try {
     pipelineStages.forEach((stage) => {
-        const stageLeads = allLeads.filter((lead) => leadMatchesKanbanColumn(lead, stage));
+        const stageLeads = sortKanbanColumnLeads(
+            allLeads.filter((lead) => leadMatchesKanbanColumn(lead, stage)),
+            stage.slug
+        );
 
         const total = stageLeads.length;
         const colKey = kanbanColumnVisibilityKey(stage);
@@ -528,6 +533,49 @@ function renderVisitKanbanCard(visit) {
 }
 
 
+function kanbanCanonicalStageSlug(slug) {
+    if (typeof normalizePipelineSlug === 'function') {
+        return normalizePipelineSlug(String(slug || '').trim());
+    }
+    return String(slug || '').trim();
+}
+
+/** Quando o lead entrou no estágio atual (fallback: updated_at, created_at). */
+function kanbanStageEnteredAtRaw(lead) {
+    return lead.pipeline_stage_entered_at || lead.updated_at || lead.created_at;
+}
+
+function kanbanDaysInCurrentColumn(lead) {
+    const raw = kanbanStageEnteredAtRaw(lead);
+    if (!raw) return null;
+    const entered = new Date(raw);
+    if (Number.isNaN(entered.getTime())) return null;
+    const start = new Date(entered.getFullYear(), entered.getMonth(), entered.getDate());
+    const today = new Date();
+    const end = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const ms = end.getTime() - start.getTime();
+    return Math.max(0, Math.floor(ms / 86400000));
+}
+
+function kanbanStageEnteredMs(lead) {
+    const raw = kanbanStageEnteredAtRaw(lead);
+    const d = new Date(raw);
+    return Number.isNaN(d.getTime()) ? 0 : d.getTime();
+}
+
+function sortKanbanColumnLeads(leads, stageSlug) {
+    const canon = kanbanCanonicalStageSlug(stageSlug);
+    const oldestFirst = KANBAN_OLDEST_FIRST_SLUGS.has(canon);
+    return [...leads].sort((a, b) => {
+        const ta = kanbanStageEnteredMs(a);
+        const tb = kanbanStageEnteredMs(b);
+        if (ta !== tb) return oldestFirst ? ta - tb : tb - ta;
+        const ca = a.created_at ? new Date(a.created_at).getTime() : 0;
+        const cb = b.created_at ? new Date(b.created_at).getTime() : 0;
+        return oldestFirst ? ca - cb : cb - ca;
+    });
+}
+
 function formatKanbanLeadEnteredAt(createdAt) {
     if (!createdAt) return 'Data não disponível';
     const d = new Date(createdAt);
@@ -539,9 +587,23 @@ function formatKanbanLeadEnteredAt(createdAt) {
     }
 }
 
+function formatKanbanDaysInColumnLabel(days) {
+    if (days == null) return '';
+    if (days === 0) return 'Hoje';
+    if (days === 1) return '1 dia';
+    return `${days} dias`;
+}
+
 // Render Kanban Card
 function renderKanbanCard(lead) {
     const enteredAt = escapeKanbanHtml(formatKanbanLeadEnteredAt(lead.created_at));
+    const daysInColumn = kanbanDaysInCurrentColumn(lead);
+    const daysLabel = escapeKanbanHtml(formatKanbanDaysInColumnLabel(daysInColumn));
+    const staleAlert = daysInColumn != null && daysInColumn >= 5;
+    const daysHtml =
+        daysInColumn != null
+            ? `<span class="kanban-card-column-days${staleAlert ? ' kanban-card-column-days--alert' : ''}" title="Tempo nesta coluna">${daysLabel}${staleAlert ? '<span class="kanban-card-stale-dot" aria-hidden="true"></span>' : ''}</span>`
+            : '';
     const name = escapeKanbanHtml(lead.name || 'Sem nome');
     const email = lead.email ? escapeKanbanHtml(lead.email) : '';
     const phone = lead.phone ? escapeKanbanHtml(lead.phone) : '';
@@ -567,7 +629,10 @@ function renderKanbanCard(lead) {
                 ${phoneRow}
                 ${valueRow}
             </div>
-            <div class="kanban-card-owner" title="Entrou no sistema">${enteredAt}</div>
+            <div class="kanban-card-footer-row" title="Data de entrada · tempo na coluna">
+                <span class="kanban-card-entered-date">${enteredAt}</span>
+                ${daysHtml}
+            </div>
         </div>
     `;
 }
