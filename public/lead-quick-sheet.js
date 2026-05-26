@@ -1283,14 +1283,20 @@
     root.classList.add('is-open');
     root.setAttribute('aria-hidden', 'false');
     document.body.classList.add('lead-quick-sheet-open');
-    body.innerHTML = '<div class="lead-quick-sheet__loading">A carregar�</div>';
+    body.innerHTML = '<div class="lead-quick-sheet__loading">A carregar…</div>';
 
-    const [leadRes, stagesRes, quotesRes, proposalsRes] = await Promise.all([
+    const settled = await Promise.allSettled([
       fetchJson('/api/leads/' + sid),
       fetchJson('/api/pipeline-stages'),
       fetchJson('/api/quotes?lead_id=' + encodeURIComponent(String(sid)) + '&limit=50'),
       fetchJson('/api/leads/' + sid + '/proposals'),
     ]);
+    const pick = (i) =>
+      settled[i] && settled[i].status === 'fulfilled' ? settled[i].value : { ok: false, data: {} };
+    const leadRes = pick(0);
+    const stagesRes = pick(1);
+    const quotesRes = pick(2);
+    const proposalsRes = pick(3);
 
     const ld = leadRes.data;
     if (!leadRes.ok || !ld || ld.success !== true || !ld.data) {
@@ -1315,10 +1321,16 @@
       proposalsPayload: proposalsRes.ok ? proposalsRes.data : {},
     };
 
-    body.innerHTML = renderSheetBody(lead, bundle);
-    updateHeaderBadges(lead);
-    syncPriorityToolbarButtons();
-    syncStatusPickerFromLead(lead);
+    try {
+      body.innerHTML = renderSheetBody(lead, bundle);
+      updateHeaderBadges(lead);
+      syncPriorityToolbarButtons();
+      syncStatusPickerFromLead(lead);
+    } catch (renderErr) {
+      console.error('lead quick sheet render error', renderErr);
+      body.innerHTML =
+        '<p class="lead-quick-sheet__error">Nao foi possivel mostrar o lead.</p>';
+    }
 
     requestAnimationFrame(() => {
       animatePanelFromAnchor(sheetAnchorEl, panelEl);

@@ -151,7 +151,6 @@ async function loadPipelineStages() {
 // Load CRM Kanban (called from dashboard)
 async function loadCRMKanban() {
     currentView = 'kanban';
-    // Load required data first
     await loadLeadFormUsers();
     await loadPipelineStages();
     await loadKanbanBoard();
@@ -276,8 +275,22 @@ function leadMatchesKanbanColumn(lead, stage) {
     return kanbanNumericId(st.id) === kanbanNumericId(stage.id);
 }
 
+function setKanbanBoardMessage(html) {
+    const board = document.getElementById('kanbanBoard');
+    if (!board) return;
+    board.classList.add('kanban-board-grid');
+    board.innerHTML = html;
+}
+
 // Load Kanban Board
 async function loadKanbanBoard() {
+    const board = document.getElementById('kanbanBoard');
+    if (!board) return;
+    if (!pipelineStages.length) {
+        await loadPipelineStages();
+    }
+    setKanbanBoardMessage('<p class="kanban-board-message">A carregar…</p>');
+    board.removeAttribute('aria-busy');
     try {
         const searchEl = document.getElementById('leadsListSearchInput');
         const q =
@@ -285,17 +298,26 @@ async function loadKanbanBoard() {
                 ? '&q=' + encodeURIComponent(String(searchEl.value).trim())
                 : '';
         const response = await fetch('/api/leads?limit=5000&page=1' + q, { credentials: 'include' });
-        const data = await response.json();
+        const data = await response.json().catch(() => ({}));
 
         scheduledVisitsRawForKanban = [];
 
-        if (data.success && data.data) {
-            allLeads = data.data;
-            renderKanbanBoard();
-            bindKanbanLoadMore();
+        if (!response.ok || !data.success) {
+            setKanbanBoardMessage(
+                '<p class="kanban-board-message kanban-board-message--error">' +
+                    escapeKanbanHtml(data.error || 'Não foi possível carregar os leads.') +
+                    '</p>'
+            );
+            return;
         }
+        allLeads = Array.isArray(data.data) ? data.data : [];
+        renderKanbanBoard();
+        bindKanbanLoadMore();
     } catch (error) {
         console.error('Error loading kanban:', error);
+        setKanbanBoardMessage(
+            '<p class="kanban-board-message kanban-board-message--error">Erro ao carregar leads. Tente novamente.</p>'
+        );
     }
 }
 
@@ -381,9 +403,16 @@ function renderKanbanBoard() {
     if (!board) return;
 
     board.classList.add('kanban-board-grid');
+    board.removeAttribute('aria-busy');
+
+    if (!pipelineStages.length) {
+        setKanbanBoardMessage('<p class="kanban-board-message">A carregar estágios…</p>');
+        return;
+    }
 
     board.innerHTML = '';
 
+    try {
     pipelineStages.forEach((stage) => {
         const stageLeads = allLeads.filter((lead) => leadMatchesKanbanColumn(lead, stage));
 
@@ -412,7 +441,16 @@ function renderKanbanBoard() {
                 </div>
             </div>
             <div class="kanban-column-cards" id="${stageCardsId}">
-                ${visibleLeads.map((lead) => renderKanbanCard(lead)).join('')}
+                ${visibleLeads
+                    .map((lead) => {
+                        try {
+                            return renderKanbanCard(lead);
+                        } catch (e) {
+                            console.error('Kanban card render error', lead && lead.id, e);
+                            return '';
+                        }
+                    })
+                    .join('')}
             </div>
             ${
                 remaining > 0
@@ -427,6 +465,12 @@ function renderKanbanBoard() {
 
         board.appendChild(column);
     });
+    } catch (err) {
+        console.error('Error rendering kanban:', err);
+        setKanbanBoardMessage(
+            '<p class="kanban-board-message kanban-board-message--error">Erro ao mostrar o pipeline.</p>'
+        );
+    }
 }
 
 function bindKanbanLoadMore() {
@@ -490,7 +534,11 @@ function formatKanbanLeadEnteredAt(createdAt) {
     if (!createdAt) return 'Data não disponível';
     const d = new Date(createdAt);
     if (Number.isNaN(d.getTime())) return 'Data não disponível';
-    return d.toLocaleDateString('pt-PT', { day: '2-digit', month: 'short', year: 'numeric' });
+    try {
+        return d.toLocaleDateString('pt-PT', { day: '2-digit', month: 'short', year: 'numeric' });
+    } catch (_) {
+        return d.toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' });
+    }
 }
 
 // Render Kanban Card
@@ -794,8 +842,6 @@ if (typeof window !== 'undefined') {
     const originalLoadLeads = window.loadLeads;
     if (originalLoadLeads) {
         window.loadLeads = async function() {
-            await loadLeadFormUsers();
-            await loadPipelineStages();
             if (typeof loadCRMKanban === 'function') {
                 await loadCRMKanban();
             } else {

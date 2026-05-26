@@ -1886,8 +1886,6 @@ async function refreshLeads() {
     const searchEl = document.getElementById('leadsListSearchInput');
     leadsListSearch = searchEl ? searchEl.value.trim() : '';
     leadsPipelineSlugToColor = null;
-    const board = document.getElementById('kanbanBoard');
-    if (board) board.setAttribute('aria-busy', 'true');
     try {
         if (typeof loadCRMKanban === 'function') {
             await loadCRMKanban();
@@ -1897,8 +1895,16 @@ async function refreshLeads() {
         } else {
             await loadLeads();
         }
-    } finally {
-        if (board) board.removeAttribute('aria-busy');
+    } catch (e) {
+        console.error('refreshLeads failed', e);
+        const board = document.getElementById('kanbanBoard');
+        if (board) {
+            board.removeAttribute('aria-busy');
+            if (!board.querySelector('.kanban-column')) {
+                board.innerHTML =
+                    '<p class="kanban-board-message kanban-board-message--error">Erro ao atualizar. Tente novamente.</p>';
+            }
+        }
     }
 }
 

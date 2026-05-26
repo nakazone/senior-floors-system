@@ -1870,6 +1870,18 @@ input.score-auto {
     transition: opacity 0.15s ease;
 }
 
+.kanban-board-message {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 2rem 1rem;
+    color: var(--text-muted, #666);
+    font-size: 0.95rem;
+}
+
+.kanban-board-message--error {
+    color: #c0392b;
+}
+
 .kanban-board-wrap {
     width: 100%;
     overflow-x: visible;
