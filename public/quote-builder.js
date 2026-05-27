@@ -25,6 +25,263 @@
     '$' +
     (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+  function parseMoneyInput(val) {
+    const s = String(val ?? '')
+      .replace(/[$,\s]/g, '')
+      .trim();
+    if (!s) return 0;
+    const n = parseFloat(s);
+    return Number.isFinite(n) ? n : 0;
+  }
+
+  function formatMoneyInput(n) {
+    const v = Math.max(0, Number(n) || 0);
+    return v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  function parseQtyInput(val) {
+    const s = String(val ?? '')
+      .replace(/,/g, '.')
+      .trim();
+    if (!s) return 0;
+    const n = parseFloat(s);
+    return Number.isFinite(n) ? n : 0;
+  }
+
+  function selectAllOnFocus(el) {
+    if (!el || el.dataset.selectAllBound) return;
+    el.dataset.selectAllBound = '1';
+    el.addEventListener('focus', () => {
+      setTimeout(() => {
+        try {
+          el.select();
+        } catch (_) {
+          /* ignore */
+        }
+      }, 0);
+    });
+  }
+
+  function wireMoneyField(input) {
+    if (!input || input.dataset.moneyBound) return;
+    input.dataset.moneyBound = '1';
+    selectAllOnFocus(input);
+    input.addEventListener('blur', () => {
+      input.value = formatMoneyInput(parseMoneyInput(input.value));
+      updateInlineItemTotal();
+    });
+    input.addEventListener('input', () => updateInlineItemTotal());
+  }
+
+  function getActiveLeadId() {
+    if (selectedQuoteLead && selectedQuoteLead.id != null) {
+      const n = Number(selectedQuoteLead.id);
+      if (Number.isFinite(n)) return n;
+    }
+    if (loadedQuoteLeadId != null && Number.isFinite(loadedQuoteLeadId)) return loadedQuoteLeadId;
+    if (pendingLeadId != null && Number.isFinite(pendingLeadId)) return pendingLeadId;
+    return null;
+  }
+
+  function hideClientForms() {
+    ['qbClientManualForm', 'qbClientEditForm'].forEach((id) => {
+      const el = $(id);
+      if (el) el.classList.add('hidden');
+    });
+    const me = $('manualClientError');
+    const ee = $('editClientError');
+    if (me) me.classList.add('hidden');
+    if (ee) ee.classList.add('hidden');
+  }
+
+  function updateClientActionButtons() {
+    const editBtn = $('btnEditClient');
+    const crmLink = $('btnOpenLeadInCrm');
+    const lid = getActiveLeadId();
+    if (editBtn) editBtn.classList.toggle('hidden', !lid);
+    if (crmLink) {
+      if (lid) {
+        crmLink.href = `lead-detail.html?id=${lid}`;
+        crmLink.classList.remove('hidden');
+      } else {
+        crmLink.classList.add('hidden');
+      }
+    }
+  }
+
+  function fillClientEditFormFromLead(lead) {
+    if (!lead) return;
+    if ($('editClientName')) $('editClientName').value = lead.name != null ? String(lead.name) : '';
+    if ($('editClientPhone')) $('editClientPhone').value = lead.phone != null ? String(lead.phone) : '';
+    if ($('editClientEmail')) $('editClientEmail').value = lead.email != null ? String(lead.email) : '';
+    if ($('editClientZip')) $('editClientZip').value = lead.zipcode != null ? String(lead.zipcode) : '';
+    if ($('editClientAddress')) {
+      $('editClientAddress').value = leadAddress(lead);
+    }
+  }
+
+  async function openClientEditForm() {
+    const lid = getActiveLeadId();
+    if (!lid) {
+      qbToast('Selecione ou crie um cliente primeiro.', 'info');
+      return;
+    }
+    hideClientForms();
+    let lead = selectedQuoteLead;
+    if (!lead || Number(lead.id) !== lid) {
+      try {
+        const lr = await fetch(`/api/leads/${lid}`, { credentials: 'include' }).then((r) => r.json());
+        if (lr.success && lr.data) lead = lr.data;
+      } catch (_) {
+        qbToast('Erro ao carregar lead.', 'error');
+        return;
+      }
+    }
+    selectedQuoteLead = lead;
+    fillClientEditFormFromLead(lead);
+    const form = $('qbClientEditForm');
+    if (form) {
+      form.classList.remove('hidden');
+      $('editClientName')?.focus();
+    }
+  }
+
+  async function saveClientEdits() {
+    const errEl = $('editClientError');
+    if (errEl) errEl.classList.add('hidden');
+    const lid = getActiveLeadId();
+    if (!lid) {
+      qbToast('Nenhum lead associado.', 'error');
+      return;
+    }
+    const name = String($('editClientName')?.value || '').trim();
+    const email = String($('editClientEmail')?.value || '').trim();
+    const phone = String($('editClientPhone')?.value || '').trim();
+    const zipcode = String($('editClientZip')?.value || '').trim();
+    const address = String($('editClientAddress')?.value || '').trim();
+    if (name.length < 2) {
+      if (errEl) {
+        errEl.textContent = 'Nome obrigatório (mín. 2 caracteres).';
+        errEl.classList.remove('hidden');
+      }
+      return;
+    }
+    try {
+      const r = await fetch(`/api/leads/${lid}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ name, email, phone, zipcode, address: address || null }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.success) throw new Error(j.error || 'Erro ao atualizar lead.');
+      selectedQuoteLead = j.data;
+      loadedQuoteLeadId = lid;
+      const search = $('customerSearch');
+      if (search) search.value = formatLeadClientLabel(j.data);
+      const cid = parseInt(String($('customerId')?.value), 10);
+      if (Number.isFinite(cid) && cid > 0) {
+        await fetch(`/api/customers/${cid}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            name,
+            email,
+            phone,
+            address: address || null,
+            zipcode: zipcode || null,
+          }),
+        }).catch(() => {});
+        try {
+          const cr = await api(`/api/customers/${cid}`);
+          if (cr.data) upsertClientInCache(cr.data);
+        } catch (_) {
+          upsertClientInCache({ id: cid, name, email, phone, address, zipcode });
+        }
+      } else {
+        try {
+          await resolveCustomerForLead(lid);
+        } catch (_) {
+          /* lead updated; customer optional */
+        }
+      }
+      hideClientForms();
+      renderClientDetails();
+      updateClientActionButtons();
+      qbToast('Cliente atualizado no CRM.', 'success');
+    } catch (e) {
+      if (errEl) {
+        errEl.textContent = e.message || 'Erro ao guardar.';
+        errEl.classList.remove('hidden');
+      } else qbToast(e.message || 'Erro ao guardar.', 'error');
+    }
+  }
+
+  async function createManualClient() {
+    const errEl = $('manualClientError');
+    if (errEl) errEl.classList.add('hidden');
+    const name = String($('manualClientName')?.value || '').trim();
+    const email = String($('manualClientEmail')?.value || '').trim();
+    const phone = String($('manualClientPhone')?.value || '').trim();
+    const zipcode = String($('manualClientZip')?.value || '').trim();
+    const address = String($('manualClientAddress')?.value || '').trim();
+    if (name.length < 2 || !email || phone.length < 10 || zipcode.replace(/\D/g, '').length < 5) {
+      if (errEl) {
+        errEl.textContent = 'Preencha nome, email, telefone e ZIP (5 dígitos).';
+        errEl.classList.remove('hidden');
+      }
+      return;
+    }
+    try {
+      const r = await fetch('/api/leads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          name,
+          email,
+          phone,
+          zipcode,
+          address: address || null,
+          source: 'Quote Builder',
+          form_type: 'manual',
+        }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.success) throw new Error(j.error || 'Erro ao criar lead.');
+      hideClientForms();
+      ['manualClientName', 'manualClientPhone', 'manualClientEmail', 'manualClientZip', 'manualClientAddress'].forEach(
+        (id) => {
+          const el = $(id);
+          if (el) el.value = '';
+        }
+      );
+      await selectLeadAsClient(j.data);
+      qbToast('Cliente criado e selecionado.', 'success');
+    } catch (e) {
+      if (errEl) {
+        errEl.textContent = e.message || 'Erro ao criar.';
+        errEl.classList.remove('hidden');
+      } else qbToast(e.message || 'Erro ao criar.', 'error');
+    }
+  }
+
+  function handleServiceFormEnter(e) {
+    if (e.key !== 'Enter' || e.shiftKey) return;
+    if (e.target && e.target.tagName === 'TEXTAREA') return;
+    e.preventDefault();
+    const results = $('modalServiceResults');
+    if (results && !results.classList.contains('hidden')) {
+      const first = results.querySelector('[data-catalog-id]');
+      if (first && document.activeElement === $('modalServiceName')) {
+        first.click();
+        return;
+      }
+    }
+    confirmAddServiceLine();
+  }
+
   function qbToast(msg, type) {
     if (window.crmToast && typeof window.crmToast.show === 'function') {
       window.crmToast.show(msg, { type: type === 'error' ? 'error' : type === 'info' ? 'info' : 'success' });
@@ -401,13 +658,14 @@
     set('qbClientEmail', info?.email);
     set('qbClientAddress', info?.address);
     box.classList.remove('hidden');
+    updateClientActionButtons();
   }
 
   function updateInlineItemTotal() {
     const el = $('inlineItemTotal');
     if (!el) return;
-    const qty = parseFloat($('modalServiceQty')?.value) || 0;
-    const rate = parseFloat($('modalServiceRate')?.value) || 0;
+    const qty = parseQtyInput($('modalServiceQty')?.value);
+    const rate = parseMoneyInput($('modalServiceRate')?.value);
     el.textContent = money(lineAmount(qty, rate));
   }
 
@@ -619,6 +877,8 @@
     if (search) search.value = formatLeadClientLabel(lead);
     hideClientSearchResults();
     renderClientDetails();
+    updateClientActionButtons();
+    hideClientForms();
 
     const hint = $('leadContextHint');
     if (hint) {
@@ -850,7 +1110,7 @@
       row.default_description != null ? String(row.default_description).trim() : '';
     $('modalServiceType').value = serviceTypeFromCatalogCategory(row.category);
     $('modalServiceUnit').value = row.unit_type || 'sq_ft';
-    $('modalServiceRate').value = String(rate);
+    $('modalServiceRate').value = formatMoneyInput(rate);
     hideModalServiceResults();
     updateInlineItemTotal();
   }
@@ -863,7 +1123,7 @@
     if ($('modalServiceType')) $('modalServiceType').value = 'Installation';
     if ($('modalServiceUnit')) $('modalServiceUnit').value = 'sq_ft';
     if ($('modalServiceQty')) $('modalServiceQty').value = '1';
-    if ($('modalServiceRate')) $('modalServiceRate').value = '0';
+    if ($('modalServiceRate')) $('modalServiceRate').value = formatMoneyInput(0);
     if ($('inlineItemNote')) $('inlineItemNote').value = '';
     hideModalServiceResults();
     updateInlineItemTotal();
@@ -878,7 +1138,7 @@
     $('modalServiceType').value = it.service_type || 'Installation';
     $('modalServiceUnit').value = it.unit_type || 'sq_ft';
     $('modalServiceQty').value = String(it.quantity ?? 1);
-    $('modalServiceRate').value = String(it.rate ?? 0);
+    $('modalServiceRate').value = formatMoneyInput(it.rate ?? 0);
     if ($('inlineItemNote')) $('inlineItemNote').value = it.notes != null ? String(it.notes) : '';
     updateInlineItemTotal();
   }
@@ -938,8 +1198,8 @@
       }
       return;
     }
-    const qty = parseFloat($('modalServiceQty').value) || 1;
-    const rate = parseFloat($('modalServiceRate').value) || 0;
+    const qty = parseQtyInput($('modalServiceQty').value) || 1;
+    const rate = parseMoneyInput($('modalServiceRate').value);
     const row = modalSelectedCatalogRow;
     const catNotes = row && row.notes_customer != null ? String(row.notes_customer).trim() : '';
     const noteVal = $('inlineItemNote') ? String($('inlineItemNote').value || '').trim() : '';
@@ -1231,10 +1491,13 @@
       $('quoteMeta').textContent = 'Novo orçamento';
       updatePreviewHeader();
       renderClientDetails();
+      updateClientActionButtons();
       setPublicLink('');
       enableActions();
       renderItems();
     }
+
+    updateClientActionButtons();
 
     if (pendingLeadId != null && Number.isFinite(pendingLeadId)) {
       try {
@@ -1258,12 +1521,35 @@
       });
       modalServiceName.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') hideModalServiceResults();
+        else handleServiceFormEnter(e);
       });
     }
-    ['modalServiceQty', 'modalServiceRate'].forEach((id) => {
-      const el = $(id);
-      if (el) el.addEventListener('input', updateInlineItemTotal);
+    const qtyEl = $('modalServiceQty');
+    if (qtyEl) {
+      selectAllOnFocus(qtyEl);
+      qtyEl.addEventListener('input', updateInlineItemTotal);
+      qtyEl.addEventListener('keydown', handleServiceFormEnter);
+    }
+    wireMoneyField($('modalServiceRate'));
+    const rateEl = $('modalServiceRate');
+    if (rateEl) rateEl.addEventListener('keydown', handleServiceFormEnter);
+    $('modalServiceDesc')?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        confirmAddServiceLine();
+      }
     });
+
+    $('btnAddClientManual')?.addEventListener('click', () => {
+      hideClientForms();
+      $('qbClientManualForm')?.classList.remove('hidden');
+      $('manualClientName')?.focus();
+    });
+    $('btnManualClientCancel')?.addEventListener('click', hideClientForms);
+    $('btnManualClientSave')?.addEventListener('click', () => void createManualClient());
+    $('btnEditClient')?.addEventListener('click', () => void openClientEditForm());
+    $('btnEditClientCancel')?.addEventListener('click', hideClientForms);
+    $('btnEditClientSave')?.addEventListener('click', () => void saveClientEdits());
 
     if (modalServiceResults) {
       modalServiceResults.addEventListener('click', (e) => {
@@ -1297,7 +1583,11 @@
     }
     $('discountType').addEventListener('change', () => recalc());
     $('discountValue').addEventListener('input', () => recalc());
-    $('taxTotal').addEventListener('input', () => recalc());
+    const taxIn = $('taxTotal');
+    if (taxIn) {
+      wireMoneyField(taxIn);
+      taxIn.addEventListener('input', () => recalc());
+    }
     const expIn = $('expirationDate');
     if (expIn) expIn.addEventListener('change', updatePreviewHeader);
 

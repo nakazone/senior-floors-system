@@ -538,6 +538,111 @@
     .qb-client-meta__pricing {
       padding: 0.65rem 0;
     }
+    .qb-client-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-top: 0.75rem;
+    }
+    .qb-client-actions .btn-link {
+      font-size: 0.8125rem;
+      font-weight: 600;
+      color: var(--primary-color);
+      background: none;
+      border: 0;
+      padding: 0.35rem 0;
+      cursor: pointer;
+      font-family: inherit;
+      text-decoration: none;
+    }
+    .qb-client-actions .btn-link:hover {
+      text-decoration: underline;
+    }
+    .qb-client-actions .btn-link.hidden {
+      display: none !important;
+    }
+    .qb-client-form {
+      margin-top: 0.75rem;
+      padding: 1rem;
+      border-radius: 8px;
+      border: 1px solid #e2e8f0;
+      background: #fff;
+    }
+    .qb-client-form.hidden {
+      display: none !important;
+    }
+    .qb-client-form__title {
+      font-size: 0.8125rem;
+      font-weight: 700;
+      color: #334155;
+      margin: 0 0 0.75rem;
+    }
+    .qb-client-form__grid {
+      display: grid;
+      gap: 0.65rem;
+    }
+    .qb-client-form__grid label {
+      display: block;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #64748b;
+      margin-bottom: 0.2rem;
+    }
+    .qb-client-form__grid input,
+    .qb-client-form__grid textarea {
+      width: 100%;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      padding: 0.5rem 0.65rem;
+      font-size: 0.875rem;
+      font-family: inherit;
+      box-sizing: border-box;
+    }
+    .qb-client-form__actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.5rem;
+      margin-top: 0.75rem;
+      padding-top: 0.75rem;
+      border-top: 1px solid #f1f5f9;
+    }
+    .qb-money-field {
+      display: flex;
+      align-items: center;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      background: #fff;
+      overflow: hidden;
+      flex: 1 1 7rem;
+      min-width: 7rem;
+      max-width: 12rem;
+    }
+    .qb-money-field__prefix {
+      padding: 0.5rem 0.45rem 0.5rem 0.65rem;
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: #64748b;
+      background: #f8fafc;
+      border-right: 1px solid #e2e8f0;
+    }
+    .qb-money-field__input {
+      flex: 1;
+      min-width: 0;
+      border: 0;
+      padding: 0.5rem 0.65rem;
+      font-size: 0.875rem;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      background: transparent;
+      font-family: inherit;
+    }
+    .qb-money-field__input:focus {
+      outline: none;
+    }
+    .qb-money-field:focus-within {
+      outline: 2px solid rgba(26, 32, 54, 0.15);
+      border-color: var(--primary-color);
+    }
     .qb-items-bar {
       background: #f1f5f9;
       padding: 0.65rem 1.25rem;
@@ -1010,6 +1115,41 @@
                   <input type="hidden" id="customerId" value="" />
                   <div id="customerSearchResults" class="qb-client-search__results hidden" role="listbox" aria-label="Resultados de leads"></div>
                 </div>
+                <div class="qb-client-actions">
+                  <button type="button" id="btnAddClientManual" class="btn-link">+ Cliente manual</button>
+                  <button type="button" id="btnEditClient" class="btn-link hidden">Editar cliente</button>
+                  <a id="btnOpenLeadInCrm" class="btn-link hidden" href="#" target="_blank" rel="noopener">Abrir no CRM</a>
+                </div>
+                <div id="qbClientManualForm" class="qb-client-form hidden" aria-label="Novo cliente manual">
+                  <p class="qb-client-form__title">Novo cliente (cria lead no CRM)</p>
+                  <div class="qb-client-form__grid">
+                    <div><label for="manualClientName">Name *</label><input type="text" id="manualClientName" autocomplete="name" /></div>
+                    <div><label for="manualClientPhone">Phone *</label><input type="tel" id="manualClientPhone" autocomplete="tel" /></div>
+                    <div><label for="manualClientEmail">Email *</label><input type="email" id="manualClientEmail" autocomplete="email" /></div>
+                    <div><label for="manualClientZip">ZIP *</label><input type="text" id="manualClientZip" inputmode="numeric" maxlength="10" placeholder="80202" /></div>
+                    <div><label for="manualClientAddress">Address</label><textarea id="manualClientAddress" rows="2"></textarea></div>
+                  </div>
+                  <p id="manualClientError" class="text-red-600 text-sm hidden mt-2"></p>
+                  <div class="qb-client-form__actions">
+                    <button type="button" id="btnManualClientCancel" class="px-3 py-1.5 text-sm text-slate-600">Cancelar</button>
+                    <button type="button" id="btnManualClientSave" class="px-3 py-1.5 rounded-lg bg-[#1a2036] text-white text-sm font-semibold">Criar e selecionar</button>
+                  </div>
+                </div>
+                <div id="qbClientEditForm" class="qb-client-form hidden" aria-label="Editar cliente">
+                  <p class="qb-client-form__title">Editar cliente (atualiza o lead no CRM)</p>
+                  <div class="qb-client-form__grid">
+                    <div><label for="editClientName">Name</label><input type="text" id="editClientName" autocomplete="name" /></div>
+                    <div><label for="editClientPhone">Phone</label><input type="tel" id="editClientPhone" autocomplete="tel" /></div>
+                    <div><label for="editClientEmail">Email</label><input type="email" id="editClientEmail" autocomplete="email" /></div>
+                    <div><label for="editClientZip">ZIP</label><input type="text" id="editClientZip" inputmode="numeric" maxlength="10" /></div>
+                    <div><label for="editClientAddress">Address</label><textarea id="editClientAddress" rows="2"></textarea></div>
+                  </div>
+                  <p id="editClientError" class="text-red-600 text-sm hidden mt-2"></p>
+                  <div class="qb-client-form__actions">
+                    <button type="button" id="btnEditClientCancel" class="px-3 py-1.5 text-sm text-slate-600">Cancelar</button>
+                    <button type="button" id="btnEditClientSave" class="px-3 py-1.5 rounded-lg bg-[#1a2036] text-white text-sm font-semibold">Guardar no CRM</button>
+                  </div>
+                </div>
                 <div id="qbClientDetails" class="qb-client-details hidden" aria-live="polite">
                   <dl class="qb-client-details__list">
                     <div class="qb-client-details__row">
@@ -1080,9 +1220,12 @@
                 </div>
                 <div class="qb-item-editor__row">
                   <div class="qb-item-editor__qty-rate">
-                    <input type="number" id="modalServiceQty" step="0.01" min="0.01" value="1" aria-label="Quantidade" />
+                    <input type="text" id="modalServiceQty" inputmode="decimal" value="1" aria-label="Quantidade" autocomplete="off" />
                     <span>×</span>
-                    <input type="number" id="modalServiceRate" step="0.01" min="0" value="0" aria-label="Taxa" />
+                    <div class="qb-money-field">
+                      <span class="qb-money-field__prefix" aria-hidden="true">$</span>
+                      <input type="text" id="modalServiceRate" class="qb-money-field__input" inputmode="decimal" value="0.00" aria-label="Taxa" autocomplete="off" />
+                    </div>
                   </div>
                   <span class="qb-item-editor__total" id="inlineItemTotal">$0.00</span>
                 </div>
@@ -1309,7 +1452,7 @@
 
   <script src="crm-shared-nav.js?v=12"></script>
   <script src="crm-toast.js"></script>
-  <script src="quote-builder.js?v=20260527-qty-width"></script>
+  <script src="quote-builder.js?v=20260528-client-actions"></script>
   <script>
     (function () {
       var t = document.getElementById('mobileMenuToggle');
