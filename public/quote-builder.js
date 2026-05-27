@@ -930,6 +930,207 @@
     return '';
   }
 
+  function getClientPhoneForQuote() {
+    if (selectedQuoteLead && selectedQuoteLead.phone) return String(selectedQuoteLead.phone).trim();
+    const cid = parseInt(String($('customerId') && $('customerId').value), 10);
+    if (Number.isFinite(cid) && cid > 0) {
+      const c = clients.find((x) => Number(x.id) === cid);
+      if (c && c.phone) return String(c.phone).trim();
+    }
+    return '';
+  }
+
+  function leadFirstNameForSms(lead) {
+    if (!lead) return 'there';
+    const full = lead.name != null ? String(lead.name).trim() : '';
+    const bit = full.split(/\s+/).filter(Boolean)[0];
+    return bit || 'there';
+  }
+
+  function getQuotePublicUrlFromDom() {
+    const a = $('publicLink');
+    if (a && a.href && String(a.href).startsWith('http')) return a.href;
+    return '';
+  }
+
+  async function resolveQuotePublicUrl() {
+    const existing = getQuotePublicUrlFromDom();
+    if (existing) return existing;
+    if (!quoteId) return '';
+    try {
+      const r = await api(`/api/quotes/${quoteId}`);
+      const t = r.data && r.data.public_token;
+      if (t) {
+        setPublicLink(t);
+        return getQuotePublicUrlFromDom();
+      }
+    } catch (_) {
+      /* ignore */
+    }
+    return '';
+  }
+
+  function buildQuoteSmsBody(lead, publicUrl) {
+    const first = leadFirstNameForSms(lead);
+    const num = loadedQuoteNumber ? formatQuoteNumberLabel(loadedQuoteNumber) : '';
+    const ref = num ? ` (${num})` : '';
+    let body = `Hi ${first}, your quote from Senior Floors${ref} is ready.`;
+    if (publicUrl) {
+      body += `\n\nView your quote here:\n${publicUrl}`;
+    }
+    body += '\n\nThank you!';
+    return body;
+  }
+
+  let quoteSendMenuOpen = false;
+
+  function closeQuoteSendMenu() {
+    const menu = $('quoteSendMenu');
+    const btn = $('btnSend');
+    if (menu) menu.classList.add('hidden');
+    if (btn) btn.setAttribute('aria-expanded', 'false');
+    quoteSendMenuOpen = false;
+    document.removeEventListener('click', onQuoteSendMenuOutside, true);
+    window.removeEventListener('resize', positionQuoteSendMenu);
+  }
+
+  function positionQuoteSendMenu() {
+    const menu = $('quoteSendMenu');
+    const anchor = $('btnSend');
+    if (!menu || !anchor || menu.classList.contains('hidden')) return;
+    const r = anchor.getBoundingClientRect();
+    const margin = 8;
+    menu.style.visibility = 'hidden';
+    menu.classList.remove('hidden');
+    const menuH = menu.offsetHeight || 120;
+    const menuW = Math.max(220, menu.offsetWidth || 220);
+    let top = r.top - menuH - 6;
+    if (top < margin) top = r.bottom + 6;
+    let left = r.left + r.width / 2 - menuW / 2;
+    left = Math.max(margin, Math.min(left, window.innerWidth - menuW - margin));
+    menu.style.position = 'fixed';
+    menu.style.top = `${top}px`;
+    menu.style.left = `${left}px`;
+    menu.style.width = `${menuW}px`;
+    menu.style.visibility = '';
+  }
+
+  function onQuoteSendMenuOutside(e) {
+    if (
+      e.target.closest('#quoteSendMenu') ||
+      e.target.closest('#btnSend')
+    ) {
+      return;
+    }
+    closeQuoteSendMenu();
+  }
+
+  function openQuoteSendMenu() {
+    if (!quoteId) return;
+    const menu = $('quoteSendMenu');
+    const btn = $('btnSend');
+    if (!menu || !btn) return;
+    quoteSendMenuOpen = true;
+    menu.classList.remove('hidden');
+    btn.setAttribute('aria-expanded', 'true');
+    positionQuoteSendMenu();
+    window.addEventListener('resize', positionQuoteSendMenu);
+    requestAnimationFrame(() => {
+      document.addEventListener('click', onQuoteSendMenuOutside, true);
+    });
+  }
+
+  function toggleQuoteSendMenu() {
+    if (quoteSendMenuOpen) closeQuoteSendMenu();
+    else openQuoteSendMenu();
+  }
+
+  async function sendQuoteByEmail() {
+    closeQuoteSendMenu();
+    if (!quoteId) return;
+    let cid;
+    try {
+      cid = await ensureCustomerForQuote();
+    } catch (e) {
+      showQuoteNotify({
+        type: 'error',
+        title: 'Cliente necessário',
+        message: e.message || 'Selecione um lead na pesquisa de cliente.',
+        ms: 8000,
+      });
+      return;
+    }
+    const preview = getClientEmailForQuote();
+    if (!preview) {
+      showQuoteNotify({
+        type: 'error',
+        title: 'E-mail em falta',
+        message: 'Este cliente não tem e-mail no cadastro. Edite o cliente no CRM e adicione o e-mail antes de enviar.',
+        ms: 10000,
+      });
+      return;
+    }
+    try {
+      const r = await api(`/api/quotes/${quoteId}/send-email`, {
+        method: 'POST',
+        body: JSON.stringify({}),
+      });
+      const how = r.transport === 'smtp' ? 'SMTP' : r.transport === 'resend' ? 'Resend' : 'servidor';
+      showQuoteNotify({
+        type: 'success',
+        title: 'E-mail enviado',
+        message: `O orçamento foi enviado para ${preview} (${how}).`,
+      });
+    } catch (e) {
+      showQuoteNotify({
+        type: 'error',
+        title: 'Falha ao enviar',
+        message: e.message || 'Não foi possível enviar o e-mail. Tente novamente ou verifique a configuração do servidor.',
+        ms: 12000,
+      });
+    }
+  }
+
+  async function sendQuoteByMessage() {
+    closeQuoteSendMenu();
+    if (!quoteId) return;
+    const phone = getClientPhoneForQuote();
+    if (!phone) {
+      showQuoteNotify({
+        type: 'error',
+        title: 'Telefone em falta',
+        message: 'Este cliente não tem telefone no cadastro. Edite o cliente no CRM e adicione o telefone.',
+        ms: 10000,
+      });
+      return;
+    }
+    const publicUrl = await resolveQuotePublicUrl();
+    if (!publicUrl) {
+      showQuoteNotify({
+        type: 'error',
+        title: 'Link do orçamento',
+        message: 'Guarde o orçamento primeiro para gerar o link público antes de enviar por mensagem.',
+        ms: 10000,
+      });
+      return;
+    }
+    const lead = selectedQuoteLead || {
+      name: $('qbClientName')?.textContent || '',
+      phone,
+    };
+    const body = buildQuoteSmsBody(lead, publicUrl);
+    const buildSms =
+      typeof window !== 'undefined' && typeof window.sfBuildSmsHref === 'function'
+        ? window.sfBuildSmsHref
+        : null;
+    const href = buildSms ? buildSms(phone, body) : null;
+    if (!href) {
+      qbToast('Não foi possível abrir a app de mensagens.', 'error');
+      return;
+    }
+    window.location.href = href;
+  }
+
   async function setClientSearchFromLoadedQuote(q) {
     const search = $('customerSearch');
     if (!search || !q) return;
@@ -1325,7 +1526,8 @@
 
   function enableActions() {
     $('btnPdf').disabled = !quoteId;
-    $('btnEmail').disabled = !quoteId;
+    const btnSend = $('btnSend');
+    if (btnSend) btnSend.disabled = !quoteId;
     $('btnDup').disabled = !quoteId;
   }
 
@@ -1633,50 +1835,12 @@
     });
     wireQuoteNotify();
 
-    $('btnEmail').addEventListener('click', async () => {
+    $('btnSend')?.addEventListener('click', () => {
       if (!quoteId) return;
-      let cid;
-      try {
-        cid = await ensureCustomerForQuote();
-      } catch (e) {
-        showQuoteNotify({
-          type: 'error',
-          title: 'Cliente necessário',
-          message: e.message || 'Selecione um lead na pesquisa de cliente.',
-          ms: 8000,
-        });
-        return;
-      }
-      const preview = getClientEmailForQuote();
-      if (!preview) {
-        showQuoteNotify({
-          type: 'error',
-          title: 'E-mail em falta',
-          message: 'Este cliente não tem e-mail no cadastro. Edite o cliente no CRM e adicione o e-mail antes de enviar.',
-          ms: 10000,
-        });
-        return;
-      }
-      try {
-        const r = await api(`/api/quotes/${quoteId}/send-email`, {
-          method: 'POST',
-          body: JSON.stringify({}),
-        });
-        const how = r.transport === 'smtp' ? 'SMTP' : r.transport === 'resend' ? 'Resend' : 'servidor';
-        showQuoteNotify({
-          type: 'success',
-          title: 'E-mail enviado',
-          message: `O orçamento foi enviado para ${preview} (${how}).`,
-        });
-      } catch (e) {
-        showQuoteNotify({
-          type: 'error',
-          title: 'Falha ao enviar',
-          message: e.message || 'Não foi possível enviar o e-mail. Tente novamente ou verifique a configuração do servidor.',
-          ms: 12000,
-        });
-      }
+      toggleQuoteSendMenu();
     });
+    $('quoteSendByEmail')?.addEventListener('click', () => void sendQuoteByEmail());
+    $('quoteSendBySms')?.addEventListener('click', () => void sendQuoteByMessage());
     $('btnDup').addEventListener('click', async () => {
       if (!quoteId) return;
       const r = await api(`/api/quotes/${quoteId}/duplicate`, { method: 'POST', body: '{}' });

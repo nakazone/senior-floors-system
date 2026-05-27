@@ -1028,6 +1028,48 @@
         padding: 0.85rem 0.4rem;
       }
     }
+    .qb-send-menu {
+      position: fixed;
+      z-index: 10020;
+      min-width: 220px;
+      max-width: min(320px, calc(100vw - 16px));
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      box-shadow: 0 12px 40px rgba(15, 23, 42, 0.18);
+      padding: 0.35rem 0;
+      overflow: hidden;
+    }
+    .qb-send-menu.hidden {
+      display: none !important;
+    }
+    .qb-send-menu__item {
+      display: block;
+      width: 100%;
+      text-align: left;
+      padding: 0.75rem 1rem;
+      border: 0;
+      background: #fff;
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: #1a2036;
+      cursor: pointer;
+      font-family: inherit;
+      border-bottom: 1px solid #f1f5f9;
+    }
+    .qb-send-menu__item:last-child {
+      border-bottom: 0;
+    }
+    .qb-send-menu__item:hover {
+      background: #f8fafc;
+    }
+    .qb-send-menu__item small {
+      display: block;
+      font-weight: 400;
+      font-size: 0.75rem;
+      color: #64748b;
+      margin-top: 0.15rem;
+    }
     @media (max-width: 520px) {
       .qb-action-bar__inner {
         flex-wrap: wrap;
@@ -1435,11 +1477,22 @@
     <div class="qb-action-bar__inner">
       <button type="button" id="btnSave" class="btn btn-primary">Guardar rascunho</button>
       <button type="button" id="btnPdf" class="btn btn-secondary" disabled>Gerar PDF</button>
-      <button type="button" id="btnEmail" class="btn btn-secondary" disabled title="Usa o e-mail do cliente selecionado">Enviar e-mail</button>
+      <button type="button" id="btnSend" class="btn btn-secondary" disabled aria-haspopup="menu" aria-expanded="false" aria-controls="quoteSendMenu">Enviar</button>
       <button type="button" id="btnDup" class="btn btn-secondary" disabled>Duplicar</button>
       <button type="button" id="btnSaveTpl" class="btn btn-secondary">Guardar template</button>
     </div>
   </nav>
+
+  <div id="quoteSendMenu" class="qb-send-menu hidden" role="menu" aria-label="Enviar orçamento">
+    <button type="button" class="qb-send-menu__item" id="quoteSendBySms" role="menuitem">
+      Mensagem (SMS)
+      <small>Abre a app de mensagens com o link do orçamento</small>
+    </button>
+    <button type="button" class="qb-send-menu__item" id="quoteSendByEmail" role="menuitem">
+      E-mail
+      <small>Envia o PDF e o link por e-mail ao cliente</small>
+    </button>
+  </div>
 
   <div id="qbNotify" class="qb-notify hidden" role="alertdialog" aria-modal="true" aria-labelledby="qbNotifyTitle" aria-hidden="true">
     <div class="qb-notify__panel" role="document">
@@ -1452,7 +1505,8 @@
 
   <script src="crm-shared-nav.js?v=12"></script>
   <script src="crm-toast.js"></script>
-  <script src="quote-builder.js?v=20260528-client-actions"></script>
+  <script src="lead-contact-links.js?v=20260526-utf8"></script>
+  <script src="quote-builder.js?v=20260528-send-menu"></script>
   <script>
     (function () {
       var t = document.getElementById('mobileMenuToggle');
