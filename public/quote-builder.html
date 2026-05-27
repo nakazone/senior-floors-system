@@ -702,12 +702,22 @@
       min-width: 200px;
     }
     .qb-item-editor__qty-rate input {
-      width: 4.5rem;
+      box-sizing: border-box;
+      flex: 1 1 5.5rem;
+      width: auto;
+      min-width: 5.5rem;
+      max-width: 11rem;
       border: 1px solid #cbd5e1;
       border-radius: 8px;
-      padding: 0.5rem 0.5rem;
+      padding: 0.5rem 0.65rem;
       font-size: 0.875rem;
-      text-align: center;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+    .qb-item-editor__qty-rate input#modalServiceQty {
+      flex: 1 1 6.5rem;
+      min-width: 6.5rem;
+      max-width: 12rem;
     }
     .qb-item-editor__qty-rate span {
       color: #94a3b8;
@@ -1299,7 +1309,7 @@
 
   <script src="crm-shared-nav.js?v=12"></script>
   <script src="crm-toast.js"></script>
-  <script src="quote-builder.js?v=20260527-search-name-only"></script>
+  <script src="quote-builder.js?v=20260527-qty-width"></script>
   <script>
     (function () {
       var t = document.getElementById('mobileMenuToggle');
