@@ -375,6 +375,42 @@
     return Math.min(sub * (d / 100), sub);
   }
 
+  function updatePreviewHeader() {
+    const meta = $('quoteMeta');
+    const metaText = meta && meta.textContent ? meta.textContent : 'Novo orçamento';
+    const top = $('topbarTitle');
+    const no = $('previewEstimateNo');
+    const dateEl = $('previewEstimateDate');
+    const titlePart = metaText.includes('·') ? metaText.split('·')[0].trim() : metaText;
+    if (top) top.textContent = titlePart;
+    if (no) {
+      if (quoteId) {
+        const m = metaText.match(/Orçamento\s+(\S+)/);
+        no.textContent = m ? m[1] : `#${quoteId}`;
+      } else {
+        no.textContent = 'Novo';
+      }
+    }
+    const expEl = $('expirationDate');
+    const exp = expEl && expEl.value ? String(expEl.value).slice(0, 10) : '';
+    const fmt = (iso) => {
+      try {
+        return new Date(`${iso}T12:00:00`).toLocaleDateString('pt-BR', {
+          day: 'numeric',
+          month: 'short',
+          year: 'numeric',
+        });
+      } catch (_) {
+        return iso;
+      }
+    };
+    if (dateEl) {
+      dateEl.textContent = exp
+        ? `Expira em ${fmt(exp)}`
+        : `Criado em ${fmt(new Date().toISOString().slice(0, 10))}`;
+    }
+  }
+
   function recalc() {
     const sub = sumItems();
     const dt = $('discountType').value;
@@ -382,8 +418,16 @@
     const tax = parseFloat($('taxTotal').value) || 0;
     const disc = discountAmt(sub, dt, dv);
     const total = Math.max(0, Math.round((sub - disc + tax) * 100) / 100);
-    $('dispSubtotal').textContent = money(sub);
-    $('dispTotal').textContent = money(total);
+    const subEl = $('dispSubtotal');
+    const discEl = $('dispDiscount');
+    const taxDisp = $('dispTax');
+    const totalEl = $('dispTotal');
+    const balEl = $('dispBalance');
+    if (subEl) subEl.textContent = money(sub);
+    if (discEl) discEl.textContent = money(disc);
+    if (taxDisp) taxDisp.textContent = money(tax);
+    if (totalEl) totalEl.textContent = money(total);
+    if (balEl) balEl.textContent = money(total);
     updateProfitPanel();
     return { sub, total, disc, tax };
   }
@@ -998,6 +1042,7 @@
       estimateAuto: false,
     }));
     $('quoteMeta').textContent = `Orçamento ${q.quote_number || '#' + q.id} · total ${money(q.total_amount)}`;
+    updatePreviewHeader();
     setPublicLink(q.public_token);
     enableActions();
     applyPricingFromCustomerId($('customerId').value);
@@ -1056,7 +1101,8 @@
       if (quoteId) {
         const r = await api(`/api/quotes/${quoteId}/full`, { method: 'PUT', body: JSON.stringify(body) });
         if (r.data && r.data.quote) {
-          $('quoteMeta').textContent = `Quote ${r.data.quote.quote_number || '#' + r.data.quote.id} · total ${money(r.data.quote.total_amount)}`;
+          $('quoteMeta').textContent = `Orçamento ${r.data.quote.quote_number || '#' + r.data.quote.id} · total ${money(r.data.quote.total_amount)}`;
+          updatePreviewHeader();
           setPublicLink(r.data.quote.public_token);
         }
       } else {
@@ -1116,6 +1162,7 @@
       items = [];
       loadedQuoteLeadId = null;
       $('quoteMeta').textContent = 'Novo orçamento';
+      updatePreviewHeader();
       setPublicLink('');
       enableActions();
       renderItems();
@@ -1183,6 +1230,8 @@
     $('discountType').addEventListener('change', () => recalc());
     $('discountValue').addEventListener('input', () => recalc());
     $('taxTotal').addEventListener('input', () => recalc());
+    const expIn = $('expirationDate');
+    if (expIn) expIn.addEventListener('change', updatePreviewHeader);
 
     document.querySelectorAll('input[name="pricingCatalog"]').forEach((el) => {
       el.addEventListener('change', () => {
