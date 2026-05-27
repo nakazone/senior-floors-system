@@ -2260,6 +2260,83 @@ input.score-auto {
     line-height: 1.25;
 }
 
+/* Quote engagement icons on lead Kanban cards */
+.lead-quote-icons {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 6px 0 4px;
+    padding: 6px 0 2px;
+    border-top: 1px solid var(--border-color);
+}
+
+.lead-quote-icons--compact {
+    margin: 4px 0 2px;
+    padding: 5px 0 0;
+}
+
+.lead-quote-icon {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    border-radius: 6px;
+    background: #f1f5f9;
+    color: #94a3b8;
+    flex-shrink: 0;
+    opacity: 0.5;
+}
+
+.lead-quote-icon svg {
+    width: 15px;
+    height: 15px;
+    display: block;
+}
+
+.lead-quote-icon__check {
+    display: none;
+    position: absolute;
+    right: -3px;
+    bottom: -3px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #22c55e;
+    color: #fff;
+    font-size: 8px;
+    font-weight: 700;
+    line-height: 12px;
+    text-align: center;
+    border: 1px solid #fff;
+}
+
+.lead-quote-icon.is-on {
+    opacity: 1;
+    color: #1a2036;
+}
+
+.lead-quote-icon--email.is-on {
+    background: #ecfdf5;
+}
+
+.lead-quote-icon--view.is-on {
+    background: #eff6ff;
+}
+
+.lead-quote-icon--pdf.is-on {
+    background: #fff7ed;
+}
+
+.lead-quote-icon.is-on .lead-quote-icon__check {
+    display: block;
+}
+
+.lead-quick-sheet__qengagement {
+    margin: 6px 0 8px;
+}
+
 .kanban-card-footer-row {
     display: flex;
     align-items: center;

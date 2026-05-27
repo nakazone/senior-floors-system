@@ -14,7 +14,14 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { handleReceiveLead, handleReceiveLeadBatch } from './routes/receiveLead.js';
 import { handleDbCheck } from './routes/dbCheck.js';
-import { listLeads, getLead, createLead, updateLead, deleteLead } from './routes/leads.js';
+import {
+  listLeads,
+  getLead,
+  createLead,
+  updateLead,
+  deleteLead,
+  getLeadsQuoteEngagementSummary,
+} from './routes/leads.js';
 import { login, logout, checkSession, changePassword } from './routes/auth.js';
 import { requireAuth, requireRole, requirePermission } from './middleware/auth.js';
 import {
@@ -382,6 +389,7 @@ app.get('/api/pipeline-stages', requireAuth, listPipelineStages);
 
 // Leads (rotas com subpath primeiro, depois :id)
 app.get('/api/leads', requireAuth, listLeads);
+app.get('/api/leads/quote-engagement-summary', requireAuth, getLeadsQuoteEngagementSummary);
 app.get('/api/leads/:leadId/qualification', requireAuth, getQualification);
 app.post('/api/leads/:leadId/qualification', requireAuth, createOrUpdateQualification);
 app.put('/api/leads/:leadId/qualification', requireAuth, createOrUpdateQualification);

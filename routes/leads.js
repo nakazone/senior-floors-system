@@ -4,6 +4,7 @@
 import { getDBConnection, isDatabaseConfigured } from '../config/db.js';
 import { getLeadsTableColumns } from '../lib/leadColumns.js';
 import { extractMarketingFromBody, MARKETING_KEYS } from '../lib/marketingLeadFields.js';
+import * as quoteRepo from '../modules/quotes/quoteRepository.js';
 
 /** Alinhado a public/pipeline-stage-labels.js — normaliza status legado para slug canonico. */
 const LEGACY_SLUG_TO_CANONICAL = {
@@ -199,6 +200,44 @@ export async function listLeads(req, res) {
     const [[{ total }]] = await pool.query(`SELECT COUNT(*) as total FROM leads l WHERE ${whereClause}`, params);
     res.json({ success: true, data: rows, total, page, limit });
   } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+}
+
+/** Resumo por lead: e-mail enviado, link aberto, PDF descarregado (orçamentos). */
+export async function getLeadsQuoteEngagementSummary(req, res) {
+  if (!isDatabaseConfigured()) {
+    return res.status(503).json({ success: false, error: 'Database not configured' });
+  }
+  try {
+    const pool = await getDBConnection();
+    const cols = await quoteRepo.quoteColumns(pool);
+    const selectParts = ['lead_id', 'COUNT(*) AS quote_count'];
+    if (cols.has('email_sent_at')) selectParts.push('MAX(email_sent_at) AS quote_email_sent_at');
+    if (cols.has('viewed_at')) selectParts.push('MAX(viewed_at) AS quote_viewed_at');
+    if (cols.has('pdf_viewed_at')) selectParts.push('MAX(pdf_viewed_at) AS quote_pdf_viewed_at');
+
+    const [rows] = await pool.query(
+      `SELECT ${selectParts.join(', ')} FROM quotes WHERE lead_id IS NOT NULL GROUP BY lead_id`
+    );
+
+    const data = {};
+    for (const r of rows) {
+      const id = r.lead_id;
+      if (id == null) continue;
+      data[id] = {
+        quote_count: Number(r.quote_count) || 0,
+        email_sent: !!(cols.has('email_sent_at') && r.quote_email_sent_at),
+        email_sent_at: r.quote_email_sent_at || null,
+        viewed: !!(cols.has('viewed_at') && r.quote_viewed_at),
+        viewed_at: r.quote_viewed_at || null,
+        pdf_viewed: !!(cols.has('pdf_viewed_at') && r.quote_pdf_viewed_at),
+        pdf_viewed_at: r.quote_pdf_viewed_at || null,
+      };
+    }
+    res.json({ success: true, data });
+  } catch (e) {
+    console.error('getLeadsQuoteEngagementSummary:', e);
     res.status(500).json({ success: false, error: e.message });
   }
 }
