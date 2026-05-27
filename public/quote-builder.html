@@ -759,33 +759,36 @@
       border-top: 1px solid #f1f5f9;
     }
     .qb-money-field {
-      display: flex;
-      align-items: center;
-      border: 1px solid #cbd5e1;
-      border-radius: 8px;
-      background: #fff;
-      overflow: hidden;
+      position: relative;
       flex: 1 1 7rem;
       min-width: 7rem;
       max-width: 12rem;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      background: #fff;
     }
     .qb-money-field__prefix {
-      flex-shrink: 0;
-      padding: 0.5rem 0.55rem 0.5rem 0.7rem;
-      font-size: 1.05rem;
+      position: absolute;
+      left: 0.6rem;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 1rem;
       font-weight: 700;
       color: #1a2036;
-      background: #efe8df;
-      border-right: 1px solid #c4a588;
       line-height: 1;
+      pointer-events: none;
+      user-select: none;
+      z-index: 1;
     }
     .qb-money-field__input {
-      flex: 1;
-      min-width: 0;
+      display: block;
+      width: 100%;
+      box-sizing: border-box;
       border: 0;
-      padding: 0.5rem 0.65rem;
-      font-size: 0.875rem;
-      text-align: right;
+      padding: 0.5rem 0.65rem 0.5rem 1.45rem;
+      font-size: 0.9375rem;
+      font-weight: 600;
+      text-align: left;
       font-variant-numeric: tabular-nums;
       background: transparent;
       font-family: inherit;
@@ -1722,7 +1725,7 @@
   <script src="crm-shared-nav.js?v=12"></script>
   <script src="crm-toast.js"></script>
   <script src="lead-contact-links.js?v=20260526-utf8"></script>
-  <script src="quote-builder.js?v=20260528-money-prefix"></script>
+  <script src="quote-builder.js?v=20260528-money-inline"></script>
   <script>
     (function () {
       var t = document.getElementById('mobileMenuToggle');
