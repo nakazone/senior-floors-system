@@ -11,8 +11,8 @@
   /** Lead escolhido na pesquisa de cliente. */
   let selectedQuoteLead = null;
   let clientSearchTimer = null;
-  let lineNameSuggestTimer = null;
-  let lineNameSuggestIdx = null;
+  /** Índice da linha em edição no painel inline; `-1` = nova linha; `null` = fechado. */
+  let inlineEditIdx = null;
   let catalog = [];
   let templates = [];
   /** @type {Array<Record<string, unknown>>} */
@@ -328,91 +328,42 @@
     return list.slice(0, 40);
   }
 
-  function hideLineNameSuggest() {
-    const box = $('lineNameSuggest');
-    if (box) {
-      box.classList.add('hidden');
-      box.innerHTML = '';
+  function updateItemsCountLabel() {
+    const el = $('itemsCountLabel');
+    if (!el) return;
+    const n = items.length;
+    el.textContent = n === 1 ? '1 adicionado' : `${n} adicionados`;
+  }
+
+  function updateClientChip() {
+    const chip = $('qbClientChip');
+    const search = $('customerSearch');
+    if (!chip) return;
+    const val = search && String(search.value || '').trim();
+    if (val) {
+      chip.textContent = val;
+      chip.classList.remove('hidden');
+    } else {
+      chip.textContent = '';
+      chip.classList.add('hidden');
     }
-    lineNameSuggestIdx = null;
   }
 
-  function positionLineNameSuggest(anchor) {
-    const box = $('lineNameSuggest');
-    if (!box || !anchor) return;
-    const r = anchor.getBoundingClientRect();
-    box.style.position = 'fixed';
-    box.style.left = `${Math.max(8, r.left)}px`;
-    box.style.top = `${r.bottom + 4}px`;
-    box.style.width = `${Math.max(200, r.width)}px`;
-    box.style.zIndex = '10050';
+  function updateInlineItemTotal() {
+    const el = $('inlineItemTotal');
+    if (!el) return;
+    const qty = parseFloat($('modalServiceQty')?.value) || 0;
+    const rate = parseFloat($('modalServiceRate')?.value) || 0;
+    el.textContent = money(lineAmount(qty, rate));
   }
 
-  function renderLineNameSuggest(rows, anchor, idx) {
-    const box = $('lineNameSuggest');
-    if (!box) return;
-    lineNameSuggestIdx = idx;
-    positionLineNameSuggest(anchor);
-    if (!rows.length) {
-      box.innerHTML = '<div class="qb-client-search__empty">Sem resultados.</div>';
-      box.classList.remove('hidden');
-      return;
-    }
-    const src = catalogPricingSource();
-    box.innerHTML = rows
-      .map((row) => {
-        const id = Number(row.id);
-        const rate = effectiveCatalogRate(row, src);
-        return `<button type="button" class="qb-client-search__item" data-line-catalog-id="${id}" data-line-idx="${idx}">
-          <span class="qb-client-search__item-name">${escapeHtmlText(row.name || '')}</span>
-          <span class="qb-client-search__item-meta">${escapeHtmlText(row.unit_type || '')} · ${money(rate)}</span>
-        </button>`;
-      })
-      .join('');
-    box.classList.remove('hidden');
+  function unitLabel(unit) {
+    const u = String(unit || 'sq_ft');
+    if (u === 'sq_ft') return 'Sq Ft';
+    if (u === 'linear_ft') return 'Linear Ft';
+    if (u === 'fixed') return 'Fixed';
+    return u.replace(/_/g, ' ');
   }
-
-  function applyCatalogToLine(idx, row) {
-    if (!items[idx] || !row) return;
-    const src = catalogPricingSource();
-    const rate = effectiveCatalogRate(row, src);
-    const catNotes = row.notes_customer != null ? String(row.notes_customer).trim() : '';
-    items[idx].name = row.name || '';
-    items[idx].description = row.default_description != null ? String(row.default_description).trim() : '';
-    items[idx].unit_type = row.unit_type || 'sq_ft';
-    items[idx].rate = rate;
-    items[idx].service_type = serviceTypeFromCatalogCategory(row.category);
-    items[idx].catalog_customer_notes = catNotes || null;
-    items[idx].service_catalog_id = normalizeCatalogId(row.id);
-    renderItems();
-    hideLineNameSuggest();
-  }
-
-  function wireLineNameAutocomplete(tb) {
-    tb.querySelectorAll('input[data-k="name"]').forEach((input) => {
-      const idx = parseInt(input.dataset.i, 10);
-      if (!Number.isFinite(idx) || items[idx]?.item_type === 'product') return;
-      input.setAttribute('autocomplete', 'off');
-      input.addEventListener('focus', () => {
-        lineNameSuggestIdx = idx;
-        const q = input.value;
-        renderLineNameSuggest(filterCatalogForServiceSearch(q), input, idx);
-      });
-      input.addEventListener('input', () => {
-        lineNameSuggestIdx = idx;
-        clearTimeout(lineNameSuggestTimer);
-        lineNameSuggestTimer = setTimeout(() => {
-          renderLineNameSuggest(filterCatalogForServiceSearch(input.value), input, idx);
-        }, 180);
-      });
-      input.addEventListener('blur', () => {
-        setTimeout(() => {
-          if (lineNameSuggestIdx === idx) hideLineNameSuggest();
-        }, 200);
-      });
-    });
-  }
-
 
   function sumItems() {
     return items.reduce((s, it) => s + lineAmount(Number(it.quantity) || 0, Number(it.rate) || 0), 0);
@@ -565,6 +516,7 @@
     const search = $('customerSearch');
     if (search) search.value = formatLeadClientLabel(lead);
     hideClientSearchResults();
+    updateClientChip();
 
     const hint = $('leadContextHint');
     if (hint) {
@@ -635,6 +587,7 @@
               hint.textContent = `Associado ao lead: ${lr.data.name || '#' + lid}.`;
               hint.classList.remove('hidden');
             }
+            updateClientChip();
             return;
           }
         } catch (_) {
@@ -647,6 +600,7 @@
       const c = clients.find((x) => Number(x.id) === Number(q.customer_id));
       if (c) search.value = formatCustomerLabel(c);
     }
+    updateClientChip();
   }
 
   function scheduleClientLeadSearch() {
@@ -680,6 +634,7 @@
       pendingLeadId = null;
       loadedQuoteLeadId = null;
       $('customerId').value = '';
+      updateClientChip();
       scheduleClientLeadSearch();
     });
     search.addEventListener('keydown', (e) => {
@@ -712,60 +667,205 @@
       .replace(/</g, '&lt;');
   }
 
-  function updateRowAmount(tr, idx) {
-    const amt = lineAmount(Number(items[idx].quantity) || 0, Number(items[idx].rate) || 0);
-    const cell = tr.querySelector('[data-amt]');
-    if (cell) cell.textContent = money(amt);
-  }
-
-  function bindItemInputs(tb) {
-    tb.querySelectorAll('input[data-k], textarea[data-k]').forEach((el) => {
-      el.addEventListener('input', function () {
-        const idx = parseInt(this.getAttribute('data-i'), 10);
-        const k = this.getAttribute('data-k');
-        items[idx][k] =
-          k === 'description' || k === 'name' ? this.value : parseFloat(this.value) || 0;
-        if (k === 'rate' && items[idx].item_type === 'product') {
-          const c = Number(items[idx].cost_price);
-          const r = Number(items[idx].rate) || 0;
-          items[idx].sell_price = r;
-          if (c > 0) items[idx].markup_percentage = Math.round(((r - c) / c) * 10000) / 100;
-        }
-        recalc();
-        const tr = this.closest('tr');
-        if (tr) updateRowAmount(tr, idx);
-      });
-    });
-    tb.querySelectorAll('select[data-k]').forEach((el) => {
-      el.addEventListener('change', function () {
-        const idx = parseInt(this.getAttribute('data-i'), 10);
-        const k = this.getAttribute('data-k');
-        if (k === 'unit_type') items[idx].unit_type = this.value;
-        else if (k === 'service_type') items[idx].service_type = this.value;
-      });
-    });
-  }
-
-  function attachItemsTableHandlers(tb) {
-    tb.onclick = (e) => {
-      const cbtn = e.target.closest('[data-comment]');
-      if (cbtn) {
-        const idx = parseInt(cbtn.getAttribute('data-comment'), 10);
-        const cur = items[idx].notes != null ? String(items[idx].notes) : '';
-        const next = window.prompt('Comment for this line (shown on the PDF under the line):', cur);
-        if (next === null) return;
-        items[idx].notes = next.trim() || null;
-        renderItems();
+  function attachItemsListHandlers() {
+    const list = $('itemsList');
+    if (!list || list.dataset.bound) return;
+    list.dataset.bound = '1';
+    list.addEventListener('click', (e) => {
+      const editBtn = e.target.closest('[data-edit]');
+      if (editBtn) {
+        const idx = parseInt(editBtn.getAttribute('data-edit'), 10);
+        if (Number.isFinite(idx)) openAddItemPanel(idx);
         return;
       }
-      const del = e.target.closest('[data-del]');
-      if (del) {
-        const idx = parseInt(del.getAttribute('data-del'), 10);
+      const delBtn = e.target.closest('[data-del]');
+      if (delBtn) {
+        const idx = parseInt(delBtn.getAttribute('data-del'), 10);
+        if (!Number.isFinite(idx)) return;
+        if (inlineEditIdx === idx) closeAddItemPanel();
+        else if (inlineEditIdx != null && inlineEditIdx > idx) inlineEditIdx -= 1;
         items.splice(idx, 1);
         recalc();
         renderItems();
       }
+    });
+  }
+
+  let modalSelectedCatalogRow = null;
+  let modalServiceSearchTimer = null;
+
+  function hideModalServiceResults() {
+    const box = $('modalServiceResults');
+    if (box) {
+      box.classList.add('hidden');
+      box.innerHTML = '';
+    }
+  }
+
+  function showModalServiceResults(html) {
+    const box = $('modalServiceResults');
+    if (!box) return;
+    box.innerHTML = html;
+    box.classList.remove('hidden');
+  }
+
+  function renderModalServiceResults(rows) {
+    if (!rows.length) {
+      showModalServiceResults('<div class="qb-client-search__empty">Nenhum serviço no catálogo.</div>');
+      return;
+    }
+    const src = catalogPricingSource();
+    const html = rows
+      .map((row) => {
+        const id = Number(row.id);
+        const rate = effectiveCatalogRate(row, src);
+        const meta = [
+          row.category ? escapeHtmlText(row.category) : '',
+          row.unit_type ? escapeHtmlText(row.unit_type) : '',
+          money(rate),
+        ]
+          .filter(Boolean)
+          .join(' · ');
+        return `<button type="button" class="qb-client-search__item" data-catalog-id="${id}" role="option">
+          <span class="qb-client-search__item-name">${escapeHtmlText(row.name || `Serviço #${id}`)}</span>
+          <span class="qb-client-search__item-meta">${meta}</span>
+        </button>`;
+      })
+      .join('');
+    showModalServiceResults(html);
+  }
+
+  function applyCatalogRowToServiceModal(row) {
+    if (!row) return;
+    modalSelectedCatalogRow = row;
+    const src = catalogPricingSource();
+    const rate = effectiveCatalogRate(row, src);
+    $('modalServiceName').value = row.name || '';
+    $('modalServiceDesc').value =
+      row.default_description != null ? String(row.default_description).trim() : '';
+    $('modalServiceType').value = serviceTypeFromCatalogCategory(row.category);
+    $('modalServiceUnit').value = row.unit_type || 'sq_ft';
+    $('modalServiceRate').value = String(rate);
+    hideModalServiceResults();
+    updateInlineItemTotal();
+  }
+
+  function resetServiceModalForm() {
+    modalSelectedCatalogRow = null;
+    const nameEl = $('modalServiceName');
+    if (nameEl) nameEl.value = '';
+    if ($('modalServiceDesc')) $('modalServiceDesc').value = '';
+    if ($('modalServiceType')) $('modalServiceType').value = 'Installation';
+    if ($('modalServiceUnit')) $('modalServiceUnit').value = 'sq_ft';
+    if ($('modalServiceQty')) $('modalServiceQty').value = '1';
+    if ($('modalServiceRate')) $('modalServiceRate').value = '0';
+    if ($('inlineItemNote')) $('inlineItemNote').value = '';
+    hideModalServiceResults();
+    updateInlineItemTotal();
+  }
+
+  function fillInlineFormFromItem(it) {
+    if (!it) return;
+    const cid = normalizeCatalogId(it.service_catalog_id);
+    modalSelectedCatalogRow = cid ? catalog.find((c) => Number(c.id) === cid) || null : null;
+    $('modalServiceName').value = it.name != null ? String(it.name) : '';
+    $('modalServiceDesc').value = it.description != null ? String(it.description) : '';
+    $('modalServiceType').value = it.service_type || 'Installation';
+    $('modalServiceUnit').value = it.unit_type || 'sq_ft';
+    $('modalServiceQty').value = String(it.quantity ?? 1);
+    $('modalServiceRate').value = String(it.rate ?? 0);
+    if ($('inlineItemNote')) $('inlineItemNote').value = it.notes != null ? String(it.notes) : '';
+    updateInlineItemTotal();
+  }
+
+  function scheduleModalServiceSearch() {
+    const q = ($('modalServiceName') && $('modalServiceName').value) || '';
+    clearTimeout(modalServiceSearchTimer);
+    modalServiceSearchTimer = setTimeout(() => {
+      renderModalServiceResults(filterCatalogForServiceSearch(q));
+    }, 180);
+  }
+
+  function openAddItemPanel(idx) {
+    const panel = $('addItemPanel');
+    const modalError = $('modalError');
+    if (!panel) return;
+    inlineEditIdx = Number.isFinite(idx) ? idx : -1;
+    if (modalError) modalError.classList.add('hidden');
+    if (inlineEditIdx >= 0 && items[inlineEditIdx]) {
+      fillInlineFormFromItem(items[inlineEditIdx]);
+    } else {
+      inlineEditIdx = -1;
+      resetServiceModalForm();
+    }
+    panel.classList.remove('hidden');
+    const btnAdd = $('btnAddLine');
+    if (btnAdd) btnAdd.classList.add('hidden');
+    const confirmBtn = $('modalConfirmService');
+    if (confirmBtn) confirmBtn.textContent = inlineEditIdx >= 0 ? 'Guardar' : 'Adicionar';
+    scheduleModalServiceSearch();
+    const nameEl = $('modalServiceName');
+    if (nameEl) {
+      nameEl.focus();
+      panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }
+
+  function closeAddItemPanel() {
+    const panel = $('addItemPanel');
+    if (panel) panel.classList.add('hidden');
+    inlineEditIdx = null;
+    const btnAdd = $('btnAddLine');
+    if (btnAdd) btnAdd.classList.remove('hidden');
+    hideModalServiceResults();
+    const modalError = $('modalError');
+    if (modalError) modalError.classList.add('hidden');
+  }
+
+  function confirmAddServiceLine() {
+    const modalError = $('modalError');
+    if (modalError) modalError.classList.add('hidden');
+    const name = String(($('modalServiceName') && $('modalServiceName').value) || '').trim();
+    if (!name) {
+      if (modalError) {
+        modalError.textContent = 'Indique o nome do serviço.';
+        modalError.classList.remove('hidden');
+      }
+      return;
+    }
+    const qty = parseFloat($('modalServiceQty').value) || 1;
+    const rate = parseFloat($('modalServiceRate').value) || 0;
+    const row = modalSelectedCatalogRow;
+    const catNotes = row && row.notes_customer != null ? String(row.notes_customer).trim() : '';
+    const noteVal = $('inlineItemNote') ? String($('inlineItemNote').value || '').trim() : '';
+    const existing = inlineEditIdx >= 0 ? items[inlineEditIdx] : null;
+    const line = {
+      item_type: existing && existing.item_type === 'product' ? 'product' : 'service',
+      name,
+      description: String(($('modalServiceDesc') && $('modalServiceDesc').value) || '').trim(),
+      unit_type: $('modalServiceUnit').value || 'sq_ft',
+      quantity: qty,
+      rate,
+      service_type: $('modalServiceType').value || 'Installation',
+      notes: noteVal || null,
+      catalog_customer_notes:
+        catNotes || (existing && existing.catalog_customer_notes) || null,
+      service_catalog_id: row
+        ? normalizeCatalogId(row.id)
+        : existing
+          ? normalizeCatalogId(existing.service_catalog_id)
+          : null,
+      product_id: existing && existing.product_id != null ? existing.product_id : null,
+      cost_price: existing && existing.cost_price != null ? existing.cost_price : null,
+      markup_percentage:
+        existing && existing.markup_percentage != null ? existing.markup_percentage : null,
+      sell_price: existing && existing.sell_price != null ? existing.sell_price : null,
+      estimateAuto: existing ? !!existing.estimateAuto : false,
     };
+    if (inlineEditIdx >= 0) items[inlineEditIdx] = line;
+    else items.push(line);
+    closeAddItemPanel();
+    renderItems();
   }
 
   function applyProjectSqftToAllSqFtLines() {
@@ -795,76 +895,43 @@
   }
 
   function renderItems() {
-    const tb = $('itemsBody');
-    tb.innerHTML = '';
-    if (!items.length) {
-      const tr = document.createElement('tr');
-      tr.innerHTML =
-        '<td colspan="10" class="py-10 px-4 text-center text-slate-500 text-sm leading-relaxed">' +
-        'Nenhuma linha neste orçamento.<br />' +
-        'Use <strong class="text-slate-700">+ Adicionar serviço</strong> ou escolha uma linha no <strong class="text-slate-700">catálogo</strong> abaixo.</td>';
-      tb.appendChild(tr);
-      recalc();
-      return;
-    }
+    const list = $('itemsList');
+    if (!list) return;
+    list.innerHTML = '';
+    updateItemsCountLabel();
+
     items.forEach((it, idx) => {
-      const tr = document.createElement('tr');
-      tr.className = 'border-b border-slate-100 hover:bg-slate-50/60';
+      if (inlineEditIdx === idx) return;
       const amt = lineAmount(Number(it.quantity) || 0, Number(it.rate) || 0);
-      const hasNote = !!(it.notes && String(it.notes).trim());
-      const st = it.service_type || 'Installation';
+      const qty = Number(it.quantity) || 0;
+      const rate = Number(it.rate) || 0;
+      const name = it.name != null ? String(it.name).trim() : '';
+      const desc = it.description != null ? String(it.description).trim() : '';
       const isProduct = it.item_type === 'product';
-      const autoTag = it.estimateAuto
-        ? ' <span class="text-[10px] uppercase text-amber-800 font-bold">auto</span>'
-        : '';
-      const kindCell = isProduct
-        ? '<span class="text-xs font-semibold text-violet-700 leading-snug block">Produto</span>'
-        : `<span class="text-xs font-semibold text-slate-700 leading-snug block">Serviço${autoTag}</span>`;
-      const serviceCell = isProduct
-        ? '<span class="text-xs text-slate-400 pt-1 inline-block">—</span>'
-        : `<select data-k="service_type" data-i="${idx}" class="qb-select-compact border border-slate-300 rounded-md" title="Tipo de trabalho">
-            <option value="Installation">Installation</option>
-            <option value="Sand & Finishing">Sand &amp; Finishing</option>
-            <option value="Supply">Supply</option>
-          </select>`;
-      tr.innerHTML = `
-        <td class="align-top">${kindCell}</td>
-        <td class="align-top"><input type="text" data-k="name" data-i="${idx}" class="qb-line-name" spellcheck="true" /></td>
-        <td class="align-top"><textarea data-k="description" data-i="${idx}" class="qb-line-desc" rows="2" spellcheck="true"></textarea></td>
-        <td class="align-top">${serviceCell}</td>
-        <td class="align-top">
-          <select data-k="unit_type" data-i="${idx}" class="qb-select-compact border border-slate-300 rounded-md">
-            <option value="sq_ft">Sq Ft</option>
-            <option value="linear_ft">Linear Ft</option>
-            <option value="inches">Inches</option>
-            <option value="fixed">Fixed</option>
-            <option value="box">Box</option>
-            <option value="piece">Piece</option>
-          </select>
-        </td>
-        <td class="align-top"><input data-k="quantity" data-i="${idx}" type="number" step="0.01" class="qb-num-input border border-slate-300 rounded-md" value="${it.quantity ?? 1}" /></td>
-        <td class="align-top"><input data-k="rate" data-i="${idx}" type="number" step="0.01" class="qb-num-input border border-slate-300 rounded-md" value="${it.rate ?? 0}" /></td>
-        <td class="align-top text-right font-semibold text-slate-800 whitespace-nowrap pt-2" data-amt>${money(amt)}</td>
-        <td class="align-top text-center pt-1">
-          <button type="button" data-comment="${idx}" class="text-xs font-medium px-2 py-1.5 rounded-md border border-slate-200 hover:bg-slate-100 ${hasNote ? 'text-[#1a2036] bg-amber-50 border-amber-200' : 'text-slate-600'}">Nota</button>
-        </td>
-        <td class="align-top pt-1"><button type="button" data-del="${idx}" class="text-red-600 text-sm font-medium px-1 hover:bg-red-50 rounded" title="Remover linha">✕</button></td>`;
-      tb.appendChild(tr);
-      const nameIn = tr.querySelector('input[data-k="name"]');
-      if (nameIn) nameIn.value = it.name != null ? String(it.name) : '';
-      const descTa = tr.querySelector('textarea[data-k="description"]');
-      if (descTa) descTa.value = it.description != null ? String(it.description) : '';
-      tr.querySelector(`select[data-k="unit_type"][data-i="${idx}"]`).value = it.unit_type || 'sq_ft';
-      const stSel = tr.querySelector(`select[data-k="service_type"][data-i="${idx}"]`);
-      if (stSel) {
-        const allowed = new Set(['Installation', 'Sand & Finishing', 'Supply']);
-        stSel.value = allowed.has(st) ? st : 'Installation';
-      }
+      const badges = [];
+      if (it.estimateAuto) badges.push('<span class="qb-item-card__badge qb-item-card__badge--auto">auto</span>');
+      if (isProduct) badges.push('<span class="qb-item-card__badge qb-item-card__badge--product">produto</span>');
+
+      const card = document.createElement('article');
+      card.className = 'qb-item-card';
+      card.setAttribute('role', 'listitem');
+      card.innerHTML = `
+        <div class="qb-item-card__grip" aria-hidden="true">⋮⋮</div>
+        <div class="qb-item-card__body">
+          <div class="qb-item-card__top">
+            <span class="qb-item-card__name">${escapeHtmlText(name || 'Sem nome')}${badges.join('')}</span>
+            <span class="qb-item-card__total">${money(amt)}</span>
+          </div>
+          ${desc ? `<p class="qb-item-card__desc">— ${escapeHtmlText(desc)}</p>` : ''}
+          <p class="qb-item-card__meta">${qty} × ${money(rate)} <span class="text-slate-400">(${escapeHtmlText(unitLabel(it.unit_type))})</span></p>
+        </div>
+        <div class="qb-item-card__actions">
+          <button type="button" class="qb-item-card__btn" data-edit="${idx}">Editar</button>
+          <button type="button" class="qb-item-card__btn qb-item-card__btn--danger" data-del="${idx}" title="Remover">Remover</button>
+        </div>`;
+      list.appendChild(card);
     });
 
-    bindItemInputs(tb);
-    wireLineNameAutocomplete(tb);
-    attachItemsTableHandlers(tb);
     recalc();
   }
 
@@ -1028,20 +1095,7 @@
     templates = tplRes.data || [];
 
     wireClientLeadSearch();
-    const lineNameSuggest = $('lineNameSuggest');
-    if (lineNameSuggest && !lineNameSuggest.dataset.bound) {
-      lineNameSuggest.dataset.bound = '1';
-      lineNameSuggest.addEventListener('mousedown', (e) => {
-        const btn = e.target.closest('[data-line-catalog-id]');
-        if (!btn) return;
-        e.preventDefault();
-        const cid = parseInt(btn.getAttribute('data-line-catalog-id'), 10);
-        const idx = parseInt(btn.getAttribute('data-line-idx'), 10);
-        const row = catalog.find((c) => Number(c.id) === cid);
-        if (row && Number.isFinite(idx)) applyCatalogToLine(idx, row);
-      });
-    }
-
+    attachItemsListHandlers();
 
     const cp = $('catalogPick');
     cp.innerHTML = '<option value="">— Linha do catálogo —</option>';
@@ -1084,135 +1138,7 @@
       }
     }
 
-    const modal = $('addItemModal');
-    const modalError = $('modalError');
-    let modalSelectedCatalogRow = null;
-    let modalServiceSearchTimer = null;
-
-    function hideModalServiceResults() {
-      const box = $('modalServiceResults');
-      if (box) {
-        box.classList.add('hidden');
-        box.innerHTML = '';
-      }
-    }
-
-    function showModalServiceResults(html) {
-      const box = $('modalServiceResults');
-      if (!box) return;
-      box.innerHTML = html;
-      box.classList.remove('hidden');
-    }
-
-    function renderModalServiceResults(rows) {
-      if (!rows.length) {
-        showModalServiceResults('<div class="qb-client-search__empty">Nenhum serviço no catálogo.</div>');
-        return;
-      }
-      const src = catalogPricingSource();
-      const html = rows
-        .map((row) => {
-          const id = Number(row.id);
-          const rate = effectiveCatalogRate(row, src);
-          const meta = [
-            row.category ? escapeHtmlText(row.category) : '',
-            row.unit_type ? escapeHtmlText(row.unit_type) : '',
-            money(rate),
-          ]
-            .filter(Boolean)
-            .join(' · ');
-          return `<button type="button" class="qb-client-search__item" data-catalog-id="${id}" role="option">
-            <span class="qb-client-search__item-name">${escapeHtmlText(row.name || `Serviço #${id}`)}</span>
-            <span class="qb-client-search__item-meta">${meta}</span>
-          </button>`;
-        })
-        .join('');
-      showModalServiceResults(html);
-    }
-
-    function applyCatalogRowToServiceModal(row) {
-      if (!row) return;
-      modalSelectedCatalogRow = row;
-      const src = catalogPricingSource();
-      const rate = effectiveCatalogRate(row, src);
-      const catNotes = row.notes_customer != null ? String(row.notes_customer).trim() : '';
-      $('modalServiceName').value = row.name || '';
-      $('modalServiceDesc').value =
-        row.default_description != null ? String(row.default_description).trim() : '';
-      $('modalServiceType').value = serviceTypeFromCatalogCategory(row.category);
-      $('modalServiceUnit').value = row.unit_type || 'sq_ft';
-      $('modalServiceRate').value = String(rate);
-      hideModalServiceResults();
-    }
-
-    function resetServiceModalForm() {
-      modalSelectedCatalogRow = null;
-      $('modalServiceName').value = '';
-      $('modalServiceDesc').value = '';
-      $('modalServiceType').value = 'Installation';
-      $('modalServiceUnit').value = 'sq_ft';
-      $('modalServiceQty').value = '1';
-      $('modalServiceRate').value = '0';
-      hideModalServiceResults();
-    }
-
-    function scheduleModalServiceSearch() {
-      const q = ($('modalServiceName') && $('modalServiceName').value) || '';
-      clearTimeout(modalServiceSearchTimer);
-      modalServiceSearchTimer = setTimeout(() => {
-        renderModalServiceResults(filterCatalogForServiceSearch(q));
-      }, 180);
-    }
-
-    function openAddItemModal() {
-      modalError.classList.add('hidden');
-      resetServiceModalForm();
-      modal.classList.remove('hidden');
-      modal.classList.add('flex');
-      const nameEl = $('modalServiceName');
-      if (nameEl) nameEl.focus();
-      scheduleModalServiceSearch();
-    }
-
-    function closeAddItemModal() {
-      modal.classList.add('hidden');
-      modal.classList.remove('flex');
-      hideModalServiceResults();
-    }
-
-    function confirmAddServiceLine() {
-      modalError.classList.add('hidden');
-      const name = String(($('modalServiceName') && $('modalServiceName').value) || '').trim();
-      if (!name) {
-        modalError.textContent = 'Indique o nome do serviço.';
-        modalError.classList.remove('hidden');
-        return;
-      }
-      const qty = parseFloat($('modalServiceQty').value) || 1;
-      const rate = parseFloat($('modalServiceRate').value) || 0;
-      const row = modalSelectedCatalogRow;
-      const catNotes = row && row.notes_customer != null ? String(row.notes_customer).trim() : '';
-      items.push({
-        item_type: 'service',
-        name,
-        description: String(($('modalServiceDesc') && $('modalServiceDesc').value) || '').trim(),
-        unit_type: $('modalServiceUnit').value || 'sq_ft',
-        quantity: qty,
-        rate,
-        service_type: $('modalServiceType').value || 'Installation',
-        notes: null,
-        catalog_customer_notes: catNotes || null,
-        service_catalog_id: row ? normalizeCatalogId(row.id) : null,
-        product_id: null,
-        cost_price: null,
-        markup_percentage: null,
-        sell_price: null,
-        estimateAuto: false,
-      });
-      closeAddItemModal();
-      renderItems();
-    }
-
+    const addItemPanel = $('addItemPanel');
     const modalServiceName = $('modalServiceName');
     const modalServiceResults = $('modalServiceResults');
     const modalServiceWrap = $('modalServiceSearchWrap');
@@ -1227,6 +1153,10 @@
         if (e.key === 'Escape') hideModalServiceResults();
       });
     }
+    ['modalServiceQty', 'modalServiceRate'].forEach((id) => {
+      const el = $(id);
+      if (el) el.addEventListener('input', updateInlineItemTotal);
+    });
 
     if (modalServiceResults) {
       modalServiceResults.addEventListener('click', (e) => {
@@ -1239,18 +1169,14 @@
     }
 
     document.addEventListener('click', (e) => {
-      if (!modalServiceWrap || !modal.classList.contains('flex')) return;
-      if (modalServiceWrap.contains(e.target)) return;
+      if (!addItemPanel || addItemPanel.classList.contains('hidden')) return;
+      if (!modalServiceWrap || modalServiceWrap.contains(e.target)) return;
       hideModalServiceResults();
     });
 
     $('modalConfirmService').addEventListener('click', confirmAddServiceLine);
-    $('modalCancel').addEventListener('click', closeAddItemModal);
-    $('addItemModal').addEventListener('click', (e) => {
-      if (e.target.id === 'addItemModal') closeAddItemModal();
-    });
-
-    $('btnAddLine').addEventListener('click', openAddItemModal);
+    $('modalCancel').addEventListener('click', closeAddItemPanel);
+    $('btnAddLine').addEventListener('click', () => openAddItemPanel(-1));
     const btnSqft = $('btnApplySqftToLines');
     if (btnSqft) btnSqft.addEventListener('click', () => applyProjectSqftToAllSqFtLines());
     const sqftIn = $('quoteProjectSqft');

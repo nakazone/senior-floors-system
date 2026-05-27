@@ -295,87 +295,329 @@
       line-height: 1.45;
       font-family: Inter, system-ui, sans-serif;
     }
-    /* Tabela de linhas — descrição legível, scroll horizontal suave */
-    .qb-items-table-wrap {
-      overflow-x: auto;
-      -webkit-overflow-scrolling: touch;
-      border: 1px solid var(--border-color);
-      border-radius: 10px;
+    /* Quote sheet — estilo cartões (referência Jobber) */
+    .qb-sheet {
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+    .qb-sheet__section {
       background: var(--bg-white);
+      border-radius: 12px;
+      border: 1px solid var(--border-color);
       box-shadow: var(--shadow);
+      overflow: hidden;
     }
-    .qb-items-table-wrap table {
-      table-layout: fixed;
-      width: 100%;
-      min-width: 1100px;
-      border-collapse: separate;
-      border-spacing: 0;
-    }
-    .qb-items-table-wrap thead th {
-      position: sticky;
-      top: 0;
-      z-index: 1;
-      background: var(--bg-primary-light);
+    .qb-sheet__title {
+      font-size: 1.05rem;
+      font-weight: 700;
       color: var(--text-dark);
+      margin: 0;
+      padding: 1rem 1.25rem 0.75rem;
+    }
+    .qb-sheet__body {
+      padding: 0 1.25rem 1.25rem;
+    }
+    .qb-client-add {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 0;
+      font-size: 0.875rem;
       font-weight: 600;
-      padding: 0.65rem 0.5rem;
-      border-bottom: 2px solid var(--secondary-color);
+      color: var(--primary-color);
+      background: none;
+      border: 0;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .qb-client-add:hover {
+      color: var(--secondary-dark);
+    }
+    .qb-client-add__icon {
+      width: 2rem;
+      height: 2rem;
+      border-radius: 50%;
+      background: rgba(26, 32, 54, 0.08);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.1rem;
+      line-height: 1;
+    }
+    .qb-client-chip {
+      margin-top: 0.75rem;
+      padding: 0.75rem 1rem;
+      border-radius: 8px;
+      background: var(--bg-primary-light);
+      border: 1px solid var(--border-color);
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: var(--text-dark);
+    }
+    .qb-items-bar {
+      background: #f1f5f9;
+      padding: 0.65rem 1.25rem;
+      font-size: 0.8125rem;
+      font-weight: 600;
+      color: #475569;
+      border-bottom: 1px solid var(--border-color);
+    }
+    .qb-items-list {
+      display: flex;
+      flex-direction: column;
+    }
+    .qb-items-list:empty::after {
+      content: 'Nenhum serviço neste orçamento.';
+      display: block;
+      padding: 2rem 1.25rem;
+      text-align: center;
+      font-size: 0.875rem;
+      color: #64748b;
+    }
+    .qb-item-card {
+      display: flex;
+      gap: 0.65rem;
+      padding: 1rem 1.25rem;
+      border-bottom: 1px solid #e2e8f0;
+      align-items: flex-start;
+      transition: background 0.15s;
+    }
+    .qb-item-card:hover {
+      background: #fafbfc;
+    }
+    .qb-item-card__grip {
+      color: #94a3b8;
+      font-size: 0.75rem;
+      letter-spacing: -2px;
+      line-height: 1.2;
+      padding-top: 0.2rem;
+      user-select: none;
+      cursor: default;
+    }
+    .qb-item-card__body {
+      flex: 1;
+      min-width: 0;
+    }
+    .qb-item-card__top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 0.75rem;
+    }
+    .qb-item-card__name {
+      font-size: 0.9375rem;
+      font-weight: 700;
+      color: #0f172a;
+      line-height: 1.3;
+    }
+    .qb-item-card__total {
+      font-size: 0.9375rem;
+      font-weight: 600;
+      color: #0f172a;
       white-space: nowrap;
     }
-    .qb-items-table-wrap tbody td {
-      vertical-align: top;
-      padding: 0.5rem 0.45rem;
-    }
-    .qb-col-type { width: 4.5rem; }
-    .qb-col-name { width: 16%; min-width: 120px; }
-    .qb-col-desc-pdf { width: 22%; min-width: 160px; }
-    .qb-col-svc { width: 10.5rem; min-width: 9.5rem; }
-    .qb-col-unit { width: 6.25rem; }
-    .qb-col-qty { width: 5rem; }
-    .qb-col-rate { width: 5.5rem; }
-    .qb-col-amt { width: 6.25rem; }
-    .qb-col-note { width: 4.5rem; }
-    .qb-col-del { width: 2.25rem; }
-    .qb-line-desc {
-      width: 100%;
-      min-height: 3rem;
-      max-height: 7rem;
-      resize: vertical;
-      font-size: 0.875rem;
-      line-height: 1.4;
-      padding: 0.45rem 0.5rem;
-      border: 1px solid #cbd5e1;
-      border-radius: 6px;
-      font-family: inherit;
-    }
-    .qb-line-desc:focus {
-      outline: 2px solid rgba(26, 32, 54, 0.2);
-      border-color: var(--primary-color);
-    }
-    .qb-line-name {
-      width: 100%;
-      font-size: 0.875rem;
-      line-height: 1.35;
-      padding: 0.45rem 0.5rem;
-      border: 1px solid #cbd5e1;
-      border-radius: 6px;
-      font-family: inherit;
-    }
-    .qb-line-name:focus {
-      outline: 2px solid rgba(26, 32, 54, 0.2);
-      border-color: var(--primary-color);
-    }
-    .qb-select-compact {
-      width: 100%;
-      max-width: 100%;
+    .qb-item-card__desc {
+      margin: 0.25rem 0 0;
       font-size: 0.8125rem;
-      padding: 0.35rem 0.25rem;
+      color: #64748b;
+      line-height: 1.4;
     }
-    .qb-num-input {
+    .qb-item-card__meta {
+      margin: 0.35rem 0 0;
+      font-size: 0.8125rem;
+      color: #475569;
+    }
+    .qb-item-card__badge {
+      display: inline-block;
+      font-size: 0.625rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      padding: 0.1rem 0.35rem;
+      border-radius: 4px;
+      margin-left: 0.35rem;
+      vertical-align: middle;
+    }
+    .qb-item-card__badge--auto {
+      background: #fef3c7;
+      color: #92400e;
+    }
+    .qb-item-card__badge--product {
+      background: #ede9fe;
+      color: #5b21b6;
+    }
+    .qb-item-card__actions {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+      flex-shrink: 0;
+    }
+    .qb-item-card__btn {
+      border: 0;
+      background: transparent;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--primary-color);
+      cursor: pointer;
+      padding: 0.2rem 0.35rem;
+      border-radius: 4px;
+      font-family: inherit;
+    }
+    .qb-item-card__btn:hover {
+      background: rgba(26, 32, 54, 0.06);
+    }
+    .qb-item-card__btn--danger {
+      color: #b91c1c;
+    }
+    .qb-item-editor {
+      margin: 0;
+      padding: 1.25rem;
+      border-top: 1px solid #e2e8f0;
+      background: #fff;
+    }
+    .qb-item-editor.hidden {
+      display: none !important;
+    }
+    .qb-item-editor__field {
+      margin-bottom: 0.75rem;
+    }
+    .qb-item-editor__field label {
+      display: block;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #64748b;
+      margin-bottom: 0.25rem;
+    }
+    .qb-item-editor__input,
+    .qb-item-editor__textarea,
+    .qb-item-editor__select {
       width: 100%;
-      min-width: 0;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      padding: 0.55rem 0.75rem;
       font-size: 0.875rem;
-      padding: 0.4rem 0.35rem;
+      font-family: inherit;
+      background: #fff;
+    }
+    .qb-item-editor__textarea {
+      resize: vertical;
+      min-height: 2.5rem;
+    }
+    .qb-item-editor__row {
+      display: flex;
+      align-items: flex-end;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      margin-top: 0.5rem;
+    }
+    .qb-item-editor__qty-rate {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      flex: 1;
+      min-width: 200px;
+    }
+    .qb-item-editor__qty-rate input {
+      width: 4.5rem;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      padding: 0.5rem 0.5rem;
+      font-size: 0.875rem;
+      text-align: center;
+    }
+    .qb-item-editor__qty-rate span {
+      color: #94a3b8;
+      font-size: 0.875rem;
+    }
+    .qb-item-editor__total {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #0f172a;
+      margin-left: auto;
+      padding-bottom: 0.35rem;
+    }
+    .qb-item-editor__more {
+      margin-top: 0.75rem;
+    }
+    .qb-item-editor__more summary {
+      font-size: 0.8125rem;
+      font-weight: 600;
+      color: var(--primary-color);
+      cursor: pointer;
+      list-style: none;
+      user-select: none;
+    }
+    .qb-item-editor__more summary::-webkit-details-marker {
+      display: none;
+    }
+    .qb-item-editor__more-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 0.75rem;
+      margin-top: 0.75rem;
+      padding-top: 0.75rem;
+      border-top: 1px solid #f1f5f9;
+    }
+    .qb-item-editor__actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.5rem;
+      margin-top: 1rem;
+      padding-top: 0.75rem;
+      border-top: 1px solid #f1f5f9;
+    }
+    .qb-items-foot {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.5rem 1rem;
+      padding: 1rem 1.25rem;
+      border-top: 1px solid var(--border-color);
+    }
+    .qb-items-foot__add {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      font-size: 0.875rem;
+      font-weight: 700;
+      color: var(--primary-color);
+      background: none;
+      border: 0;
+      cursor: pointer;
+      padding: 0.25rem 0;
+      font-family: inherit;
+    }
+    .qb-items-foot__add:hover {
+      color: var(--secondary-dark);
+    }
+    .qb-items-foot__sep {
+      color: #cbd5e1;
+      font-size: 0.875rem;
+    }
+    .qb-items-foot__catalog {
+      flex: 1;
+      min-width: 180px;
+      max-width: 320px;
+    }
+    .qb-items-foot__catalog select {
+      width: 100%;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      padding: 0.45rem 0.65rem;
+      font-size: 0.8125rem;
+      background: #fff;
+    }
+    .qb-sqft-toolbar {
+      padding: 0 1.25rem 1rem;
+      border-top: 1px solid #f1f5f9;
+    }
+    .qb-sqft-toolbar__inner {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-end;
+      gap: 0.75rem;
+      padding-top: 0.75rem;
     }
     .qb-accordion {
       margin-bottom: var(--spacing-md);
@@ -445,25 +687,106 @@
           <p id="authMsg" class="text-red-600 text-sm hidden mb-4"></p>
           <p id="leadContextHint" class="text-sm text-slate-600 mb-4 hidden"></p>
 
+          <div class="qb-sheet">
+            <section class="qb-sheet__section" id="qbClientSection">
+              <h2 class="qb-sheet__title">Cliente</h2>
+              <div class="qb-sheet__body">
+                <div class="qb-client-search" id="qbClientSearchWrap">
+                  <input
+                    type="search"
+                    id="customerSearch"
+                    class="qb-client-search__input"
+                    autocomplete="off"
+                    placeholder="Pesquisar lead por nome, email, telefone…"
+                    aria-label="Pesquisar cliente"
+                  />
+                  <input type="hidden" id="customerId" value="" />
+                  <div id="customerSearchResults" class="qb-client-search__results hidden" role="listbox" aria-label="Resultados de leads"></div>
+                </div>
+                <div id="qbClientChip" class="qb-client-chip hidden" role="status"></div>
+              </div>
+            </section>
+
+            <section class="qb-sheet__section" id="qbItemsSection">
+              <div class="qb-items-bar" id="itemsCountBar">Itens — <span id="itemsCountLabel">0 adicionados</span></div>
+              <div id="itemsList" class="qb-items-list" role="list"></div>
+              <div id="addItemPanel" class="qb-item-editor hidden" aria-label="Adicionar ou editar serviço">
+                <div class="qb-item-editor__field qb-client-search" id="modalServiceSearchWrap">
+                  <label for="modalServiceName">Nome do serviço</label>
+                  <input type="search" id="modalServiceName" class="qb-item-editor__input" autocomplete="off" placeholder="Pesquisar no catálogo…" />
+                  <div id="modalServiceResults" class="qb-client-search__results hidden" role="listbox"></div>
+                </div>
+                <div class="qb-item-editor__field">
+                  <label for="modalServiceDesc">Descrição <span class="font-normal">(PDF / público)</span></label>
+                  <textarea id="modalServiceDesc" class="qb-item-editor__textarea" rows="2" placeholder="Texto longo no PDF e na página pública"></textarea>
+                </div>
+                <div class="qb-item-editor__row">
+                  <div class="qb-item-editor__qty-rate">
+                    <input type="number" id="modalServiceQty" step="0.01" min="0.01" value="1" aria-label="Quantidade" />
+                    <span>×</span>
+                    <input type="number" id="modalServiceRate" step="0.01" min="0" value="0" aria-label="Taxa" />
+                  </div>
+                  <span class="qb-item-editor__total" id="inlineItemTotal">$0.00</span>
+                </div>
+                <details class="qb-item-editor__more">
+                  <summary>Mais opções (tipo, unidade, nota)</summary>
+                  <div class="qb-item-editor__more-grid">
+                    <div class="qb-item-editor__field">
+                      <label for="modalServiceType">Tipo de trabalho</label>
+                      <select id="modalServiceType" class="qb-item-editor__select">
+                        <option value="Installation">Installation</option>
+                        <option value="Sand & Finishing">Sand &amp; Finishing</option>
+                        <option value="Supply">Supply</option>
+                      </select>
+                    </div>
+                    <div class="qb-item-editor__field">
+                      <label for="modalServiceUnit">Unidade</label>
+                      <select id="modalServiceUnit" class="qb-item-editor__select">
+                        <option value="sq_ft">Sq Ft</option>
+                        <option value="linear_ft">Linear Ft</option>
+                        <option value="inches">Inches</option>
+                        <option value="fixed">Fixed</option>
+                        <option value="box">Box</option>
+                        <option value="piece">Piece</option>
+                      </select>
+                    </div>
+                    <div class="qb-item-editor__field" style="grid-column: 1 / -1">
+                      <label for="inlineItemNote">Nota na linha (PDF)</label>
+                      <input type="text" id="inlineItemNote" class="qb-item-editor__input" placeholder="Opcional" />
+                    </div>
+                  </div>
+                </details>
+                <p id="modalError" class="text-red-600 text-sm hidden mt-2"></p>
+                <div class="qb-item-editor__actions">
+                  <button type="button" id="modalCancel" class="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900">Cancelar</button>
+                  <button type="button" id="modalConfirmService" class="px-4 py-2 rounded-lg bg-[#1a2036] text-white text-sm font-bold hover:opacity-95">Guardar</button>
+                </div>
+              </div>
+              <div class="qb-items-foot">
+                <button type="button" id="btnAddLine" class="qb-items-foot__add">+ Adicionar serviço</button>
+                <span class="qb-items-foot__sep" aria-hidden="true">|</span>
+                <div class="qb-items-foot__catalog">
+                  <select id="catalogPick" class="text-sm" aria-label="Adicionar do catálogo">
+                    <option value="">Adicionar do catálogo</option>
+                  </select>
+                </div>
+              </div>
+              <div class="qb-sqft-toolbar">
+                <div class="qb-sqft-toolbar__inner">
+                  <div class="flex-1 min-w-[140px]">
+                    <label for="quoteProjectSqft" class="block text-xs font-semibold text-slate-500 mb-1">Sq ft do projeto</label>
+                    <input type="number" id="quoteProjectSqft" step="0.01" min="0" placeholder="ex. 1200" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+                  </div>
+                  <button type="button" id="btnApplySqftToLines" class="btn btn-primary btn-sm whitespace-nowrap">Aplicar nas linhas Sq Ft</button>
+                </div>
+              </div>
+            </section>
+          </div>
+
           <details class="qb-accordion bg-white rounded-xl border border-slate-200 shadow-sm p-6" open>
-            <summary>Cliente, estado e template</summary>
+            <summary>Estado, preços e template</summary>
             <div class="space-y-4 mt-4">
               <div class="grid md:grid-cols-2 gap-4">
-                <div>
-                  <label class="block text-xs font-semibold text-slate-500 mb-1" for="customerSearch">Cliente (lead) *</label>
-                  <div class="qb-client-search" id="qbClientSearchWrap">
-                    <input
-                      type="search"
-                      id="customerSearch"
-                      class="qb-client-search__input"
-                      autocomplete="off"
-                      placeholder="Pesquisar lead por nome, email, telefone ou ID…"
-                    />
-                    <input type="hidden" id="customerId" value="" />
-                    <div id="customerSearchResults" class="qb-client-search__results hidden" role="listbox" aria-label="Resultados de leads"></div>
-                  </div>
-                  <p class="text-xs text-slate-500 mt-1">Lista todos os leads do CRM; ao selecionar, o orçamento fica associado ao lead.</p>
-                </div>
                 <div>
                   <label class="block text-xs font-semibold text-slate-500 mb-1">Preço do catálogo (linhas do catálogo)</label>
                   <div class="flex flex-wrap gap-4 text-sm pt-1">
@@ -579,44 +902,6 @@
             </div>
           </details>
 
-          <section class="bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-4">
-            <div class="flex justify-between items-center flex-wrap gap-2">
-              <h2 class="text-sm font-bold text-slate-800">Linhas</h2>
-              <button type="button" id="btnAddLine" class="px-3 py-1.5 rounded-lg bg-[#d6b598] text-[#1a2036] text-sm font-semibold">+ Adicionar serviço</button>
-            </div>
-            <div class="flex flex-wrap items-end gap-3 p-3 rounded-lg border border-slate-200 bg-slate-50/80">
-              <div class="flex-1 min-w-[160px]">
-                <label for="quoteProjectSqft" class="block text-xs font-semibold text-slate-500 mb-1">Sq ft do projeto</label>
-                <input type="number" id="quoteProjectSqft" step="0.01" min="0" placeholder="ex. 1200" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
-              </div>
-              <button type="button" id="btnApplySqftToLines" class="btn btn-primary btn-sm whitespace-nowrap">Aplicar qtd. nas linhas Sq Ft</button>
-            </div>
-            <p class="text-xs text-slate-500 -mt-2">Preenche o campo <strong>Qtd</strong> de todas as linhas cuja unidade é <strong>Sq Ft</strong>.</p>
-            <p class="text-xs text-slate-600 mb-1"><strong>Nome do serviço</strong> — pesquisa no catálogo ao digitar (na tabela ou ao adicionar). <strong>Descrição (PDF / email)</strong> é o texto longo só no PDF e na página pública do orçamento.</p>
-            <div class="qb-items-table-wrap" id="itemsTableWrap">
-              <table class="text-sm" id="itemsTable">
-                <thead>
-                  <tr class="text-left">
-                    <th class="qb-col-type">Tipo</th>
-                    <th class="qb-col-name">Nome do serviço</th>
-                    <th class="qb-col-desc-pdf">Descrição <span class="font-normal text-slate-500">(PDF / público)</span></th>
-                    <th class="qb-col-svc" title="Installation, Sand &amp; Finishing ou Supply">Trabalho</th>
-                    <th class="qb-col-unit">Unid.</th>
-                    <th class="qb-col-qty">Qtd</th>
-                    <th class="qb-col-rate">Taxa</th>
-                    <th class="qb-col-amt text-right">Valor</th>
-                    <th class="qb-col-note text-center">Nota</th>
-                    <th class="qb-col-del" aria-label="Remover"></th>
-                  </tr>
-                </thead>
-                <tbody id="itemsBody"></tbody>
-              </table>
-            </div>
-            <div>
-              <label class="block text-xs font-semibold text-slate-500 mb-1">Adicionar do catálogo</label>
-              <select id="catalogPick" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"></select>
-            </div>
-          </section>
         </div>
 
         <div class="builder-sidebar">
@@ -678,67 +963,6 @@
     <button type="button" class="btn btn-secondary btn-sm" data-qb-mirror="btnDup">Duplicar</button>
   </nav>
 
-  <div id="lineNameSuggest" class="qb-client-search__results hidden" role="listbox" aria-label="Sugestões de serviço"></div>
-
-  <div id="addItemModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-black/50" aria-modal="true">
-    <div class="bg-white rounded-xl shadow-xl max-w-lg w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto">
-      <h2 class="text-lg font-bold text-slate-900">Adicionar serviço</h2>
-      <div id="modalServiceSection" class="space-y-3">
-        <div class="qb-client-search" id="modalServiceSearchWrap">
-          <label class="block text-xs font-semibold text-slate-500 mb-1" for="modalServiceName">Nome do serviço *</label>
-          <input
-            type="search"
-            id="modalServiceName"
-            class="qb-client-search__input"
-            autocomplete="off"
-            placeholder="Pesquisar no catálogo de serviços…"
-          />
-          <div id="modalServiceResults" class="qb-client-search__results hidden" role="listbox" aria-label="Serviços do catálogo"></div>
-        </div>
-        <div>
-          <label class="block text-xs font-semibold text-slate-500 mb-1" for="modalServiceDesc">Descrição</label>
-          <textarea id="modalServiceDesc" rows="2" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" placeholder="Opcional"></textarea>
-        </div>
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="block text-xs font-semibold text-slate-500 mb-1" for="modalServiceType">Tipo de trabalho</label>
-            <select id="modalServiceType" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
-              <option value="Installation">Installation</option>
-              <option value="Sand & Finishing">Sand &amp; Finishing</option>
-              <option value="Supply">Supply</option>
-            </select>
-          </div>
-          <div>
-            <label class="block text-xs font-semibold text-slate-500 mb-1" for="modalServiceUnit">Unidade</label>
-            <select id="modalServiceUnit" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
-              <option value="sq_ft">Sq Ft</option>
-              <option value="linear_ft">Linear Ft</option>
-              <option value="inches">Inches</option>
-              <option value="fixed">Fixed</option>
-              <option value="box">Box</option>
-              <option value="piece">Piece</option>
-            </select>
-          </div>
-        </div>
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="block text-xs font-semibold text-slate-500 mb-1" for="modalServiceQty">Quantidade</label>
-            <input type="number" id="modalServiceQty" step="0.01" min="0.01" value="1" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
-          </div>
-          <div>
-            <label class="block text-xs font-semibold text-slate-500 mb-1" for="modalServiceRate">Taxa (unid.)</label>
-            <input type="number" id="modalServiceRate" step="0.01" min="0" value="0" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
-          </div>
-        </div>
-      </div>
-      <p id="modalError" class="text-red-600 text-sm hidden"></p>
-      <div class="flex justify-end gap-2 pt-2">
-        <button type="button" id="modalCancel" class="px-4 py-2 rounded-lg border text-sm">Cancelar</button>
-        <button type="button" id="modalConfirmService" class="px-4 py-2 rounded-lg bg-[#d6b598] text-[#1a2036] text-sm font-bold">Adicionar serviço</button>
-      </div>
-    </div>
-  </div>
-
   <div id="qbNotify" class="qb-notify hidden" role="alertdialog" aria-modal="true" aria-labelledby="qbNotifyTitle" aria-hidden="true">
     <div class="qb-notify__panel" role="document">
       <button type="button" class="qb-notify__close" id="qbNotifyClose" aria-label="Fechar">×</button>
@@ -750,6 +974,6 @@
 
   <script src="crm-shared-nav.js?v=8"></script>
   <script src="crm-toast.js"></script>
-  <script src="quote-builder.js?v=20260526-service-search"></script>
+  <script src="quote-builder.js?v=20260527-card-ui"></script>
 </body>
 </html>
