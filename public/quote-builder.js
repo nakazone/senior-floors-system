@@ -1082,11 +1082,16 @@
         message: `O orçamento foi enviado para ${preview} (${how}).`,
       });
     } catch (e) {
+      const raw = e.message || '';
+      const friendly =
+        /badcredentials|username and password not accepted|invalid login|535/i.test(raw)
+          ? 'O Gmail recusou as credenciais SMTP no servidor (Railway). Use uma App Password do Google, não a palavra-passe normal. Conta Google → Segurança → Palavras-passe de app. Variáveis: SMTP_USER=e-mail completo, SMTP_PASS=app password (16 caracteres). Ou configure Resend (RESEND_API_KEY).'
+          : raw || 'Não foi possível enviar o e-mail. Verifique GET /api/health/email no servidor.';
       showQuoteNotify({
         type: 'error',
-        title: 'Falha ao enviar',
-        message: e.message || 'Não foi possível enviar o e-mail. Tente novamente ou verifique a configuração do servidor.',
-        ms: 12000,
+        title: 'Falha ao enviar e-mail',
+        message: friendly,
+        ms: 14000,
       });
     }
   }

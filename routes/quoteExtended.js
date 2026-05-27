@@ -90,7 +90,10 @@ export async function postQuoteSendEmail(req, res) {
       subject: req.body.subject,
       html: req.body.html,
     });
-    if (!r.ok) return res.status(400).json({ success: false, error: r.error, details: r.details });
+    if (!r.ok) {
+      const status = String(r.error || '').toLowerCase().includes('não configurado') ? 503 : 400;
+      return res.status(status).json({ success: false, error: r.error, details: r.details });
+    }
     res.json({
       success: true,
       message_id: r.id,

@@ -87,6 +87,32 @@ async function sendViaResend({
   return { ok: true, id: json.id, transport: 'resend' };
 }
 
+/** Mensagem legível para o utilizador (sem jargão SMTP bruto). */
+export function formatEmailSendError(raw) {
+  const msg = String(raw || '').trim();
+  const lower = msg.toLowerCase();
+  if (
+    lower.includes('badcredentials') ||
+    lower.includes('username and password not accepted') ||
+    lower.includes('535') ||
+    lower.includes('invalid login')
+  ) {
+    return (
+      'O Gmail recusou o utilizador ou a palavra-passe SMTP. No Railway, use uma App Password do Google ' +
+      '(não a palavra-passe normal da conta): Conta Google → Segurança → Verificação em 2 passos → Palavras-passe de app. ' +
+      'Defina SMTP_USER=com o e-mail completo e SMTP_PASS=só a app password (16 caracteres, sem espaços). ' +
+      'Alternativa: configure RESEND_API_KEY + RESEND_FROM_EMAIL (ver env.example).'
+    );
+  }
+  if (lower.includes('e-mail não configurado') || lower.includes('not configured')) {
+    return msg;
+  }
+  if (lower.includes('resend') && (lower.includes('domain') || lower.includes('verify'))) {
+    return 'O domínio do remetente não está verificado no Resend. Confirme RESEND_FROM_EMAIL no painel resend.com.';
+  }
+  return msg.length > 280 ? `${msg.slice(0, 277)}…` : msg;
+}
+
 async function sendViaSmtp({
   to,
   subject,
@@ -96,7 +122,8 @@ async function sendViaSmtp({
 }) {
   const host = process.env.SMTP_HOST?.trim();
   const user = process.env.SMTP_USER?.trim();
-  const pass = process.env.SMTP_PASS?.trim();
+  const passRaw = process.env.SMTP_PASS?.trim();
+  const pass = passRaw ? passRaw.replace(/\s+/g, '') : '';
   if (!host || !user || !pass) {
     return { ok: false, error: 'SMTP_HOST, SMTP_USER and SMTP_PASS required' };
   }
@@ -130,21 +157,27 @@ async function sendViaSmtp({
       ]
     : [];
 
-  const info = await transporter.sendMail({
-    from,
-    to,
-    subject: subject || 'Your flooring quote from Senior Floors',
-    html:
-      html ||
-      `<p>Hello,</p><p>Please find your quote attached.</p><p>— Senior Floors</p>`,
-    attachments,
-  });
+  try {
+    const info = await transporter.sendMail({
+      from,
+      to,
+      subject: subject || 'Your flooring quote from Senior Floors',
+      html:
+        html ||
+        `<p>Hello,</p><p>Please find your quote attached.</p><p>— Senior Floors</p>`,
+      attachments,
+    });
 
-  return {
-    ok: true,
-    id: info.messageId || `smtp-${Date.now()}`,
-    transport: 'smtp',
-  };
+    return {
+      ok: true,
+      id: info.messageId || `smtp-${Date.now()}`,
+      transport: 'smtp',
+    };
+  } catch (e) {
+    const raw = e && e.message ? e.message : String(e);
+    console.error('[quoteMail] SMTP send failed:', raw);
+    return { ok: false, error: formatEmailSendError(raw), details: { code: e.code, response: e.response } };
+  }
 }
 
 /**
