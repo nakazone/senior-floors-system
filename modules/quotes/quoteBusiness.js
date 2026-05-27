@@ -553,6 +553,7 @@ export async function mailQuote(pool, quoteId, EmailOpts = {}) {
     publicUrl,
   });
 
+  let emailSentAt = null;
   if (result.ok) {
     const cols = await repo.quoteColumns(pool);
     if (cols.has('email_sent_at')) {
@@ -562,6 +563,11 @@ export async function mailQuote(pool, quoteId, EmailOpts = {}) {
          WHERE id = ?`,
         [quoteId]
       );
+      const [sentRows] = await pool.query(
+        'SELECT email_sent_at FROM quotes WHERE id = ? LIMIT 1',
+        [quoteId]
+      );
+      emailSentAt = sentRows[0]?.email_sent_at ?? null;
     } else {
       await pool.execute(
         `UPDATE quotes SET status = CASE WHEN status = 'draft' THEN 'sent' ELSE status END,
@@ -571,7 +577,7 @@ export async function mailQuote(pool, quoteId, EmailOpts = {}) {
     }
   }
 
-  return result;
+  return emailSentAt != null ? { ...result, email_sent_at: emailSentAt } : result;
 }
 
 export async function getByPublicToken(pool, token) {

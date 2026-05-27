@@ -99,6 +99,7 @@ export async function postQuoteSendEmail(req, res) {
       message_id: r.id,
       resend_id: r.id,
       transport: r.transport || 'unknown',
+      email_sent_at: r.email_sent_at || null,
     });
   } catch (e) {
     console.error('postQuoteSendEmail:', e);

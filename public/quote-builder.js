@@ -983,6 +983,47 @@
   }
 
   let quoteSendMenuOpen = false;
+  let loadedQuoteEmailSentAt = null;
+
+  function formatEmailSentWhen(value) {
+    if (!value) return '';
+    try {
+      const d = new Date(value);
+      if (Number.isNaN(d.getTime())) return String(value).slice(0, 16);
+      return d.toLocaleString('pt-PT', { dateStyle: 'short', timeStyle: 'short' });
+    } catch {
+      return String(value);
+    }
+  }
+
+  function updateEmailSentBadge(sentAt) {
+    loadedQuoteEmailSentAt = sentAt || null;
+    const badge = $('qbEmailSentBadge');
+    const label = $('qbEmailSentBadgeLabel');
+    const emailMenuItem = $('quoteSendByEmail');
+    if (!badge) return;
+    if (loadedQuoteEmailSentAt) {
+      const when = formatEmailSentWhen(loadedQuoteEmailSentAt);
+      const tip = when ? `E-mail enviado em ${when}` : 'E-mail enviado';
+      badge.classList.remove('hidden');
+      badge.title = tip;
+      badge.setAttribute('aria-label', tip);
+      if (label) label.textContent = when ? `E-mail · ${when}` : 'E-mail enviado';
+      if (emailMenuItem) {
+        const small = emailMenuItem.querySelector('small');
+        if (small) small.textContent = when ? `Último envio: ${when}` : 'Já enviado por e-mail';
+      }
+    } else {
+      badge.classList.add('hidden');
+      badge.removeAttribute('title');
+      badge.setAttribute('aria-label', 'E-mail do orçamento ainda não enviado');
+      if (label) label.textContent = 'E-mail enviado';
+      if (emailMenuItem) {
+        const small = emailMenuItem.querySelector('small');
+        if (small) small.textContent = 'Envia o PDF e o link por e-mail ao cliente';
+      }
+    }
+  }
 
   function closeQuoteSendMenu() {
     const menu = $('quoteSendMenu');
@@ -1076,6 +1117,17 @@
         body: JSON.stringify({}),
       });
       const how = r.transport === 'smtp' ? 'SMTP' : r.transport === 'resend' ? 'Resend' : 'servidor';
+      updateEmailSentBadge(r.email_sent_at || new Date().toISOString());
+      if (r.email_sent_at == null) {
+        try {
+          const fresh = await api(`/api/quotes/${quoteId}`);
+          if (fresh.data?.email_sent_at) updateEmailSentBadge(fresh.data.email_sent_at);
+        } catch {
+          /* badge já atualizado com data local */
+        }
+      }
+      const statusEl = $('status');
+      if (statusEl && statusEl.value === 'draft') statusEl.value = 'sent';
       showQuoteNotify({
         type: 'success',
         title: 'E-mail enviado',
@@ -1534,6 +1586,7 @@
     const btnSend = $('btnSend');
     if (btnSend) btnSend.disabled = !quoteId;
     $('btnDup').disabled = !quoteId;
+    if (!quoteId) updateEmailSentBadge(null);
   }
 
   async function loadQuote(id) {
@@ -1571,6 +1624,7 @@
     }));
     loadedQuoteNumber = q.quote_number != null ? String(q.quote_number).trim() : null;
     $('quoteMeta').textContent = `Orçamento ${q.quote_number || '#' + q.id} · total ${money(q.total_amount)}`;
+    updateEmailSentBadge(q.email_sent_at || null);
     updatePreviewHeader();
     renderClientDetails();
     setPublicLink(q.public_token);
