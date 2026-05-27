@@ -361,8 +361,8 @@ export async function buildQuotePdfBuffer(opts) {
         bodyStr = descStr.split(/\n/).slice(1).join('\n').trim();
       }
       const qty = Number(it.quantity) || Number(it.area_sqft) || 0;
-      const rate = Number(it.unit_price) || 0;
-      const amt = Number(it.total_price) || qty * rate;
+      const rate = Number(it.rate ?? it.unit_price) || 0;
+      const amt = Number(it.amount ?? it.total_price) || qty * rate;
       const ut = it.unit_type ? String(it.unit_type).replace(/_/g, ' ') : 'sq ft';
 
       const descLines = wrap(headline, descMaxW, 9, fontBold);

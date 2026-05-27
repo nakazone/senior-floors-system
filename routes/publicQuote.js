@@ -19,7 +19,6 @@ function sanitizePublicItems(items) {
     delete o.cost_price;
     delete o.markup_percentage;
     delete o.product_id;
-    delete o.item_type;
     return o;
   });
 }
