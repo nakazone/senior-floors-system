@@ -770,12 +770,14 @@
       max-width: 12rem;
     }
     .qb-money-field__prefix {
-      padding: 0.5rem 0.45rem 0.5rem 0.65rem;
-      font-size: 0.875rem;
-      font-weight: 600;
-      color: #64748b;
-      background: #f8fafc;
-      border-right: 1px solid #e2e8f0;
+      flex-shrink: 0;
+      padding: 0.5rem 0.55rem 0.5rem 0.7rem;
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #1a2036;
+      background: #efe8df;
+      border-right: 1px solid #c4a588;
+      line-height: 1;
     }
     .qb-money-field__input {
       flex: 1;
@@ -1720,7 +1722,7 @@
   <script src="crm-shared-nav.js?v=12"></script>
   <script src="crm-toast.js"></script>
   <script src="lead-contact-links.js?v=20260526-utf8"></script>
-  <script src="quote-builder.js?v=20260528-link-only-email"></script>
+  <script src="quote-builder.js?v=20260528-money-prefix"></script>
   <script>
     (function () {
       var t = document.getElementById('mobileMenuToggle');
