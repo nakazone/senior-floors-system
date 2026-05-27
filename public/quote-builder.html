@@ -489,15 +489,38 @@
       font-size: 1.1rem;
       line-height: 1;
     }
-    .qb-client-chip {
+    .qb-client-details {
       margin-top: 0.75rem;
-      padding: 0.75rem 1rem;
+      padding: 0.85rem 1rem;
       border-radius: 8px;
       background: var(--bg-primary-light);
       border: 1px solid var(--border-color);
-      font-size: 0.875rem;
+    }
+    .qb-client-details.hidden {
+      display: none !important;
+    }
+    .qb-client-details__list {
+      margin: 0;
+      display: grid;
+      gap: 0.55rem;
+    }
+    .qb-client-details__row {
+      display: grid;
+      grid-template-columns: 5.5rem 1fr;
+      gap: 0.5rem;
+      align-items: start;
+      font-size: 0.8125rem;
+      line-height: 1.4;
+    }
+    .qb-client-details__row dt {
+      margin: 0;
       font-weight: 600;
-      color: var(--text-dark);
+      color: #64748b;
+    }
+    .qb-client-details__row dd {
+      margin: 0;
+      color: #0f172a;
+      word-break: break-word;
     }
     .qb-client-meta {
       margin-top: 1.25rem;
@@ -977,7 +1000,26 @@
                   <input type="hidden" id="customerId" value="" />
                   <div id="customerSearchResults" class="qb-client-search__results hidden" role="listbox" aria-label="Resultados de leads"></div>
                 </div>
-                <div id="qbClientChip" class="qb-client-chip hidden" role="status"></div>
+                <div id="qbClientDetails" class="qb-client-details hidden" aria-live="polite">
+                  <dl class="qb-client-details__list">
+                    <div class="qb-client-details__row">
+                      <dt>Name</dt>
+                      <dd id="qbClientName">—</dd>
+                    </div>
+                    <div class="qb-client-details__row">
+                      <dt>Phone</dt>
+                      <dd id="qbClientPhone">—</dd>
+                    </div>
+                    <div class="qb-client-details__row">
+                      <dt>Email</dt>
+                      <dd id="qbClientEmail">—</dd>
+                    </div>
+                    <div class="qb-client-details__row">
+                      <dt>Address</dt>
+                      <dd id="qbClientAddress">—</dd>
+                    </div>
+                  </dl>
+                </div>
                 <div class="qb-client-meta">
                   <div class="qb-client-meta__grid">
                     <div>
@@ -1171,7 +1213,7 @@
           <div class="qb-preview">
             <div class="qb-preview__head">
               <p class="qb-preview__label">Orçamento</p>
-              <p class="qb-preview__number" id="previewEstimateNo">Novo</p>
+              <p class="qb-preview__number" id="previewEstimateNo">—</p>
               <p class="qb-preview__date" id="previewEstimateDate"></p>
             </div>
 
@@ -1257,7 +1299,7 @@
 
   <script src="crm-shared-nav.js?v=12"></script>
   <script src="crm-toast.js"></script>
-  <script src="quote-builder.js?v=20260527-action-bar-offset"></script>
+  <script src="quote-builder.js?v=20260527-client-preview"></script>
   <script>
     (function () {
       var t = document.getElementById('mobileMenuToggle');

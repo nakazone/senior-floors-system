@@ -2,6 +2,8 @@
 (function () {
   const $ = (id) => document.getElementById(id);
   let quoteId = null;
+  /** Número legível do orçamento (ex. Q-2026-001). */
+  let loadedQuoteNumber = null;
   /** Lead vindo de `?lead_id=` (novo orçamento a partir do lead). */
   let pendingLeadId = null;
   /** `lead_id` do quote já gravado (edição). */
@@ -335,18 +337,73 @@
     el.textContent = n === 1 ? '1 adicionado' : `${n} adicionados`;
   }
 
-  function updateClientChip() {
-    const chip = $('qbClientChip');
-    const search = $('customerSearch');
-    if (!chip) return;
-    const val = search && String(search.value || '').trim();
-    if (val) {
-      chip.textContent = val;
-      chip.classList.remove('hidden');
-    } else {
-      chip.textContent = '';
-      chip.classList.add('hidden');
+  function formatQuoteNumberLabel(num) {
+    if (num == null || num === '') return '';
+    const s = String(num).trim();
+    if (!s) return '';
+    return s.startsWith('#') ? s : `#${s}`;
+  }
+
+  function leadAddress(lead) {
+    if (!lead) return '';
+    return String(lead.full_address || lead.address || '').trim();
+  }
+
+  function customerAddress(c) {
+    if (!c) return '';
+    return String(c.address || '').trim();
+  }
+
+  function getClientDisplayInfo() {
+    if (selectedQuoteLead) {
+      return {
+        name: selectedQuoteLead.name != null ? String(selectedQuoteLead.name).trim() : '',
+        phone: selectedQuoteLead.phone != null ? String(selectedQuoteLead.phone).trim() : '',
+        email: selectedQuoteLead.email != null ? String(selectedQuoteLead.email).trim() : '',
+        address: leadAddress(selectedQuoteLead),
+      };
     }
+    const cid = parseInt(String($('customerId') && $('customerId').value), 10);
+    if (Number.isFinite(cid) && cid > 0) {
+      const c = clients.find((x) => Number(x.id) === cid);
+      if (c) {
+        const name =
+          c.name != null
+            ? String(c.name).trim()
+            : c.responsible_name != null
+              ? String(c.responsible_name).trim()
+              : '';
+        return {
+          name,
+          phone: c.phone != null ? String(c.phone).trim() : '',
+          email: c.email != null ? String(c.email).trim() : '',
+          address: customerAddress(c),
+        };
+      }
+    }
+    return null;
+  }
+
+  function renderClientDetails() {
+    const box = $('qbClientDetails');
+    if (!box) return;
+    const info = getClientDisplayInfo();
+    const hasClient =
+      info &&
+      (info.name || info.phone || info.email || info.address || parseInt($('customerId')?.value, 10) > 0);
+    if (!hasClient) {
+      box.classList.add('hidden');
+      return;
+    }
+    const set = (id, val) => {
+      const el = $(id);
+      if (el) el.textContent = val && String(val).trim() ? String(val).trim() : '—';
+    };
+    set('qbClientName', info?.name);
+    set('qbClientPhone', info?.phone);
+    set('qbClientEmail', info?.email);
+    set('qbClientAddress', info?.address);
+    box.classList.remove('hidden');
   }
 
   function updateInlineItemTotal() {
@@ -386,11 +443,13 @@
     const mobileTitle = $('mobileAppTitle');
     if (mobileTitle) mobileTitle.textContent = titlePart;
     if (no) {
-      if (quoteId) {
-        const m = metaText.match(/Orçamento\s+(\S+)/);
-        no.textContent = m ? m[1] : `#${quoteId}`;
+      const numLabel = formatQuoteNumberLabel(loadedQuoteNumber);
+      if (numLabel) {
+        no.textContent = numLabel;
+      } else if (quoteId) {
+        no.textContent = `#${quoteId}`;
       } else {
-        no.textContent = 'Novo';
+        no.textContent = '—';
       }
     }
     const expEl = $('expirationDate');
@@ -562,7 +621,7 @@
     const search = $('customerSearch');
     if (search) search.value = formatLeadClientLabel(lead);
     hideClientSearchResults();
-    updateClientChip();
+    renderClientDetails();
 
     const hint = $('leadContextHint');
     if (hint) {
@@ -577,9 +636,11 @@
         applyPricingFromCustomerId(String(cid));
         refreshRatesForCatalogLines();
         renderItems();
+        renderClientDetails();
       }
     } catch (e) {
       $('customerId').value = '';
+      renderClientDetails();
       qbToast(e.message || 'Lead sem email válido para criar cliente.', 'error');
     }
   }
@@ -633,7 +694,7 @@
               hint.textContent = `Associado ao lead: ${lr.data.name || '#' + lid}.`;
               hint.classList.remove('hidden');
             }
-            updateClientChip();
+            renderClientDetails();
             return;
           }
         } catch (_) {
@@ -646,7 +707,7 @@
       const c = clients.find((x) => Number(x.id) === Number(q.customer_id));
       if (c) search.value = formatCustomerLabel(c);
     }
-    updateClientChip();
+    renderClientDetails();
   }
 
   function scheduleClientLeadSearch() {
@@ -680,7 +741,8 @@
       pendingLeadId = null;
       loadedQuoteLeadId = null;
       $('customerId').value = '';
-      updateClientChip();
+      selectedQuoteLead = null;
+      renderClientDetails();
       scheduleClientLeadSearch();
     });
     search.addEventListener('keydown', (e) => {
@@ -1043,8 +1105,10 @@
       sell_price: it.sell_price != null ? Number(it.sell_price) : null,
       estimateAuto: false,
     }));
+    loadedQuoteNumber = q.quote_number != null ? String(q.quote_number).trim() : null;
     $('quoteMeta').textContent = `Orçamento ${q.quote_number || '#' + q.id} · total ${money(q.total_amount)}`;
     updatePreviewHeader();
+    renderClientDetails();
     setPublicLink(q.public_token);
     enableActions();
     applyPricingFromCustomerId($('customerId').value);
@@ -1103,6 +1167,8 @@
       if (quoteId) {
         const r = await api(`/api/quotes/${quoteId}/full`, { method: 'PUT', body: JSON.stringify(body) });
         if (r.data && r.data.quote) {
+          loadedQuoteNumber =
+            r.data.quote.quote_number != null ? String(r.data.quote.quote_number).trim() : null;
           $('quoteMeta').textContent = `Orçamento ${r.data.quote.quote_number || '#' + r.data.quote.id} · total ${money(r.data.quote.total_amount)}`;
           updatePreviewHeader();
           setPublicLink(r.data.quote.public_token);
@@ -1163,8 +1229,11 @@
     } else {
       items = [];
       loadedQuoteLeadId = null;
+      loadedQuoteNumber = null;
+      quoteId = null;
       $('quoteMeta').textContent = 'Novo orçamento';
       updatePreviewHeader();
+      renderClientDetails();
       setPublicLink('');
       enableActions();
       renderItems();
