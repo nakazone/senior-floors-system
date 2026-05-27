@@ -1268,13 +1268,6 @@
     });
 
     $('btnSave').addEventListener('click', saveQuote);
-    document.querySelectorAll('[data-qb-mirror]').forEach((b) => {
-      b.addEventListener('click', () => {
-        const id = b.getAttribute('data-qb-mirror');
-        const tgt = id ? $(id) : null;
-        if (tgt && !tgt.disabled) tgt.click();
-      });
-    });
     $('btnPdf').addEventListener('click', async () => {
       if (!quoteId) return;
       await api(`/api/quotes/${quoteId}/generate-pdf`, { method: 'POST', body: '{}' });

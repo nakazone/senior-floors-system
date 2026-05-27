@@ -793,24 +793,65 @@
       transform: rotate(-90deg);
       display: inline-block;
     }
-    .qb-sticky-actions {
+    .qb-action-bar {
       position: fixed;
       left: 0;
       right: 0;
       bottom: 0;
       z-index: 9990;
-      display: none;
-      flex-wrap: wrap;
-      justify-content: center;
-      gap: 0.5rem;
-      padding: 0.65rem max(0.75rem, env(safe-area-inset-right)) calc(0.65rem + env(safe-area-inset-bottom))
-        max(0.75rem, env(safe-area-inset-left));
-      background: rgba(255, 255, 255, 0.96);
-      border-top: 1px solid var(--border-color);
-      box-shadow: 0 -8px 32px rgba(26, 32, 54, 0.08);
+      background: #fff;
+      border-top: 1px solid #e2e8f0;
+      box-shadow: 0 -6px 28px rgba(15, 23, 42, 0.1);
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+    }
+    .qb-action-bar__inner {
+      display: flex;
+      width: 100%;
+      max-width: 100%;
+      min-height: 3.25rem;
+    }
+    .qb-action-bar .btn {
+      flex: 1 1 0;
+      min-width: 0;
+      margin: 0;
+      border: none;
+      border-radius: 0;
+      border-right: 1px solid #e2e8f0;
+      padding: 0.9rem 0.65rem;
+      font-size: 0.8125rem;
+      font-weight: 600;
+      line-height: 1.2;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .qb-action-bar .btn:last-child {
+      border-right: none;
+    }
+    .qb-action-bar .btn-primary {
+      flex: 1.15 1 0;
+      background: var(--primary-color);
+      color: #fff;
+    }
+    .qb-action-bar .btn-primary:hover:not(:disabled) {
+      filter: brightness(1.08);
+    }
+    .qb-action-bar .btn-secondary {
+      background: #f8fafc;
+      color: var(--primary-color);
+    }
+    .qb-action-bar .btn-secondary:hover:not(:disabled) {
+      background: #f1f5f9;
+    }
+    .qb-action-bar .btn:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
     }
     body.qb-dashboard-inner {
-      padding-bottom: 0;
+      padding-bottom: calc(3.25rem + env(safe-area-inset-bottom, 0px));
+    }
+    body.qb-dashboard-inner .qb-page {
+      padding-bottom: calc(3.25rem + env(safe-area-inset-bottom, 0px));
     }
     @media (max-width: 900px) {
       .estimate-builder {
@@ -823,14 +864,29 @@
         max-height: 45vh;
         box-shadow: none;
       }
-      .qb-topbar__actions .btn-secondary:not([data-qb-mirror]) {
-        display: none;
+      .qb-action-bar .btn {
+        font-size: 0.75rem;
+        padding: 0.85rem 0.4rem;
       }
-      .qb-sticky-actions {
-        display: flex;
+    }
+    @media (max-width: 520px) {
+      .qb-action-bar__inner {
+        flex-wrap: wrap;
       }
-      body.qb-dashboard-inner {
-        padding-bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px));
+      .qb-action-bar .btn {
+        flex: 1 1 50%;
+        min-width: 50%;
+        border-bottom: 1px solid #e2e8f0;
+      }
+      .qb-action-bar .btn:nth-child(odd) {
+        border-right: 1px solid #e2e8f0;
+      }
+      .qb-action-bar .btn:nth-child(even) {
+        border-right: none;
+      }
+      body.qb-dashboard-inner,
+      body.qb-dashboard-inner .qb-page {
+        padding-bottom: calc(6.5rem + env(safe-area-inset-bottom, 0px));
       }
     }
   </style>
@@ -844,11 +900,6 @@
         <div class="qb-topbar__left">
           <a href="dashboard.html?page=quotes" class="qb-topbar__back">← Orçamentos</a>
           <h1 class="qb-topbar__title" id="topbarTitle">Novo orçamento</h1>
-        </div>
-        <div class="qb-topbar__actions">
-          <button type="button" id="btnSaveTop" class="btn btn-primary btn-sm" data-qb-mirror="btnSave">Guardar</button>
-          <button type="button" class="btn btn-secondary btn-sm" data-qb-mirror="btnPdf">PDF</button>
-          <button type="button" class="btn btn-secondary btn-sm" data-qb-mirror="btnEmail">E-mail</button>
         </div>
       </header>
 
@@ -1123,14 +1174,7 @@
 
             <div class="qb-sidebar-footer pt-2 border-t border-slate-100">
               <p class="text-xs text-slate-500 hidden" id="quoteMeta">Novo orçamento</p>
-              <p class="text-xs break-all hidden mb-2" id="publicLinkWrap"><span class="font-semibold">Link:</span> <a id="publicLink" class="text-blue-600 underline" target="_blank" rel="noopener"></a></p>
-              <div class="qb-sidebar-actions flex flex-col gap-2">
-                <button type="button" id="btnSave" class="btn btn-primary btn-sm w-full">Guardar rascunho</button>
-                <button type="button" id="btnPdf" class="btn btn-secondary btn-sm w-full" disabled>Gerar PDF</button>
-                <button type="button" id="btnEmail" class="btn btn-secondary btn-sm w-full" disabled title="Usa o e-mail do cliente selecionado">Enviar e-mail</button>
-                <button type="button" id="btnDup" class="btn btn-secondary btn-sm w-full" disabled>Duplicar</button>
-                <button type="button" id="btnSaveTpl" class="btn btn-secondary btn-sm w-full">Guardar template</button>
-              </div>
+              <p class="text-xs break-all hidden" id="publicLinkWrap"><span class="font-semibold">Link:</span> <a id="publicLink" class="text-blue-600 underline" target="_blank" rel="noopener"></a></p>
             </div>
           </div>
         </aside>
@@ -1138,11 +1182,14 @@
     </div>
   </div>
 
-  <nav class="qb-sticky-actions" id="qbStickyActions" aria-label="Ações do orçamento">
-    <button type="button" class="btn btn-primary btn-sm" data-qb-mirror="btnSave">Guardar</button>
-    <button type="button" class="btn btn-secondary btn-sm" data-qb-mirror="btnPdf">PDF</button>
-    <button type="button" class="btn btn-secondary btn-sm" data-qb-mirror="btnEmail">E-mail</button>
-    <button type="button" class="btn btn-secondary btn-sm" data-qb-mirror="btnDup">Duplicar</button>
+  <nav class="qb-action-bar" id="qbActionBar" aria-label="Ações do orçamento">
+    <div class="qb-action-bar__inner">
+      <button type="button" id="btnSave" class="btn btn-primary">Guardar rascunho</button>
+      <button type="button" id="btnPdf" class="btn btn-secondary" disabled>Gerar PDF</button>
+      <button type="button" id="btnEmail" class="btn btn-secondary" disabled title="Usa o e-mail do cliente selecionado">Enviar e-mail</button>
+      <button type="button" id="btnDup" class="btn btn-secondary" disabled>Duplicar</button>
+      <button type="button" id="btnSaveTpl" class="btn btn-secondary">Guardar template</button>
+    </div>
   </nav>
 
   <div id="qbNotify" class="qb-notify hidden" role="alertdialog" aria-modal="true" aria-labelledby="qbNotifyTitle" aria-hidden="true">
@@ -1156,6 +1203,6 @@
 
   <script src="crm-shared-nav.js?v=8"></script>
   <script src="crm-toast.js"></script>
-  <script src="quote-builder.js?v=20260527-split-layout"></script>
+  <script src="quote-builder.js?v=20260527-action-bar"></script>
 </body>
 </html>
