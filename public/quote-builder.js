@@ -1097,14 +1097,6 @@
     wireClientLeadSearch();
     attachItemsListHandlers();
 
-    const cp = $('catalogPick');
-    cp.innerHTML = '<option value="">— Linha do catálogo —</option>';
-    catalog.forEach((row) => {
-      const b = Number(row.rate_builder != null ? row.rate_builder : row.default_rate) || 0;
-      const c = Number(row.rate_customer != null ? row.rate_customer : row.default_rate) || 0;
-      cp.innerHTML += `<option value="${row.id}">${escapeAttr(row.name)} — B:${money(b)} / C:${money(c)} (${escapeAttr(row.unit_type || '')})</option>`;
-    });
-
     const ts = $('templateSelect');
     ts.innerHTML = '<option value="">— Template —</option>';
     templates.forEach((t) => {
@@ -1198,44 +1190,6 @@
         renderItems();
       });
     });
-    $('catalogPick').addEventListener('change', () => {
-      const idc = parseInt($('catalogPick').value, 10);
-      if (!idc) return;
-      const row = catalog.find((c) => Number(c.id) === idc);
-      if (row) {
-        const src = catalogPricingSource();
-        const rate = effectiveCatalogRate(row, src);
-        const catNotes = row.notes_customer != null ? String(row.notes_customer).trim() : '';
-        const category = row.category || 'Installation';
-        const catStr = String(category);
-        const lineSt =
-          catStr === 'Supply' || catStr.toLowerCase() === 'supply'
-            ? 'Supply'
-            : catStr === 'Sand & Finishing' || catStr.includes('Sand')
-              ? 'Sand & Finishing'
-              : 'Installation';
-        items.push({
-          item_type: 'service',
-          name: row.name || '',
-          description: row.default_description != null ? String(row.default_description).trim() : '',
-          unit_type: row.unit_type || 'sq_ft',
-          quantity: 1,
-          rate,
-          service_type: lineSt,
-          notes: null,
-          catalog_customer_notes: catNotes || null,
-          service_catalog_id: normalizeCatalogId(row.id),
-          product_id: null,
-          cost_price: null,
-          markup_percentage: null,
-          sell_price: null,
-          estimateAuto: false,
-        });
-        $('catalogPick').value = '';
-        renderItems();
-      }
-    });
-
     $('btnApplyTemplate').addEventListener('click', async () => {
       const tid = parseInt($('templateSelect').value, 10);
       if (!tid) return;
