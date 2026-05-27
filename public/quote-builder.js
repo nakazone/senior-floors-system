@@ -323,10 +323,7 @@
     const q = String(query || '').trim().toLowerCase();
     const list = !q
       ? catalog.slice(0, 40)
-      : catalog.filter((row) => {
-          const blob = `${row.name || ''} ${row.category || ''} ${row.unit_type || ''} ${row.default_description || ''}`.toLowerCase();
-          return blob.includes(q);
-        });
+      : catalog.filter((row) => String(row.name || '').toLowerCase().includes(q));
     return list.slice(0, 40);
   }
 
