@@ -106,6 +106,7 @@ import {
 } from './config/db.js';
 import { getHealth } from './routes/health.js';
 import { ensureQuoteInvoicePdfColumn } from './lib/ensureQuoteInvoicePdfColumn.js';
+import { ensureQuotePdfViewedColumn } from './lib/ensureQuotePdfViewedColumn.js';
 import { ensureUserModuleColumns } from './lib/ensureUserModuleColumns.js';
 import { ensureCustomersResponsibleNameColumn } from './lib/ensureCustomersResponsibleNameColumn.js';
 import { ensureLeadPipelineStageEnteredAt } from './lib/ensureLeadPipelineStageEnteredAt.js';
@@ -363,6 +364,7 @@ app.get('/api/health/db', async (req, res) => {
 
 // Public quote (token link — no auth)
 app.get('/api/public/quotes/:token', publicQuote.getPublicQuote);
+app.get('/api/public/quotes/:token/pdf', publicQuote.getPublicQuotePdf);
 app.post('/api/public/quotes/:token/approve', publicQuote.postApproveQuote);
 
 // Protected API routes (require authentication)
@@ -760,6 +762,7 @@ async function start() {
         }
       }
       await ensureQuoteInvoicePdfColumn(pool);
+      await ensureQuotePdfViewedColumn(pool);
       await ensureUserModuleColumns(pool);
       await ensureCustomersResponsibleNameColumn(pool);
       await ensureLeadPipelineStageEnteredAt(pool);

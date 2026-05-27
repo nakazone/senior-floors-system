@@ -63,11 +63,20 @@
         <div class="flex justify-between font-bold text-base"><span>Total</span><span>${money(q.total_amount)}</span></div>
       </div>
       ${q.notes ? `<div class="text-sm text-slate-600 mt-4"><strong>Notes</strong><br/>${escapeHtml(q.notes)}</div>` : ''}
-      ${
-        approved
-          ? '<p class="text-green-700 font-semibold mt-4">Thank you — this quote is approved.</p>'
-          : `<button type="button" id="btnApprove" class="mt-6 w-full py-3 rounded-xl bg-[#d6b598] text-[#1a2036] font-bold">Approve quote</button>`
-      }
+      <div class="mt-6 flex flex-col gap-3 sm:flex-row">
+        <a
+          href="/api/public/quotes/${encodeURIComponent(token)}/pdf"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="flex-1 py-3 rounded-xl border-2 border-[#1a2036] text-[#1a2036] font-bold text-center no-underline hover:bg-slate-50"
+        >Download PDF</a>
+        ${
+          approved
+            ? ''
+            : `<button type="button" id="btnApprove" class="flex-1 py-3 rounded-xl bg-[#d6b598] text-[#1a2036] font-bold">Approve quote</button>`
+        }
+      </div>
+      ${approved ? '<p class="text-green-700 font-semibold mt-4">Thank you — this quote is approved.</p>' : ''}
     `;
 
     const btn = document.getElementById('btnApprove');

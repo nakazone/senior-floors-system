@@ -134,7 +134,8 @@
     }
     @media (max-width: 520px) {
       .qb-email-sent-badge__label,
-      .qb-quote-viewed-badge__label {
+      .qb-quote-viewed-badge__label,
+      .qb-pdf-viewed-badge__label {
         display: none;
       }
     }
@@ -184,6 +185,51 @@
       height: 12px;
     }
     .qb-quote-viewed-badge__label {
+      max-width: 12rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .qb-pdf-viewed-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.35rem 0.65rem;
+      border-radius: 999px;
+      background: #fff7ed;
+      border: 1px solid #fed7aa;
+      color: #9a3412;
+      font-size: 0.75rem;
+      font-weight: 600;
+      line-height: 1;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .qb-pdf-viewed-badge.hidden {
+      display: none !important;
+    }
+    .qb-pdf-viewed-badge__icon svg {
+      display: block;
+      width: 18px;
+      height: 18px;
+      color: #475569;
+    }
+    .qb-pdf-viewed-badge__check {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #22c55e;
+      color: #fff;
+      flex-shrink: 0;
+    }
+    .qb-pdf-viewed-badge__check svg {
+      display: block;
+      width: 12px;
+      height: 12px;
+    }
+    .qb-pdf-viewed-badge__label {
       max-width: 12rem;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -1281,6 +1327,26 @@
             </span>
             <span class="qb-quote-viewed-badge__label" id="qbQuoteViewedBadgeLabel">Aberto pelo cliente</span>
           </span>
+          <span
+            id="qbPdfViewedBadge"
+            class="qb-pdf-viewed-badge hidden"
+            role="status"
+            aria-live="polite"
+            aria-label="PDF ainda não descarregado pelo cliente"
+          >
+            <span class="qb-pdf-viewed-badge__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+              </svg>
+            </span>
+            <span class="qb-pdf-viewed-badge__check" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+            </span>
+            <span class="qb-pdf-viewed-badge__label" id="qbPdfViewedBadgeLabel">PDF descarregado</span>
+          </span>
         </div>
       </header>
 
@@ -1638,7 +1704,7 @@
     </button>
     <button type="button" class="qb-send-menu__item" id="quoteSendByEmail" role="menuitem">
       E-mail
-      <small>Envia o PDF e o link por e-mail ao cliente</small>
+      <small>Só link seguro no e-mail — orçamento e PDF na página online</small>
     </button>
   </div>
 
@@ -1654,7 +1720,7 @@
   <script src="crm-shared-nav.js?v=12"></script>
   <script src="crm-toast.js"></script>
   <script src="lead-contact-links.js?v=20260526-utf8"></script>
-  <script src="quote-builder.js?v=20260528-quote-viewed"></script>
+  <script src="quote-builder.js?v=20260528-link-only-email"></script>
   <script>
     (function () {
       var t = document.getElementById('mobileMenuToggle');

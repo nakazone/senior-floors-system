@@ -245,9 +245,9 @@ export async function sendQuoteEmail({
     return { ok: false, error: 'Recipient email required' };
   }
 
-  const defaultHtml = `<p>Hello,</p><p>Please find your quote attached. You can also view and approve it online${
-    publicUrl ? `: <a href="${publicUrl}">${publicUrl}</a>` : '.'
-  }</p><p>— Senior Floors</p>`;
+  const defaultHtml = publicUrl
+    ? `<p>Hello,</p><p>Your quote is ready. <a href="${publicUrl}">View your quote online</a> (full details and PDF are only available on this secure link).</p><p>— Senior Floors</p>`
+    : `<p>Hello,</p><p>Your quote is ready. Please contact Senior Floors for your secure link.</p><p>— Senior Floors</p>`;
 
   const finalHtml = html != null && String(html).trim() !== '' ? html : defaultHtml;
 

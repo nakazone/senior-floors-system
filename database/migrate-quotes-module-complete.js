@@ -141,6 +141,7 @@ async function main() {
     ],
     ['terms_conditions', '`terms_conditions` TEXT NULL'],
     ['email_sent_at', '`email_sent_at` DATETIME NULL DEFAULT NULL'],
+    ['pdf_viewed_at', '`pdf_viewed_at` DATETIME NULL DEFAULT NULL COMMENT "Cliente descarregou PDF na página pública"'],
   ];
   for (const [name, ddl] of quoteCols) {
     if (!(await columnExists(conn, 'quotes', name))) {

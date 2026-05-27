@@ -89,6 +89,7 @@ export async function getQuoteEngagement(req, res) {
     const cols = await repo.quoteColumns(pool);
     const fields = ['id', 'status', 'viewed_at'];
     if (cols.has('email_sent_at')) fields.push('email_sent_at');
+    if (cols.has('pdf_viewed_at')) fields.push('pdf_viewed_at');
     const [rows] = await pool.query(`SELECT ${fields.join(', ')} FROM quotes WHERE id = ? LIMIT 1`, [id]);
     if (!rows.length) return res.status(404).json({ success: false, error: 'Quote not found' });
     res.json({ success: true, data: rows[0] });

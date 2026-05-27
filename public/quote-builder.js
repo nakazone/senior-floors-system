@@ -985,9 +985,11 @@
   let quoteSendMenuOpen = false;
   let loadedQuoteEmailSentAt = null;
   let loadedQuoteViewedAt = null;
+  let loadedQuotePdfViewedAt = null;
   let quoteViewPollTimer = null;
   let quoteViewPollQuickTimer = null;
   let quoteViewNotifyShown = false;
+  let quotePdfNotifyShown = false;
 
   function formatEmailSentWhen(value) {
     if (!value) return '';
@@ -1024,7 +1026,7 @@
       if (label) label.textContent = 'E-mail enviado';
       if (emailMenuItem) {
         const small = emailMenuItem.querySelector('small');
-        if (small) small.textContent = 'Envia o PDF e o link por e-mail ao cliente';
+        if (small) small.textContent = 'Só link seguro no e-mail — orçamento e PDF na página online';
       }
     }
   }
@@ -1041,9 +1043,15 @@
   }
 
   function shouldPollQuoteView() {
-    if (!quoteId || loadedQuoteViewedAt) return false;
+    if (!quoteId) return false;
     const st = String($('status')?.value || '').toLowerCase();
-    return !!(loadedQuoteEmailSentAt || st === 'sent');
+    const waiting = !!(loadedQuoteEmailSentAt || st === 'sent');
+    if (!waiting) return false;
+    return !loadedQuoteViewedAt || !loadedQuotePdfViewedAt;
+  }
+
+  function maybeStopQuoteViewPolling() {
+    if (!shouldPollQuoteView()) stopQuoteViewPolling();
   }
 
   async function pollQuoteViewed() {
@@ -1053,15 +1061,15 @@
       const d = r.data;
       if (!d) return;
       if (d.email_sent_at && !loadedQuoteEmailSentAt) updateEmailSentBadge(d.email_sent_at);
-      if (d.viewed_at) {
-        updateQuoteViewedBadge(d.viewed_at, { notify: true });
-        if (d.status) {
-          const statusEl = $('status');
-          if (statusEl && ['viewed', 'approved'].includes(String(d.status).toLowerCase())) {
-            statusEl.value = d.status;
-          }
+      if (d.viewed_at) updateQuoteViewedBadge(d.viewed_at, { notify: true });
+      if (d.pdf_viewed_at) updatePdfViewedBadge(d.pdf_viewed_at, { notify: true });
+      if (d.status) {
+        const statusEl = $('status');
+        if (statusEl && ['viewed', 'approved'].includes(String(d.status).toLowerCase())) {
+          statusEl.value = d.status;
         }
       }
+      maybeStopQuoteViewPolling();
     } catch {
       /* polling silencioso */
     }
@@ -1081,7 +1089,7 @@
     const label = $('qbQuoteViewedBadgeLabel');
     if (!badge) return;
     if (loadedQuoteViewedAt) {
-      stopQuoteViewPolling();
+      maybeStopQuoteViewPolling();
       const when = formatEmailSentWhen(loadedQuoteViewedAt);
       const tip = when ? `Cliente abriu o link do orçamento em ${when}` : 'Cliente abriu o link do orçamento';
       badge.classList.remove('hidden');
@@ -1107,6 +1115,40 @@
       badge.setAttribute('aria-label', 'Orçamento ainda não aberto pelo cliente');
       if (label) label.textContent = 'Aberto pelo cliente';
       if (!opts.keepNotifyFlag) quoteViewNotifyShown = false;
+    }
+  }
+
+  function updatePdfViewedBadge(pdfAt, opts = {}) {
+    const wasPdf = !!loadedQuotePdfViewedAt;
+    loadedQuotePdfViewedAt = pdfAt || null;
+    const badge = $('qbPdfViewedBadge');
+    const label = $('qbPdfViewedBadgeLabel');
+    if (!badge) return;
+    if (loadedQuotePdfViewedAt) {
+      maybeStopQuoteViewPolling();
+      const when = formatEmailSentWhen(loadedQuotePdfViewedAt);
+      const tip = when ? `Cliente descarregou o PDF em ${when}` : 'Cliente descarregou o PDF';
+      badge.classList.remove('hidden');
+      badge.title = tip;
+      badge.setAttribute('aria-label', tip);
+      if (label) label.textContent = when ? `PDF · ${when}` : 'PDF descarregado';
+      if (opts.notify && !wasPdf && !quotePdfNotifyShown) {
+        quotePdfNotifyShown = true;
+        showQuoteNotify({
+          type: 'success',
+          title: 'PDF descarregado',
+          message: when
+            ? `O cliente descarregou o PDF do orçamento (${when}).`
+            : 'O cliente descarregou o PDF do orçamento.',
+          ms: 12000,
+        });
+      }
+    } else {
+      badge.classList.add('hidden');
+      badge.removeAttribute('title');
+      badge.setAttribute('aria-label', 'PDF ainda não descarregado pelo cliente');
+      if (label) label.textContent = 'PDF descarregado';
+      if (!opts.keepNotifyFlag) quotePdfNotifyShown = false;
     }
   }
 
@@ -1217,7 +1259,7 @@
       showQuoteNotify({
         type: 'success',
         title: 'E-mail enviado',
-        message: `O orçamento foi enviado para ${preview} (${how}). Será notificado quando o cliente abrir o link.`,
+        message: `E-mail enviado para ${preview} (${how}) — só com link seguro. Será notificado quando o cliente abrir o link ou descarregar o PDF.`,
       });
     } catch (e) {
       const raw = e.message || '';
@@ -1675,6 +1717,7 @@
     if (!quoteId) {
       updateEmailSentBadge(null);
       updateQuoteViewedBadge(null);
+      updatePdfViewedBadge(null);
       stopQuoteViewPolling();
     }
   }
@@ -1716,7 +1759,9 @@
     $('quoteMeta').textContent = `Orçamento ${q.quote_number || '#' + q.id} · total ${money(q.total_amount)}`;
     updateEmailSentBadge(q.email_sent_at || null);
     quoteViewNotifyShown = !!q.viewed_at;
+    quotePdfNotifyShown = !!q.pdf_viewed_at;
     updateQuoteViewedBadge(q.viewed_at || null, { keepNotifyFlag: true });
+    updatePdfViewedBadge(q.pdf_viewed_at || null, { keepNotifyFlag: true });
     startQuoteViewPolling();
     updatePreviewHeader();
     renderClientDetails();

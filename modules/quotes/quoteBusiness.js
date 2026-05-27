@@ -108,97 +108,59 @@ function groupItemsForEmail(items) {
 }
 
 /**
- * HTML do e-mail: paleta e estrutura alinhadas ao PDF; total em destaque.
+ * E-mail só com link seguro — sem linhas, totais nem PDF anexo (cliente abre a página pública).
  */
-function buildQuoteEmailHtml(quote, items, publicUrl) {
+export function buildQuoteAccessEmailHtml(quote, publicUrl) {
   const navy = '#1a2036';
   const sand = '#d6b598';
   const sandDark = '#c4a588';
   const muted = '#4a5568';
   const clientName = escapeHtmlEmail(quote.customer_name || 'Client');
   const qn = escapeHtmlEmail(quote.quote_number || quote.id || '');
-  const sub = Number(quote.subtotal) || 0;
-  const tax = Number(quote.tax_total) || 0;
-  const total = Number(quote.total_amount) || 0;
-  const totalStr = moneyEmail(total);
-  const discType = quote.discount_type === 'fixed' ? 'fixed' : 'percentage';
-  const discVal = Number(quote.discount_value) || 0;
-  const discAmt = calc.discountAmount(sub, discType, discVal);
-  const discLabel =
-    discType === 'fixed' ? 'Discount ($)' : `Discount (${discVal}%)`;
-
-  const sections = groupItemsForEmail(items);
-  let linesBody = '';
-  for (const sec of sections) {
-    linesBody += `<tr><td colspan="4" style="background-color:#efe8df;padding:10px 12px;font-size:11px;font-weight:bold;color:${navy};letter-spacing:0.04em;border-left:4px solid ${sandDark};">${escapeHtmlEmail(sec.label)}</td></tr>
-<tr style="background-color:rgba(26,32,54,0.06);font-size:10px;font-weight:bold;color:${navy};">
-<td style="padding:8px 12px;">Description</td>
-<td style="padding:8px 6px;text-align:right;width:72px;">Qty</td>
-<td style="padding:8px 6px;text-align:right;width:88px;">Rate</td>
-<td style="padding:8px 12px;text-align:right;width:100px;">Amount</td>
-</tr>`;
-    for (const it of sec.items) {
-      const nm = String(it.name || '').trim();
-      const dc = String(it.description || '').trim();
-      const title = escapeHtmlEmail(nm || dc || 'Item');
-      const subd =
-        nm && dc && dc !== nm
-          ? `<div style="margin-top:4px;font-size:12px;color:${muted};line-height:1.45;">${escapeHtmlEmail(dc).replace(/\n/g, '<br/>')}</div>`
-          : '';
-      const qty = Number(it.quantity) || 0;
-      const rate = Number(it.rate ?? it.unit_price) || 0;
-      const amt = moneyEmail(it.amount ?? it.total_price);
-      const ut = it.unit_type ? String(it.unit_type).replace(/_/g, ' ') : 'sq ft';
-      linesBody += `<tr>
-<td style="padding:12px;border-bottom:1px solid #e2e8f0;vertical-align:top;"><strong style="color:${navy};font-size:14px;">${title}</strong>${subd}</td>
-<td style="padding:12px 6px;border-bottom:1px solid #e2e8f0;text-align:right;font-size:13px;color:${navy};white-space:nowrap;">${qty} ${escapeHtmlEmail(ut)}</td>
-<td style="padding:12px 6px;border-bottom:1px solid #e2e8f0;text-align:right;font-size:13px;color:${navy};">${moneyEmail(rate)}</td>
-<td style="padding:12px 12px;border-bottom:1px solid #e2e8f0;text-align:right;font-size:13px;font-weight:bold;color:${navy};">${amt}</td>
-</tr>`;
-    }
-  }
-  if (!linesBody) {
-    linesBody = `<tr><td colspan="4" style="padding:16px;color:${muted};">No line items.</td></tr>`;
-  }
-
-  const link =
-    publicUrl && /^https?:\/\//i.test(publicUrl)
-      ? `<p style="margin:24px 0 0;font-size:14px;color:${navy};"><a href="${escapeHtmlEmail(publicUrl)}" style="color:${sandDark};font-weight:bold;">View or approve this quote online</a></p><p style="margin:4px 0 0;font-size:12px;color:${muted};word-break:break-all;">${escapeHtmlEmail(publicUrl)}</p>`
+  const safeUrl = publicUrl && /^https?:\/\//i.test(publicUrl) ? publicUrl : '';
+  const exp =
+    quote.expiration_date != null
+      ? String(quote.expiration_date).slice(0, 10)
       : '';
+  const expLine = exp
+    ? `<p style="margin:16px 0 0;font-size:13px;color:${muted};">Valid until <strong style="color:${navy};">${escapeHtmlEmail(exp)}</strong></p>`
+    : '';
+
+  const cta = safeUrl
+    ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:28px auto 0;border-collapse:separate;">
+<tr><td align="center" style="border-radius:8px;background-color:${sand};">
+<a href="${escapeHtmlEmail(safeUrl)}" style="display:inline-block;padding:16px 32px;font-size:16px;font-weight:bold;color:${navy};text-decoration:none;letter-spacing:0.02em;">View your quote</a>
+</td></tr></table>
+<p style="margin:20px 0 0;font-size:12px;color:${muted};line-height:1.5;text-align:center;">Or copy this link into your browser:</p>
+<p style="margin:6px 0 0;font-size:12px;color:${sandDark};word-break:break-all;text-align:center;"><a href="${escapeHtmlEmail(safeUrl)}" style="color:${sandDark};">${escapeHtmlEmail(safeUrl)}</a></p>`
+    : `<p style="margin:20px 0 0;font-size:14px;color:#b45309;">Online link unavailable — please contact Senior Floors.</p>`;
 
   return `<!DOCTYPE html><html><body style="margin:0;padding:0;background-color:#f7f8fc;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f7f8fc;padding:24px 12px;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f7f8fc;padding:32px 12px;">
 <tr><td align="center">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;border-collapse:collapse;background-color:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(26,32,54,0.08);font-family:Inter,Segoe UI,Arial,sans-serif;color:${navy};">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;border-collapse:collapse;background-color:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(26,32,54,0.1);font-family:Inter,Segoe UI,Arial,sans-serif;color:${navy};">
 <tr><td style="height:5px;background-color:${sand};line-height:5px;font-size:0;">&nbsp;</td></tr>
-<tr><td style="padding:24px 24px 8px;font-size:22px;font-weight:bold;letter-spacing:-0.02em;">Senior Floors</td></tr>
-<tr><td style="padding:0 24px 16px;font-size:13px;color:#2a3150;">Hardwood · LVP · Refinishing · Denver Metro</td></tr>
-<tr><td style="padding:0 24px 20px;border-bottom:1px solid #e2e8f0;">
-<p style="margin:0 0 6px;font-size:12px;color:${sandDark};font-weight:bold;text-transform:uppercase;letter-spacing:0.06em;">Quote</p>
-<p style="margin:0;font-size:18px;font-weight:bold;color:${navy};">#${qn}</p>
-<p style="margin:8px 0 0;font-size:14px;color:${navy};">Hello ${clientName},</p>
-<p style="margin:8px 0 0;font-size:14px;line-height:1.55;color:${muted};">Below is the same breakdown as in your attached PDF. Your <strong style="color:${navy};">quote total is ${totalStr}</strong>.</p>
+<tr><td style="padding:28px 28px 12px;text-align:center;">
+<p style="margin:0;font-size:22px;font-weight:bold;letter-spacing:-0.02em;">Senior Floors</p>
+<p style="margin:6px 0 0;font-size:12px;color:#2a3150;">Hardwood · LVP · Refinishing · Denver Metro</p>
 </td></tr>
-<tr><td style="padding:20px 24px 8px;">
-<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">${linesBody}</table>
-</td></tr>
-<tr><td style="padding:8px 24px 24px;">
-<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;font-size:14px;color:${muted};">
-<tr><td style="padding:6px 0;">Subtotal</td><td style="padding:6px 0;text-align:right;color:${navy};">${moneyEmail(sub)}</td></tr>
-<tr><td style="padding:6px 0;">Tax</td><td style="padding:6px 0;text-align:right;color:${navy};">${moneyEmail(tax)}</td></tr>
-<tr><td style="padding:6px 0;">${escapeHtmlEmail(discLabel)}</td><td style="padding:6px 0;text-align:right;color:${navy};">${moneyEmail(discAmt)}</td></tr>
-</table>
-<table width="100%" cellpadding="0" cellspacing="0" style="margin-top:16px;border-collapse:collapse;background-color:${navy};border-radius:4px;">
-<tr>
-<td style="padding:14px 16px;font-size:12px;font-weight:bold;color:#ffffff;text-transform:uppercase;letter-spacing:0.05em;">Total</td>
-<td style="padding:14px 16px;text-align:right;font-size:22px;font-weight:bold;color:${sand};">${totalStr}</td>
-</tr>
-</table>
-${link}
-<p style="margin:24px 0 0;font-size:13px;color:${muted};">— Senior Floors · (720) 751-9813 · contact@senior-floors.com</p>
+<tr><td style="padding:8px 28px 28px;text-align:center;border-top:1px solid #e2e8f0;">
+<p style="margin:0 0 4px;font-size:11px;color:${sandDark};font-weight:bold;text-transform:uppercase;letter-spacing:0.08em;">Your quote</p>
+<p style="margin:0;font-size:20px;font-weight:bold;color:${navy};">#${qn}</p>
+<p style="margin:16px 0 0;font-size:15px;line-height:1.6;color:${navy};">Hello ${clientName},</p>
+<p style="margin:12px 0 0;font-size:14px;line-height:1.65;color:${muted};max-width:420px;margin-left:auto;margin-right:auto;">Your quote is ready. For security, the full details and PDF are <strong style="color:${navy};">only available through the button below</strong> — not in this email.</p>
+${cta}
+${expLine}
+<p style="margin:28px 0 0;font-size:12px;color:${muted};line-height:1.5;">Questions? Reply to this email or call (720) 751-9813.</p>
+<p style="margin:8px 0 0;font-size:12px;color:${muted};">— Senior Floors</p>
 </td></tr>
 </table>
 </td></tr></table></body></html>`;
+}
+
+/** @deprecated Use buildQuoteAccessEmailHtml — mantido para compatibilidade interna. */
+function buildQuoteEmailHtml(quote, items, publicUrl) {
+  return buildQuoteAccessEmailHtml(quote, publicUrl);
 }
 
 export async function loadQuoteContext(pool, quoteId) {
@@ -513,7 +475,20 @@ export async function generatePdfAndStore(pool, quoteId) {
   return { ok: true, buffer: pdfBuf };
 }
 
+export async function ensureQuotePublicToken(pool, quoteId) {
+  const cols = await repo.quoteColumns(pool);
+  if (!cols.has('public_token')) return null;
+  const [rows] = await pool.query('SELECT public_token FROM quotes WHERE id = ? LIMIT 1', [quoteId]);
+  let token = rows[0]?.public_token;
+  if (token != null) token = String(token).trim();
+  if (token && token.length >= 16) return token;
+  token = repo.newPublicToken();
+  await pool.execute('UPDATE quotes SET public_token = ? WHERE id = ?', [token, quoteId]);
+  return token;
+}
+
 export async function mailQuote(pool, quoteId, EmailOpts = {}) {
+  await ensureQuotePublicToken(pool, quoteId);
   const ctx = await loadQuoteContext(pool, quoteId);
   if (!ctx) return { ok: false, error: 'Quote not found' };
   const rawTo = EmailOpts.to != null ? String(EmailOpts.to).trim() : '';
@@ -527,13 +502,9 @@ export async function mailQuote(pool, quoteId, EmailOpts = {}) {
         'E-mail em falta: indique o destinatário no envio ou associe um cliente com e-mail a este orçamento.',
     };
   }
-  let pdfBuf = EmailOpts.pdfBuffer;
-  if (!pdfBuf) {
-    const gen = await generatePdfAndStore(pool, quoteId);
-    if (!gen.ok || !gen.buffer) {
-      return { ok: false, error: gen.error || 'Não foi possível gerar o PDF do orçamento.' };
-    }
-    pdfBuf = gen.buffer;
+  const gen = await generatePdfAndStore(pool, quoteId);
+  if (!gen.ok) {
+    return { ok: false, error: gen.error || 'Não foi possível gerar o PDF do orçamento.' };
   }
   const base =
     process.env.PUBLIC_CRM_URL ||
@@ -542,13 +513,22 @@ export async function mailQuote(pool, quoteId, EmailOpts = {}) {
   const publicUrl =
     token && base ? `${base.replace(/\/$/, '')}/quote-public.html?t=${encodeURIComponent(token)}` : '';
 
+  if (!publicUrl) {
+    return {
+      ok: false,
+      error:
+        'Link público indisponível. Defina PUBLIC_CRM_URL no Railway (URL do CRM, ex.: https://seu-app.railway.app).',
+    };
+  }
+
   const useCustomHtml =
     EmailOpts.html != null && String(EmailOpts.html).trim() !== '';
+  const attachPdf = EmailOpts.attachPdf === true;
   const result = await sendQuoteEmail({
     to: email,
     subject: EmailOpts.subject || `Quote ${ctx.quote.quote_number || quoteId} — Senior Floors`,
-    html: useCustomHtml ? EmailOpts.html : buildQuoteEmailHtml(ctx.quote, ctx.items, publicUrl),
-    pdfBuffer: pdfBuf,
+    html: useCustomHtml ? EmailOpts.html : buildQuoteAccessEmailHtml(ctx.quote, publicUrl),
+    pdfBuffer: attachPdf ? gen.buffer : null,
     filename: `Senior-Floors-${ctx.quote.quote_number || quoteId}.pdf`,
     publicUrl,
   });
@@ -609,6 +589,41 @@ export async function markQuoteViewed(pool, token) {
     await pool.execute('UPDATE quotes SET status = ? WHERE id = ? AND status = ?', ['viewed', id, 'sent']);
   }
   return getByPublicToken(pool, token);
+}
+
+/** Cliente descarregou o PDF na página pública (link rastreado). */
+export async function markQuotePdfDownloaded(pool, token) {
+  const ctx = await getByPublicToken(pool, token);
+  if (!ctx) return null;
+  const id = ctx.quote.id;
+  const cols = await repo.quoteColumns(pool);
+  if (cols.has('pdf_viewed_at')) {
+    await pool.execute('UPDATE quotes SET pdf_viewed_at = COALESCE(pdf_viewed_at, NOW()) WHERE id = ?', [
+      id,
+    ]);
+  }
+  await pool.execute('UPDATE quotes SET viewed_at = COALESCE(viewed_at, NOW()) WHERE id = ?', [id]);
+  const st = String(ctx.quote.status || '').toLowerCase();
+  if (st === 'sent') {
+    await pool.execute('UPDATE quotes SET status = ? WHERE id = ? AND status = ?', ['viewed', id, 'sent']);
+  }
+  return getByPublicToken(pool, token);
+}
+
+export async function getQuotePdfBufferForPublic(pool, quoteId) {
+  const [colRows] = await pool.query(
+    `SELECT COLUMN_NAME AS n FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'quotes' AND COLUMN_NAME = 'invoice_pdf'`
+  );
+  if (colRows.length) {
+    const [rows] = await pool.query('SELECT invoice_pdf FROM quotes WHERE id = ? LIMIT 1', [quoteId]);
+    const blob = rows[0]?.invoice_pdf;
+    if (blob && Buffer.isBuffer(blob) && blob.length > 0) return blob;
+    if (blob && typeof blob === 'object' && blob.length > 0) return Buffer.from(blob);
+  }
+  const gen = await generatePdfAndStore(pool, quoteId);
+  if (!gen.ok || !gen.buffer) return null;
+  return gen.buffer;
 }
 
 export async function approvePublicQuote(pool, token) {
