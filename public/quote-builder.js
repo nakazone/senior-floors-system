@@ -984,6 +984,10 @@
 
   let quoteSendMenuOpen = false;
   let loadedQuoteEmailSentAt = null;
+  let loadedQuoteViewedAt = null;
+  let quoteViewPollTimer = null;
+  let quoteViewPollQuickTimer = null;
+  let quoteViewNotifyShown = false;
 
   function formatEmailSentWhen(value) {
     if (!value) return '';
@@ -1022,6 +1026,87 @@
         const small = emailMenuItem.querySelector('small');
         if (small) small.textContent = 'Envia o PDF e o link por e-mail ao cliente';
       }
+    }
+  }
+
+  function stopQuoteViewPolling() {
+    if (quoteViewPollTimer) {
+      clearInterval(quoteViewPollTimer);
+      quoteViewPollTimer = null;
+    }
+    if (quoteViewPollQuickTimer) {
+      clearTimeout(quoteViewPollQuickTimer);
+      quoteViewPollQuickTimer = null;
+    }
+  }
+
+  function shouldPollQuoteView() {
+    if (!quoteId || loadedQuoteViewedAt) return false;
+    const st = String($('status')?.value || '').toLowerCase();
+    return !!(loadedQuoteEmailSentAt || st === 'sent');
+  }
+
+  async function pollQuoteViewed() {
+    if (!shouldPollQuoteView() || document.visibilityState === 'hidden') return;
+    try {
+      const r = await api(`/api/quotes/${quoteId}/engagement`);
+      const d = r.data;
+      if (!d) return;
+      if (d.email_sent_at && !loadedQuoteEmailSentAt) updateEmailSentBadge(d.email_sent_at);
+      if (d.viewed_at) {
+        updateQuoteViewedBadge(d.viewed_at, { notify: true });
+        if (d.status) {
+          const statusEl = $('status');
+          if (statusEl && ['viewed', 'approved'].includes(String(d.status).toLowerCase())) {
+            statusEl.value = d.status;
+          }
+        }
+      }
+    } catch {
+      /* polling silencioso */
+    }
+  }
+
+  function startQuoteViewPolling() {
+    stopQuoteViewPolling();
+    if (!shouldPollQuoteView()) return;
+    quoteViewPollQuickTimer = setTimeout(() => void pollQuoteViewed(), 12000);
+    quoteViewPollTimer = setInterval(() => void pollQuoteViewed(), 30000);
+  }
+
+  function updateQuoteViewedBadge(viewedAt, opts = {}) {
+    const wasViewed = !!loadedQuoteViewedAt;
+    loadedQuoteViewedAt = viewedAt || null;
+    const badge = $('qbQuoteViewedBadge');
+    const label = $('qbQuoteViewedBadgeLabel');
+    if (!badge) return;
+    if (loadedQuoteViewedAt) {
+      stopQuoteViewPolling();
+      const when = formatEmailSentWhen(loadedQuoteViewedAt);
+      const tip = when ? `Cliente abriu o link do orçamento em ${when}` : 'Cliente abriu o link do orçamento';
+      badge.classList.remove('hidden');
+      badge.title = tip;
+      badge.setAttribute('aria-label', tip);
+      if (label) label.textContent = when ? `Aberto · ${when}` : 'Aberto pelo cliente';
+      const statusEl = $('status');
+      if (statusEl && statusEl.value === 'sent') statusEl.value = 'viewed';
+      if (opts.notify && !wasViewed && !quoteViewNotifyShown) {
+        quoteViewNotifyShown = true;
+        showQuoteNotify({
+          type: 'success',
+          title: 'Orçamento aberto',
+          message: when
+            ? `O cliente abriu o link do orçamento (${when}).`
+            : 'O cliente abriu o link do orçamento online.',
+          ms: 12000,
+        });
+      }
+    } else {
+      badge.classList.add('hidden');
+      badge.removeAttribute('title');
+      badge.setAttribute('aria-label', 'Orçamento ainda não aberto pelo cliente');
+      if (label) label.textContent = 'Aberto pelo cliente';
+      if (!opts.keepNotifyFlag) quoteViewNotifyShown = false;
     }
   }
 
@@ -1128,10 +1213,11 @@
       }
       const statusEl = $('status');
       if (statusEl && statusEl.value === 'draft') statusEl.value = 'sent';
+      startQuoteViewPolling();
       showQuoteNotify({
         type: 'success',
         title: 'E-mail enviado',
-        message: `O orçamento foi enviado para ${preview} (${how}).`,
+        message: `O orçamento foi enviado para ${preview} (${how}). Será notificado quando o cliente abrir o link.`,
       });
     } catch (e) {
       const raw = e.message || '';
@@ -1586,7 +1672,11 @@
     const btnSend = $('btnSend');
     if (btnSend) btnSend.disabled = !quoteId;
     $('btnDup').disabled = !quoteId;
-    if (!quoteId) updateEmailSentBadge(null);
+    if (!quoteId) {
+      updateEmailSentBadge(null);
+      updateQuoteViewedBadge(null);
+      stopQuoteViewPolling();
+    }
   }
 
   async function loadQuote(id) {
@@ -1625,6 +1715,9 @@
     loadedQuoteNumber = q.quote_number != null ? String(q.quote_number).trim() : null;
     $('quoteMeta').textContent = `Orçamento ${q.quote_number || '#' + q.id} · total ${money(q.total_amount)}`;
     updateEmailSentBadge(q.email_sent_at || null);
+    quoteViewNotifyShown = !!q.viewed_at;
+    updateQuoteViewedBadge(q.viewed_at || null, { keepNotifyFlag: true });
+    startQuoteViewPolling();
     updatePreviewHeader();
     renderClientDetails();
     setPublicLink(q.public_token);
@@ -1893,6 +1986,10 @@
       window.open(`/api/quotes/${quoteId}/invoice-pdf`, '_blank');
     });
     wireQuoteNotify();
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') void pollQuoteViewed();
+    });
 
     $('btnSend')?.addEventListener('click', () => {
       if (!quoteId) return;

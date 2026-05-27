@@ -133,9 +133,60 @@
       text-overflow: ellipsis;
     }
     @media (max-width: 520px) {
-      .qb-email-sent-badge__label {
+      .qb-email-sent-badge__label,
+      .qb-quote-viewed-badge__label {
         display: none;
       }
+    }
+    .qb-quote-viewed-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.35rem 0.65rem;
+      border-radius: 999px;
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      color: #1e40af;
+      font-size: 0.75rem;
+      font-weight: 600;
+      line-height: 1;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .qb-quote-viewed-badge.hidden {
+      display: none !important;
+    }
+    .qb-quote-viewed-badge__icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: #475569;
+    }
+    .qb-quote-viewed-badge__icon svg {
+      display: block;
+      width: 18px;
+      height: 18px;
+    }
+    .qb-quote-viewed-badge__check {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #22c55e;
+      color: #fff;
+      flex-shrink: 0;
+    }
+    .qb-quote-viewed-badge__check svg {
+      display: block;
+      width: 12px;
+      height: 12px;
+    }
+    .qb-quote-viewed-badge__label {
+      max-width: 12rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     .estimate-builder {
       flex: 1;
@@ -1210,6 +1261,26 @@
             </span>
             <span class="qb-email-sent-badge__label" id="qbEmailSentBadgeLabel">E-mail enviado</span>
           </span>
+          <span
+            id="qbQuoteViewedBadge"
+            class="qb-quote-viewed-badge hidden"
+            role="status"
+            aria-live="polite"
+            aria-label="Orçamento ainda não aberto pelo cliente"
+          >
+            <span class="qb-quote-viewed-badge__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                <circle cx="12" cy="12" r="3"/>
+              </svg>
+            </span>
+            <span class="qb-quote-viewed-badge__check" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+            </span>
+            <span class="qb-quote-viewed-badge__label" id="qbQuoteViewedBadgeLabel">Aberto pelo cliente</span>
+          </span>
         </div>
       </header>
 
@@ -1583,7 +1654,7 @@
   <script src="crm-shared-nav.js?v=12"></script>
   <script src="crm-toast.js"></script>
   <script src="lead-contact-links.js?v=20260526-utf8"></script>
-  <script src="quote-builder.js?v=20260528-email-sent-badge"></script>
+  <script src="quote-builder.js?v=20260528-quote-viewed"></script>
   <script>
     (function () {
       var t = document.getElementById('mobileMenuToggle');

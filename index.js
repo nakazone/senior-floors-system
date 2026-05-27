@@ -442,6 +442,7 @@ app.put('/api/quotes/:id/full', requireAuth, requirePermission('quotes.edit'), q
 app.post('/api/quotes/:id/duplicate', requireAuth, requirePermission('quotes.create'), quoteExt.postQuoteDuplicate);
 app.post('/api/quotes/:id/generate-pdf', requireAuth, requirePermission('quotes.edit'), quoteExt.postQuoteGeneratePdf);
 app.post('/api/quotes/:id/send-email', requireAuth, requirePermission('quotes.edit'), quoteExt.postQuoteSendEmail);
+app.get('/api/quotes/:id/engagement', requireAuth, requirePermission('quotes.view'), quoteExt.getQuoteEngagement);
 app.get('/api/quotes/:id/snapshots', requireAuth, requirePermission('quotes.view'), quoteExt.getQuoteSnapshots);
 app.get('/api/quotes/:id', requireAuth, getQuote);
 app.post('/api/quotes', requireAuth, createQuote);

@@ -79,6 +79,25 @@ export async function postQuoteGeneratePdf(req, res) {
   }
 }
 
+/** Estado leve para polling (e-mail enviado / link aberto). */
+export async function getQuoteEngagement(req, res) {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (!id) return res.status(400).json({ success: false, error: 'Invalid id' });
+    const pool = await getDBConnection();
+    if (!pool) return res.status(503).json({ success: false, error: 'Database not available' });
+    const cols = await repo.quoteColumns(pool);
+    const fields = ['id', 'status', 'viewed_at'];
+    if (cols.has('email_sent_at')) fields.push('email_sent_at');
+    const [rows] = await pool.query(`SELECT ${fields.join(', ')} FROM quotes WHERE id = ? LIMIT 1`, [id]);
+    if (!rows.length) return res.status(404).json({ success: false, error: 'Quote not found' });
+    res.json({ success: true, data: rows[0] });
+  } catch (e) {
+    console.error('getQuoteEngagement:', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+}
+
 export async function postQuoteSendEmail(req, res) {
   try {
     const id = parseInt(req.params.id, 10);
