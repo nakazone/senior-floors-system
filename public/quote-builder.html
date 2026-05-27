@@ -7,7 +7,7 @@
   <link rel="icon" type="image/png" href="/assets/SeniorFloors.png" />
   <link rel="stylesheet" href="styles.css" />
   <link rel="stylesheet" href="design-system.css" />
-  <link rel="stylesheet" href="crm-shared-nav.css?v=8" />
+  <link rel="stylesheet" href="crm-shared-nav.css?v=12" />
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = { corePlugins: { preflight: false } };
@@ -16,10 +16,21 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" />
   <style>
     .qb-dashboard-inner { font-family: Inter, system-ui, sans-serif; }
-    body.qb-dashboard-inner .dashboard-content.qb-page {
+    body.qb-sidebar-page .dashboard-container {
+      min-height: 100vh;
+    }
+    body.qb-dashboard-inner .dashboard-main {
       display: flex;
       flex-direction: column;
-      min-height: calc(100vh - 52px);
+      min-height: 100vh;
+      padding: 0;
+      overflow: hidden;
+    }
+    body.qb-dashboard-inner .qb-page {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      min-height: 0;
       max-width: none !important;
       width: 100% !important;
       margin: 0 !important;
@@ -854,6 +865,11 @@
       padding-bottom: calc(3.25rem + env(safe-area-inset-bottom, 0px));
     }
     @media (max-width: 900px) {
+      body.qb-dashboard-inner .dashboard-main {
+        min-height: calc(100vh - 52px);
+      }
+    }
+    @media (max-width: 900px) {
       .estimate-builder {
         grid-template-columns: 1fr;
         grid-template-rows: auto 1fr;
@@ -892,10 +908,42 @@
   </style>
   <link rel="stylesheet" href="crm-toast.css" />
 </head>
-<body class="qb-dashboard-inner crm-standalone-page">
-  <div id="crmSharedNavRoot"></div>
+<body class="qb-dashboard-inner dashboard-app-body qb-sidebar-page">
+  <header class="mobile-app-header" id="mobileAppHeader" aria-label="Barra superior">
+    <button type="button" class="mobile-app-header__menu" id="mobileMenuToggle" aria-label="Abrir menu" aria-expanded="false" aria-controls="quoteBuilderSidebar">
+      <span class="mobile-app-header__menu-icon" aria-hidden="true"></span>
+    </button>
+    <div class="mobile-app-header__brand">
+      <img src="/assets/SeniorFloors.png" alt="" class="mobile-app-header__logo" width="28" height="28" onerror="this.style.display='none'" />
+      <h1 class="mobile-app-header__title" id="mobileAppTitle">Orçamento</h1>
+    </div>
+  </header>
+
   <div class="dashboard-container">
-    <div class="dashboard-content qb-page">
+    <aside class="dashboard-sidebar" id="quoteBuilderSidebar" aria-label="Menu lateral">
+      <div class="sidebar-header">
+        <img src="/assets/SeniorFloors.png" alt="Senior Floors" class="sidebar-brand-logo logo-image" width="104" height="104" onerror="this.style.display='none'" />
+      </div>
+      <nav class="sidebar-nav" aria-label="Navegação CRM">
+        <div id="crmSharedNavRoot" data-layout="sidebar"></div>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="sidebar-user-bar">
+          <div class="sidebar-user-bar__avatar" id="sidebarUserAvatar" aria-hidden="true">—</div>
+          <div class="sidebar-user-bar__text">
+            <span class="sidebar-user-bar__name" id="sidebarUserName">—</span>
+            <span class="sidebar-user-bar__role" id="sidebarUserRole"></span>
+          </div>
+          <button type="button" id="logoutBtn" class="sidebar-logout-btn" title="Sair" aria-label="Terminar sessão">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+          </button>
+        </div>
+      </div>
+    </aside>
+    <div class="mobile-overlay" id="mobileOverlay"></div>
+
+    <main class="dashboard-main">
+      <div class="qb-page">
       <header class="qb-topbar">
         <div class="qb-topbar__left">
           <a href="dashboard.html?page=quotes" class="qb-topbar__back">← Orçamentos</a>
@@ -1179,7 +1227,8 @@
           </div>
         </aside>
       </div>
-    </div>
+      </div>
+    </main>
   </div>
 
   <nav class="qb-action-bar" id="qbActionBar" aria-label="Ações do orçamento">
@@ -1201,8 +1250,27 @@
     </div>
   </div>
 
-  <script src="crm-shared-nav.js?v=8"></script>
+  <script src="crm-shared-nav.js?v=12"></script>
   <script src="crm-toast.js"></script>
-  <script src="quote-builder.js?v=20260527-action-bar"></script>
+  <script src="quote-builder.js?v=20260527-sidebar-nav"></script>
+  <script>
+    (function () {
+      var t = document.getElementById('mobileMenuToggle');
+      var s = document.getElementById('quoteBuilderSidebar');
+      var o = document.getElementById('mobileOverlay');
+      if (t && s && o) {
+        t.addEventListener('click', function () {
+          var open = s.classList.toggle('mobile-open');
+          o.classList.toggle('active', open);
+          t.setAttribute('aria-expanded', open ? 'true' : 'false');
+        });
+        o.addEventListener('click', function () {
+          s.classList.remove('mobile-open');
+          o.classList.remove('active');
+          t.setAttribute('aria-expanded', 'false');
+        });
+      }
+    })();
+  </script>
 </body>
 </html>

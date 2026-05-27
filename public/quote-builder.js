@@ -383,6 +383,8 @@
     const dateEl = $('previewEstimateDate');
     const titlePart = metaText.includes('·') ? metaText.split('·')[0].trim() : metaText;
     if (top) top.textContent = titlePart;
+    const mobileTitle = $('mobileAppTitle');
+    if (mobileTitle) mobileTitle.textContent = titlePart;
     if (no) {
       if (quoteId) {
         const m = metaText.match(/Orçamento\s+(\S+)/);

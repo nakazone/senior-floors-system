@@ -128,6 +128,10 @@
     if (file === 'lead-detail.html') {
       return base === 'dashboard.html' && (item.page || '') === 'leads';
     }
+    if (file === 'quote-builder.html') {
+      if ((item.page || '') === 'quotes') return true;
+      if (base === 'quote-builder.html') return true;
+    }
     if (base === 'marketing.html') {
       return file === 'marketing.html';
     }
