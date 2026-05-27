@@ -1085,7 +1085,7 @@
       const raw = e.message || '';
       const friendly =
         /badcredentials|username and password not accepted|invalid login|535/i.test(raw)
-          ? 'O Gmail recusou as credenciais SMTP no servidor (Railway). Use uma App Password do Google, não a palavra-passe normal. Conta Google → Segurança → Palavras-passe de app. Variáveis: SMTP_USER=e-mail completo, SMTP_PASS=app password (16 caracteres). Ou configure Resend (RESEND_API_KEY).'
+          ? 'Erro SMTP no servidor. Se usa Resend, remova SMTP_* no Railway (o sistema já não usa Gmail por defeito). Caso contrário: App Password do Google em SMTP_PASS.'
           : raw || 'Não foi possível enviar o e-mail. Verifique GET /api/health/email no servidor.';
       showQuoteNotify({
         type: 'error',

@@ -14,6 +14,11 @@ function normalizeRecipient(to) {
   return s;
 }
 
+function isSmtpFallbackEnabled() {
+  const v = (process.env.EMAIL_SMTP_FALLBACK || '').trim().toLowerCase();
+  return v === '1' || v === 'true' || v === 'yes';
+}
+
 /** Diagnóstico sem segredos (healthcheck / CRM). */
 export function getEmailTransportStatus() {
   const hasResendKey = !!process.env.RESEND_API_KEY?.trim();
@@ -24,10 +29,22 @@ export function getEmailTransportStatus() {
     process.env.SMTP_USER?.trim() &&
     process.env.SMTP_PASS?.trim()
   );
+  const smtpFallback = isSmtpFallbackEnabled();
+  const primary = resend ? 'resend' : smtp ? 'smtp' : null;
+  let note;
+  if (resend && smtp && !smtpFallback) {
+    note =
+      'Resend é o transporte principal. SMTP no Railway é ignorado (remova SMTP_* ou defina EMAIL_SMTP_FALLBACK=true para backup).';
+  } else if (resend && smtp && smtpFallback) {
+    note = 'Resend primeiro; se falhar, tenta SMTP (EMAIL_SMTP_FALLBACK=true).';
+  }
   return {
     resend,
     smtp,
     ready: resend || smtp,
+    primary,
+    smtp_fallback: smtpFallback,
+    note,
   };
 }
 
@@ -78,10 +95,12 @@ async function sendViaResend({
 
   const json = await res.json().catch(() => ({}));
   if (!res.ok) {
+    const raw = json.message || json.name || res.statusText || 'Resend error';
     return {
       ok: false,
-      error: json.message || json.name || res.statusText || 'Resend error',
+      error: formatEmailSendError(raw),
       details: json,
+      transport: 'resend',
     };
   }
   return { ok: true, id: json.id, transport: 'resend' };
@@ -107,10 +126,34 @@ export function formatEmailSendError(raw) {
   if (lower.includes('e-mail não configurado') || lower.includes('not configured')) {
     return msg;
   }
-  if (lower.includes('resend') && (lower.includes('domain') || lower.includes('verify'))) {
-    return 'O domínio do remetente não está verificado no Resend. Confirme RESEND_FROM_EMAIL no painel resend.com.';
+  if (
+    lower.includes('only send testing emails') ||
+    lower.includes('testing emails to your own') ||
+    lower.includes('onboarding@resend.dev')
+  ) {
+    return (
+      'Conta Resend em modo de testes: só pode enviar para o e-mail da sua conta Resend, ou use remetente ' +
+      'onboarding@resend.dev até verificar o domínio em resend.com/domains. Depois use RESEND_FROM_EMAIL com um e-mail desse domínio.'
+    );
   }
-  return msg.length > 280 ? `${msg.slice(0, 277)}…` : msg;
+  if (
+    lower.includes('domain') &&
+    (lower.includes('verify') || lower.includes('verified') || lower.includes('not found'))
+  ) {
+    return (
+      'O domínio em RESEND_FROM_EMAIL não está verificado no Resend. Em resend.com/domains adicione o domínio, ' +
+      'configure DNS e use um remetente desse domínio (ex.: quotes@seudominio.com).'
+    );
+  }
+  if (lower.includes('invalid') && lower.includes('from')) {
+    return (
+      'Remetente inválido em RESEND_FROM_EMAIL. Use o formato "Nome <email@dominio-verificado.com>" com domínio já verificado no Resend.'
+    );
+  }
+  if (lower.includes('api key') || lower.includes('unauthorized') || lower.includes('invalid key')) {
+    return 'RESEND_API_KEY inválida ou revogada. Crie uma nova chave em resend.com/api-keys e atualize no Railway.';
+  }
+  return msg.length > 320 ? `${msg.slice(0, 317)}…` : msg;
 }
 
 async function sendViaSmtp({
@@ -234,8 +277,12 @@ export async function sendQuoteEmail({
       pdfBuffer,
       filename,
     });
-    if (out.ok || !smtp) return out;
-    console.warn('[quoteMail] Resend falhou, a tentar SMTP:', out.error);
+    if (out.ok) return out;
+    const allowSmtpFallback = smtp && isSmtpFallbackEnabled();
+    if (!allowSmtpFallback) {
+      return out;
+    }
+    console.warn('[quoteMail] Resend falhou, EMAIL_SMTP_FALLBACK ativo — a tentar SMTP:', out.error);
   }
 
   return sendViaSmtp(smtpPayload);
