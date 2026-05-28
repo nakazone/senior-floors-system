@@ -393,6 +393,19 @@
     </div>`;
     const focusEl = dd.querySelector('[data-lqs-input]');
     if (focusEl && typeof focusEl.focus === 'function') focusEl.focus();
+    if (
+      fieldKey === 'address' &&
+      focusEl &&
+      focusEl.tagName === 'INPUT' &&
+      typeof global.sfAttachAddressAutocomplete === 'function'
+    ) {
+      void global.sfAttachAddressAutocomplete(focusEl, {
+        country: 'us',
+        onSelect: function (parsed) {
+          if (parsed && parsed.formatted) focusEl.value = parsed.formatted;
+        },
+      });
+    }
   }
 
   async function commitFieldEdit(fieldKey) {
@@ -509,18 +522,16 @@
     form.addEventListener('submit', onLqsVisitFormSubmit);
   }
 
-  async function openLqsScheduleVisitInDeviceCalendar() {
+  function openLqsScheduleVisitInDeviceCalendar() {
     if (!sheetLead || !sheetLeadId) return;
     if (typeof global.sfOpenLeadVisitInDeviceCalendar === 'function') {
-      try {
-        await global.sfOpenLeadVisitInDeviceCalendar(sheetLead);
-        return;
-      } catch (err) {
-        notifySheet(err.message || 'Nao foi possivel abrir o calendario.', 'error');
+      const ok = global.sfOpenLeadVisitInDeviceCalendar(sheetLead);
+      if (ok) {
+        notifySheet('A abrir o calendùrio do dispositivoù', 'info');
         return;
       }
     }
-    notifySheet('Nao foi possivel abrir o calendario. Atualize a pagina.', 'error');
+    notifySheet('Nùo foi possùvel abrir o calendùrio. Tente outro browser.', 'error');
   }
 
   function openLqsScheduleVisitModal() {

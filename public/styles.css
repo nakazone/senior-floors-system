@@ -2940,6 +2940,22 @@ input.score-auto {
 }
 
 /* Quotes: nome do cliente sempre visivel (desktop, iPad, mobile) */
+/* Google Places dropdown acima de modais do CRM */
+.pac-container {
+  z-index: 12080 !important;
+  font-family: inherit;
+}
+
+.sf-address-autocomplete-hint {
+  margin: 0.35rem 0 0;
+  font-size: 0.75rem;
+  color: var(--text-muted, #64748b);
+}
+
+.sf-address-autocomplete-hint:not([hidden]) {
+  display: block;
+}
+
 .quotes-data-table .quotes-cell-client {
     white-space: normal !important;
     word-break: break-word;
