@@ -509,16 +509,18 @@
     form.addEventListener('submit', onLqsVisitFormSubmit);
   }
 
-  function openLqsScheduleVisitInDeviceCalendar() {
+  async function openLqsScheduleVisitInDeviceCalendar() {
     if (!sheetLead || !sheetLeadId) return;
     if (typeof global.sfOpenLeadVisitInDeviceCalendar === 'function') {
-      const ok = global.sfOpenLeadVisitInDeviceCalendar(sheetLead);
-      if (ok) {
-        notifySheet('A abrir o calendário do dispositivo…', 'info');
+      try {
+        await global.sfOpenLeadVisitInDeviceCalendar(sheetLead);
+        return;
+      } catch (err) {
+        notifySheet(err.message || 'Nao foi possivel abrir o calendario.', 'error');
         return;
       }
     }
-    notifySheet('Não foi possível abrir o calendário. Tente outro browser.', 'error');
+    notifySheet('Nao foi possivel abrir o calendario. Atualize a pagina.', 'error');
   }
 
   function openLqsScheduleVisitModal() {
@@ -1154,7 +1156,7 @@
     }
     if (e.target.closest('[data-lqs-open-schedule]')) {
       e.preventDefault();
-      openLqsScheduleVisitInDeviceCalendar();
+      void openLqsScheduleVisitInDeviceCalendar();
       return;
     }
     const priBtn = e.target.closest('[data-lqs-priority]');
@@ -1386,6 +1388,9 @@
 
     const lead = ld.data;
     sheetLead = lead;
+    if (typeof global.sfPrefetchLeadVisitIcs === 'function' && lead.id) {
+      void global.sfPrefetchLeadVisitIcs(lead.id);
+    }
     titleEl.textContent = lead.name || 'Lead';
 
     const stages = normalizeStages(stagesRes);

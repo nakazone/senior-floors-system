@@ -1,9 +1,15 @@
 /**
- * Abre o calendario nativo do dispositivo com evento de visita pre-preenchido.
- * Android: Google Calendar (app). iOS/desktop: .ics inline via API (sem download forcado).
+ * Abrir visita de lead no calendario do dispositivo.
+ * Safari (Mac/iPad): data URI sincrona (abre Calendario Apple).
+ * Chrome/outros: escolha Apple (data URI) ou Google Calendar.
  */
 (function (global) {
   'use strict';
+
+  const icsCache = new Map();
+  const ICS_CACHE_MS = 5 * 60 * 1000;
+  let chooserLead = null;
+  let chooserOptions = null;
 
   function snapToNextHalfHour(fromDate) {
     const d = new Date(fromDate || Date.now());
@@ -68,7 +74,7 @@
     const name = (lead && lead.name ? String(lead.name) : 'Lead').trim() || 'Lead';
     const params = new URLSearchParams({
       action: 'TEMPLATE',
-      text: 'Visita — ' + name,
+      text: 'Visita \u2014 ' + name,
       dates: formatGoogleCalendarDate(start) + '/' + formatGoogleCalendarDate(end),
       details: buildLeadVisitDescription(lead),
       location: buildLeadVisitLocation(lead),
@@ -80,7 +86,7 @@
     return /Android/i.test(navigator.userAgent || '');
   }
 
-  function isIosDevice() {
+  function isAppleMobile() {
     const ua = navigator.userAgent || '';
     return (
       /iPad|iPhone|iPod/i.test(ua) ||
@@ -88,30 +94,189 @@
     );
   }
 
-  function openIcsViaApi(leadId) {
-    const url = '/api/leads/' + encodeURIComponent(String(leadId)) + '/calendar.ics';
+  function isMacOS() {
+    const ua = navigator.userAgent || '';
+    return /Macintosh|Mac OS X/i.test(ua) && !isAppleMobile();
+  }
 
-    if (isIosDevice()) {
-      // Nova aba: Safari mostra "Adicionar ao Calendario" em vez de guardar ficheiro
-      const opened = window.open(url, '_blank', 'noopener');
-      if (!opened) {
-        global.location.href = url;
-      }
-      return true;
+  /** Safari real (nao Chrome/Edge/Firefox no Mac). */
+  function isSafariBrowser() {
+    const ua = navigator.userAgent || '';
+    return /Safari/i.test(ua) && !/Chrome|Chromium|Edg|OPR|OPiOS|FxiOS|CriOS/i.test(ua);
+  }
+
+  async function fetchLeadIcsText(leadId) {
+    const r = await fetch('/api/leads/' + encodeURIComponent(String(leadId)) + '/calendar.ics', {
+      credentials: 'include',
+      cache: 'no-store',
+    });
+    if (!r.ok) throw new Error('ICS HTTP ' + r.status);
+    return await r.text();
+  }
+
+  function getCachedIcs(leadId) {
+    const row = icsCache.get(String(leadId));
+    if (!row) return null;
+    if (Date.now() - row.at > ICS_CACHE_MS) {
+      icsCache.delete(String(leadId));
+      return null;
     }
+    return row.ics;
+  }
 
-    // Desktop / outros: navegar na mesma janela abre handler .ics do SO
-    global.location.href = url;
+  function setCachedIcs(leadId, ics) {
+    icsCache.set(String(leadId), { ics, at: Date.now() });
+  }
+
+  /** Pre-carrega .ics ao abrir o lead (necessario para iOS abrir no clique). */
+  async function prefetchLeadVisitIcs(leadId) {
+    const id = leadId != null ? String(leadId) : '';
+    if (!id || getCachedIcs(id)) return;
+    try {
+      const ics = await fetchLeadIcsText(id);
+      setCachedIcs(id, ics);
+    } catch (err) {
+      console.warn('[crm-device-calendar] prefetch', err);
+    }
+  }
+
+  /** Abre Calendario Apple via data URI (tem de ser sincrono no gesto do utilizador). */
+  function openAppleCalendarFromCache(leadId) {
+    const ics = getCachedIcs(leadId);
+    if (!ics) return false;
+    const dataUrl = 'data:text/calendar;charset=utf-8,' + encodeURIComponent(ics);
+    global.location.assign(dataUrl);
     return true;
+  }
+
+  async function ensureIcsCached(leadId) {
+    let ics = getCachedIcs(leadId);
+    if (ics) return ics;
+    ics = await fetchLeadIcsText(leadId);
+    setCachedIcs(leadId, ics);
+    return ics;
+  }
+
+  function ensureCalendarChooserDom() {
+    let root = document.getElementById('sfCalendarChooserModal');
+    if (root) return root;
+
+    root = document.createElement('div');
+    root.id = 'sfCalendarChooserModal';
+    root.className = 'sf-calendar-chooser';
+    root.setAttribute('aria-hidden', 'true');
+    root.innerHTML =
+      '<div class="sf-calendar-chooser__backdrop" data-sf-cal-close tabindex="-1"></div>' +
+      '<div class="sf-calendar-chooser__sheet" role="dialog" aria-labelledby="sfCalendarChooserTitle">' +
+      '<div class="lead-quick-sheet__handle" aria-hidden="true"></div>' +
+      '<header class="sf-calendar-chooser__header">' +
+      '<h2 id="sfCalendarChooserTitle" class="sf-calendar-chooser__title">Abrir no calend\u00e1rio</h2>' +
+      '<button type="button" class="lead-quick-sheet__close" data-sf-cal-close aria-label="Fechar">&times;</button>' +
+      '</header>' +
+      '<p class="sf-calendar-chooser__subtitle" id="sfCalendarChooserLeadName"></p>' +
+      '<div class="sf-calendar-chooser__actions">' +
+      '<button type="button" class="btn btn-primary sf-calendar-chooser__btn" id="sfCalendarChooserApple">' +
+      'Calend\u00e1rio Apple' +
+      '</button>' +
+      '<button type="button" class="btn btn-secondary sf-calendar-chooser__btn" id="sfCalendarChooserGoogle">' +
+      'Google Calendar' +
+      '</button>' +
+      '</div>' +
+      '<p class="sf-calendar-chooser__hint" id="sfCalendarChooserHint"></p>' +
+      '</div>';
+
+    document.body.appendChild(root);
+
+    root.querySelectorAll('[data-sf-cal-close]').forEach((el) => {
+      el.addEventListener('click', closeCalendarChooser);
+    });
+
+    document.getElementById('sfCalendarChooserApple').addEventListener('click', onChooserAppleClick);
+    document.getElementById('sfCalendarChooserGoogle').addEventListener('click', onChooserGoogleClick);
+
+    return root;
+  }
+
+  function closeCalendarChooser() {
+    const root = document.getElementById('sfCalendarChooserModal');
+    if (!root) return;
+    root.classList.remove('is-open');
+    root.setAttribute('aria-hidden', 'true');
+    chooserLead = null;
+    chooserOptions = null;
+  }
+
+  function openCalendarChooser(lead, options) {
+    chooserLead = lead;
+    chooserOptions = options || null;
+    const root = ensureCalendarChooserDom();
+    const nameEl = document.getElementById('sfCalendarChooserLeadName');
+    const hintEl = document.getElementById('sfCalendarChooserHint');
+    const appleBtn = document.getElementById('sfCalendarChooserApple');
+    if (nameEl) {
+      nameEl.textContent = lead && lead.name ? String(lead.name) : 'Lead';
+    }
+    if (hintEl) {
+      hintEl.textContent = isMacOS()
+        ? 'No Chrome ou Edge, prefira Google Calendar. No Safari, Calend\u00e1rio Apple abre direto.'
+        : 'Escolha o calend\u00e1rio que usa no dia a dia.';
+    }
+    if (appleBtn) {
+      appleBtn.disabled = false;
+      appleBtn.textContent = 'Calend\u00e1rio Apple';
+    }
+    root.classList.add('is-open');
+    root.setAttribute('aria-hidden', 'false');
+    if (lead && lead.id != null) void prefetchLeadVisitIcs(lead.id);
+  }
+
+  async function onChooserAppleClick() {
+    const lead = chooserLead;
+    const btn = document.getElementById('sfCalendarChooserApple');
+    if (!lead || lead.id == null) return;
+    if (openAppleCalendarFromCache(lead.id)) {
+      closeCalendarChooser();
+      return;
+    }
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'A preparar\u2026';
+    }
+    try {
+      await ensureIcsCached(lead.id);
+      closeCalendarChooser();
+      if (!openAppleCalendarFromCache(lead.id) && btn) {
+        btn.disabled = false;
+        btn.textContent = 'Calend\u00e1rio Apple';
+        alert('N\u00e3o foi poss\u00edvel abrir o Calend\u00e1rio Apple. Tente Google Calendar.');
+      }
+    } catch (err) {
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = 'Calend\u00e1rio Apple';
+      }
+      alert('Erro ao preparar evento: ' + (err.message || 'tente novamente'));
+    }
+  }
+
+  function onChooserGoogleClick() {
+    const lead = chooserLead;
+    if (!lead) return;
+    closeCalendarChooser();
+    global.location.href = buildGoogleCalendarUrl(lead, chooserOptions);
   }
 
   /**
    * @param {object} lead
    * @param {{ start?: Date, durationMinutes?: number }} [options]
-   * @returns {boolean}
+   * @returns {Promise<boolean>}
    */
-  function openLeadVisitInDeviceCalendar(lead, options) {
+  async function openLeadVisitInDeviceCalendar(lead, options) {
     if (!lead) return false;
+
+    if (lead.id != null && lead.id !== '') {
+      void prefetchLeadVisitIcs(lead.id);
+    }
 
     try {
       if (isAndroidDevice()) {
@@ -119,24 +284,30 @@
         return true;
       }
 
-      if (lead.id != null && lead.id !== '') {
-        return openIcsViaApi(lead.id);
+      const canSyncApple =
+        lead.id != null && lead.id !== '' && (isSafariBrowser() || isAppleMobile());
+
+      if (canSyncApple) {
+        if (!getCachedIcs(lead.id)) {
+          await ensureIcsCached(lead.id);
+        }
+        if (openAppleCalendarFromCache(lead.id)) {
+          return true;
+        }
       }
 
-      // Fallback sem ID: data URI (sem atributo download)
-      if (typeof global.sfBuildLeadVisitIcs === 'function') {
-        const ics = global.sfBuildLeadVisitIcs(lead, options);
-        const dataUrl = 'data:text/calendar;charset=utf-8,' + encodeURIComponent(ics);
-        global.location.href = dataUrl;
-        return true;
-      }
+      openCalendarChooser(lead, options);
+      return true;
     } catch (err) {
       console.warn('[crm-device-calendar]', err);
+      openCalendarChooser(lead, options);
+      return true;
     }
-    return false;
   }
 
   global.sfOpenLeadVisitInDeviceCalendar = openLeadVisitInDeviceCalendar;
+  global.sfPrefetchLeadVisitIcs = prefetchLeadVisitIcs;
   global.sfBuildGoogleCalendarVisitUrl = buildGoogleCalendarUrl;
   global.sfSnapVisitToNextHalfHour = snapToNextHalfHour;
+  global.sfOpenCalendarChooser = openCalendarChooser;
 })(typeof window !== 'undefined' ? window : globalThis);

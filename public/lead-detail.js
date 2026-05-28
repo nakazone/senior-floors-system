@@ -75,6 +75,9 @@ async function loadLead() {
         
         if (data.success) {
             currentLead = data.data;
+            if (typeof window.sfPrefetchLeadVisitIcs === 'function' && currentLead.id) {
+                void window.sfPrefetchLeadVisitIcs(currentLead.id);
+            }
             renderLead();
             loadPipelineStages();
             loadQualification();
@@ -837,15 +840,16 @@ function submitInteractionForm(e) {
     return false;
 }
 
-function showNewVisitModal() {
+async function showNewVisitModal() {
     if (!currentLead) return;
     if (typeof window.sfOpenLeadVisitInDeviceCalendar === 'function') {
-        const ok = window.sfOpenLeadVisitInDeviceCalendar(currentLead);
-        if (ok) {
-            if (typeof crmNotify === 'function') {
-                crmNotify('A abrir o calendário do dispositivo…', 'info');
-            }
+        try {
+            await window.sfOpenLeadVisitInDeviceCalendar(currentLead);
             return;
+        } catch (err) {
+            if (typeof crmNotify === 'function') {
+                crmNotify(err.message || 'Nao foi possivel abrir o calendario.', 'error');
+            }
         }
     }
     const modal = document.getElementById('newVisitModal');
