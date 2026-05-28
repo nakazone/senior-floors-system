@@ -128,6 +128,9 @@ import { ensureProjectChildTables } from './lib/ensureProjectChildTables.js';
 import { registerBuilderAuthRoutes } from './routes/builderAuth.js';
 import { registerBuilderRoutes } from './routes/builders.js';
 import { registerBuilderPortalProjectRoutes } from './routes/builderPortalProjects.js';
+import { registerBuilderPricingRoutes } from './routes/builderPricing.js';
+import { registerBuilderGalleryRoutes } from './routes/builderGallery.js';
+import { registerBuilderMessagesRoutes } from './routes/builderMessages.js';
 import { ensureFinancialCompleteSchema } from './lib/ensureFinancialCompleteSchema.js';
 import { getUiConfig } from './routes/uiConfig.js';
 
@@ -487,6 +490,9 @@ app.use('/api/projects', projectsRouter);
 app.use('/api/builder-payment-forecasts', builderPaymentForecastsRouter);
 registerBuilderAuthRoutes(app);
 registerBuilderPortalProjectRoutes(app);
+registerBuilderPricingRoutes(app);
+registerBuilderGalleryRoutes(app);
+registerBuilderMessagesRoutes(app);
 registerBuilderRoutes(app);
 
 // Visits/Schedule

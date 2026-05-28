@@ -1,17 +1,43 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Galeria — Senior Floors</title>
-  <link rel="stylesheet" href="css/builders-portal.css" />
+  <link rel="icon" type="image/png" href="/assets/SeniorFloors.png" />
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="design-system.css" />
   <link rel="stylesheet" href="crm-shared-nav.css?v=12" />
+  <link rel="stylesheet" href="crm-toast.css" />
+  <link rel="stylesheet" href="css/builders-portal.css" />
 </head>
-<body class="dashboard-app-body bp-page-body payroll-sidebar-page">
-  <div class="dashboard-container">
+<body class="dashboard-app-body bp-page-body payroll-sidebar-page" id="galleryBody">
+  <div class="dashboard-container" id="adminShell">
     <aside class="dashboard-sidebar"><nav class="sidebar-nav"><div id="crmSharedNavRoot" data-layout="sidebar"></div></nav></aside>
-    <main class="dashboard-main"><div class="bp-main"><h1 class="bp-title">Galeria de Projetos</h1><p class="bp-card">Sprint 3 — galeria de inspiração em desenvolvimento.</p></div></main>
+    <main class="dashboard-main">
+      <div class="bp-main">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px">
+          <div><p class="bp-eyebrow">Builders</p><h1 class="bp-title">Galeria de Projetos</h1></div>
+          <button type="button" class="bp-btn-tan" id="btnNewGallery">+ Novo projeto</button>
+        </div>
+        <div class="bp-filters" style="margin:1rem 0">
+          <select id="filterStatus"><option value="">Todos</option><option value="published">Publicado</option><option value="featured">Destaque</option><option value="draft">Rascunho</option></select>
+        </div>
+        <div class="bp-gallery-grid" id="galleryGrid"></div>
+      </div>
+    </main>
   </div>
+  <div class="bp-portal-layout hidden" id="portalShell">
+    <aside class="bp-portal-sidebar">
+      <a href="builder-portal.html">Dashboard</a>
+      <a href="builder-gallery.html" class="active">Gallery</a>
+    </aside>
+    <main class="bp-portal-main"><div class="bp-main" id="portalGalleryRoot"></div></main>
+  </div>
+  <div class="bp-modal" id="galleryModal"><div class="bp-modal__box" id="modalContent"></div></div>
+  <script src="crm-toast.js"></script>
   <script src="crm-shared-nav.js?v=12"></script>
+  <script src="builder-auth.js?v=2"></script>
+  <script src="builder-gallery.js?v=1"></script>
 </body>
 </html>

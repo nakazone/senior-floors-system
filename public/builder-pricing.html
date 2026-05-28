@@ -1,18 +1,46 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Pricing — Senior Floors</title>
-  <link rel="stylesheet" href="css/builders-portal.css" />
+  <title>Tabela de Valores — Senior Floors</title>
+  <link rel="icon" type="image/png" href="/assets/SeniorFloors.png" />
+  <link rel="stylesheet" href="styles.css" />
   <link rel="stylesheet" href="design-system.css" />
   <link rel="stylesheet" href="crm-shared-nav.css?v=12" />
+  <link rel="stylesheet" href="crm-toast.css" />
+  <link rel="stylesheet" href="css/builders-portal.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700&display=swap" rel="stylesheet" />
 </head>
-<body class="dashboard-app-body bp-page-body payroll-sidebar-page">
-  <div class="dashboard-container">
+<body class="dashboard-app-body bp-page-body payroll-sidebar-page" id="pricingBody">
+  <div class="dashboard-container" id="adminShell">
     <aside class="dashboard-sidebar"><nav class="sidebar-nav"><div id="crmSharedNavRoot" data-layout="sidebar"></div></nav></aside>
-    <main class="dashboard-main"><div class="bp-main"><p class="bp-eyebrow">Builders</p><h1 class="bp-title">Tabela de Valores</h1><p class="bp-card">Sprint 3 — em desenvolvimento. Serviços padrão já estão na base de dados (<code>pricing_services</code>).</p></div></main>
+    <main class="dashboard-main">
+      <div class="bp-main">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;margin-bottom:1rem">
+          <div><p class="bp-eyebrow">Builders</p><h1 class="bp-title">Tabela de Valores</h1></div>
+          <button type="button" class="bp-btn-tan" id="btnAddService">+ Serviço</button>
+        </div>
+        <div class="bp-table-wrap"><table class="bp-table" id="pricingTable"><thead><tr>
+          <th>Serviço</th><th>Categoria</th><th>Unidade</th><th>Mín</th><th>Máx</th><th>Parceiro</th><th>Visível</th><th>Bloqueado</th><th></th>
+        </tr></thead><tbody id="pricingTbody"></tbody></table></div>
+        <h2 class="bp-title" style="font-size:1rem;margin-top:1.5rem">Desconto por volume</h2>
+        <div class="bp-card" id="volumeDiscounts"></div>
+      </div>
+    </main>
   </div>
+  <div class="bp-portal-layout hidden" id="portalShell">
+    <aside class="bp-portal-sidebar">
+      <a href="builder-portal.html">Dashboard</a>
+      <a href="builder-pricing.html" class="active">Pricing</a>
+      <a href="builder-gallery.html">Gallery</a>
+      <a href="builder-messages.html">Messages</a>
+    </aside>
+    <main class="bp-portal-main"><div class="bp-main" id="portalPricingRoot"></div></main>
+  </div>
+  <script src="crm-toast.js"></script>
   <script src="crm-shared-nav.js?v=12"></script>
+  <script src="builder-auth.js?v=2"></script>
+  <script src="builder-pricing.js?v=1"></script>
 </body>
 </html>
