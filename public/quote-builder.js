@@ -59,6 +59,23 @@
     return v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
 
+  let qbProgrammaticMoneyUpdate = false;
+  let qbSuppressServiceNameInput = false;
+
+  function setMoneyFieldValue(input, amount) {
+    if (!input) return;
+    qbProgrammaticMoneyUpdate = true;
+    input.value = formatMoneyInput(amount);
+    qbProgrammaticMoneyUpdate = false;
+  }
+
+  function pickCatalogRate(explicit, fallback) {
+    const e = explicit != null && explicit !== '' ? Number(explicit) : NaN;
+    if (Number.isFinite(e) && e > 0) return e;
+    const f = Number(fallback) || 0;
+    return Number.isFinite(f) && f > 0 ? f : 0;
+  }
+
   function parseQtyInput(val) {
     const s = String(val ?? '')
       .replace(/,/g, '.')
@@ -527,6 +544,7 @@
   }
 
   function updateMarginPricingFromCost() {
+    if (qbProgrammaticMoneyUpdate) return;
     const costEl = $('modalServiceCost');
     const markupEl = $('modalServiceMarkup');
     const rateEl = $('modalServiceRate');
@@ -534,12 +552,13 @@
     const cost = parseMoneyInput(costEl.value);
     const m = parseQtyInput(markupEl.value);
     if (cost > 0 && Number.isFinite(m) && markupEl.value.trim() !== '') {
-      rateEl.value = formatMoneyInput(sellFromCostMarkup(cost, m));
+      setMoneyFieldValue(rateEl, sellFromCostMarkup(cost, m));
       updateInlineItemTotal();
     }
   }
 
   function updateMarginPricingFromRate() {
+    if (qbProgrammaticMoneyUpdate) return;
     const costEl = $('modalServiceCost');
     const markupEl = $('modalServiceMarkup');
     const rateEl = $('modalServiceRate');
@@ -658,9 +677,31 @@
   }
 
   function effectiveCatalogRate(row, source) {
-    const b = Number(row.rate_builder != null ? row.rate_builder : row.default_rate) || 0;
-    const c = Number(row.rate_customer != null ? row.rate_customer : row.default_rate) || 0;
-    return source === 'builder' ? b : c;
+    if (!row) return 0;
+    const fallback = Number(row.default_rate) || 0;
+    if (source === 'builder') {
+      return pickCatalogRate(row.rate_builder, fallback);
+    }
+    return pickCatalogRate(row.rate_customer, fallback);
+  }
+
+  function resolveModalCatalogRow() {
+    if (modalSelectedCatalogRow) return modalSelectedCatalogRow;
+    const name = String(($('modalServiceName') && $('modalServiceName').value) || '')
+      .trim()
+      .toLowerCase();
+    if (!name) return null;
+    const matches = catalog.filter((r) => String(r.name || '').trim().toLowerCase() === name);
+    return matches.length === 1 ? matches[0] : null;
+  }
+
+  function resolveInlineItemRate() {
+    const rateEl = $('modalServiceRate');
+    let rate = parseMoneyInput(rateEl && rateEl.value);
+    if (rate > 0) return rate;
+    const row = resolveModalCatalogRow();
+    if (row) rate = effectiveCatalogRate(row, catalogPricingSource());
+    return rate > 0 ? rate : 0;
   }
 
 
@@ -760,7 +801,7 @@
     const el = $('inlineItemTotal');
     if (!el) return;
     const qty = parseQtyInput($('modalServiceQty')?.value);
-    const rate = parseMoneyInput($('modalServiceRate')?.value);
+    const rate = resolveInlineItemRate();
     el.textContent = money(lineAmount(qty, rate));
   }
 
@@ -1586,12 +1627,16 @@
     modalSelectedCatalogRow = row;
     const src = catalogPricingSource();
     const rate = effectiveCatalogRate(row, src);
+    if ($('modalServiceCost')) $('modalServiceCost').value = '';
+    if ($('modalServiceMarkup')) $('modalServiceMarkup').value = '';
+    qbSuppressServiceNameInput = true;
     $('modalServiceName').value = row.name || '';
+    qbSuppressServiceNameInput = false;
     $('modalServiceDesc').value =
       row.default_description != null ? String(row.default_description).trim() : '';
     $('modalServiceType').value = serviceTypeFromCatalogCategory(row.category);
     $('modalServiceUnit').value = row.unit_type || 'sq_ft';
-    $('modalServiceRate').value = formatMoneyInput(rate);
+    setMoneyFieldValue($('modalServiceRate'), rate);
     hideModalServiceResults();
     updateInlineItemTotal();
   }
@@ -1606,7 +1651,7 @@
     if ($('modalServiceQty')) $('modalServiceQty').value = '1';
     if ($('modalServiceCost')) $('modalServiceCost').value = '';
     if ($('modalServiceMarkup')) $('modalServiceMarkup').value = '';
-    if ($('modalServiceRate')) $('modalServiceRate').value = formatMoneyInput(0);
+    setMoneyFieldValue($('modalServiceRate'), 0);
     if ($('inlineItemNote')) $('inlineItemNote').value = '';
     hideModalServiceResults();
     updateInlineItemTotal();
@@ -1630,7 +1675,7 @@
       $('modalServiceMarkup').value =
         markup != null && Number.isFinite(markup) ? String(markup) : '';
     }
-    $('modalServiceRate').value = formatMoneyInput(it.rate ?? 0);
+    setMoneyFieldValue($('modalServiceRate'), it.rate ?? 0);
     if ($('inlineItemNote')) $('inlineItemNote').value = it.notes != null ? String(it.notes) : '';
     updateInlineItemTotal();
   }
@@ -1692,7 +1737,10 @@
       return;
     }
     const qty = parseQtyInput($('modalServiceQty').value) || 1;
-    const rate = parseMoneyInput($('modalServiceRate').value);
+    const catalogRow = resolveModalCatalogRow();
+    let rate = resolveInlineItemRate();
+    const rateEl = $('modalServiceRate');
+    if (rateEl && rate > 0) setMoneyFieldValue(rateEl, rate);
     const costRaw = $('modalServiceCost') ? parseMoneyInput($('modalServiceCost').value) : 0;
     const markupRaw = $('modalServiceMarkup') ? parseQtyInput($('modalServiceMarkup').value) : null;
     const costPrice = costRaw > 0 ? costRaw : null;
@@ -1700,7 +1748,7 @@
       $('modalServiceMarkup') && String($('modalServiceMarkup').value || '').trim() !== ''
         ? markupRaw
         : null;
-    const row = modalSelectedCatalogRow;
+    const row = catalogRow;
     const catNotes = row && row.notes_customer != null ? String(row.notes_customer).trim() : '';
     const noteVal = $('inlineItemNote') ? String($('inlineItemNote').value || '').trim() : '';
     const existing = inlineEditIdx >= 0 ? items[inlineEditIdx] : null;
@@ -2132,6 +2180,7 @@
     if (modalServiceName) {
       modalServiceName.addEventListener('focus', scheduleModalServiceSearch);
       modalServiceName.addEventListener('input', () => {
+        if (qbSuppressServiceNameInput) return;
         modalSelectedCatalogRow = null;
         scheduleModalServiceSearch();
       });
