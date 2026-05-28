@@ -301,6 +301,22 @@
         zip: '#editVisitZipCode',
       },
     },
+    {
+      input: '#manualClientAddress',
+      country: 'us',
+      map: {
+        combined: '#manualClientAddress',
+        zip: '#manualClientZip',
+      },
+    },
+    {
+      input: '#editClientAddress',
+      country: 'us',
+      map: {
+        combined: '#editClientAddress',
+        zip: '#editClientZip',
+      },
+    },
   ];
 
   function initCrmAddressAutocomplete() {

@@ -18,8 +18,28 @@
   let catalog = [];
   let templates = [];
   /** @type {Array<Record<string, unknown>>} */
-  /** @type {Array<Record<string, unknown>>} */
   let items = [];
+  /** Sortable instances for drag-reorder (destroyed on each render). */
+  let itemSortables = [];
+
+  const QB_CATEGORIES = [
+    { value: 'Supply', label: 'Supply' },
+    { value: 'Installation', label: 'Installation' },
+    { value: 'Sand & Finishing', label: 'Sand & Finish' },
+  ];
+
+  function normalizeServiceType(st) {
+    const s = String(st || '').trim();
+    if (s === 'Supply' || s.toLowerCase() === 'supply') return 'Supply';
+    if (s.includes('Sand') || s.toLowerCase().includes('sand')) return 'Sand & Finishing';
+    return 'Installation';
+  }
+
+  function categoryLabel(st) {
+    const n = normalizeServiceType(st);
+    const hit = QB_CATEGORIES.find((c) => c.value === n);
+    return hit ? hit.label : n;
+  }
 
   const money = (n) =>
     '$' +
@@ -142,6 +162,7 @@
     const form = $('qbClientEditForm');
     if (form) {
       form.classList.remove('hidden');
+      bootQuoteAddressAutocomplete();
       $('editClientName')?.focus();
     }
   }
@@ -496,6 +517,80 @@
     const c = Number(cost) || 0;
     const m = Math.max(0, Number(mPct) || 0);
     return Math.round(c * (1 + m / 100) * 10000) / 10000;
+  }
+
+  function markupFromCostAndSell(cost, sell) {
+    const c = Number(cost) || 0;
+    const s = Number(sell) || 0;
+    if (c <= 0) return 0;
+    return Math.round(((s - c) / c) * 10000) / 100;
+  }
+
+  function updateMarginPricingFromCost() {
+    const costEl = $('modalServiceCost');
+    const markupEl = $('modalServiceMarkup');
+    const rateEl = $('modalServiceRate');
+    if (!costEl || !markupEl || !rateEl) return;
+    const cost = parseMoneyInput(costEl.value);
+    const m = parseQtyInput(markupEl.value);
+    if (cost > 0 && Number.isFinite(m) && markupEl.value.trim() !== '') {
+      rateEl.value = formatMoneyInput(sellFromCostMarkup(cost, m));
+      updateInlineItemTotal();
+    }
+  }
+
+  function updateMarginPricingFromRate() {
+    const costEl = $('modalServiceCost');
+    const markupEl = $('modalServiceMarkup');
+    const rateEl = $('modalServiceRate');
+    if (!costEl || !markupEl || !rateEl) return;
+    const cost = parseMoneyInput(costEl.value);
+    const rate = parseMoneyInput(rateEl.value);
+    if (cost > 0) {
+      markupEl.value = String(markupFromCostAndSell(cost, rate));
+    }
+  }
+
+  function wireMarginPricingFields() {
+    const costEl = $('modalServiceCost');
+    const markupEl = $('modalServiceMarkup');
+    const rateEl = $('modalServiceRate');
+    if (costEl && !costEl.dataset.marginBound) {
+      costEl.dataset.marginBound = '1';
+      wireMoneyField(costEl);
+      costEl.addEventListener('input', () => updateMarginPricingFromCost());
+      costEl.addEventListener('blur', () => updateMarginPricingFromCost());
+    }
+    if (markupEl && !markupEl.dataset.marginBound) {
+      markupEl.dataset.marginBound = '1';
+      selectAllOnFocus(markupEl);
+      markupEl.addEventListener('input', () => updateMarginPricingFromCost());
+      markupEl.addEventListener('blur', () => {
+        const m = parseQtyInput(markupEl.value);
+        if (markupEl.value.trim() !== '') markupEl.value = String(m);
+        updateMarginPricingFromCost();
+      });
+    }
+    if (rateEl && !rateEl.dataset.marginRateBound) {
+      rateEl.dataset.marginRateBound = '1';
+      rateEl.addEventListener('input', () => {
+        updateInlineItemTotal();
+        updateMarginPricingFromRate();
+      });
+      rateEl.addEventListener('blur', () => {
+        rateEl.value = formatMoneyInput(parseMoneyInput(rateEl.value));
+        updateInlineItemTotal();
+        updateMarginPricingFromRate();
+      });
+    }
+  }
+
+  function bootQuoteAddressAutocomplete() {
+    if (typeof window.sfInitCrmAddressAutocomplete === 'function') {
+      window.sfInitCrmAddressAutocomplete();
+    } else if (typeof window.sfBootCrmAddressAutocomplete === 'function') {
+      window.sfBootCrmAddressAutocomplete();
+    }
   }
 
   function localProfitSummary() {
@@ -1506,9 +1601,11 @@
     const nameEl = $('modalServiceName');
     if (nameEl) nameEl.value = '';
     if ($('modalServiceDesc')) $('modalServiceDesc').value = '';
-    if ($('modalServiceType')) $('modalServiceType').value = 'Installation';
+    if ($('modalServiceType')) $('modalServiceType').value = 'Supply';
     if ($('modalServiceUnit')) $('modalServiceUnit').value = 'sq_ft';
     if ($('modalServiceQty')) $('modalServiceQty').value = '1';
+    if ($('modalServiceCost')) $('modalServiceCost').value = '';
+    if ($('modalServiceMarkup')) $('modalServiceMarkup').value = '';
     if ($('modalServiceRate')) $('modalServiceRate').value = formatMoneyInput(0);
     if ($('inlineItemNote')) $('inlineItemNote').value = '';
     hideModalServiceResults();
@@ -1521,9 +1618,18 @@
     modalSelectedCatalogRow = cid ? catalog.find((c) => Number(c.id) === cid) || null : null;
     $('modalServiceName').value = it.name != null ? String(it.name) : '';
     $('modalServiceDesc').value = it.description != null ? String(it.description) : '';
-    $('modalServiceType').value = it.service_type || 'Installation';
+    $('modalServiceType').value = normalizeServiceType(it.service_type);
     $('modalServiceUnit').value = it.unit_type || 'sq_ft';
     $('modalServiceQty').value = String(it.quantity ?? 1);
+    const cost = it.cost_price != null ? Number(it.cost_price) : null;
+    const markup = it.markup_percentage != null ? Number(it.markup_percentage) : null;
+    if ($('modalServiceCost')) {
+      $('modalServiceCost').value = cost != null && Number.isFinite(cost) && cost > 0 ? formatMoneyInput(cost) : '';
+    }
+    if ($('modalServiceMarkup')) {
+      $('modalServiceMarkup').value =
+        markup != null && Number.isFinite(markup) ? String(markup) : '';
+    }
     $('modalServiceRate').value = formatMoneyInput(it.rate ?? 0);
     if ($('inlineItemNote')) $('inlineItemNote').value = it.notes != null ? String(it.notes) : '';
     updateInlineItemTotal();
@@ -1560,6 +1666,7 @@
       nameEl.focus();
       panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
+    wireMarginPricingFields();
   }
 
   function closeAddItemPanel() {
@@ -1586,6 +1693,13 @@
     }
     const qty = parseQtyInput($('modalServiceQty').value) || 1;
     const rate = parseMoneyInput($('modalServiceRate').value);
+    const costRaw = $('modalServiceCost') ? parseMoneyInput($('modalServiceCost').value) : 0;
+    const markupRaw = $('modalServiceMarkup') ? parseQtyInput($('modalServiceMarkup').value) : null;
+    const costPrice = costRaw > 0 ? costRaw : null;
+    const markupPct =
+      $('modalServiceMarkup') && String($('modalServiceMarkup').value || '').trim() !== ''
+        ? markupRaw
+        : null;
     const row = modalSelectedCatalogRow;
     const catNotes = row && row.notes_customer != null ? String(row.notes_customer).trim() : '';
     const noteVal = $('inlineItemNote') ? String($('inlineItemNote').value || '').trim() : '';
@@ -1597,7 +1711,7 @@
       unit_type: $('modalServiceUnit').value || 'sq_ft',
       quantity: qty,
       rate,
-      service_type: $('modalServiceType').value || 'Installation',
+      service_type: normalizeServiceType($('modalServiceType').value || 'Installation'),
       notes: noteVal || null,
       catalog_customer_notes:
         catNotes || (existing && existing.catalog_customer_notes) || null,
@@ -1607,10 +1721,9 @@
           ? normalizeCatalogId(existing.service_catalog_id)
           : null,
       product_id: existing && existing.product_id != null ? existing.product_id : null,
-      cost_price: existing && existing.cost_price != null ? existing.cost_price : null,
-      markup_percentage:
-        existing && existing.markup_percentage != null ? existing.markup_percentage : null,
-      sell_price: existing && existing.sell_price != null ? existing.sell_price : null,
+      cost_price: costPrice,
+      markup_percentage: markupPct,
+      sell_price: rate,
       estimateAuto: existing ? !!existing.estimateAuto : false,
     };
     if (inlineEditIdx >= 0) items[inlineEditIdx] = line;
@@ -1645,45 +1758,147 @@
     }
   }
 
-  function renderItems() {
+  function destroyItemSortables() {
+    itemSortables.forEach((s) => {
+      try {
+        s.destroy();
+      } catch (_) {
+        /* ignore */
+      }
+    });
+    itemSortables = [];
+  }
+
+  function syncItemsOrderFromDom() {
     const list = $('itemsList');
     if (!list) return;
-    list.innerHTML = '';
-    updateItemsCountLabel();
+    const newItems = [];
+    list.querySelectorAll('.qb-cat-section').forEach((section) => {
+      const svcType = section.getAttribute('data-category-value') || 'Installation';
+      section.querySelectorAll('.qb-item-card[data-item-idx]').forEach((card) => {
+        const idx = parseInt(card.getAttribute('data-item-idx'), 10);
+        const it = items[idx];
+        if (!it) return;
+        const copy = { ...it };
+        if (copy.item_type !== 'product' && svcType !== 'products') {
+          copy.service_type = svcType;
+        }
+        newItems.push(copy);
+      });
+    });
+    if (newItems.length) items = newItems;
+  }
 
-    items.forEach((it, idx) => {
-      if (inlineEditIdx === idx) return;
-      const amt = lineAmount(Number(it.quantity) || 0, Number(it.rate) || 0);
-      const qty = Number(it.quantity) || 0;
-      const rate = Number(it.rate) || 0;
-      const name = it.name != null ? String(it.name).trim() : '';
-      const desc = it.description != null ? String(it.description).trim() : '';
-      const isProduct = it.item_type === 'product';
-      const badges = [];
-      if (it.estimateAuto) badges.push('<span class="qb-item-card__badge qb-item-card__badge--auto">auto</span>');
-      if (isProduct) badges.push('<span class="qb-item-card__badge qb-item-card__badge--product">produto</span>');
+  function initItemsSortable() {
+    destroyItemSortables();
+    if (typeof Sortable === 'undefined') return;
+    document.querySelectorAll('#itemsList .qb-cat-items').forEach((el) => {
+      itemSortables.push(
+        Sortable.create(el, {
+          handle: '.qb-item-card__grip',
+          animation: 150,
+          draggable: '.qb-item-card',
+          group: 'qb-quote-lines',
+          ghostClass: 'sortable-ghost',
+          onEnd: () => {
+            syncItemsOrderFromDom();
+            renderItems();
+          },
+        })
+      );
+    });
+  }
 
-      const card = document.createElement('article');
-      card.className = 'qb-item-card';
-      card.setAttribute('role', 'listitem');
-      card.innerHTML = `
-        <div class="qb-item-card__grip" aria-hidden="true">⋮⋮</div>
+  function createItemCard(it, idx) {
+    const amt = lineAmount(Number(it.quantity) || 0, Number(it.rate) || 0);
+    const qty = Number(it.quantity) || 0;
+    const rate = Number(it.rate) || 0;
+    const name = it.name != null ? String(it.name).trim() : '';
+    const desc = it.description != null ? String(it.description).trim() : '';
+    const isProduct = it.item_type === 'product';
+    const badges = [];
+    if (it.estimateAuto) badges.push('<span class="qb-item-card__badge qb-item-card__badge--auto">auto</span>');
+    if (isProduct) badges.push('<span class="qb-item-card__badge qb-item-card__badge--product">produto</span>');
+    if (!isProduct) {
+      badges.push(
+        `<span class="qb-item-card__badge qb-item-card__badge--cat">${escapeHtmlText(categoryLabel(it.service_type))}</span>`
+      );
+    }
+    const markup =
+      it.markup_percentage != null && Number.isFinite(Number(it.markup_percentage))
+        ? ` · ${Number(it.markup_percentage)}% margem`
+        : '';
+    const card = document.createElement('article');
+    card.className = 'qb-item-card';
+    card.setAttribute('role', 'listitem');
+    card.setAttribute('data-item-idx', String(idx));
+    card.innerHTML = `
+        <div class="qb-item-card__grip" aria-hidden="true" title="Arrastar para reordenar">⋮⋮</div>
         <div class="qb-item-card__body">
           <div class="qb-item-card__top">
             <span class="qb-item-card__name">${escapeHtmlText(name || 'Sem nome')}${badges.join('')}</span>
             <span class="qb-item-card__total">${money(amt)}</span>
           </div>
           ${desc ? `<p class="qb-item-card__desc">— ${escapeHtmlText(desc)}</p>` : ''}
-          <p class="qb-item-card__meta">${qty} × ${money(rate)} <span class="text-slate-400">(${escapeHtmlText(unitLabel(it.unit_type))})</span></p>
+          <p class="qb-item-card__meta">${qty} × ${money(rate)} <span class="text-slate-400">(${escapeHtmlText(unitLabel(it.unit_type))})</span>${markup}</p>
         </div>
         <div class="qb-item-card__actions">
           <button type="button" class="qb-item-card__btn" data-edit="${idx}">Editar</button>
           <button type="button" class="qb-item-card__btn qb-item-card__btn--danger" data-del="${idx}" title="Remover">Remover</button>
         </div>`;
-      list.appendChild(card);
+    return card;
+  }
+
+  function renderItems() {
+    const list = $('itemsList');
+    if (!list) return;
+    destroyItemSortables();
+    list.innerHTML = '';
+    updateItemsCountLabel();
+
+    const buckets = { Supply: [], Installation: [], 'Sand & Finishing': [], products: [] };
+    items.forEach((it, idx) => {
+      if (inlineEditIdx === idx) return;
+      if (it.item_type === 'product') buckets.products.push(idx);
+      else buckets[normalizeServiceType(it.service_type)].push(idx);
     });
 
+    QB_CATEGORIES.forEach(({ value, label }) => {
+      const indices = buckets[value];
+      if (!indices.length) return;
+      const section = document.createElement('div');
+      section.className = 'qb-cat-section';
+      section.setAttribute('data-category-value', value);
+      const head = document.createElement('div');
+      head.className = 'qb-cat-section__head';
+      head.textContent = label;
+      section.appendChild(head);
+      const catList = document.createElement('div');
+      catList.className = 'qb-cat-items';
+      catList.setAttribute('data-category-value', value);
+      indices.forEach((idx) => catList.appendChild(createItemCard(items[idx], idx)));
+      section.appendChild(catList);
+      list.appendChild(section);
+    });
+
+    if (buckets.products.length) {
+      const section = document.createElement('div');
+      section.className = 'qb-cat-section';
+      section.setAttribute('data-category-value', 'products');
+      const head = document.createElement('div');
+      head.className = 'qb-cat-section__head';
+      head.textContent = 'Materials & products';
+      section.appendChild(head);
+      const catList = document.createElement('div');
+      catList.className = 'qb-cat-items';
+      catList.setAttribute('data-category-value', 'products');
+      buckets.products.forEach((idx) => catList.appendChild(createItemCard(items[idx], idx)));
+      section.appendChild(catList);
+      list.appendChild(section);
+    }
+
     recalc();
+    initItemsSortable();
   }
 
   async function api(path, opt) {
@@ -1746,7 +1961,7 @@
       quantity: it.quantity,
       rate: it.rate,
       notes: it.notes,
-      service_type: it.item_type === 'product' ? null : it.service_type || 'Installation',
+      service_type: it.item_type === 'product' ? null : normalizeServiceType(it.service_type),
       catalog_customer_notes: it.catalog_customer_notes || null,
       service_catalog_id: normalizeCatalogId(it.service_catalog_id),
       product_id: it.product_id != null ? Number(it.product_id) : null,
@@ -1797,7 +2012,7 @@
         quantity: Number(it.quantity) || 0,
         rate: Number(it.rate) || 0,
         notes: it.notes || null,
-        service_type: it.item_type === 'product' ? null : it.service_type || null,
+        service_type: it.item_type === 'product' ? null : normalizeServiceType(it.service_type),
         catalog_customer_notes: it.catalog_customer_notes || null,
         service_catalog_id: normalizeCatalogId(it.service_catalog_id),
         product_id: it.product_id != null ? Number(it.product_id) : null,
@@ -1866,6 +2081,8 @@
 
     wireClientLeadSearch();
     attachItemsListHandlers();
+    wireMarginPricingFields();
+    bootQuoteAddressAutocomplete();
 
     const ts = $('templateSelect');
     ts.innerHTML = '<option value="">— Template —</option>';
@@ -1942,6 +2159,7 @@
     $('btnAddClientManual')?.addEventListener('click', () => {
       hideClientForms();
       $('qbClientManualForm')?.classList.remove('hidden');
+      bootQuoteAddressAutocomplete();
       $('manualClientName')?.focus();
     });
     $('btnManualClientCancel')?.addEventListener('click', hideClientForms);
@@ -2011,7 +2229,7 @@
           quantity: Number(x.quantity) || 1,
           rate: Number(x.rate) || 0,
           notes: x.notes,
-          service_type: x.item_type === 'product' ? null : x.service_type || 'Installation',
+          service_type: x.item_type === 'product' ? null : normalizeServiceType(x.service_type),
           catalog_customer_notes: x.catalog_customer_notes || null,
           service_catalog_id: normalizeCatalogId(x.service_catalog_id),
           product_id: x.product_id != null ? Number(x.product_id) : null,

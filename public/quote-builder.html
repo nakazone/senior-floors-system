@@ -838,7 +838,28 @@
       line-height: 1.2;
       padding-top: 0.2rem;
       user-select: none;
-      cursor: default;
+      cursor: grab;
+      touch-action: none;
+    }
+    .qb-item-card__grip:active {
+      cursor: grabbing;
+    }
+    .qb-item-card.sortable-ghost {
+      opacity: 0.45;
+      background: #f1f5f9;
+    }
+    .qb-cat-section__head {
+      padding: 0.55rem 1.25rem;
+      font-size: 0.6875rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #64748b;
+      background: #f8fafc;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .qb-cat-items:empty {
+      display: none;
     }
     .qb-item-card__body {
       flex: 1;
@@ -891,6 +912,10 @@
     .qb-item-card__badge--product {
       background: #ede9fe;
       color: #5b21b6;
+    }
+    .qb-item-card__badge--cat {
+      background: #e2e8f0;
+      color: #475569;
     }
     .qb-item-card__actions {
       display: flex;
@@ -984,6 +1009,43 @@
     .qb-item-editor__qty-rate span {
       color: #94a3b8;
       font-size: 0.875rem;
+    }
+    .qb-item-editor__eq {
+      color: #94a3b8;
+      font-size: 0.875rem;
+      font-weight: 600;
+    }
+    .qb-money-field--cost {
+      flex: 1 1 5.5rem;
+      min-width: 5.5rem;
+      max-width: 9rem;
+    }
+    .qb-margin-field {
+      display: flex;
+      align-items: center;
+      flex: 0 1 5.5rem;
+      min-width: 4.5rem;
+      max-width: 7rem;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      background: #fff;
+      overflow: hidden;
+    }
+    .qb-margin-field input {
+      flex: 1;
+      min-width: 0;
+      border: 0;
+      padding: 0.5rem 0.35rem 0.5rem 0.65rem;
+      font-size: 0.875rem;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      background: transparent;
+    }
+    .qb-margin-field__suffix {
+      padding-right: 0.55rem;
+      font-size: 0.8125rem;
+      color: #64748b;
+      font-weight: 600;
     }
     .qb-item-editor__total {
       font-size: 1rem;
@@ -1388,7 +1450,7 @@
                     <div><label for="manualClientPhone">Phone *</label><input type="tel" id="manualClientPhone" autocomplete="tel" /></div>
                     <div><label for="manualClientEmail">Email *</label><input type="email" id="manualClientEmail" autocomplete="email" /></div>
                     <div><label for="manualClientZip">ZIP *</label><input type="text" id="manualClientZip" inputmode="numeric" maxlength="10" placeholder="80202" /></div>
-                    <div><label for="manualClientAddress">Address</label><textarea id="manualClientAddress" rows="2"></textarea></div>
+                    <div><label for="manualClientAddress">Address</label><input type="text" id="manualClientAddress" autocomplete="off" placeholder="Digite a morada (Google Maps)..." /></div>
                   </div>
                   <p id="manualClientError" class="text-red-600 text-sm hidden mt-2"></p>
                   <div class="qb-client-form__actions">
@@ -1403,7 +1465,7 @@
                     <div><label for="editClientPhone">Phone</label><input type="tel" id="editClientPhone" autocomplete="tel" /></div>
                     <div><label for="editClientEmail">Email</label><input type="email" id="editClientEmail" autocomplete="email" /></div>
                     <div><label for="editClientZip">ZIP</label><input type="text" id="editClientZip" inputmode="numeric" maxlength="10" /></div>
-                    <div><label for="editClientAddress">Address</label><textarea id="editClientAddress" rows="2"></textarea></div>
+                    <div><label for="editClientAddress">Address</label><input type="text" id="editClientAddress" autocomplete="off" placeholder="Digite a morada (Google Maps)..." /></div>
                   </div>
                   <p id="editClientError" class="text-red-600 text-sm hidden mt-2"></p>
                   <div class="qb-client-form__actions">
@@ -1483,9 +1545,18 @@
                   <div class="qb-item-editor__qty-rate">
                     <input type="text" id="modalServiceQty" inputmode="decimal" value="1" aria-label="Quantidade" autocomplete="off" />
                     <span>×</span>
+                    <div class="qb-money-field qb-money-field--cost">
+                      <span class="qb-money-field__prefix" aria-hidden="true">$</span>
+                      <input type="text" id="modalServiceCost" class="qb-money-field__input" inputmode="decimal" value="" aria-label="Custo unitario" autocomplete="off" placeholder="Custo" />
+                    </div>
+                    <div class="qb-margin-field">
+                      <input type="text" id="modalServiceMarkup" inputmode="decimal" value="" aria-label="Margem percentual" autocomplete="off" placeholder="Margem" />
+                      <span class="qb-margin-field__suffix" aria-hidden="true">%</span>
+                    </div>
+                    <span class="qb-item-editor__eq" aria-hidden="true">=</span>
                     <div class="qb-money-field">
                       <span class="qb-money-field__prefix" aria-hidden="true">$</span>
-                      <input type="text" id="modalServiceRate" class="qb-money-field__input" inputmode="decimal" value="0.00" aria-label="Taxa" autocomplete="off" />
+                      <input type="text" id="modalServiceRate" class="qb-money-field__input" inputmode="decimal" value="0.00" aria-label="Preco de venda" autocomplete="off" />
                     </div>
                   </div>
                   <span class="qb-item-editor__total" id="inlineItemTotal">$0.00</span>
@@ -1496,9 +1567,9 @@
                     <div class="qb-item-editor__field">
                       <label for="modalServiceType">Tipo de trabalho</label>
                       <select id="modalServiceType" class="qb-item-editor__select">
-                        <option value="Installation">Installation</option>
-                        <option value="Sand & Finishing">Sand &amp; Finishing</option>
                         <option value="Supply">Supply</option>
+                        <option value="Installation">Installation</option>
+                        <option value="Sand & Finishing">Sand &amp; Finish</option>
                       </select>
                     </div>
                     <div class="qb-item-editor__field">
@@ -1722,10 +1793,12 @@
     </div>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+  <script src="crm-address-autocomplete.js?v=20260528-pac-dismiss"></script>
   <script src="crm-shared-nav.js?v=12"></script>
   <script src="crm-toast.js"></script>
   <script src="lead-contact-links.js?v=20260526-utf8"></script>
-  <script src="quote-builder.js?v=20260528-money-inline"></script>
+  <script src="quote-builder.js?v=20260528-qb-items"></script>
   <script>
     (function () {
       var t = document.getElementById('mobileMenuToggle');

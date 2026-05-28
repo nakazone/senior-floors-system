@@ -3071,10 +3071,17 @@ body.lead-quick-sheet-open .pac-container {
 
 .quotes-actions-cell {
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     gap: 0.35rem;
     align-items: center;
-    min-width: 12rem;
+    min-width: 10rem;
+}
+
+.quotes-actions-cell__btns {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 0.35rem;
+    align-items: center;
 }
 
 .quotes-cell-muted {

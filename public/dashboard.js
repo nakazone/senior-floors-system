@@ -2546,7 +2546,7 @@ function quoteMobileCardHtml(q, opts) {
     const delBtn = canDelete
         ? `<button type="button" class="sf-quote-card__action-btn sf-quote-card__action-btn--del touchable" onclick="event.stopPropagation(); deleteQuote(${id})">Apagar</button>`
         : '';
-    const editBtn = `<button type="button" class="sf-quote-card__action-btn sf-quote-card__action-btn--edit touchable" onclick="event.stopPropagation(); viewQuote(${id})">Editar</button>`;
+    const editBtn = `<button type="button" class="sf-quote-card__action-btn sf-quote-card__action-btn--edit touchable" onclick="event.stopPropagation(); viewQuote(${id})">Abrir</button>`;
     return `
     <article class="sf-quote-card touchable" data-quote-id="${id}" role="button" tabindex="0">
       <div class="sf-quote-card__inner">
@@ -2842,8 +2842,7 @@ async function loadQuotes() {
     }
     const canDeleteQuote =
         crmUserRole === 'admin' || (Array.isArray(crmUserPermissions) && crmUserPermissions.includes('quotes.edit'));
-    const canDup = crmUserRole === 'admin' || (Array.isArray(crmUserPermissions) && crmUserPermissions.includes('quotes.create'));
-    const canGenPdf = crmUserRole === 'admin' || (Array.isArray(crmUserPermissions) && crmUserPermissions.includes('quotes.edit'));
+const canGenPdf = crmUserRole === 'admin' || (Array.isArray(crmUserPermissions) && crmUserPermissions.includes('quotes.edit'));
 
     let url = `/api/quotes?page=${quotesListPage}&limit=20`;
     if (quotesListFilter === 'expiring7') {
@@ -2898,9 +2897,6 @@ async function loadQuotes() {
                         const deleteBtn = canDeleteQuote
                             ? `<button type="button" class="btn btn-sm btn-danger" onclick="deleteQuote(${q.id})" title="Excluir orçamento">Excluir</button>`
                             : '';
-                        const dupBtn = canDup
-                            ? `<button type="button" class="btn btn-sm btn-secondary" onclick="duplicateQuoteFromList(${q.id})" title="Duplicar">Duplicar</button>`
-                            : '';
                         const clientLabel = escapeHtmlCrm(q.customer_name || q.lead_name || '—');
                         const qnum = escapeHtmlCrm(q.quote_number != null ? String(q.quote_number) : 'N/A');
                         const amt = parseFloat(q.total_amount || 0).toLocaleString(undefined, {
@@ -2917,9 +2913,10 @@ async function loadQuotes() {
                         <td>${q.created_at ? escapeHtmlCrm(new Date(q.created_at).toLocaleDateString()) : '—'}</td>
                         <td>${formatQuoteExpiryHtml(q.expiration_date, q.status)}</td>
                         <td class="quotes-actions-cell">
+                            <div class="quotes-actions-cell__btns">
                             <button type="button" class="btn btn-sm btn-secondary" onclick="viewQuote(${q.id})" title="Editar orçamento">Abrir</button>
-                            ${dupBtn}
                             ${deleteBtn}
+                            </div>
                         </td>
                     </tr>`;
                     })
