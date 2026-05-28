@@ -274,10 +274,7 @@ export async function getLeadVisitCalendar(req, res) {
     const pool = await getDBConnection();
     const [rows] = await pool.query('SELECT * FROM leads WHERE id = ?', [id]);
     if (!rows.length) return res.status(404).send('Lead not found');
-    const host = req.get('host') || '';
-    const proto = req.protocol || 'https';
-    const crmOrigin = host ? `${proto}://${host}` : '';
-    const ics = buildLeadVisitIcs(rows[0], { crmOrigin });
+    const ics = buildLeadVisitIcs(rows[0]);
     res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
     res.setHeader('Content-Disposition', 'inline; filename="visita-lead.ics"');
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');

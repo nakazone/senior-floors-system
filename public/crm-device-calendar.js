@@ -37,32 +37,32 @@
     );
   }
 
+  function calendarFmt() {
+    return global.sfLeadVisitCalendarFormat || null;
+  }
+
   function buildLeadVisitLocation(lead) {
-    if (!lead || typeof lead !== 'object') return '';
-    const line1 = String(lead.address_line1 || lead.address || '').trim();
-    const line2 = String(lead.address_line2 || '').trim();
-    const city = String(lead.city || '').trim();
-    const zip = String(lead.zipcode || lead.zip || '').trim();
-    const parts = [line1, line2, city, zip].filter(Boolean);
-    return parts.length ? parts.join(', ') : line1;
+    const fmt = calendarFmt();
+    if (fmt && typeof fmt.buildLeadVisitLocation === 'function') {
+      return fmt.buildLeadVisitLocation(lead);
+    }
+    return '';
   }
 
   function buildLeadVisitDescription(lead) {
-    const lines = [];
-    const name = lead && lead.name ? String(lead.name).trim() : '';
-    if (name) lines.push('Cliente: ' + name);
-    if (lead && lead.phone) lines.push('Tel: ' + String(lead.phone).trim());
-    if (lead && lead.email) lines.push('Email: ' + String(lead.email).trim());
-    if (lead && lead.id) lines.push('Lead #' + lead.id);
-    try {
-      const origin = global.location && global.location.origin ? global.location.origin : '';
-      if (origin && lead && lead.id) {
-        lines.push(origin + '/lead-detail.html?id=' + encodeURIComponent(String(lead.id)));
-      }
-    } catch (_) {}
-    if (lead && lead.notes) lines.push(String(lead.notes).trim());
-    if (lead && lead.message) lines.push(String(lead.message).trim());
-    return lines.filter(Boolean).join('\n');
+    const fmt = calendarFmt();
+    if (fmt && typeof fmt.buildLeadVisitDescription === 'function') {
+      return fmt.buildLeadVisitDescription(lead);
+    }
+    return '';
+  }
+
+  function buildLeadVisitSummary(lead) {
+    const fmt = calendarFmt();
+    if (fmt && typeof fmt.buildLeadVisitSummary === 'function') {
+      return fmt.buildLeadVisitSummary(lead);
+    }
+    return (lead && lead.name ? String(lead.name) : 'Lead').trim() || 'Lead';
   }
 
   function buildGoogleCalendarUrl(lead, options) {
@@ -71,10 +71,9 @@
     const durationMinutes =
       typeof opts.durationMinutes === 'number' && opts.durationMinutes > 0 ? opts.durationMinutes : 60;
     const end = new Date(start.getTime() + durationMinutes * 60 * 1000);
-    const name = (lead && lead.name ? String(lead.name) : 'Lead').trim() || 'Lead';
     const params = new URLSearchParams({
       action: 'TEMPLATE',
-      text: 'Visita \u2014 ' + name,
+      text: buildLeadVisitSummary(lead),
       dates: formatGoogleCalendarDate(start) + '/' + formatGoogleCalendarDate(end),
       details: buildLeadVisitDescription(lead),
       location: buildLeadVisitLocation(lead),
