@@ -2946,6 +2946,11 @@ input.score-auto {
   font-family: inherit;
 }
 
+.lead-quick-sheet.is-open ~ .pac-container,
+body.lead-quick-sheet-open .pac-container {
+  z-index: 12150 !important;
+}
+
 .sf-address-autocomplete-hint {
   margin: 0.35rem 0 0;
   font-size: 0.75rem;

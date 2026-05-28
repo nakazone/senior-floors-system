@@ -399,12 +399,20 @@
       focusEl.tagName === 'INPUT' &&
       typeof global.sfAttachAddressAutocomplete === 'function'
     ) {
-      void global.sfAttachAddressAutocomplete(focusEl, {
+      focusEl.placeholder = 'Digite a morada (Google Maps)';
+      const ok = await global.sfAttachAddressAutocomplete(focusEl, {
         country: 'us',
+        map: { combined: focusEl },
         onSelect: function (parsed) {
           if (parsed && parsed.formatted) focusEl.value = parsed.formatted;
         },
       });
+      if (!ok) {
+        notifySheet(
+          'Autocomplete Google indisponivel. Confirme GOOGLE_MAPS_JS_KEY no Railway, Places API ativa e faca redeploy.',
+          'warning'
+        );
+      }
     }
   }
 
@@ -1417,6 +1425,12 @@
     updateHeaderBadges(lead);
     syncPriorityToolbarButtons();
     syncStatusPickerFromLead(lead);
+
+    if (typeof global.sfInitCrmAddressAutocomplete === 'function') {
+      setTimeout(function () {
+        global.sfInitCrmAddressAutocomplete();
+      }, 150);
+    }
 
     requestAnimationFrame(() => {
       animatePanelFromAnchor(sheetAnchorEl, panelEl);

@@ -96,6 +96,9 @@ async function loadLead() {
             if (qs.get('schedule') === '1' && typeof showNewVisitModal === 'function') {
                 setTimeout(() => showNewVisitModal(), 0);
             }
+            if (typeof window.sfInitCrmAddressAutocomplete === 'function') {
+                setTimeout(() => window.sfInitCrmAddressAutocomplete(), 200);
+            }
         } else {
             alert('Erro ao carregar lead: ' + (data.error || 'Desconhecido'));
             window.location.href = 'dashboard.html';

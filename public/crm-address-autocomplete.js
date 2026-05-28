@@ -1,16 +1,13 @@
 /**
  * Google Places Autocomplete reutilizavel para formularios de morada do CRM.
  * Requer GOOGLE_MAPS_JS_KEY no servidor e /api/config/ui.
- *
- * Uso:
- *   sfAttachAddressAutocomplete(input, { map: { line1: '#id', city: '#id', ... } })
- *   sfInitCrmAddressAutocomplete() — presets nos formularios do CRM
  */
 (function (global) {
   'use strict';
 
   let mapsKey = null;
   let loadPromise = null;
+  let lastLoadFailed = false;
   const attached = new WeakSet();
 
   function parsePlaceComponents(place) {
@@ -32,7 +29,7 @@
     }
     let streetNumber = '';
     let route = '';
-    (place && place.address_components ? place.address_components : []).forEach((comp) => {
+    (place && place.address_components ? place.address_components : []).forEach(function (comp) {
       const types = comp.types || [];
       if (types.indexOf('street_number') !== -1) streetNumber = comp.long_name;
       if (types.indexOf('route') !== -1) route = comp.long_name;
@@ -72,30 +69,38 @@
     if (map.city) setFieldValue(map.city, parsed.city);
     if (map.state) setFieldValue(map.state, parsed.state);
     if (map.zip) setFieldValue(map.zip, parsed.zip);
-    if (map.combined) {
-      setFieldValue(map.combined, parsed.formatted || parsed.line1);
-    }
+    if (map.combined) setFieldValue(map.combined, parsed.formatted || parsed.line1);
   }
 
   function loadGoogleMapsScript(key) {
-    return new Promise((resolve, reject) => {
+    return new Promise(function (resolve, reject) {
       if (global.google && global.google.maps && global.google.maps.places) {
         resolve(true);
         return;
       }
-      const cbName = '__sfCrmPlacesInit';
+      var existing = document.querySelector('script[src*="maps.googleapis.com/maps/api/js"]');
+      if (existing) {
+        existing.addEventListener('load', function () {
+          resolve(!!(global.google && global.google.maps && global.google.maps.places));
+        });
+        existing.addEventListener('error', function () {
+          reject(new Error('Google Maps script failed'));
+        });
+        return;
+      }
+      var cbName = '__sfCrmPlacesInit';
       global[cbName] = function () {
         try {
           delete global[cbName];
         } catch (_) {}
         resolve(true);
       };
-      const s = document.createElement('script');
+      var s = document.createElement('script');
       s.async = true;
       s.src =
         'https://maps.googleapis.com/maps/api/js?key=' +
         encodeURIComponent(key) +
-        '&libraries=places&callback=' +
+        '&libraries=places&loading=async&callback=' +
         cbName;
       s.onerror = function () {
         reject(new Error('Google Maps script failed'));
@@ -104,26 +109,47 @@
     });
   }
 
-  async function ensureMapsReady() {
+  function resetMapsLoadState() {
+    loadPromise = null;
+    lastLoadFailed = false;
+  }
+
+  async function fetchMapsKey() {
+    var r = await fetch('/api/config/ui', { credentials: 'include', cache: 'no-store' });
+    if (!r.ok) {
+      throw new Error('UI config HTTP ' + r.status);
+    }
+    var j = await r.json().catch(function () {
+      return {};
+    });
+    var key = j && j.data && j.data.googleMapsJsKey ? String(j.data.googleMapsJsKey).trim() : '';
+    return key || null;
+  }
+
+  async function ensureMapsReady(forceRetry) {
     if (global.google && global.google.maps && global.google.maps.places) return true;
-    if (!loadPromise) {
-      loadPromise = (async function () {
-        try {
-          const r = await fetch('/api/config/ui', { credentials: 'include', cache: 'no-store' });
-          const j = await r.json().catch(function () {
-            return {};
-          });
-          mapsKey =
-            j && j.data && j.data.googleMapsJsKey ? String(j.data.googleMapsJsKey).trim() : '';
-          if (!mapsKey) return false;
-          await loadGoogleMapsScript(mapsKey);
-          return !!(global.google && global.google.maps && global.google.maps.places);
-        } catch (err) {
-          console.warn('[crm-address-autocomplete]', err);
+    if (forceRetry) resetMapsLoadState();
+    if (loadPromise && !lastLoadFailed) return loadPromise;
+
+    loadPromise = (async function () {
+      try {
+        mapsKey = await fetchMapsKey();
+        if (!mapsKey) {
+          lastLoadFailed = true;
+          console.warn('[crm-address-autocomplete] GOOGLE_MAPS_JS_KEY nao configurada');
           return false;
         }
-      })();
-    }
+        await loadGoogleMapsScript(mapsKey);
+        var ok = !!(global.google && global.google.maps && global.google.maps.places);
+        lastLoadFailed = !ok;
+        return ok;
+      } catch (err) {
+        lastLoadFailed = true;
+        console.warn('[crm-address-autocomplete]', err);
+        return false;
+      }
+    })();
+
     return loadPromise;
   }
 
@@ -133,33 +159,35 @@
    */
   async function attachAddressAutocomplete(inputEl, options) {
     options = options || {};
-    if (!inputEl || inputEl.tagName !== 'INPUT') {
-      return false;
-    }
+    if (!inputEl || inputEl.tagName !== 'INPUT') return false;
     if (attached.has(inputEl)) return true;
 
-    const ready = await ensureMapsReady();
+    var ready = await ensureMapsReady(false);
+    if (!ready) {
+      ready = await ensureMapsReady(true);
+    }
     if (!ready) return false;
 
     try {
-      const acOptions = {
+      var acOptions = {
         fields: ['formatted_address', 'address_components', 'geometry', 'place_id'],
         types: options.types || ['address'],
       };
       if (options.country) {
-        acOptions.componentRestrictions = {
-          country: options.country,
-        };
+        acOptions.componentRestrictions = { country: options.country };
       }
-      const ac = new global.google.maps.places.Autocomplete(inputEl, acOptions);
+      var ac = new global.google.maps.places.Autocomplete(inputEl, acOptions);
       attached.add(inputEl);
       inputEl.setAttribute('data-sf-address-autocomplete', '1');
       inputEl.setAttribute('autocomplete', 'off');
+      if (!inputEl.placeholder) {
+        inputEl.placeholder = 'Digite a morada (Google Maps)…';
+      }
 
       ac.addListener('place_changed', function () {
-        const place = ac.getPlace();
+        var place = ac.getPlace();
         if (!place) return;
-        const parsed = parsePlaceComponents(place);
+        var parsed = parsePlaceComponents(place);
         if (options.map) applyFieldMap(parsed, options.map);
         if (typeof options.onSelect === 'function') {
           options.onSelect(parsed, place, inputEl);
@@ -173,73 +201,71 @@
   }
 
   function attachBySelector(selector, options) {
-    const el = document.querySelector(selector);
+    var el = document.querySelector(selector);
     if (!el) return Promise.resolve(false);
     return attachAddressAutocomplete(el, options);
   }
 
-  /** Presets nos formularios do CRM (dashboard + lead-detail). */
-  function initCrmAddressAutocomplete() {
-    const us = 'us';
-    const presets = [
-      {
-        input: '#clientAddress',
-        country: us,
-        map: {
-          combined: '#clientAddress',
-          city: '#clientCity',
-          state: '#clientState',
-          zip: '#clientZip',
-        },
+  var PRESETS = [
+    {
+      input: '#clientAddress',
+      country: 'us',
+      map: {
+        combined: '#clientAddress',
+        city: '#clientCity',
+        state: '#clientState',
+        zip: '#clientZip',
       },
-      {
-        input: '#lqsVisitAddressLine1',
-        country: us,
-        map: {
-          line1: '#lqsVisitAddressLine1',
-          city: '#lqsVisitCity',
-          zip: '#lqsVisitZipCode',
-        },
+    },
+    {
+      input: '#lqsVisitAddressLine1',
+      country: 'us',
+      map: {
+        line1: '#lqsVisitAddressLine1',
+        city: '#lqsVisitCity',
+        zip: '#lqsVisitZipCode',
       },
-      {
-        input: '#qualAddressStreet',
-        country: us,
-        map: {
-          line1: '#qualAddressStreet',
-          line2: '#qualAddressLine2',
-          city: '#qualAddressCity',
-          state: '#qualAddressState',
-          zip: '#qualAddressZip',
-        },
+    },
+    {
+      input: '#qualAddressStreet',
+      country: 'us',
+      map: {
+        line1: '#qualAddressStreet',
+        line2: '#qualAddressLine2',
+        city: '#qualAddressCity',
+        state: '#qualAddressState',
+        zip: '#qualAddressZip',
       },
-      {
-        input: '#leadFullAddress',
-        country: us,
-        map: { combined: '#leadFullAddress' },
+    },
+    {
+      input: '#leadFullAddress',
+      country: 'us',
+      map: { combined: '#leadFullAddress' },
+    },
+    {
+      input: '#visitAddressLine1',
+      country: 'us',
+      map: {
+        line1: '#visitAddressLine1',
+        line2: '#visitAddressLine2',
+        city: '#visitCity',
+        zip: '#visitZipCode',
       },
-      {
-        input: '#visitAddressLine1',
-        country: us,
-        map: {
-          line1: '#visitAddressLine1',
-          line2: '#visitAddressLine2',
-          city: '#visitCity',
-          zip: '#visitZipCode',
-        },
+    },
+    {
+      input: '#editVisitAddressLine1',
+      country: 'us',
+      map: {
+        line1: '#editVisitAddressLine1',
+        line2: '#editVisitAddressLine2',
+        city: '#editVisitCity',
+        zip: '#editVisitZipCode',
       },
-      {
-        input: '#editVisitAddressLine1',
-        country: us,
-        map: {
-          line1: '#editVisitAddressLine1',
-          line2: '#editVisitAddressLine2',
-          city: '#editVisitCity',
-          zip: '#editVisitZipCode',
-        },
-      },
-    ];
+    },
+  ];
 
-    presets.forEach(function (preset) {
+  function initCrmAddressAutocomplete() {
+    PRESETS.forEach(function (preset) {
       if (!document.querySelector(preset.input)) return;
       attachBySelector(preset.input, {
         country: preset.country,
@@ -250,11 +276,20 @@
 
   global.sfAttachAddressAutocomplete = attachAddressAutocomplete;
   global.sfInitCrmAddressAutocomplete = initCrmAddressAutocomplete;
+  global.sfEnsureCrmAddressAutocomplete = ensureMapsReady;
   global.sfParseGooglePlaceComponents = parsePlaceComponents;
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initCrmAddressAutocomplete);
-  } else {
+  function bootAfterAuth() {
     initCrmAddressAutocomplete();
+  }
+
+  global.sfBootCrmAddressAutocomplete = bootAfterAuth;
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function () {
+      setTimeout(bootAfterAuth, 400);
+    });
+  } else {
+    setTimeout(bootAfterAuth, 400);
   }
 })(typeof window !== 'undefined' ? window : globalThis);
