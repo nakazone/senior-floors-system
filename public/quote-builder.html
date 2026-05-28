@@ -989,11 +989,19 @@
     }
     .qb-item-editor__pricing {
       display: grid;
-      grid-template-columns: minmax(4.25rem, 0.85fr) auto minmax(5.25rem, 1fr) minmax(4.75rem, 0.8fr) auto minmax(5.25rem, 1fr);
+      grid-template-columns: minmax(4.25rem, 0.8fr) auto minmax(5.5rem, 1.1fr) minmax(4.5rem, 0.75fr) auto minmax(5.75rem, 1fr);
       gap: 0.35rem 0.4rem;
-      align-items: center;
+      align-items: end;
       width: 100%;
       min-width: 0;
+    }
+    .qb-pricing-cell label {
+      display: block;
+      font-size: 0.6875rem;
+      font-weight: 600;
+      color: #64748b;
+      margin-bottom: 0.2rem;
+      letter-spacing: 0.02em;
     }
     .qb-pricing-sep {
       color: #94a3b8;
@@ -1044,35 +1052,36 @@
       color: #64748b;
       font-weight: 600;
     }
-    .qb-item-editor__row--pricing .qb-item-editor__total {
-      align-self: flex-end;
-      margin-left: 0;
-      padding-bottom: 0;
+    .qb-pricing-total {
+      display: block;
       width: 100%;
+      box-sizing: border-box;
+      padding: 0.5rem 0.65rem;
+      font-size: 0.9375rem;
+      font-weight: 700;
       text-align: right;
       font-variant-numeric: tabular-nums;
-    }
-    .qb-item-editor__total {
-      font-size: 1rem;
-      font-weight: 700;
       color: #0f172a;
-      margin-left: auto;
-      padding-bottom: 0.35rem;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      min-height: 2.375rem;
+      line-height: 1.35;
     }
     @media (max-width: 640px) {
       .qb-item-editor__pricing {
         grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
         grid-template-areas:
           'qty qty'
-          'cost margin'
+          'base margin'
           'eq eq'
-          'price price';
+          'total total';
       }
       .qb-pricing-cell--qty { grid-area: qty; }
-      .qb-pricing-cell--cost { grid-area: cost; }
+      .qb-pricing-cell--base { grid-area: base; }
       .qb-pricing-cell--margin { grid-area: margin; }
       .qb-pricing-sep--eq { grid-area: eq; }
-      .qb-pricing-cell--price { grid-area: price; }
+      .qb-pricing-cell--total { grid-area: total; }
       .qb-pricing-sep--mul { display: none; }
     }
     /* Toast de rascunho guardado — topo central */
@@ -1587,30 +1596,30 @@
                 <div class="qb-item-editor__row qb-item-editor__row--pricing">
                   <div class="qb-item-editor__pricing">
                     <div class="qb-pricing-cell qb-pricing-cell--qty">
+                      <label for="modalServiceQty">Quantidade</label>
                       <input type="text" id="modalServiceQty" inputmode="decimal" value="1" aria-label="Quantidade" autocomplete="off" />
                     </div>
                     <span class="qb-pricing-sep qb-pricing-sep--mul" aria-hidden="true">×</span>
-                    <div class="qb-pricing-cell qb-pricing-cell--cost">
-                      <div class="qb-money-field qb-money-field--cost">
+                    <div class="qb-pricing-cell qb-pricing-cell--base">
+                      <label for="modalServiceRate">Valor (catálogo)</label>
+                      <div class="qb-money-field">
                         <span class="qb-money-field__prefix" aria-hidden="true">$</span>
-                        <input type="text" id="modalServiceCost" class="qb-money-field__input" inputmode="decimal" value="" aria-label="Custo unitario" autocomplete="off" placeholder="Custo" />
+                        <input type="text" id="modalServiceRate" class="qb-money-field__input" inputmode="decimal" value="0.00" aria-label="Valor cadastrado no sistema" autocomplete="off" />
                       </div>
                     </div>
                     <div class="qb-pricing-cell qb-pricing-cell--margin">
+                      <label for="modalServiceMarkup">Margem</label>
                       <div class="qb-margin-field">
-                        <input type="text" id="modalServiceMarkup" inputmode="decimal" value="" aria-label="Margem percentual" autocomplete="off" placeholder="Margem" />
+                        <input type="text" id="modalServiceMarkup" inputmode="decimal" value="" aria-label="Margem percentual" autocomplete="off" placeholder="0" />
                         <span class="qb-margin-field__suffix" aria-hidden="true">%</span>
                       </div>
                     </div>
                     <span class="qb-pricing-sep qb-pricing-sep--eq" aria-hidden="true">=</span>
-                    <div class="qb-pricing-cell qb-pricing-cell--price">
-                      <div class="qb-money-field">
-                        <span class="qb-money-field__prefix" aria-hidden="true">$</span>
-                        <input type="text" id="modalServiceRate" class="qb-money-field__input" inputmode="decimal" value="0.00" aria-label="Preco de venda" autocomplete="off" />
-                      </div>
+                    <div class="qb-pricing-cell qb-pricing-cell--total">
+                      <label>Total</label>
+                      <span class="qb-pricing-total" id="inlineItemTotal" aria-live="polite">$0.00</span>
                     </div>
                   </div>
-                  <span class="qb-item-editor__total" id="inlineItemTotal">$0.00</span>
                 </div>
                 <details class="qb-item-editor__more">
                   <summary>Mais opções (tipo, unidade, nota)</summary>
@@ -1849,7 +1858,7 @@
   <script src="crm-shared-nav.js?v=12"></script>
   <script src="crm-toast.js"></script>
   <script src="lead-contact-links.js?v=20260526-utf8"></script>
-  <script src="quote-builder.js?v=20260528-catalog-rate"></script>
+  <script src="quote-builder.js?v=20260528-pricing-row"></script>
   <script>
     (function () {
       var t = document.getElementById('mobileMenuToggle');

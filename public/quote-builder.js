@@ -543,63 +543,45 @@
     return Math.round(((s - c) / c) * 10000) / 100;
   }
 
-  function updateMarginPricingFromCost() {
-    if (qbProgrammaticMoneyUpdate) return;
-    const costEl = $('modalServiceCost');
-    const markupEl = $('modalServiceMarkup');
-    const rateEl = $('modalServiceRate');
-    if (!costEl || !markupEl || !rateEl) return;
-    const cost = parseMoneyInput(costEl.value);
-    const m = parseQtyInput(markupEl.value);
-    if (cost > 0 && Number.isFinite(m) && markupEl.value.trim() !== '') {
-      setMoneyFieldValue(rateEl, sellFromCostMarkup(cost, m));
-      updateInlineItemTotal();
-    }
+  function parseInlineBaseRate() {
+    return parseMoneyInput($('modalServiceRate') && $('modalServiceRate').value);
   }
 
-  function updateMarginPricingFromRate() {
+  function parseInlineMarginPct() {
+    const el = $('modalServiceMarkup');
+    if (!el || String(el.value || '').trim() === '') return null;
+    return parseQtyInput(el.value);
+  }
+
+  function computeSellUnitRate(base, marginPct) {
+    const b = Number(base) || 0;
+    if (b <= 0) return 0;
+    if (marginPct == null || !Number.isFinite(marginPct)) return b;
+    return sellFromCostMarkup(b, marginPct);
+  }
+
+  function recalcInlinePricing() {
     if (qbProgrammaticMoneyUpdate) return;
-    const costEl = $('modalServiceCost');
-    const markupEl = $('modalServiceMarkup');
-    const rateEl = $('modalServiceRate');
-    if (!costEl || !markupEl || !rateEl) return;
-    const cost = parseMoneyInput(costEl.value);
-    const rate = parseMoneyInput(rateEl.value);
-    if (cost > 0) {
-      markupEl.value = String(markupFromCostAndSell(cost, rate));
-    }
+    updateInlineItemTotal();
   }
 
   function wireMarginPricingFields() {
-    const costEl = $('modalServiceCost');
+    const baseEl = $('modalServiceRate');
     const markupEl = $('modalServiceMarkup');
-    const rateEl = $('modalServiceRate');
-    if (costEl && !costEl.dataset.marginBound) {
-      costEl.dataset.marginBound = '1';
-      wireMoneyField(costEl);
-      costEl.addEventListener('input', () => updateMarginPricingFromCost());
-      costEl.addEventListener('blur', () => updateMarginPricingFromCost());
+    if (baseEl && !baseEl.dataset.basePricingBound) {
+      baseEl.dataset.basePricingBound = '1';
+      wireMoneyField(baseEl);
+      baseEl.addEventListener('input', recalcInlinePricing);
+      baseEl.addEventListener('blur', recalcInlinePricing);
     }
-    if (markupEl && !markupEl.dataset.marginBound) {
-      markupEl.dataset.marginBound = '1';
+    if (markupEl && !markupEl.dataset.marginPricingBound) {
+      markupEl.dataset.marginPricingBound = '1';
       selectAllOnFocus(markupEl);
-      markupEl.addEventListener('input', () => updateMarginPricingFromCost());
+      markupEl.addEventListener('input', recalcInlinePricing);
       markupEl.addEventListener('blur', () => {
         const m = parseQtyInput(markupEl.value);
         if (markupEl.value.trim() !== '') markupEl.value = String(m);
-        updateMarginPricingFromCost();
-      });
-    }
-    if (rateEl && !rateEl.dataset.marginRateBound) {
-      rateEl.dataset.marginRateBound = '1';
-      rateEl.addEventListener('input', () => {
-        updateInlineItemTotal();
-        updateMarginPricingFromRate();
-      });
-      rateEl.addEventListener('blur', () => {
-        rateEl.value = formatMoneyInput(parseMoneyInput(rateEl.value));
-        updateInlineItemTotal();
-        updateMarginPricingFromRate();
+        recalcInlinePricing();
       });
     }
   }
@@ -695,13 +677,19 @@
     return matches.length === 1 ? matches[0] : null;
   }
 
-  function resolveInlineItemRate() {
-    const rateEl = $('modalServiceRate');
-    let rate = parseMoneyInput(rateEl && rateEl.value);
-    if (rate > 0) return rate;
+  function resolveInlineBaseRate() {
+    let base = parseInlineBaseRate();
+    if (base > 0) return base;
     const row = resolveModalCatalogRow();
-    if (row) rate = effectiveCatalogRate(row, catalogPricingSource());
-    return rate > 0 ? rate : 0;
+    if (row) base = effectiveCatalogRate(row, catalogPricingSource());
+    return base > 0 ? base : 0;
+  }
+
+  /** Preço unitário de venda (valor catálogo + margem). */
+  function resolveInlineSellRate() {
+    const base = resolveInlineBaseRate();
+    const margin = parseInlineMarginPct();
+    return computeSellUnitRate(base, margin);
   }
 
 
@@ -801,8 +789,8 @@
     const el = $('inlineItemTotal');
     if (!el) return;
     const qty = parseQtyInput($('modalServiceQty')?.value);
-    const rate = resolveInlineItemRate();
-    el.textContent = money(lineAmount(qty, rate));
+    const sell = resolveInlineSellRate();
+    el.textContent = money(lineAmount(qty, sell));
   }
 
   function unitLabel(unit) {
@@ -1627,7 +1615,6 @@
     modalSelectedCatalogRow = row;
     const src = catalogPricingSource();
     const rate = effectiveCatalogRate(row, src);
-    if ($('modalServiceCost')) $('modalServiceCost').value = '';
     if ($('modalServiceMarkup')) $('modalServiceMarkup').value = '';
     qbSuppressServiceNameInput = true;
     $('modalServiceName').value = row.name || '';
@@ -1649,7 +1636,6 @@
     if ($('modalServiceType')) $('modalServiceType').value = 'Supply';
     if ($('modalServiceUnit')) $('modalServiceUnit').value = 'sq_ft';
     if ($('modalServiceQty')) $('modalServiceQty').value = '1';
-    if ($('modalServiceCost')) $('modalServiceCost').value = '';
     if ($('modalServiceMarkup')) $('modalServiceMarkup').value = '';
     setMoneyFieldValue($('modalServiceRate'), 0);
     if ($('inlineItemNote')) $('inlineItemNote').value = '';
@@ -1667,15 +1653,15 @@
     $('modalServiceUnit').value = it.unit_type || 'sq_ft';
     $('modalServiceQty').value = String(it.quantity ?? 1);
     const cost = it.cost_price != null ? Number(it.cost_price) : null;
+    const sell = Number(it.rate) || 0;
     const markup = it.markup_percentage != null ? Number(it.markup_percentage) : null;
-    if ($('modalServiceCost')) {
-      $('modalServiceCost').value = cost != null && Number.isFinite(cost) && cost > 0 ? formatMoneyInput(cost) : '';
-    }
+    let base = cost != null && Number.isFinite(cost) && cost > 0 ? cost : sell;
+    if ((!base || base <= 0) && sell > 0) base = sell;
+    setMoneyFieldValue($('modalServiceRate'), base);
     if ($('modalServiceMarkup')) {
       $('modalServiceMarkup').value =
         markup != null && Number.isFinite(markup) ? String(markup) : '';
     }
-    setMoneyFieldValue($('modalServiceRate'), it.rate ?? 0);
     if ($('inlineItemNote')) $('inlineItemNote').value = it.notes != null ? String(it.notes) : '';
     updateInlineItemTotal();
   }
@@ -1738,16 +1724,16 @@
     }
     const qty = parseQtyInput($('modalServiceQty').value) || 1;
     const catalogRow = resolveModalCatalogRow();
-    let rate = resolveInlineItemRate();
-    const rateEl = $('modalServiceRate');
-    if (rateEl && rate > 0) setMoneyFieldValue(rateEl, rate);
-    const costRaw = $('modalServiceCost') ? parseMoneyInput($('modalServiceCost').value) : 0;
+    const baseRate = resolveInlineBaseRate();
+    const baseEl = $('modalServiceRate');
+    if (baseEl && baseRate > 0) setMoneyFieldValue(baseEl, baseRate);
     const markupRaw = $('modalServiceMarkup') ? parseQtyInput($('modalServiceMarkup').value) : null;
-    const costPrice = costRaw > 0 ? costRaw : null;
     const markupPct =
       $('modalServiceMarkup') && String($('modalServiceMarkup').value || '').trim() !== ''
         ? markupRaw
         : null;
+    const sellRate = computeSellUnitRate(baseRate, markupPct);
+    const costPrice = baseRate > 0 ? baseRate : null;
     const row = catalogRow;
     const catNotes = row && row.notes_customer != null ? String(row.notes_customer).trim() : '';
     const noteVal = $('inlineItemNote') ? String($('inlineItemNote').value || '').trim() : '';
@@ -1758,7 +1744,7 @@
       description: String(($('modalServiceDesc') && $('modalServiceDesc').value) || '').trim(),
       unit_type: $('modalServiceUnit').value || 'sq_ft',
       quantity: qty,
-      rate,
+      rate: sellRate,
       service_type: normalizeServiceType($('modalServiceType').value || 'Installation'),
       notes: noteVal || null,
       catalog_customer_notes:
@@ -1771,7 +1757,7 @@
       product_id: existing && existing.product_id != null ? existing.product_id : null,
       cost_price: costPrice,
       markup_percentage: markupPct,
-      sell_price: rate,
+      sell_price: sellRate,
       estimateAuto: existing ? !!existing.estimateAuto : false,
     };
     if (inlineEditIdx >= 0) items[inlineEditIdx] = line;
@@ -2195,9 +2181,8 @@
       qtyEl.addEventListener('input', updateInlineItemTotal);
       qtyEl.addEventListener('keydown', handleServiceFormEnter);
     }
-    wireMoneyField($('modalServiceRate'));
-    const rateEl = $('modalServiceRate');
-    if (rateEl) rateEl.addEventListener('keydown', handleServiceFormEnter);
+    const baseRateEl = $('modalServiceRate');
+    if (baseRateEl) baseRateEl.addEventListener('keydown', handleServiceFormEnter);
     $('modalServiceDesc')?.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
