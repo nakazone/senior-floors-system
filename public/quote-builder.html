@@ -832,11 +832,12 @@
       background: #fafbfc;
     }
     .qb-item-card__grip {
-      color: #94a3b8;
-      font-size: 0.75rem;
-      letter-spacing: -2px;
-      line-height: 1.2;
-      padding-top: 0.2rem;
+      color: #64748b;
+      font-size: 1.125rem;
+      letter-spacing: -1px;
+      line-height: 1;
+      padding: 0.1rem 0.35rem 0 0;
+      min-width: 1.35rem;
       user-select: none;
       cursor: grab;
       touch-action: none;
@@ -981,19 +982,29 @@
       flex-wrap: wrap;
       margin-top: 0.5rem;
     }
-    .qb-item-editor__qty-rate {
-      display: flex;
-      align-items: center;
-      gap: 0.35rem;
-      flex: 1;
-      min-width: 200px;
+    .qb-item-editor__row--pricing {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 0.65rem;
     }
-    .qb-item-editor__qty-rate input {
+    .qb-item-editor__pricing {
+      display: grid;
+      grid-template-columns: minmax(4.25rem, 0.85fr) auto minmax(5.25rem, 1fr) minmax(4.75rem, 0.8fr) auto minmax(5.25rem, 1fr);
+      gap: 0.35rem 0.4rem;
+      align-items: center;
+      width: 100%;
+      min-width: 0;
+    }
+    .qb-pricing-sep {
+      color: #94a3b8;
+      font-size: 0.875rem;
+      font-weight: 600;
+      text-align: center;
+    }
+    .qb-item-editor__pricing #modalServiceQty {
       box-sizing: border-box;
-      flex: 1 1 5.5rem;
-      width: auto;
-      min-width: 5.5rem;
-      max-width: 11rem;
+      width: 100%;
+      min-width: 0;
       border: 1px solid #cbd5e1;
       border-radius: 8px;
       padding: 0.5rem 0.65rem;
@@ -1001,31 +1012,17 @@
       text-align: right;
       font-variant-numeric: tabular-nums;
     }
-    .qb-item-editor__qty-rate input#modalServiceQty {
-      flex: 1 1 6.5rem;
-      min-width: 6.5rem;
-      max-width: 12rem;
-    }
-    .qb-item-editor__qty-rate span {
-      color: #94a3b8;
-      font-size: 0.875rem;
-    }
-    .qb-item-editor__eq {
-      color: #94a3b8;
-      font-size: 0.875rem;
-      font-weight: 600;
-    }
-    .qb-money-field--cost {
-      flex: 1 1 5.5rem;
-      min-width: 5.5rem;
-      max-width: 9rem;
+    .qb-item-editor__pricing .qb-money-field {
+      flex: none;
+      min-width: 0;
+      max-width: none;
+      width: 100%;
     }
     .qb-margin-field {
       display: flex;
       align-items: center;
-      flex: 0 1 5.5rem;
-      min-width: 4.5rem;
-      max-width: 7rem;
+      min-width: 0;
+      width: 100%;
       border: 1px solid #cbd5e1;
       border-radius: 8px;
       background: #fff;
@@ -1047,12 +1044,55 @@
       color: #64748b;
       font-weight: 600;
     }
+    .qb-item-editor__row--pricing .qb-item-editor__total {
+      align-self: flex-end;
+      margin-left: 0;
+      padding-bottom: 0;
+    }
     .qb-item-editor__total {
       font-size: 1rem;
       font-weight: 700;
       color: #0f172a;
       margin-left: auto;
       padding-bottom: 0.35rem;
+    }
+    @media (max-width: 640px) {
+      .qb-item-editor__pricing {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        grid-template-areas:
+          'qty qty'
+          'cost margin'
+          'eq eq'
+          'price price';
+      }
+      .qb-pricing-cell--qty { grid-area: qty; }
+      .qb-pricing-cell--cost { grid-area: cost; }
+      .qb-pricing-cell--margin { grid-area: margin; }
+      .qb-pricing-sep--eq { grid-area: eq; }
+      .qb-pricing-cell--price { grid-area: price; }
+      .qb-pricing-sep--mul { display: none; }
+    }
+    /* Toast de rascunho guardado — topo central */
+    body.qb-dashboard-inner #crmToastHost {
+      top: max(1rem, env(safe-area-inset-top));
+      bottom: auto;
+      left: 50%;
+      right: auto;
+      transform: translateX(-50%);
+      align-items: center;
+    }
+    body.qb-dashboard-inner #crmToastHost .crm-toast {
+      animation: qbToastInTop 0.22s ease-out;
+    }
+    @keyframes qbToastInTop {
+      from {
+        opacity: 0;
+        transform: translateY(-10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
     }
     .qb-item-editor__more {
       margin-top: 0.75rem;
@@ -1541,22 +1581,30 @@
                   <label for="modalServiceDesc">Descrição <span class="font-normal">(PDF / público)</span></label>
                   <textarea id="modalServiceDesc" class="qb-item-editor__textarea" rows="2" placeholder="Texto longo no PDF e na página pública"></textarea>
                 </div>
-                <div class="qb-item-editor__row">
-                  <div class="qb-item-editor__qty-rate">
-                    <input type="text" id="modalServiceQty" inputmode="decimal" value="1" aria-label="Quantidade" autocomplete="off" />
-                    <span>×</span>
-                    <div class="qb-money-field qb-money-field--cost">
-                      <span class="qb-money-field__prefix" aria-hidden="true">$</span>
-                      <input type="text" id="modalServiceCost" class="qb-money-field__input" inputmode="decimal" value="" aria-label="Custo unitario" autocomplete="off" placeholder="Custo" />
+                <div class="qb-item-editor__row qb-item-editor__row--pricing">
+                  <div class="qb-item-editor__pricing">
+                    <div class="qb-pricing-cell qb-pricing-cell--qty">
+                      <input type="text" id="modalServiceQty" inputmode="decimal" value="1" aria-label="Quantidade" autocomplete="off" />
                     </div>
-                    <div class="qb-margin-field">
-                      <input type="text" id="modalServiceMarkup" inputmode="decimal" value="" aria-label="Margem percentual" autocomplete="off" placeholder="Margem" />
-                      <span class="qb-margin-field__suffix" aria-hidden="true">%</span>
+                    <span class="qb-pricing-sep qb-pricing-sep--mul" aria-hidden="true">×</span>
+                    <div class="qb-pricing-cell qb-pricing-cell--cost">
+                      <div class="qb-money-field qb-money-field--cost">
+                        <span class="qb-money-field__prefix" aria-hidden="true">$</span>
+                        <input type="text" id="modalServiceCost" class="qb-money-field__input" inputmode="decimal" value="" aria-label="Custo unitario" autocomplete="off" placeholder="Custo" />
+                      </div>
                     </div>
-                    <span class="qb-item-editor__eq" aria-hidden="true">=</span>
-                    <div class="qb-money-field">
-                      <span class="qb-money-field__prefix" aria-hidden="true">$</span>
-                      <input type="text" id="modalServiceRate" class="qb-money-field__input" inputmode="decimal" value="0.00" aria-label="Preco de venda" autocomplete="off" />
+                    <div class="qb-pricing-cell qb-pricing-cell--margin">
+                      <div class="qb-margin-field">
+                        <input type="text" id="modalServiceMarkup" inputmode="decimal" value="" aria-label="Margem percentual" autocomplete="off" placeholder="Margem" />
+                        <span class="qb-margin-field__suffix" aria-hidden="true">%</span>
+                      </div>
+                    </div>
+                    <span class="qb-pricing-sep qb-pricing-sep--eq" aria-hidden="true">=</span>
+                    <div class="qb-pricing-cell qb-pricing-cell--price">
+                      <div class="qb-money-field">
+                        <span class="qb-money-field__prefix" aria-hidden="true">$</span>
+                        <input type="text" id="modalServiceRate" class="qb-money-field__input" inputmode="decimal" value="0.00" aria-label="Preco de venda" autocomplete="off" />
+                      </div>
                     </div>
                   </div>
                   <span class="qb-item-editor__total" id="inlineItemTotal">$0.00</span>
@@ -1798,7 +1846,7 @@
   <script src="crm-shared-nav.js?v=12"></script>
   <script src="crm-toast.js"></script>
   <script src="lead-contact-links.js?v=20260526-utf8"></script>
-  <script src="quote-builder.js?v=20260528-qb-items"></script>
+  <script src="quote-builder.js?v=20260528-qb-ui"></script>
   <script>
     (function () {
       var t = document.getElementById('mobileMenuToggle');

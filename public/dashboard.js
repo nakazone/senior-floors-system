@@ -2565,6 +2565,28 @@ function getQuotesMobileFilteredRows() {
     return sfQuotesListCache.slice();
 }
 
+
+function bindQuotesTableRowOpen() {
+    const tbody = document.getElementById('quotesTableBody');
+    if (!tbody || tbody.dataset.quoteRowOpenBound === '1') return;
+    tbody.dataset.quoteRowOpenBound = '1';
+    tbody.addEventListener('click', (e) => {
+        if (e.target.closest('button, a, .quotes-actions-cell__btns')) return;
+        const row = e.target.closest('tr.quotes-table-row--open');
+        if (!row) return;
+        const id = parseInt(row.getAttribute('data-quote-id'), 10);
+        if (Number.isFinite(id) && id > 0) viewQuote(id);
+    });
+    tbody.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        const row = e.target.closest('tr.quotes-table-row--open');
+        if (!row) return;
+        e.preventDefault();
+        const id = parseInt(row.getAttribute('data-quote-id'), 10);
+        if (Number.isFinite(id) && id > 0) viewQuote(id);
+    });
+}
+
 function bindSfQuoteCardInteractions(container) {
     if (!container || container.dataset.sfSwipeBound === '1') return;
     container.dataset.sfSwipeBound = '1';
@@ -2757,7 +2779,7 @@ function quoteStatusBadgeHtml(status) {
 }
 
 function quotesListEmptyStateRowHtml() {
-    return `<tr class="ds-empty-row"><td colspan="8">
+    return `<tr class="ds-empty-row"><td colspan="7">
 <div class="ds-empty-state" role="status">
 <svg class="ds-empty-state__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
 <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/><path d="M9 15h6"/><path d="M9 11h6"/></svg>
@@ -2836,7 +2858,7 @@ async function loadQuotes() {
     const mobileList = document.getElementById('quotesMobileList');
     const subEl = document.getElementById('quotesListSubtitle');
     if (subEl) subEl.textContent = 'A carregar…';
-    tbody.innerHTML = '<tr><td colspan="8" class="text-center">A carregar…</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" class="text-center">A carregar…</td></tr>';
     if (mobileList && isQuotesCompactLayout()) {
         mobileList.innerHTML = sfQuotesMobileSkeleton(5);
     }
@@ -2904,14 +2926,13 @@ const canGenPdf = crmUserRole === 'admin' || (Array.isArray(crmUserPermissions) 
                             maximumFractionDigits: 2,
                         });
                         return `
-                    <tr class="quotes-table-row">
+                    <tr class="quotes-table-row quotes-table-row--open" data-quote-id="${q.id}" tabindex="0" role="link" aria-label="Abrir orçamento">
                         <td>${qnum}</td>
                         <td class="quotes-cell-client" title="${clientLabel}">${clientLabel}</td>
                         <td class="tabular-nums">$${amt}</td>
                         <td>${quoteStatusBadgeHtml(q.status)}</td>
                         <td>${pdfCell}</td>
                         <td>${q.created_at ? escapeHtmlCrm(new Date(q.created_at).toLocaleDateString()) : '—'}</td>
-                        <td>${formatQuoteExpiryHtml(q.expiration_date, q.status)}</td>
                         <td class="quotes-actions-cell">
                             <div class="quotes-actions-cell__btns">
                             <button type="button" class="btn btn-sm btn-secondary" onclick="viewQuote(${q.id})" title="Editar orçamento">Abrir</button>
@@ -2921,6 +2942,7 @@ const canGenPdf = crmUserRole === 'admin' || (Array.isArray(crmUserPermissions) 
                     </tr>`;
                     })
                     .join('');
+                bindQuotesTableRowOpen();
                 if (isQuotesCompactLayout()) {
                     renderQuotesMobileFromCache();
                 }
@@ -2940,7 +2962,7 @@ const canGenPdf = crmUserRole === 'admin' || (Array.isArray(crmUserPermissions) 
             if (subEl) subEl.textContent = 'Erro ao carregar';
             updateQuotesTotalsUi(0, 0);
             tbody.innerHTML =
-                '<tr><td colspan="8" class="text-center">Resposta inválida do servidor</td></tr>';
+                '<tr><td colspan="7" class="text-center">Resposta inválida do servidor</td></tr>';
             sfQuotesListCache = [];
             if (mobileList && isQuotesCompactLayout()) {
                 mobileList.innerHTML =
@@ -2950,7 +2972,7 @@ const canGenPdf = crmUserRole === 'admin' || (Array.isArray(crmUserPermissions) 
     } catch (error) {
         if (subEl) subEl.textContent = 'Erro ao carregar';
         tbody.innerHTML =
-            '<tr><td colspan="8" class="text-center">Erro: ' + escapeHtmlCrm(error.message) + '</td></tr>';
+            '<tr><td colspan="7" class="text-center">Erro: ' + escapeHtmlCrm(error.message) + '</td></tr>';
         if (mobileList && isQuotesCompactLayout()) {
             mobileList.innerHTML =
                 '<p class="sf-caption">Erro ao carregar. Tente puxar para atualizar.</p>';

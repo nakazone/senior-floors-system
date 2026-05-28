@@ -570,10 +570,6 @@ body.dashboard-app-body {
 }
 .quotes-data-table th:nth-child(7),
 .quotes-data-table td:nth-child(7) {
-  width: 120px;
-}
-.quotes-data-table th:nth-child(8),
-.quotes-data-table td:nth-child(8) {
   width: 200px;
 }
 
@@ -581,13 +577,13 @@ body.dashboard-app-body {
 .quotes-data-table .quotes-cell-client {
   overflow: visible;
   text-overflow: unset;
-  white-space: normal;
-  word-break: break-word;
-  overflow-wrap: anywhere;
-  line-height: 1.4;
+  white-space: nowrap;
+  word-break: normal;
+  overflow-wrap: normal;
+  line-height: 1.35;
   font-weight: 600;
-  vertical-align: top;
-  min-width: 10rem;
+  vertical-align: middle;
+  min-width: 12rem;
 }
 
 /* Quote status badges — design tokens */

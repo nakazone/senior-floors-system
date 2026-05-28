@@ -2962,16 +2962,28 @@ body.lead-quick-sheet-open .pac-container {
 }
 
 .quotes-data-table .quotes-cell-client {
-    white-space: normal !important;
-    word-break: break-word;
-    overflow-wrap: anywhere;
+    white-space: nowrap !important;
+    word-break: normal !important;
+    overflow-wrap: normal !important;
     overflow: visible !important;
     text-overflow: unset !important;
-    line-height: 1.4;
+    line-height: 1.35;
     font-weight: 600;
     color: var(--text-dark);
-    min-width: 11rem;
-    max-width: 22rem;
+    min-width: 12rem;
+    max-width: none;
+}
+
+.quotes-data-table .quotes-table-row--open {
+    cursor: pointer;
+}
+
+.quotes-data-table .quotes-table-row--open:hover {
+    background: rgba(26, 32, 54, 0.04);
+}
+
+.quotes-data-table .quotes-table-row--open .quotes-actions-cell__btns {
+    cursor: default;
 }
 
 #quotesPage .table-container.sf-desktop-quotes-toolbar {
