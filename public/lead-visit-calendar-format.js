@@ -1,10 +1,10 @@
 /**
- * Formato de evento de visita (browser) — manter alinhado com lib/leadVisitCalendarFormat.js
+ * Formato de evento de visita (browser) - manter alinhado com lib/leadVisitCalendarFormat.js
  */
 (function (global) {
   'use strict';
 
-  const SERVICE_FIELD_KEYS = new Set(['form_type', 'service_type', 'main_interest', 'property_type']);
+  var CALENDAR_DESC_SEPARATOR = '----------------------------------';
 
   function norm(s) {
     return String(s || '')
@@ -13,92 +13,95 @@
   }
 
   function isServiceSlugText(text) {
-    const t = String(text || '').trim();
+    var t = String(text || '').trim();
     if (!t || t.length < 4) return false;
-    if (/\s/.test(t) && !t.includes('_')) return false;
-    return /^[a-z0-9][a-z0-9_&-]*$/i.test(t) && (t.includes('_') || t.includes('&'));
+    if (/\s/.test(t) && t.indexOf('_') === -1) return false;
+    return /^[a-z0-9][a-z0-9_&-]*$/i.test(t) && (t.indexOf('_') !== -1 || t.indexOf('&') !== -1);
   }
 
   function resolveLeadCalendarOriginLabel(lead) {
     if (!lead || typeof lead !== 'object') return '';
-    const platform = String(lead.marketing_platform || '').trim();
+    var platform = String(lead.marketing_platform || '').trim();
     if (/^meta$/i.test(platform)) return 'Meta';
     if (/^google$/i.test(platform)) return 'Google';
     if (String(lead.fbclid || '').trim()) return 'Meta';
-    const utm = norm(lead.utm_source);
-    const src = norm(lead.source);
-    const medium = norm(lead.utm_medium);
+    var utm = norm(lead.utm_source);
+    var src = norm(lead.source);
+    var medium = norm(lead.utm_medium);
     if (
-      utm.includes('facebook') ||
-      utm.includes('instagram') ||
+      utm.indexOf('facebook') !== -1 ||
+      utm.indexOf('instagram') !== -1 ||
       utm === 'fb' ||
-      utm.includes('meta') ||
-      medium.includes('facebook') ||
-      src.includes('facebook') ||
-      src.includes('instagram') ||
-      src.includes('meta')
+      utm.indexOf('meta') !== -1 ||
+      medium.indexOf('facebook') !== -1 ||
+      src.indexOf('facebook') !== -1 ||
+      src.indexOf('instagram') !== -1 ||
+      src.indexOf('meta') !== -1
     ) {
       return 'Meta';
     }
     if (String(lead.gclid || '').trim()) return 'Google';
-    if (utm.includes('google') || utm === 'adwords' || src.includes('google') || /^google/i.test(platform)) {
+    if (
+      utm.indexOf('google') !== -1 ||
+      utm === 'adwords' ||
+      src.indexOf('google') !== -1 ||
+      /^google/i.test(platform)
+    ) {
       return 'Google';
     }
-    const landing = String(lead.landing_page || '').trim();
-    const formType = norm(lead.form_type);
+    var landing = String(lead.landing_page || '').trim();
+    var formType = norm(lead.form_type);
     if (landing) return 'Google';
-    if (formType && formType !== 'manual' && !formType.includes('facebook') && !formType.includes('meta')) {
+    if (formType && formType !== 'manual' && formType.indexOf('facebook') === -1 && formType.indexOf('meta') === -1) {
       return 'Google';
     }
     return '';
   }
 
   function buildLeadVisitSummary(lead) {
-    const name = (lead && lead.name ? String(lead.name) : 'Lead').trim() || 'Lead';
-    const origin = resolveLeadCalendarOriginLabel(lead);
+    var name = (lead && lead.name ? String(lead.name) : 'Lead').trim() || 'Lead';
+    var origin = resolveLeadCalendarOriginLabel(lead);
     return origin ? name + ' - ' + origin : name;
   }
 
   function buildLeadVisitDescription(lead) {
-    const blocks = [];
-    const contact = [];
-    if (lead && lead.phone) contact.push('Tel: ' + String(lead.phone).trim());
-    if (lead && lead.email) contact.push('Email: ' + String(lead.email).trim());
-    const contactText = contact.join('\n').trim();
-    if (contactText) blocks.push(contactText);
+    var lines = [];
+    var name = lead && lead.name ? String(lead.name).trim() : '';
+    if (name) lines.push('Cliente: ' + name);
+    if (lead && lead.phone) lines.push('Tel: ' + String(lead.phone).trim());
+    if (lead && lead.email) lines.push('Email: ' + String(lead.email).trim());
+    if (lead && lead.id != null && lead.id !== '') lines.push('Lead #' + String(lead.id));
 
-    const details = [];
-    const msg = lead && lead.message ? String(lead.message).trim() : '';
-    if (msg && !isServiceSlugText(msg)) details.push(msg);
-    const notes = lead && lead.notes ? String(lead.notes).trim() : '';
-    if (notes && notes !== msg) details.push(notes);
-    const detailsText = details.join('\n\n').trim();
-    if (detailsText) {
-      if (blocks.length) blocks.push('????????????????');
-      blocks.push(detailsText);
+    var out = lines.join('\n');
+    out += '\n\n' + CALENDAR_DESC_SEPARATOR;
+
+    var extra = [];
+    var msg = lead && lead.message ? String(lead.message).trim() : '';
+    if (msg && !isServiceSlugText(msg)) extra.push(msg);
+    var notes = lead && lead.notes ? String(lead.notes).trim() : '';
+    if (notes && notes !== msg) extra.push(notes);
+    if (extra.length) {
+      out += '\n\n' + extra.join('\n\n');
     }
-    if (blocks.length) {
-      blocks.push('????????????????');
-      blocks.push('');
-    }
-    return blocks.join('\n').trimEnd();
+
+    return out;
   }
 
   function buildLeadVisitLocation(lead) {
     if (!lead || typeof lead !== 'object') return '';
-    const line1 = String(lead.address_line1 || lead.address || '').trim();
-    const line2 = String(lead.address_line2 || '').trim();
-    const city = String(lead.city || '').trim();
-    const zip = String(lead.zipcode || lead.zip || '').trim();
-    const parts = [line1, line2, city, zip].filter(Boolean);
+    var line1 = String(lead.address_line1 || lead.address || '').trim();
+    var line2 = String(lead.address_line2 || '').trim();
+    var city = String(lead.city || '').trim();
+    var zip = String(lead.zipcode || lead.zip || '').trim();
+    var parts = [line1, line2, city, zip].filter(Boolean);
     return parts.length ? parts.join(', ') : line1;
   }
 
   global.sfLeadVisitCalendarFormat = {
-    resolveLeadCalendarOriginLabel,
-    buildLeadVisitSummary,
-    buildLeadVisitDescription,
-    buildLeadVisitLocation,
-    isServiceSlugText,
+    resolveLeadCalendarOriginLabel: resolveLeadCalendarOriginLabel,
+    buildLeadVisitSummary: buildLeadVisitSummary,
+    buildLeadVisitDescription: buildLeadVisitDescription,
+    buildLeadVisitLocation: buildLeadVisitLocation,
+    isServiceSlugText: isServiceSlugText,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
