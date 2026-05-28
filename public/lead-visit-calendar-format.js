@@ -64,12 +64,24 @@
     return origin ? name + ' - ' + origin : name;
   }
 
+  function buildLeadVisitLocation(lead) {
+    if (!lead || typeof lead !== 'object') return '';
+    var line1 = String(lead.address_line1 || lead.address || '').trim();
+    var line2 = String(lead.address_line2 || '').trim();
+    var city = String(lead.city || '').trim();
+    var zip = String(lead.zipcode || lead.zip || '').trim();
+    var parts = [line1, line2, city, zip].filter(Boolean);
+    return parts.length ? parts.join(', ') : line1;
+  }
+
   function buildLeadVisitDescription(lead) {
     var lines = [];
     var name = lead && lead.name ? String(lead.name).trim() : '';
     if (name) lines.push('Cliente: ' + name);
     if (lead && lead.phone) lines.push('Tel: ' + String(lead.phone).trim());
     if (lead && lead.email) lines.push('Email: ' + String(lead.email).trim());
+    var address = buildLeadVisitLocation(lead);
+    if (address) lines.push('Address: ' + address);
     if (lead && lead.id != null && lead.id !== '') lines.push('Lead #' + String(lead.id));
 
     var out = lines.join('\n');
@@ -85,16 +97,6 @@
     }
 
     return out;
-  }
-
-  function buildLeadVisitLocation(lead) {
-    if (!lead || typeof lead !== 'object') return '';
-    var line1 = String(lead.address_line1 || lead.address || '').trim();
-    var line2 = String(lead.address_line2 || '').trim();
-    var city = String(lead.city || '').trim();
-    var zip = String(lead.zipcode || lead.zip || '').trim();
-    var parts = [line1, line2, city, zip].filter(Boolean);
-    return parts.length ? parts.join(', ') : line1;
   }
 
   global.sfLeadVisitCalendarFormat = {
