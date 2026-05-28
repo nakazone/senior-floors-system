@@ -116,6 +116,7 @@ import {
 import { getHealth } from './routes/health.js';
 import { ensureQuoteInvoicePdfColumn } from './lib/ensureQuoteInvoicePdfColumn.js';
 import { ensureQuotePdfViewedColumn } from './lib/ensureQuotePdfViewedColumn.js';
+import { ensureQuoteNumberOffset } from './lib/ensureQuoteNumberOffset.js';
 import { ensureUserModuleColumns } from './lib/ensureUserModuleColumns.js';
 import { ensureCustomersResponsibleNameColumn } from './lib/ensureCustomersResponsibleNameColumn.js';
 import { ensureLeadPipelineStageEnteredAt } from './lib/ensureLeadPipelineStageEnteredAt.js';
@@ -783,6 +784,7 @@ async function start() {
       }
       await ensureQuoteInvoicePdfColumn(pool);
       await ensureQuotePdfViewedColumn(pool);
+      await ensureQuoteNumberOffset(pool);
       await ensureUserModuleColumns(pool);
       await ensureCustomersResponsibleNameColumn(pool);
       await ensureLeadPipelineStageEnteredAt(pool);

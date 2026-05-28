@@ -3,6 +3,7 @@ import * as repo from './quoteRepository.js';
 import { buildQuotePdfBuffer } from './quotePdf.js';
 import { sendQuoteEmail } from './quoteMail.js';
 import { buildPublicQuoteUrl, getPublicCrmBaseUrl } from '../../lib/publicQuoteUrl.js';
+import { generateNextQuoteNumber } from '../../lib/quoteNumber.js';
 import { summarizeQuoteProfit } from '../pricing/marginPricing.js';
 import { ensureProjectForApprovedQuote } from './quoteProjectFromApproval.js';
 import { applyQuoteLineRevenueToProject } from '../../lib/syncProjectRevenueFromQuote.js';
@@ -285,18 +286,7 @@ function computeTotal(subtotal, discountType, discountValue, taxTotal) {
 }
 
 export async function createQuoteFull(pool, body, userId) {
-  const [last] = await pool.query(
-    "SELECT quote_number FROM quotes WHERE quote_number IS NOT NULL ORDER BY id DESC LIMIT 1"
-  );
-  let quoteNumber = `Q-${new Date().getFullYear()}-0001`;
-  if (last.length > 0 && last[0].quote_number) {
-    const m = String(last[0].quote_number).match(/Q-(\d{4})-(\d+)/);
-    if (m) {
-      const year = new Date().getFullYear();
-      const num = parseInt(m[2], 10) + 1;
-      quoteNumber = `Q-${year}-${String(num).padStart(4, '0')}`;
-    }
-  }
+  const quoteNumber = await generateNextQuoteNumber(pool);
 
   const items = Array.isArray(body.items) ? body.items.map((i) => calc.normalizeItem(i)) : [];
   const subtotal = body.subtotal != null ? Number(body.subtotal) : calc.sumItems(items);

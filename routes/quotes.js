@@ -8,6 +8,7 @@ import { summarizeQuoteProfit } from '../modules/pricing/marginPricing.js';
 import { setLeadPipelineBySlug } from '../lib/pipelineAutomation.js';
 import { QUOTE_PDF_SUBDIR, resolvedPdfAbsolutePath } from '../lib/quotePdfUpload.js';
 import { ensureProjectForApprovedQuote } from '../modules/quotes/quoteProjectFromApproval.js';
+import { generateNextQuoteNumber } from '../lib/quoteNumber.js';
 
 /** Colunas de `quotes` para listagens sem trazer LONGBLOB; inclui has_invoice_pdf quando a coluna existe. */
 async function getQuoteListSelectParts(pool) {
@@ -256,20 +257,7 @@ export async function createQuote(req, res) {
       return res.status(400).json({ success: false, error: 'Total amount is required' });
     }
 
-    // Gerar número do quote
-    const [lastQuote] = await pool.query(
-      "SELECT quote_number FROM quotes WHERE quote_number IS NOT NULL ORDER BY id DESC LIMIT 1"
-    );
-    
-    let quoteNumber = 'Q-2024-0001';
-    if (lastQuote.length > 0 && lastQuote[0].quote_number) {
-      const match = lastQuote[0].quote_number.match(/Q-(\d{4})-(\d+)/);
-      if (match) {
-        const year = new Date().getFullYear();
-        const num = parseInt(match[2]) + 1;
-        quoteNumber = `Q-${year}-${String(num).padStart(4, '0')}`;
-      }
-    }
+    const quoteNumber = await generateNextQuoteNumber(pool);
 
     const [result] = await pool.execute(
       `INSERT INTO quotes (lead_id, customer_id, project_id, total_amount, labor_amount, materials_amount, 
@@ -407,22 +395,6 @@ export async function deleteQuote(req, res) {
     console.error('Delete quote error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
-}
-
-async function generateNextQuoteNumber(pool) {
-  const [lastQuote] = await pool.query(
-    "SELECT quote_number FROM quotes WHERE quote_number IS NOT NULL ORDER BY id DESC LIMIT 1"
-  );
-  let quoteNumber = `Q-${new Date().getFullYear()}-0001`;
-  if (lastQuote.length > 0 && lastQuote[0].quote_number) {
-    const match = lastQuote[0].quote_number.match(/Q-(\d{4})-(\d+)/);
-    if (match) {
-      const year = new Date().getFullYear();
-      const num = parseInt(match[2], 10) + 1;
-      quoteNumber = `Q-${year}-${String(num).padStart(4, '0')}`;
-    }
-  }
-  return quoteNumber;
 }
 
 /**
