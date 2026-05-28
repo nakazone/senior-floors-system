@@ -347,44 +347,6 @@ export async function listBuilderPortalProjects(req, res) {
   }
 }
 
-export async function getBuilderPortalProject(req, res) {
-  try {
-    const pool = await getDBConnection();
-    const projectId = parseInt(req.params.id, 10);
-    const [b] = await pool.query('SELECT customer_id FROM builders WHERE id = ?', [
-      req.builderAuth.builderId,
-    ]);
-    if (!b.length) return res.status(403).json({ success: false, error: 'Access denied' });
-    const [rows] = await pool.query(
-      `SELECT id, name, address, status, completion_percentage, start_date, end_date_estimated,
-              end_date_actual, flooring_type, total_sqft, service_type, project_number, notes
-       FROM projects WHERE id = ? AND builder_id = ? AND (deleted_at IS NULL)`,
-      [projectId, b[0].customer_id]
-    );
-    if (!rows.length) return res.status(404).json({ success: false, error: 'Project not found' });
-
-    const [checklist] = await pool.query(
-      `SELECT id, category, item, checked, notes, assigned_to
-       FROM project_checklist WHERE project_id = ? AND visible_to_builder = 1
-       ORDER BY sort_order ASC, id ASC`,
-      [projectId]
-    );
-
-    const [photos] = await pool.query(
-      `SELECT id, phase, file_path, file_url, caption, created_at
-       FROM project_photos WHERE project_id = ? ORDER BY created_at DESC`,
-      [projectId]
-    );
-
-    res.json({
-      success: true,
-      data: { project: rows[0], checklist, photos },
-    });
-  } catch (e) {
-    res.status(500).json({ success: false, error: e.message });
-  }
-}
-
 export async function postAdminResetPassword(req, res) {
   try {
     const pool = await getDBConnection();
@@ -415,5 +377,4 @@ export function registerBuilderRoutes(app) {
   );
 
   app.get('/api/builder-projects', requireBuilderAuth, listBuilderPortalProjects);
-  app.get('/api/builder-projects/:id', requireBuilderAuth, getBuilderPortalProject);
 }

@@ -127,6 +127,7 @@ import { ensureBuilderPortalSchema } from './lib/ensureBuilderPortalSchema.js';
 import { ensureProjectChildTables } from './lib/ensureProjectChildTables.js';
 import { registerBuilderAuthRoutes } from './routes/builderAuth.js';
 import { registerBuilderRoutes } from './routes/builders.js';
+import { registerBuilderPortalProjectRoutes } from './routes/builderPortalProjects.js';
 import { ensureFinancialCompleteSchema } from './lib/ensureFinancialCompleteSchema.js';
 import { getUiConfig } from './routes/uiConfig.js';
 
@@ -485,6 +486,7 @@ app.put('/api/projects/:projectId/financial', requireAuth, updateProjectFinancia
 app.use('/api/projects', projectsRouter);
 app.use('/api/builder-payment-forecasts', builderPaymentForecastsRouter);
 registerBuilderAuthRoutes(app);
+registerBuilderPortalProjectRoutes(app);
 registerBuilderRoutes(app);
 
 // Visits/Schedule

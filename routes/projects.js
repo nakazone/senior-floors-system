@@ -1550,14 +1550,30 @@ router.put('/:id/checklist/:itemId', ...allAuthed, requirePermission('projects.e
     const b = req.body || {};
     const uid = req.session?.userId || null;
     const checked = !!b.checked;
+    const hasVisible = await columnExists(pool, 'project_checklist', 'visible_to_builder');
+    const hasAssigned = await columnExists(pool, 'project_checklist', 'assigned_to');
+    const sets = [
+      'checked = ?',
+      'checked_by = ?',
+      'checked_at = IF(? = 1, NOW(), NULL)',
+      'notes = COALESCE(?, notes)',
+    ];
+    const vals = [checked ? 1 : 0, checked ? uid : null, checked ? 1 : 0, b.notes !== undefined ? b.notes : null];
+    if (hasVisible && b.visible_to_builder !== undefined) {
+      sets.push('visible_to_builder = ?');
+      vals.push(b.visible_to_builder ? 1 : 0);
+    }
+    if (hasAssigned && b.assigned_to !== undefined) {
+      const at = ['builder', 'sf'].includes(String(b.assigned_to).toLowerCase())
+        ? String(b.assigned_to).toLowerCase()
+        : 'sf';
+      sets.push('assigned_to = ?');
+      vals.push(at);
+    }
+    vals.push(itemId, id);
     await pool.execute(
-      `UPDATE project_checklist SET
-        checked = ?,
-        checked_by = ?,
-        checked_at = IF(? = 1, NOW(), NULL),
-        notes = COALESCE(?, notes)
-      WHERE id = ? AND project_id = ?`,
-      [checked ? 1 : 0, checked ? uid : null, checked ? 1 : 0, b.notes !== undefined ? b.notes : null, itemId, id]
+      `UPDATE project_checklist SET ${sets.join(', ')} WHERE id = ? AND project_id = ?`,
+      vals
     );
     await refreshChecklistCompletedFlag(pool, id);
     const [rows] = await pool.query('SELECT * FROM project_checklist WHERE id = ?', [itemId]);

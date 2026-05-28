@@ -1419,18 +1419,47 @@ function renderChecklistTab() {
         const row = document.createElement('div');
         row.className = 'pd-check-item';
         const checked = item.checked === 1 || item.checked === true;
+        const visPortal = item.visible_to_builder === 1 || item.visible_to_builder === true;
+        const assignedTo = String(item.assigned_to || 'sf').toLowerCase() === 'builder' ? 'builder' : 'sf';
         row.innerHTML = `
           <input type="checkbox" id="chk-${item.id}" data-item-id="${item.id}" ${checked ? 'checked' : ''} />
           <label for="chk-${item.id}" style="flex:1;cursor:pointer;font-size:13px">${escapeHtml(item.item)}</label>
           <button type="button" class="pd-btn" data-toggle-note="${item.id}" aria-label="Nota">▾</button>`;
+        const portalMeta = document.createElement('div');
+        portalMeta.style.cssText =
+          'display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding-left:28px;margin-top:6px;font-size:11px;color:var(--sf-muted)';
+        portalMeta.innerHTML = `
+          <label style="display:flex;align-items:center;gap:4px;cursor:pointer">
+            <input type="checkbox" data-portal-visible="${item.id}" ${visPortal ? 'checked' : ''} />
+            Visível no portal do builder
+          </label>
+          <label>Responsável
+            <select data-portal-assigned="${item.id}" style="margin-left:4px;padding:2px 6px;border-radius:4px;border:1px solid var(--sf-border)">
+              <option value="sf" ${assignedTo === 'sf' ? 'selected' : ''}>Senior Floors</option>
+              <option value="builder" ${assignedTo === 'builder' ? 'selected' : ''}>Builder</option>
+            </select>
+          </label>`;
         const note = document.createElement('div');
         note.style.cssText = 'display:none;width:100%;margin-top:4px;padding-left:28px;box-sizing:border-box';
         note.innerHTML = `<textarea data-note="${item.id}" rows="2" style="width:100%;border-radius:6px;border:1px solid var(--sf-border);padding:6px;box-sizing:border-box" placeholder="Nota">${escapeHtml(item.notes || '')}</textarea><button type="button" class="pd-btn" data-save-note="${item.id}" style="margin-top:4px">Guardar nota</button>`;
         block.appendChild(row);
+        block.appendChild(portalMeta);
         block.appendChild(note);
         wrap.appendChild(block);
         row.querySelector('input[type=checkbox]').addEventListener('change', (e) => {
           toggleChecklistItem(item.id, e.target.checked);
+        });
+        portalMeta.querySelector(`[data-portal-visible="${item.id}"]`)?.addEventListener('change', async (e) => {
+          await saveChecklistPortalMeta(item.id, {
+            visible_to_builder: e.target.checked,
+            assigned_to: portalMeta.querySelector(`[data-portal-assigned="${item.id}"]`)?.value || 'sf',
+          });
+        });
+        portalMeta.querySelector(`[data-portal-assigned="${item.id}"]`)?.addEventListener('change', async (e) => {
+          await saveChecklistPortalMeta(item.id, {
+            visible_to_builder: portalMeta.querySelector(`[data-portal-visible="${item.id}"]`)?.checked,
+            assigned_to: e.target.value,
+          });
         });
         row.querySelector('[data-toggle-note]')?.addEventListener('click', () => {
           note.style.display = note.style.display === 'none' ? 'block' : 'none';
@@ -1471,6 +1500,21 @@ async function toggleChecklistItem(itemId, checked) {
     body: JSON.stringify({ checked }),
   });
   loadProject();
+}
+
+async function saveChecklistPortalMeta(itemId, meta) {
+  const row = document.querySelector(`#chk-${itemId}`);
+  await fetch(`/api/projects/${projectId}/checklist/${itemId}`, {
+    method: 'PUT',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      checked: row ? row.checked : false,
+      visible_to_builder: !!meta.visible_to_builder,
+      assigned_to: meta.assigned_to === 'builder' ? 'builder' : 'sf',
+    }),
+  });
+  showToast('Portal do builder atualizado', 'info');
 }
 
 function renderGalleryTab() {
