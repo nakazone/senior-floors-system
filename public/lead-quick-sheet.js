@@ -399,7 +399,7 @@
       focusEl.tagName === 'INPUT' &&
       typeof global.sfAttachAddressAutocomplete === 'function'
     ) {
-      focusEl.placeholder = 'Digite a morada (Google Maps)ù';
+      focusEl.placeholder = 'Digite a morada (Google Maps)...';
       const ok = await global.sfAttachAddressAutocomplete(focusEl, {
         country: 'us',
         map: { combined: focusEl },
@@ -1441,6 +1441,7 @@
     closeLqsScheduleVisitModal();
     closeStatusMenu();
     if (typeof global.sfCloseSmsChoiceMenu === 'function') global.sfCloseSmsChoiceMenu();
+    if (typeof global.sfDismissPacDropdown === 'function') global.sfDismissPacDropdown();
     ownerUsersCache = null;
     const root = document.getElementById('leadQuickSheet');
     if (!root) return;

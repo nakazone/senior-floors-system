@@ -72,6 +72,34 @@
     if (map.combined) setFieldValue(map.combined, parsed.formatted || parsed.line1);
   }
 
+  function dismissPacDropdown(inputEl) {
+    document.querySelectorAll('.pac-container').forEach(function (pac) {
+      pac.style.display = 'none';
+    });
+    if (inputEl && typeof inputEl.blur === 'function') {
+      try {
+        inputEl.blur();
+      } catch (_) {}
+    }
+  }
+
+  function bindPacDismissHandlers() {
+    if (global.__sfPacDismissBound) return;
+    global.__sfPacDismissBound = true;
+    document.addEventListener(
+      'mousedown',
+      function (e) {
+        var item = e.target && e.target.closest ? e.target.closest('.pac-item') : null;
+        if (item) {
+          setTimeout(function () {
+            dismissPacDropdown();
+          }, 0);
+        }
+      },
+      true
+    );
+  }
+
   function loadGoogleMapsScript(key) {
     return new Promise(function (resolve, reject) {
       if (global.google && global.google.maps && global.google.maps.places) {
@@ -181,8 +209,16 @@
       inputEl.setAttribute('data-sf-address-autocomplete', '1');
       inputEl.setAttribute('autocomplete', 'off');
       if (!inputEl.placeholder) {
-        inputEl.placeholder = 'Digite a morada (Google Maps)…';
+        inputEl.placeholder = 'Digite a morada (Google Maps)...';
       }
+
+      bindPacDismissHandlers();
+
+      inputEl.addEventListener('blur', function () {
+        setTimeout(function () {
+          dismissPacDropdown();
+        }, 150);
+      });
 
       ac.addListener('place_changed', function () {
         var place = ac.getPlace();
@@ -192,6 +228,9 @@
         if (typeof options.onSelect === 'function') {
           options.onSelect(parsed, place, inputEl);
         }
+        setTimeout(function () {
+          dismissPacDropdown(inputEl);
+        }, 0);
       });
       return true;
     } catch (err) {
@@ -278,6 +317,7 @@
   global.sfInitCrmAddressAutocomplete = initCrmAddressAutocomplete;
   global.sfEnsureCrmAddressAutocomplete = ensureMapsReady;
   global.sfParseGooglePlaceComponents = parsePlaceComponents;
+  global.sfDismissPacDropdown = dismissPacDropdown;
 
   function bootAfterAuth() {
     initCrmAddressAutocomplete();
