@@ -509,6 +509,18 @@
     form.addEventListener('submit', onLqsVisitFormSubmit);
   }
 
+  function openLqsScheduleVisitInDeviceCalendar() {
+    if (!sheetLead || !sheetLeadId) return;
+    if (typeof global.sfOpenLeadVisitInDeviceCalendar === 'function') {
+      const ok = global.sfOpenLeadVisitInDeviceCalendar(sheetLead);
+      if (ok) {
+        notifySheet('A abrir o calendário do dispositivo…', 'info');
+        return;
+      }
+    }
+    notifySheet('Não foi possível abrir o calendário. Tente outro browser.', 'error');
+  }
+
   function openLqsScheduleVisitModal() {
     wireLqsVisitModalOnce();
     if (!sheetLead || !sheetLeadId) return;
@@ -1142,7 +1154,7 @@
     }
     if (e.target.closest('[data-lqs-open-schedule]')) {
       e.preventDefault();
-      openLqsScheduleVisitModal();
+      openLqsScheduleVisitInDeviceCalendar();
       return;
     }
     const priBtn = e.target.closest('[data-lqs-priority]');

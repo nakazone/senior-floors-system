@@ -838,6 +838,16 @@ function submitInteractionForm(e) {
 }
 
 function showNewVisitModal() {
+    if (!currentLead) return;
+    if (typeof window.sfOpenLeadVisitInDeviceCalendar === 'function') {
+        const ok = window.sfOpenLeadVisitInDeviceCalendar(currentLead);
+        if (ok) {
+            if (typeof crmNotify === 'function') {
+                crmNotify('A abrir o calendário do dispositivo…', 'info');
+            }
+            return;
+        }
+    }
     const modal = document.getElementById('newVisitModal');
     if (!modal) return;
     var clientEl = document.getElementById('newVisitClientName');
