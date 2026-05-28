@@ -435,17 +435,25 @@
     background: var(--sf-bg-card);
   }
 
+  .sf-quote-card__client {
+    display: block;
+    width: 100%;
+    font-size: 17px;
+    font-weight: 600;
+    line-height: 1.35;
+    color: var(--sf-text-primary);
+    word-break: break-word;
+    overflow-wrap: anywhere;
+    margin: 0 0 8px;
+    padding-right: 4px;
+  }
+
   .sf-quote-card__row {
     display: flex;
     justify-content: space-between;
-    align-items: flex-start;
+    align-items: center;
     gap: 10px;
-  }
-
-  .sf-quote-card__client {
-    font-size: 16px;
-    font-weight: 600;
-    color: var(--sf-text-primary);
+    flex-wrap: wrap;
   }
 
   .sf-quote-card__amt {

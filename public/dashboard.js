@@ -261,6 +261,11 @@ function isMobile() {
     return window.innerWidth <= 768;
 }
 
+/** Quotes: cards + cliente visivel em telemovel e iPad (ate 1024px). */
+function isQuotesCompactLayout() {
+    return window.innerWidth <= 1024;
+}
+
 /** Telefone, tablet e iPad — pull-to-refresh */
 function isTouchViewport() {
     if (navigator.maxTouchPoints > 0) return true;
@@ -2540,11 +2545,9 @@ function quoteMobileCardHtml(q, opts) {
     return `
     <article class="sf-quote-card touchable" data-quote-id="${id}" role="button" tabindex="0">
       <div class="sf-quote-card__inner">
+        <div class="sf-quote-card__client" title="${clientLabel}">${clientLabel}</div>
         <div class="sf-quote-card__row">
-          <div>
-            <div class="sf-quote-card__client">${clientLabel}</div>
-            <div class="sf-quote-card__meta">Quote #${qnum}</div>
-          </div>
+          <div class="sf-quote-card__meta">Quote #${qnum}</div>
           <div class="sf-quote-card__amt">$${amt}</div>
         </div>
         ${quoteStatusSfBadgeHtml(q.status)}
@@ -2616,7 +2619,7 @@ function bindSfQuoteCardInteractions(container) {
 
 function renderQuotesMobileFromCache() {
     const mobileList = document.getElementById('quotesMobileList');
-    if (!mobileList || !isMobile()) return;
+    if (!mobileList || !isQuotesCompactLayout()) return;
     const canDeleteQuote =
         crmUserRole === 'admin' || (Array.isArray(crmUserPermissions) && crmUserPermissions.includes('quotes.edit'));
     const rows = getQuotesMobileFilteredRows();
@@ -2647,7 +2650,7 @@ function updateQuotesMobileChrome(total, totalPages) {
     }
     if (btn) {
         const tp = Math.max(1, totalPages | 0);
-        btn.style.display = isMobile() && quotesListPage < tp ? 'inline-block' : 'none';
+        btn.style.display = isQuotesCompactLayout() && quotesListPage < tp ? 'inline-block' : 'none';
     }
 }
 
@@ -2829,7 +2832,7 @@ async function loadQuotes() {
     const subEl = document.getElementById('quotesListSubtitle');
     if (subEl) subEl.textContent = 'A carregar…';
     tbody.innerHTML = '<tr><td colspan="8" class="text-center">A carregar…</td></tr>';
-    if (mobileList && isMobile()) {
+    if (mobileList && isQuotesCompactLayout()) {
         mobileList.innerHTML = sfQuotesMobileSkeleton(5);
     }
     const canDeleteQuote =
@@ -2871,7 +2874,7 @@ async function loadQuotes() {
                 sfQuotesListCache = [];
                 updateQuotesTotalsUi(0, 0);
                 tbody.innerHTML = quotesListEmptyStateRowHtml();
-                if (mobileList && isMobile()) {
+                if (mobileList && isQuotesCompactLayout()) {
                     mobileList.innerHTML = sfQuotesMobileEmptyHtml();
                 }
                 if (typeof applyCrmNavPermissions === 'function') {
@@ -2902,7 +2905,7 @@ async function loadQuotes() {
                         return `
                     <tr class="quotes-table-row">
                         <td>${qnum}</td>
-                        <td>${clientLabel}</td>
+                        <td class="quotes-cell-client" title="${clientLabel}">${clientLabel}</td>
                         <td class="tabular-nums">$${amt}</td>
                         <td>${quoteStatusBadgeHtml(q.status)}</td>
                         <td>${pdfCell}</td>
@@ -2916,7 +2919,7 @@ async function loadQuotes() {
                     </tr>`;
                     })
                     .join('');
-                if (isMobile()) {
+                if (isQuotesCompactLayout()) {
                     renderQuotesMobileFromCache();
                 }
             }
@@ -2937,7 +2940,7 @@ async function loadQuotes() {
             tbody.innerHTML =
                 '<tr><td colspan="8" class="text-center">Resposta inválida do servidor</td></tr>';
             sfQuotesListCache = [];
-            if (mobileList && isMobile()) {
+            if (mobileList && isQuotesCompactLayout()) {
                 mobileList.innerHTML =
                     '<p class="sf-caption">Não foi possível carregar os orçamentos.</p>';
             }
@@ -2946,7 +2949,7 @@ async function loadQuotes() {
         if (subEl) subEl.textContent = 'Erro ao carregar';
         tbody.innerHTML =
             '<tr><td colspan="8" class="text-center">Erro: ' + escapeHtmlCrm(error.message) + '</td></tr>';
-        if (mobileList && isMobile()) {
+        if (mobileList && isQuotesCompactLayout()) {
             mobileList.innerHTML =
                 '<p class="sf-caption">Erro ao carregar. Tente puxar para atualizar.</p>';
         }

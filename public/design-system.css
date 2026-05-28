@@ -577,10 +577,17 @@ body.dashboard-app-body {
   width: 200px;
 }
 
-.quotes-data-table td:nth-child(2) {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.quotes-data-table td:nth-child(2),
+.quotes-data-table .quotes-cell-client {
+  overflow: visible;
+  text-overflow: unset;
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  line-height: 1.4;
+  font-weight: 600;
+  vertical-align: top;
+  min-width: 10rem;
 }
 
 /* Quote status badges — design tokens */

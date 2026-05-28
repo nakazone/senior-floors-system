@@ -2939,6 +2939,107 @@ input.score-auto {
     color: var(--bg-white);
 }
 
+/* Quotes: nome do cliente sempre visivel (desktop, iPad, mobile) */
+.quotes-data-table .quotes-cell-client {
+    white-space: normal !important;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+    overflow: visible !important;
+    text-overflow: unset !important;
+    line-height: 1.4;
+    font-weight: 600;
+    color: var(--text-dark);
+    min-width: 11rem;
+    max-width: 22rem;
+}
+
+#quotesPage .table-container.sf-desktop-quotes-toolbar {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* iPad / tablet: lista em cards (cliente em destaque) em vez da tabela comprimida */
+@media (min-width: 769px) and (max-width: 1024px) {
+    #quotesPage #quotesMobileShell.sf-mobile-only {
+        display: block !important;
+    }
+
+    #quotesPage .sf-desktop-quotes-toolbar {
+        display: none !important;
+    }
+
+    #quotesPage .quotes-list-toolbar.sf-desktop-quotes-toolbar {
+        display: flex !important;
+    }
+
+    #quotesPage .sf-quotes-card-list {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    #quotesPage .sf-quote-card {
+        position: relative;
+        background: var(--bg-white);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 14px 16px;
+        overflow: hidden;
+    }
+
+    #quotesPage .sf-quote-card__inner {
+        position: relative;
+        z-index: 1;
+        background: var(--bg-white);
+    }
+
+    #quotesPage .sf-quote-card__client {
+        display: block;
+        width: 100%;
+        font-size: 1.05rem;
+        font-weight: 600;
+        line-height: 1.35;
+        color: var(--text-dark);
+        word-break: break-word;
+        overflow-wrap: anywhere;
+        margin: 0 0 8px;
+    }
+
+    #quotesPage .sf-quote-card__row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+
+    #quotesPage .sf-quote-card__amt {
+        font-size: 1rem;
+        font-weight: 700;
+        color: var(--primary-color);
+        white-space: nowrap;
+    }
+
+    #quotesPage .sf-quote-card__meta {
+        font-size: 0.8rem;
+        color: var(--text-muted, #64748b);
+    }
+
+    #quotesPage .sf-quote-card__actions {
+        position: absolute;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        display: flex;
+        transform: translateX(100%);
+        transition: transform 0.22s ease;
+    }
+
+    #quotesPage .sf-quote-card.sf-quote-card--open .sf-quote-card__actions {
+        transform: translateX(0);
+    }
+}
+
 .quotes-data-table .quotes-table-row {
     transition: background 0.12s ease;
 }
