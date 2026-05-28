@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#141928" />
+  <title>Builder Portal — Senior Floors</title>
+  <link rel="icon" type="image/png" href="/assets/SeniorFloors.png" />
+  <link rel="stylesheet" href="css/builders-portal.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700&display=swap" rel="stylesheet" />
+</head>
+<body class="bp-login-page">
+  <div class="bp-login-box">
+    <img src="/assets/SeniorFloors.png" alt="Senior Floors" width="64" height="64" style="display:block;margin:0 auto 16px" onerror="this.style.display='none'" />
+    <h1>Builder Partner Portal</h1>
+    <p style="color:var(--bp-muted);font-size:14px;margin:0 0 20px">Sign in to track your projects with Senior Floors.</p>
+    <form id="loginForm">
+      <label style="display:block;font-size:12px;font-weight:600;margin-bottom:4px">Email</label>
+      <input type="email" id="email" required style="width:100%;padding:10px;border:1px solid var(--bp-border);border-radius:8px;margin-bottom:12px;box-sizing:border-box" />
+      <label style="display:block;font-size:12px;font-weight:600;margin-bottom:4px">Password</label>
+      <input type="password" id="password" required style="width:100%;padding:10px;border:1px solid var(--bp-border);border-radius:8px;margin-bottom:16px;box-sizing:border-box" />
+      <p id="loginError" style="color:#dc2626;font-size:13px;display:none"></p>
+      <button type="submit" class="bp-btn-tan" style="width:100%">Sign in</button>
+    </form>
+  </div>
+  <script src="builder-auth.js?v=1"></script>
+</body>
+</html>

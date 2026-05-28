@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Project — Builder Portal</title>
+  <link rel="stylesheet" href="css/builders-portal.css" />
+</head>
+<body class="bp-page-body">
+  <div class="bp-portal-layout">
+    <aside class="bp-portal-sidebar">
+      <a href="builder-portal.html" style="color:var(--bp-tan)">? Dashboard</a>
+    </aside>
+    <main class="bp-portal-main" id="root">Loading…</main>
+  </div>
+  <script src="builder-auth.js?v=1"></script>
+  <script>
+    (async function () {
+      if (!window.builderAuth.requireAuth()) return;
+      const id = new URLSearchParams(location.search).get('id');
+      const r = await window.builderAuth.fetch('/api/builder-projects/' + id);
+      const j = await r.json();
+      const root = document.getElementById('root');
+      if (!j.success) { root.textContent = j.error || 'Not found'; return; }
+      const p = j.data.project;
+      root.innerHTML = '<h1 class="bp-title">' + (p.name || p.project_number) + '</h1><p>' + (p.address || '') + '</p><p>Status: ' + p.status + ' · Progress: ' + (p.completion_percentage || 0) + '%</p>';
+    })();
+  </script>
+</body>
+</html>

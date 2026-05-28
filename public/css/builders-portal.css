@@ -1,0 +1,63 @@
+/* Builder Partner Portal — brand-aligned */
+:root {
+  --bp-navy: #1a2036;
+  --bp-navy-deep: #141928;
+  --bp-tan: #d6b598;
+  --bp-tan-pale: #f5ede4;
+  --bp-off-white: #f7f8fc;
+  --bp-border: #e2e8f0;
+  --bp-muted: #6b7280;
+}
+
+.bp-page-body { background: var(--bp-off-white); min-height: 100vh; font-family: Inter, system-ui, sans-serif; }
+.bp-main { padding: 1rem 1.25rem 2rem; max-width: 1280px; margin: 0 auto; }
+.bp-eyebrow { font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--bp-tan); margin: 0 0 4px; }
+.bp-title { font-family: Poppins, Inter, sans-serif; font-size: 1.5rem; font-weight: 700; color: var(--bp-navy); margin: 0; }
+.bp-card {
+  background: #fff;
+  border: 1px solid var(--bp-border);
+  border-radius: 10px;
+  padding: 1rem 1.15rem;
+  margin-bottom: 1rem;
+  box-shadow: 0 2px 12px rgba(26, 32, 54, 0.05);
+}
+.bp-metrics { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; margin-bottom: 1.25rem; }
+.bp-metric__val { font-size: 1.5rem; font-weight: 700; color: var(--bp-navy); }
+.bp-metric__lbl { font-size: 12px; color: var(--bp-muted); }
+.bp-table-wrap { overflow-x: auto; border: 1px solid var(--bp-border); border-radius: 10px; background: #fff; }
+.bp-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.bp-table th, .bp-table td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--bp-border); }
+.bp-table th { background: #f8f9fc; font-size: 11px; text-transform: uppercase; color: var(--bp-muted); }
+.bp-badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; }
+.bp-badge--active { background: #dcfce7; color: #16a34a; }
+.bp-badge--pending { background: #fef3c7; color: #d97706; }
+.bp-badge--inactive { background: #f3f4f6; color: #6b7280; }
+.bp-badge--contractor { background: #dbeafe; color: #2563eb; }
+.bp-badge--architect { background: #ede9fe; color: #7c3aed; }
+.bp-badge--designer { background: #fce7f3; color: #db2777; }
+.bp-badge--developer { background: #ffedd5; color: #ea580c; }
+.bp-btn-tan { background: var(--bp-tan); color: var(--bp-navy); border: none; padding: 8px 16px; border-radius: 8px; font-weight: 600; cursor: pointer; }
+.bp-btn-tan:hover { filter: brightness(0.95); }
+.bp-filters { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; margin-bottom: 1rem; }
+.bp-filters input, .bp-filters select { padding: 8px 10px; border-radius: 8px; border: 1px solid var(--bp-border); font-size: 13px; }
+.bp-modal { position: fixed; inset: 0; background: rgba(26, 32, 54, 0.45); display: none; align-items: center; justify-content: center; z-index: 2000; padding: 16px; }
+.bp-modal.open { display: flex; }
+.bp-modal__box { background: #fff; border-radius: 12px; max-width: 720px; width: 100%; max-height: 90vh; overflow: auto; padding: 1.25rem; }
+.bp-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.bp-form-grid label { display: block; font-size: 11px; font-weight: 600; color: var(--bp-navy); margin-bottom: 4px; }
+.bp-form-grid input, .bp-form-grid select, .bp-form-grid textarea { width: 100%; padding: 8px 10px; border: 1px solid var(--bp-border); border-radius: 8px; box-sizing: border-box; font-size: 13px; }
+.bp-form-full { grid-column: 1 / -1; }
+
+/* External portal login */
+.bp-login-page { min-height: 100vh; background: var(--bp-navy-deep); display: flex; align-items: center; justify-content: center; padding: 24px; }
+.bp-login-box { background: #fff; border-radius: 12px; padding: 2rem; max-width: 400px; width: 100%; border: 2px solid var(--bp-tan); }
+.bp-login-box h1 { font-family: Poppins, sans-serif; color: var(--bp-navy); margin: 0 0 8px; font-size: 1.35rem; }
+.bp-portal-layout { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh; }
+.bp-portal-sidebar { background: var(--bp-navy); color: #fff; padding: 1rem; }
+.bp-portal-sidebar a { display: block; color: rgba(255,255,255,0.85); text-decoration: none; padding: 10px 12px; border-radius: 8px; font-size: 14px; margin-bottom: 4px; }
+.bp-portal-sidebar a:hover, .bp-portal-sidebar a.active { background: rgba(214, 181, 152, 0.2); color: var(--bp-tan); }
+.bp-portal-main { background: var(--bp-off-white); padding: 1.25rem; }
+@media (max-width: 768px) {
+  .bp-portal-layout { grid-template-columns: 1fr; }
+  .bp-form-grid { grid-template-columns: 1fr; }
+}

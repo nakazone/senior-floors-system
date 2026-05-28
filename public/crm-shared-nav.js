@@ -79,6 +79,17 @@
       ],
     },
     {
+      label: 'Builders',
+      items: [
+        { href: 'builders.html', label: 'Builders', perm: 'builders.view', page: '', iconKey: 'customers' },
+        { href: 'builder-portal.html', label: 'Portal do Builder', perm: 'builders.view', page: '', iconKey: 'customers' },
+        { href: 'projects.html?client_type=builder', label: 'Projetos Builders', perm: 'projects.view', page: '', iconKey: 'projects' },
+        { href: 'builder-pricing.html', label: 'Tabela de Valores', perm: 'builders.view', page: '', iconKey: 'quotes' },
+        { href: 'builder-gallery.html', label: 'Galeria de Projetos', perm: 'builders.view', page: '', iconKey: 'projects' },
+        { href: 'builder-messages.html', label: 'Mensagens', perm: 'builders.view', page: '', iconKey: 'activities' },
+      ],
+    },
+    {
       label: 'Financeiro & registo',
       items: [
         { href: 'financial.html', label: 'Financeiro', perm: 'contracts.view', page: '', iconKey: 'financial' },
@@ -141,6 +152,12 @@
     if (base === 'builder-payments-forecast.html') {
       return file === 'builder-payments-forecast.html';
     }
+    if (base === 'builders.html') return file === 'builders.html';
+    if (base === 'builder-detail.html') return file === 'builder-detail.html';
+    if (base === 'builder-pricing.html') return file === 'builder-pricing.html';
+    if (base === 'builder-gallery.html') return file === 'builder-gallery.html';
+    if (base === 'builder-messages.html') return file === 'builder-messages.html';
+    if (base === 'builder-portal.html') return file === 'builder-portal.html';
     if (pathAndQuery.indexOf('dashboard.html') >= 0 || base === 'dashboard.html') {
       if (file !== 'dashboard.html') return false;
       const expected = item.page || '';

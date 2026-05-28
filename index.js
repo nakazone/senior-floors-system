@@ -123,7 +123,10 @@ import { ensureLeadPipelineStageEnteredAt } from './lib/ensureLeadPipelineStageE
 import { ensurePayrollTimesheetDailyOverrideColumn } from './lib/ensurePayrollTimesheetDailyOverrideColumn.js';
 import { ensurePayrollEmployeeAllowOutsidePeriodColumn } from './lib/ensurePayrollEmployeeAllowOutsidePeriodColumn.js';
 import { ensureBuilderPaymentForecastsTable } from './lib/ensureBuilderPaymentForecastsTable.js';
+import { ensureBuilderPortalSchema } from './lib/ensureBuilderPortalSchema.js';
 import { ensureProjectChildTables } from './lib/ensureProjectChildTables.js';
+import { registerBuilderAuthRoutes } from './routes/builderAuth.js';
+import { registerBuilderRoutes } from './routes/builders.js';
 import { ensureFinancialCompleteSchema } from './lib/ensureFinancialCompleteSchema.js';
 import { getUiConfig } from './routes/uiConfig.js';
 
@@ -481,6 +484,8 @@ app.put('/api/projects/:projectId/financial', requireAuth, updateProjectFinancia
 // Projects (router completo: lista, custos, checklist, fotos, P&L, etc.)
 app.use('/api/projects', projectsRouter);
 app.use('/api/builder-payment-forecasts', builderPaymentForecastsRouter);
+registerBuilderAuthRoutes(app);
+registerBuilderRoutes(app);
 
 // Visits/Schedule
 app.get('/api/visits', requireAuth, listVisits);
@@ -791,6 +796,7 @@ async function start() {
       await ensurePayrollTimesheetDailyOverrideColumn(pool);
       await ensurePayrollEmployeeAllowOutsidePeriodColumn(pool);
       await ensureBuilderPaymentForecastsTable(pool);
+      await ensureBuilderPortalSchema(pool);
       await ensureProjectChildTables(pool);
       try {
         await ensureFinancialCompleteSchema(pool);
