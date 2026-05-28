@@ -21,6 +21,7 @@ import {
   updateLead,
   deleteLead,
   getLeadsQuoteEngagementSummary,
+  getLeadVisitCalendar,
 } from './routes/leads.js';
 import { login, logout, checkSession, changePassword } from './routes/auth.js';
 import { requireAuth, requireRole, requirePermission } from './middleware/auth.js';
@@ -399,6 +400,7 @@ app.get('/api/leads/:leadId/followups', requireAuth, listFollowups);
 app.post('/api/leads/:leadId/followups', requireAuth, createFollowup);
 app.get('/api/leads/:leadId/proposals', requireAuth, listProposals);
 app.post('/api/leads/:leadId/proposals', requireAuth, createProposal);
+app.get('/api/leads/:leadId/calendar.ics', requireAuth, getLeadVisitCalendar);
 app.get('/api/leads/:id', requireAuth, getLead);
 app.post('/api/leads', requireAuth, createLead);
 app.put('/api/leads/:id', requireAuth, updateLead);

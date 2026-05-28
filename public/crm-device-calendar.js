@@ -1,33 +1,10 @@
 /**
- * Abre o calendário nativo do dispositivo com um evento de visita pré-preenchido (ficheiro .ics).
+ * Abre o calendario nativo do dispositivo com evento de visita pre-preenchido.
+ * Android: Google Calendar (app). iOS/desktop: .ics inline via API (sem download forcado).
  */
 (function (global) {
   'use strict';
 
-  function escapeIcsText(value) {
-    return String(value || '')
-      .replace(/\\/g, '\\\\')
-      .replace(/\r\n/g, '\n')
-      .replace(/\n/g, '\\n')
-      .replace(/;/g, '\\;')
-      .replace(/,/g, '\\,');
-  }
-
-  function formatIcsLocalDateTime(date) {
-    const d = date instanceof Date ? date : new Date(date);
-    const pad = (n) => String(n).padStart(2, '0');
-    return (
-      d.getFullYear() +
-      pad(d.getMonth() + 1) +
-      pad(d.getDate()) +
-      'T' +
-      pad(d.getHours()) +
-      pad(d.getMinutes()) +
-      pad(d.getSeconds())
-    );
-  }
-
-  /** Próximo slot :00 ou :30 a partir de agora. */
   function snapToNextHalfHour(fromDate) {
     const d = new Date(fromDate || Date.now());
     d.setSeconds(0, 0);
@@ -41,6 +18,19 @@
     return d;
   }
 
+  function formatGoogleCalendarDate(d) {
+    const pad = (n) => String(n).padStart(2, '0');
+    return (
+      d.getFullYear() +
+      pad(d.getMonth() + 1) +
+      pad(d.getDate()) +
+      'T' +
+      pad(d.getHours()) +
+      pad(d.getMinutes()) +
+      '00'
+    );
+  }
+
   function buildLeadVisitLocation(lead) {
     if (!lead || typeof lead !== 'object') return '';
     const line1 = String(lead.address_line1 || lead.address || '').trim();
@@ -48,9 +38,7 @@
     const city = String(lead.city || '').trim();
     const zip = String(lead.zipcode || lead.zip || '').trim();
     const parts = [line1, line2, city, zip].filter(Boolean);
-    if (parts.length) return parts.join(', ');
-    if (line1) return line1;
-    return '';
+    return parts.length ? parts.join(', ') : line1;
   }
 
   function buildLeadVisitDescription(lead) {
@@ -63,7 +51,7 @@
     try {
       const origin = global.location && global.location.origin ? global.location.origin : '';
       if (origin && lead && lead.id) {
-        lines.push('CRM: ' + origin + '/lead-detail.html?id=' + encodeURIComponent(String(lead.id)));
+        lines.push(origin + '/lead-detail.html?id=' + encodeURIComponent(String(lead.id)));
       }
     } catch (_) {}
     if (lead && lead.notes) lines.push(String(lead.notes).trim());
@@ -71,93 +59,84 @@
     return lines.filter(Boolean).join('\n');
   }
 
-  /**
-   * @param {object} lead
-   * @param {{ start?: Date, durationMinutes?: number }} [options]
-   * @returns {string}
-   */
-  function buildLeadVisitIcs(lead, options) {
+  function buildGoogleCalendarUrl(lead, options) {
     const opts = options || {};
     const start = opts.start instanceof Date ? opts.start : snapToNextHalfHour();
     const durationMinutes =
       typeof opts.durationMinutes === 'number' && opts.durationMinutes > 0 ? opts.durationMinutes : 60;
     const end = new Date(start.getTime() + durationMinutes * 60 * 1000);
     const name = (lead && lead.name ? String(lead.name) : 'Lead').trim() || 'Lead';
-    const uid =
-      'lead-visit-' +
-      (lead && lead.id ? String(lead.id) : '0') +
-      '-' +
-      Date.now() +
-      '@seniorfloors-crm';
+    const params = new URLSearchParams({
+      action: 'TEMPLATE',
+      text: 'Visita — ' + name,
+      dates: formatGoogleCalendarDate(start) + '/' + formatGoogleCalendarDate(end),
+      details: buildLeadVisitDescription(lead),
+      location: buildLeadVisitLocation(lead),
+    });
+    return 'https://calendar.google.com/calendar/render?' + params.toString();
+  }
 
-    const lines = [
-      'BEGIN:VCALENDAR',
-      'VERSION:2.0',
-      'PRODID:-//Senior Floors CRM//PT',
-      'CALSCALE:GREGORIAN',
-      'METHOD:PUBLISH',
-      'BEGIN:VEVENT',
-      'UID:' + uid,
-      'DTSTAMP:' + formatIcsLocalDateTime(new Date()),
-      'DTSTART:' + formatIcsLocalDateTime(start),
-      'DTEND:' + formatIcsLocalDateTime(end),
-      'SUMMARY:' + escapeIcsText('Visita — ' + name),
-      'LOCATION:' + escapeIcsText(buildLeadVisitLocation(lead)),
-      'DESCRIPTION:' + escapeIcsText(buildLeadVisitDescription(lead)),
-      'STATUS:TENTATIVE',
-      'END:VEVENT',
-      'END:VCALENDAR',
-    ];
-    return lines.join('\r\n');
+  function isAndroidDevice() {
+    return /Android/i.test(navigator.userAgent || '');
+  }
+
+  function isIosDevice() {
+    const ua = navigator.userAgent || '';
+    return (
+      /iPad|iPhone|iPod/i.test(ua) ||
+      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+    );
+  }
+
+  function openIcsViaApi(leadId) {
+    const url = '/api/leads/' + encodeURIComponent(String(leadId)) + '/calendar.ics';
+
+    if (isIosDevice()) {
+      // Nova aba: Safari mostra "Adicionar ao Calendario" em vez de guardar ficheiro
+      const opened = window.open(url, '_blank', 'noopener');
+      if (!opened) {
+        global.location.href = url;
+      }
+      return true;
+    }
+
+    // Desktop / outros: navegar na mesma janela abre handler .ics do SO
+    global.location.href = url;
+    return true;
   }
 
   /**
-   * Dispara download/abertura do .ics no calendário padrão do sistema.
    * @param {object} lead
    * @param {{ start?: Date, durationMinutes?: number }} [options]
    * @returns {boolean}
    */
   function openLeadVisitInDeviceCalendar(lead, options) {
     if (!lead) return false;
-    const ics = buildLeadVisitIcs(lead, options);
-    const safeId = lead.id != null ? String(lead.id).replace(/[^\w-]/g, '') : 'lead';
-    const filename = 'visita-lead-' + safeId + '.ics';
 
     try {
-      const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      const ua = navigator.userAgent || '';
-      const isIos =
-        /iPad|iPhone|iPod/i.test(ua) ||
-        (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-
-      if (isIos) {
-        const opened = window.open(url, '_blank');
-        if (!opened) window.location.href = url;
-      } else {
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        a.rel = 'noopener';
-        a.style.display = 'none';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
+      if (isAndroidDevice()) {
+        global.location.href = buildGoogleCalendarUrl(lead, options);
+        return true;
       }
 
-      setTimeout(() => {
-        try {
-          URL.revokeObjectURL(url);
-        } catch (_) {}
-      }, 60000);
-      return true;
+      if (lead.id != null && lead.id !== '') {
+        return openIcsViaApi(lead.id);
+      }
+
+      // Fallback sem ID: data URI (sem atributo download)
+      if (typeof global.sfBuildLeadVisitIcs === 'function') {
+        const ics = global.sfBuildLeadVisitIcs(lead, options);
+        const dataUrl = 'data:text/calendar;charset=utf-8,' + encodeURIComponent(ics);
+        global.location.href = dataUrl;
+        return true;
+      }
     } catch (err) {
       console.warn('[crm-device-calendar]', err);
-      return false;
     }
+    return false;
   }
 
-  global.sfBuildLeadVisitIcs = buildLeadVisitIcs;
   global.sfOpenLeadVisitInDeviceCalendar = openLeadVisitInDeviceCalendar;
+  global.sfBuildGoogleCalendarVisitUrl = buildGoogleCalendarUrl;
   global.sfSnapVisitToNextHalfHour = snapToNextHalfHour;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -5,6 +5,7 @@ import { getDBConnection, isDatabaseConfigured } from '../config/db.js';
 import { getLeadsTableColumns } from '../lib/leadColumns.js';
 import { extractMarketingFromBody, MARKETING_KEYS } from '../lib/marketingLeadFields.js';
 import * as quoteRepo from '../modules/quotes/quoteRepository.js';
+import { buildLeadVisitIcs } from '../lib/leadVisitIcs.js';
 
 /** Alinhado a public/pipeline-stage-labels.js — normaliza status legado para slug canonico. */
 const LEGACY_SLUG_TO_CANONICAL = {
@@ -261,6 +262,30 @@ export async function getLead(req, res) {
     res.json({ success: true, data: rows[0] });
   } catch (e) {
     res.status(500).json({ error: e.message });
+  }
+}
+
+/** .ics inline — abre calendário nativo (iOS/Android/desktop) em vez de forçar download. */
+export async function getLeadVisitCalendar(req, res) {
+  if (!isDatabaseConfigured()) return res.status(503).send('Database not configured');
+  const id = parseInt(req.params.leadId, 10);
+  if (!id) return res.status(400).send('Invalid id');
+  try {
+    const pool = await getDBConnection();
+    const [rows] = await pool.query('SELECT * FROM leads WHERE id = ?', [id]);
+    if (!rows.length) return res.status(404).send('Lead not found');
+    const host = req.get('host') || '';
+    const proto = req.protocol || 'https';
+    const crmOrigin = host ? `${proto}://${host}` : '';
+    const ics = buildLeadVisitIcs(rows[0], { crmOrigin });
+    res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
+    res.setHeader('Content-Disposition', 'inline; filename="visita-lead.ics"');
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.send(ics);
+  } catch (e) {
+    console.error('getLeadVisitCalendar:', e);
+    res.status(500).send('Error generating calendar');
   }
 }
 
