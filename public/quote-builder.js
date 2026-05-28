@@ -4,6 +4,8 @@
   let quoteId = null;
   /** Número legível do orçamento (ex. Q-2026-001). */
   let loadedQuoteNumber = null;
+  /** Base URL pública do CRM (ex. https://app.senior-floors.com). */
+  let clientPublicCrmUrl = null;
   /** Lead vindo de `?lead_id=` (novo orçamento a partir do lead). */
   let pendingLeadId = null;
   /** `lead_id` do quote já gravado (edição). */
@@ -1083,9 +1085,9 @@
     if (!quoteId) return '';
     try {
       const r = await api(`/api/quotes/${quoteId}`);
-      const t = r.data && r.data.public_token;
-      if (t) {
-        setPublicLink(t);
+      const q = r.data || {};
+      if (q.quote_number || q.public_token) {
+        setPublicLink(q.public_token, q.quote_number);
         return getQuotePublicUrlFromDom();
       }
     } catch (_) {
@@ -1946,16 +1948,40 @@
     return j;
   }
 
-  function setPublicLink(token) {
+  function isQuoteNumberForPublicUrl(quoteNumber) {
+    return /^Q-\d{4}-\d+$/i.test(String(quoteNumber || '').trim());
+  }
+
+  function publicLinkBaseUrl() {
+    const base = (clientPublicCrmUrl || location.origin || '').replace(/\/$/, '');
+    return base || location.origin;
+  }
+
+  function buildClientPublicQuoteUrl(quoteNumber) {
+    const qn = String(quoteNumber || '').trim();
+    if (!isQuoteNumberForPublicUrl(qn)) return '';
+    return `${publicLinkBaseUrl()}/${encodeURIComponent(qn)}`;
+  }
+
+  function setPublicLink(token, quoteNumber) {
     const w = $('publicLinkWrap');
     const a = $('publicLink');
-    if (!token) {
-      w.classList.add('hidden');
+    if (!w || !a) return;
+    const qn = quoteNumber != null ? quoteNumber : loadedQuoteNumber;
+    const prettyUrl = buildClientPublicQuoteUrl(qn);
+    if (prettyUrl) {
+      a.href = prettyUrl;
+      a.textContent = prettyUrl;
+      w.classList.remove('hidden');
       return;
     }
-    a.href = `${location.origin}/quote-public.html?t=${encodeURIComponent(token)}`;
-    a.textContent = a.href;
-    w.classList.remove('hidden');
+    if (token) {
+      a.href = `${location.origin}/quote-public.html?t=${encodeURIComponent(token)}`;
+      a.textContent = a.href;
+      w.classList.remove('hidden');
+      return;
+    }
+    w.classList.add('hidden');
   }
 
   function enableActions() {
@@ -2014,7 +2040,7 @@
     startQuoteViewPolling();
     updatePreviewHeader();
     renderClientDetails();
-    setPublicLink(q.public_token);
+    setPublicLink(q.public_token, q.quote_number);
     enableActions();
     applyPricingFromCustomerId($('customerId').value);
     renderItems();
@@ -2076,7 +2102,7 @@
             r.data.quote.quote_number != null ? String(r.data.quote.quote_number).trim() : null;
           $('quoteMeta').textContent = `Orçamento ${r.data.quote.quote_number || '#' + r.data.quote.id} · total ${money(r.data.quote.total_amount)}`;
           updatePreviewHeader();
-          setPublicLink(r.data.quote.public_token);
+          setPublicLink(r.data.quote.public_token, r.data.quote.quote_number);
         }
       } else {
         const r = await api('/api/quotes/full', { method: 'POST', body: JSON.stringify(body) });
@@ -2104,14 +2130,20 @@
       return;
     }
 
-    const [custRes, catRes, tplRes] = await Promise.all([
+    const [custRes, catRes, tplRes, uiRes] = await Promise.all([
       api('/api/customers?limit=100'),
       api('/api/quote-catalog').catch(() => ({ data: [] })),
       api('/api/quote-templates').catch(() => ({ data: [] })),
+      fetch('/api/config/ui', { credentials: 'include' })
+        .then((r) => r.json())
+        .catch(() => ({})),
     ]);
     clients = custRes.data || [];
     catalog = catRes.data || [];
     templates = tplRes.data || [];
+    if (uiRes.success && uiRes.data && uiRes.data.publicCrmUrl) {
+      clientPublicCrmUrl = String(uiRes.data.publicCrmUrl).replace(/\/$/, '');
+    }
 
     wireClientLeadSearch();
     attachItemsListHandlers();
@@ -2142,7 +2174,7 @@
       updatePreviewHeader();
       renderClientDetails();
       updateClientActionButtons();
-      setPublicLink('');
+      setPublicLink(null);
       enableActions();
       renderItems();
     }

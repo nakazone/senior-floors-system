@@ -1,13 +1,15 @@
 /* global fetch, crmNotify */
 (function () {
   const params = new URLSearchParams(location.search);
-  const token = params.get('t');
+  const legacyToken = params.get('t');
   const docEl = document.getElementById('quoteDocument');
   const innerEl = document.getElementById('quoteDocumentInner');
   const actionsEl = document.getElementById('quoteActions');
   const approvedEl = document.getElementById('quoteApprovedMsg');
   const errorEl = document.getElementById('quoteError');
   const loadingEl = document.getElementById('quoteLoading');
+
+  const QUOTE_NUMBER_PATH_RE = /^\/(Q-\d{4}-\d+)\/?$/i;
 
   const COMPANY = {
     name: 'Senior Floors',
@@ -34,6 +36,28 @@
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;');
   }
+
+
+  function resolvePublicQuoteAccess() {
+    const pathMatch = location.pathname.match(QUOTE_NUMBER_PATH_RE);
+    if (pathMatch) {
+      return {
+        mode: 'number',
+        ref: pathMatch[1],
+        apiBase: `/api/public/quotes/by-number/${encodeURIComponent(pathMatch[1])}`,
+      };
+    }
+    if (legacyToken && legacyToken.length >= 16) {
+      return {
+        mode: 'token',
+        ref: legacyToken,
+        apiBase: `/api/public/quotes/${encodeURIComponent(legacyToken)}`,
+      };
+    }
+    return null;
+  }
+
+  const access = resolvePublicQuoteAccess();
 
   function defaultTerms() {
     return (
@@ -217,6 +241,7 @@
   }
 
   function renderActions(approved) {
+    if (!access) return;
     if (approved) {
       actionsEl.innerHTML = '';
       actionsEl.hidden = true;
@@ -229,7 +254,7 @@
     actionsEl.innerHTML = `
       <a
         class="qp-btn qp-btn--outline"
-        href="/api/public/quotes/${encodeURIComponent(token)}/pdf"
+        href="${access.apiBase}/pdf"
         target="_blank"
         rel="noopener noreferrer"
       >Download PDF</a>
@@ -240,7 +265,7 @@
       btn.addEventListener('click', async () => {
         btn.disabled = true;
         try {
-          const rr = await fetch(`/api/public/quotes/${encodeURIComponent(token)}/approve`, {
+          const rr = await fetch(`${access.apiBase}/approve`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: '{}',
@@ -274,12 +299,12 @@
   }
 
   async function load() {
-    if (!token || token.length < 16) {
+    if (!access) {
       showError('Invalid or missing link.');
       return;
     }
     try {
-      const r = await fetch(`/api/public/quotes/${encodeURIComponent(token)}`);
+      const r = await fetch(access.apiBase);
       const j = await r.json();
       if (!r.ok || !j.success) {
         showError('Quote not found or link expired.');

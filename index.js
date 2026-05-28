@@ -47,6 +47,7 @@ import * as quoteExt from './routes/quoteExtended.js';
 import { getEmailTransportStatus } from './modules/quotes/quoteMail.js';
 import * as erpMaterials from './routes/erpMaterials.js';
 import * as publicQuote from './routes/publicQuote.js';
+import { isPublicQuoteNumberPath } from './lib/publicQuoteUrl.js';
 import { quotePdfUploadMiddleware } from './lib/quotePdfUpload.js';
 import projectsRouter from './routes/projects.js';
 import builderPaymentForecastsRouter from './routes/builderPaymentForecasts.js';
@@ -370,7 +371,10 @@ app.get('/api/health/db', async (req, res) => {
   }
 });
 
-// Public quote (token link — no auth)
+// Public quote (no auth) — número legível Q-2026-001 ou token legado
+app.get('/api/public/quotes/by-number/:quoteNumber', publicQuote.getPublicQuoteByNumber);
+app.get('/api/public/quotes/by-number/:quoteNumber/pdf', publicQuote.getPublicQuotePdfByNumber);
+app.post('/api/public/quotes/by-number/:quoteNumber/approve', publicQuote.postApproveQuoteByNumber);
 app.get('/api/public/quotes/:token', publicQuote.getPublicQuote);
 app.get('/api/public/quotes/:token/pdf', publicQuote.getPublicQuotePdf);
 app.post('/api/public/quotes/:token/approve', publicQuote.postApproveQuote);
@@ -648,6 +652,12 @@ app.all('/system.php', (req, res) => {
   }
   if (req.query.api === 'db-check' && req.method === 'GET') return handleDbCheck(req, res);
   res.status(404).json({ error: 'Not found' });
+});
+
+// Orçamento público — https://app.senior-floors.com/Q-2026-001
+app.get('/:quoteSlug', (req, res, next) => {
+  if (!isPublicQuoteNumberPath(req.params.quoteSlug)) return next();
+  return res.sendFile(path.join(__dirname, 'public', 'quote-public.html'));
 });
 
 // Estático depois de todas as rotas (API tem prioridade; evita POST/PUT em /api/* a serem tratados como ficheiros)

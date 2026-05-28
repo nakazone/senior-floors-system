@@ -2,6 +2,7 @@ import * as calc from './calculations.js';
 import * as repo from './quoteRepository.js';
 import { buildQuotePdfBuffer } from './quotePdf.js';
 import { sendQuoteEmail } from './quoteMail.js';
+import { buildPublicQuoteUrl, getPublicCrmBaseUrl } from '../../lib/publicQuoteUrl.js';
 import { summarizeQuoteProfit } from '../pricing/marginPricing.js';
 import { ensureProjectForApprovedQuote } from './quoteProjectFromApproval.js';
 import { applyQuoteLineRevenueToProject } from '../../lib/syncProjectRevenueFromQuote.js';
@@ -506,18 +507,17 @@ export async function mailQuote(pool, quoteId, EmailOpts = {}) {
   if (!gen.ok) {
     return { ok: false, error: gen.error || 'Não foi possível gerar o PDF do orçamento.' };
   }
-  const base =
-    process.env.PUBLIC_CRM_URL ||
-    (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : '');
+  const base = getPublicCrmBaseUrl();
   const token = ctx.quote.public_token;
   const publicUrl =
-    token && base ? `${base.replace(/\/$/, '')}/quote-public.html?t=${encodeURIComponent(token)}` : '';
+    buildPublicQuoteUrl(ctx.quote.quote_number, base) ||
+    (token && base ? `${base}/quote-public.html?t=${encodeURIComponent(token)}` : '');
 
   if (!publicUrl) {
     return {
       ok: false,
       error:
-        'Link público indisponível. Defina PUBLIC_CRM_URL no Railway (URL do CRM, ex.: https://seu-app.railway.app).',
+        'Link público indisponível. Defina PUBLIC_CRM_URL no Railway (ex.: https://app.senior-floors.com).',
     };
   }
 
@@ -577,6 +577,73 @@ export async function getByPublicToken(pool, token) {
     [q.id]
   );
   return { quote: q, items: items.map(mapItemRow) };
+}
+
+export async function getByQuoteNumber(pool, quoteNumber) {
+  const qn = String(quoteNumber || '').trim();
+  if (!qn) return null;
+  const [quotes] = await pool.query(
+    `SELECT q.*, c.name AS customer_name, c.email AS customer_email, c.phone AS customer_phone
+     FROM quotes q
+     LEFT JOIN customers c ON q.customer_id = c.id
+     WHERE q.quote_number = ?`,
+    [qn]
+  );
+  if (!quotes.length) return null;
+  const q = quotes[0];
+  const itemCols = await repo.quoteItemColumns(pool);
+  const ob = repo.quoteItemsOrderByClause(itemCols);
+  const [items] = await pool.query(
+    `SELECT * FROM quote_items WHERE quote_id = ? ORDER BY ${ob}`,
+    [q.id]
+  );
+  return { quote: q, items: items.map(mapItemRow) };
+}
+
+export async function markQuoteViewedByNumber(pool, quoteNumber) {
+  const ctx = await getByQuoteNumber(pool, quoteNumber);
+  if (!ctx) return null;
+  const id = ctx.quote.id;
+  const st = String(ctx.quote.status || '').toLowerCase();
+  await pool.execute('UPDATE quotes SET viewed_at = COALESCE(viewed_at, NOW()) WHERE id = ?', [id]);
+  if (st === 'sent') {
+    await pool.execute('UPDATE quotes SET status = ? WHERE id = ? AND status = ?', ['viewed', id, 'sent']);
+  }
+  return getByQuoteNumber(pool, quoteNumber);
+}
+
+export async function markQuotePdfDownloadedByNumber(pool, quoteNumber) {
+  const ctx = await getByQuoteNumber(pool, quoteNumber);
+  if (!ctx) return null;
+  const id = ctx.quote.id;
+  const cols = await repo.quoteColumns(pool);
+  if (cols.has('pdf_viewed_at')) {
+    await pool.execute('UPDATE quotes SET pdf_viewed_at = COALESCE(pdf_viewed_at, NOW()) WHERE id = ?', [
+      id,
+    ]);
+  }
+  await pool.execute('UPDATE quotes SET viewed_at = COALESCE(viewed_at, NOW()) WHERE id = ?', [id]);
+  const st = String(ctx.quote.status || '').toLowerCase();
+  if (st === 'sent') {
+    await pool.execute('UPDATE quotes SET status = ? WHERE id = ? AND status = ?', ['viewed', id, 'sent']);
+  }
+  return getByQuoteNumber(pool, quoteNumber);
+}
+
+export async function approvePublicQuoteByNumber(pool, quoteNumber) {
+  const ctx = await getByQuoteNumber(pool, quoteNumber);
+  if (!ctx) return null;
+  const id = ctx.quote.id;
+  await pool.execute(
+    'UPDATE quotes SET status = ?, approved_at = COALESCE(approved_at, NOW()) WHERE id = ?',
+    ['approved', id]
+  );
+  try {
+    await ensureProjectForApprovedQuote(pool, id);
+  } catch (e) {
+    console.error('ensureProjectForApprovedQuote:', e);
+  }
+  return getByQuoteNumber(pool, quoteNumber);
 }
 
 export async function markQuoteViewed(pool, token) {

@@ -3,6 +3,7 @@
  */
 import { getDBConnection } from '../config/db.js';
 import * as business from '../modules/quotes/quoteBusiness.js';
+import { normalizeQuoteNumberForUrl } from '../lib/publicQuoteUrl.js';
 
 function sanitizeQuote(q) {
   if (!q) return q;
@@ -21,6 +22,84 @@ function sanitizePublicItems(items) {
     delete o.product_id;
     return o;
   });
+}
+
+export async function getPublicQuoteByNumber(req, res) {
+  try {
+    const quoteNumber = normalizeQuoteNumberForUrl(req.params.quoteNumber);
+    if (!quoteNumber) {
+      return res.status(400).json({ success: false, error: 'Invalid quote number' });
+    }
+    const pool = await getDBConnection();
+    if (!pool) return res.status(503).json({ success: false, error: 'Database not available' });
+
+    const ctx = await business.markQuoteViewedByNumber(pool, quoteNumber);
+    if (!ctx) return res.status(404).json({ success: false, error: 'Quote not found' });
+
+    res.json({
+      success: true,
+      data: {
+        quote: sanitizeQuote(ctx.quote),
+        items: sanitizePublicItems(ctx.items),
+      },
+    });
+  } catch (e) {
+    console.error('getPublicQuoteByNumber:', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+}
+
+export async function getPublicQuotePdfByNumber(req, res) {
+  try {
+    const quoteNumber = normalizeQuoteNumberForUrl(req.params.quoteNumber);
+    if (!quoteNumber) {
+      return res.status(400).json({ success: false, error: 'Invalid quote number' });
+    }
+    const pool = await getDBConnection();
+    if (!pool) return res.status(503).json({ success: false, error: 'Database not available' });
+
+    const ctx = await business.getByQuoteNumber(pool, quoteNumber);
+    if (!ctx) return res.status(404).json({ success: false, error: 'Quote not found' });
+
+    await business.markQuotePdfDownloadedByNumber(pool, quoteNumber);
+
+    const pdfBuf = await business.getQuotePdfBufferForPublic(pool, ctx.quote.id);
+    if (!pdfBuf || !pdfBuf.length) {
+      return res.status(404).json({ success: false, error: 'PDF not available' });
+    }
+
+    const qn = ctx.quote.quote_number || ctx.quote.id;
+    const filename = `Senior-Floors-Quote-${qn}.pdf`.replace(/[^\w.-]+/g, '_');
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
+    return res.send(pdfBuf);
+  } catch (e) {
+    console.error('getPublicQuotePdfByNumber:', e);
+    if (!res.headersSent) res.status(500).json({ success: false, error: e.message });
+  }
+}
+
+export async function postApproveQuoteByNumber(req, res) {
+  try {
+    const quoteNumber = normalizeQuoteNumberForUrl(req.params.quoteNumber);
+    if (!quoteNumber) {
+      return res.status(400).json({ success: false, error: 'Invalid quote number' });
+    }
+    const pool = await getDBConnection();
+    if (!pool) return res.status(503).json({ success: false, error: 'Database not available' });
+    const ctx = await business.approvePublicQuoteByNumber(pool, quoteNumber);
+    if (!ctx) return res.status(404).json({ success: false, error: 'Quote not found' });
+    res.json({
+      success: true,
+      data: {
+        quote: sanitizeQuote(ctx.quote),
+        items: sanitizePublicItems(ctx.items),
+      },
+    });
+  } catch (e) {
+    console.error('postApproveQuoteByNumber:', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
 }
 
 export async function getPublicQuote(req, res) {
