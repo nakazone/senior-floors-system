@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Price calculator — Builder Portal</title>
+  <link rel="stylesheet" href="css/builders-portal.css" />
+</head>
+<body class="bp-page-body">
+  <div class="bp-portal-layout">
+    <aside class="bp-portal-sidebar">
+      <a href="builder-portal.html">Dashboard</a>
+      <a href="builder-calculator.html" class="active">Calculator</a>
+      <a href="builder-pricing.html">Full pricing</a>
+      <a href="builder-estimate-request.html">Request estimate</a>
+    </aside>
+    <main class="bp-portal-main">
+      <div class="bp-main" style="max-width:520px">
+        <h1 class="bp-title">Quick estimate</h1>
+        <p class="bp-muted">Ballpark range from your partner rates (not a formal quote).</p>
+        <div class="bp-card bp-form-grid">
+          <div class="bp-form-full"><label>Service</label><select id="calcService"></select></div>
+          <div class="bp-form-full"><label>Area (sq ft): <strong id="areaLabel">1000</strong></label>
+            <input type="range" id="calcArea" min="100" max="8000" step="50" value="1000" style="width:100%" />
+            <input type="number" id="calcAreaNum" min="100" value="1000" style="margin-top:8px;width:120px" />
+          </div>
+          <button type="button" class="bp-btn-tan" id="btnCalc">Calculate</button>
+        </div>
+        <div id="calcResult" class="bp-card hidden" style="margin-top:1rem;background:var(--bp-navy);color:#fff;border:none">
+          <p style="margin:0 0 8px;opacity:0.85">Estimated range</p>
+          <p id="calcRange" style="font-size:1.75rem;font-weight:700;margin:0"></p>
+          <p id="calcVol" class="bp-muted" style="color:var(--bp-tan);margin-top:8px;font-size:13px"></p>
+        </div>
+        <p style="margin-top:1rem"><a href="builder-estimate-request.html" class="bp-btn-tan" style="text-decoration:none;display:inline-block">Request formal estimate ?</a></p>
+      </div>
+    </main>
+  </div>
+  <script src="builder-auth.js?v=2"></script>
+  <script src="builder-calculator.js?v=1"></script>
+</body>
+</html>

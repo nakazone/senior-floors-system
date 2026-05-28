@@ -87,6 +87,13 @@
         { href: 'builder-pricing.html', label: 'Tabela de Valores', perm: 'builders.view', page: '', iconKey: 'quotes' },
         { href: 'builder-gallery.html', label: 'Galeria de Projetos', perm: 'builders.view', page: '', iconKey: 'projects' },
         { href: 'builder-messages.html', label: 'Mensagens', perm: 'builders.view', page: '', iconKey: 'activities' },
+        {
+          href: 'builder-estimate-requests.html',
+          label: 'Pedidos estimativa',
+          perm: 'builders.view',
+          page: '',
+          iconKey: 'leads',
+        },
       ],
     },
     {
@@ -158,6 +165,8 @@
     if (base === 'builder-gallery.html') return file === 'builder-gallery.html';
     if (base === 'builder-messages.html') return file === 'builder-messages.html';
     if (base === 'builder-portal.html') return file === 'builder-portal.html';
+    if (base === 'builder-estimate-requests.html') return file === 'builder-estimate-requests.html';
+    if (base === 'builder-calculator.html') return file === 'builder-calculator.html';
     if (pathAndQuery.indexOf('dashboard.html') >= 0 || base === 'dashboard.html') {
       if (file !== 'dashboard.html') return false;
       const expected = item.page || '';

@@ -84,6 +84,8 @@
 .bp-checklist { display: flex; flex-direction: column; gap: 8px; }
 .bp-check-item { background: #fff; border: 1px solid var(--bp-border); border-radius: 8px; padding: 12px; }
 .bp-check-item--done { opacity: 0.75; }
+.bp-check-group { display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+.bp-check-group label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
 .bp-muted { color: var(--bp-muted); font-size: 13px; }
 .bp-manager { margin-bottom: 1rem; }
 .hidden { display: none !important; }

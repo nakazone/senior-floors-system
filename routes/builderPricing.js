@@ -1,5 +1,5 @@
 /**
- * Partner pricing table — admin edit, builder read-only view.
+ * Partner pricing table  admin edit, builder read-only view.
  */
 import { getDBConnection } from '../config/db.js';
 import { requireAuth, requirePermission } from '../middleware/auth.js';
@@ -63,19 +63,24 @@ export async function listPricingAdmin(req, res) {
   }
 }
 
+export async function getPartnerPricingForBuilder(pool, builderId) {
+  const [b] = await pool.query('SELECT discount_pct FROM builders WHERE id = ?', [builderId]);
+  const discount = b[0]?.discount_pct;
+  const overrides = await loadOverrides(pool, builderId);
+  const [rows] = await pool.query(
+    'SELECT * FROM pricing_services WHERE is_visible = 1 ORDER BY sort_order ASC, id ASC'
+  );
+  return rows.map((r) => mapServiceRow(r, overrides, discount));
+}
+
 export async function listPricingBuilder(req, res) {
   try {
     const pool = await getDBConnection();
     const builderId = req.builderAuth.builderId;
-    const [b] = await pool.query('SELECT discount_pct FROM builders WHERE id = ?', [builderId]);
-    const discount = b[0]?.discount_pct;
-    const overrides = await loadOverrides(pool, builderId);
-    const [rows] = await pool.query(
-      'SELECT * FROM pricing_services WHERE is_visible = 1 ORDER BY sort_order ASC, id ASC'
-    );
+    const data = await getPartnerPricingForBuilder(pool, builderId);
     res.json({
       success: true,
-      data: rows.map((r) => mapServiceRow(r, overrides, discount)),
+      data,
       volume_discounts: VOLUME_DISCOUNTS,
     });
   } catch (e) {

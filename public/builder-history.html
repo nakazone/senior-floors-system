@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Project history — Builder Portal</title>
+  <link rel="stylesheet" href="css/builders-portal.css" />
+</head>
+<body class="bp-page-body">
+  <div class="bp-portal-layout">
+    <aside class="bp-portal-sidebar">
+      <a href="builder-portal.html">Dashboard</a>
+      <a href="builder-history.html" class="active">History</a>
+      <a href="builder-referrals.html">Referrals</a>
+    </aside>
+    <main class="bp-portal-main">
+      <div class="bp-main">
+        <h1 class="bp-title">Completed projects</h1>
+        <p class="bp-muted">Your finished work with Senior Floors.</p>
+        <div class="bp-table-wrap"><table class="bp-table"><thead><tr>
+          <th>Project</th><th>Address</th><th>Floor</th><th>Area</th><th>Value</th><th>Completed</th>
+        </tr></thead><tbody id="histBody"></tbody></table></div>
+        <button type="button" class="bp-btn-tan" id="btnExport" style="margin-top:12px">Export CSV</button>
+      </div>
+    </main>
+  </div>
+  <script src="builder-auth.js?v=2"></script>
+  <script src="builder-history.js?v=1"></script>
+</body>
+</html>

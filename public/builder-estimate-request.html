@@ -5,19 +5,59 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Request estimate — Builder Portal</title>
   <link rel="stylesheet" href="css/builders-portal.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
 </head>
 <body class="bp-page-body">
   <div class="bp-portal-layout">
-    <aside class="bp-portal-sidebar"><a href="builder-portal.html">? Dashboard</a></aside>
+    <aside class="bp-portal-sidebar">
+      <a href="builder-portal.html">Dashboard</a>
+      <a href="builder-calculator.html">Calculator</a>
+      <a href="builder-estimate-request.html" class="active">Request estimate</a>
+    </aside>
     <main class="bp-portal-main">
-      <div class="bp-main">
-        <h1 class="bp-title">Request estimate</h1>
-        <p class="bp-card">Formal estimate requests (Sprint 4). For now, send a message with project details.</p>
-        <a href="builder-messages.html" class="bp-btn-tan" style="text-decoration:none;display:inline-block">Open Messages</a>
+      <div class="bp-main" style="max-width:640px">
+        <h1 class="bp-title">Request formal estimate</h1>
+        <p class="bp-muted">Submit project details for a formal quote from Senior Floors.</p>
+        <form id="estForm" class="bp-card bp-form-grid">
+          <div class="bp-form-full"><label>Project type</label>
+            <select name="project_type" required>
+              <option value="my_client">New client of mine</option>
+              <option value="my_project">My own project</option>
+              <option value="sf_referral">Direct referral to SF</option>
+            </select>
+          </div>
+          <div class="bp-form-full"><label>Project address</label>
+            <input type="text" id="estAddress" name="address" required placeholder="Street, city, state" autocomplete="off" />
+          </div>
+          <div class="bp-form-full"><label>Services needed</label>
+            <div class="bp-check-group">
+              <label><input type="checkbox" name="svc" value="Sanding & Refinishing" /> Sanding & Refinishing</label>
+              <label><input type="checkbox" name="svc" value="Hardwood Installation" /> Hardwood Installation</label>
+              <label><input type="checkbox" name="svc" value="Engineered Wood" /> Engineered Wood</label>
+              <label><input type="checkbox" name="svc" value="LVP" /> LVP</label>
+              <label><input type="checkbox" name="svc" value="Tile" /> Tile</label>
+              <label><input type="checkbox" name="svc" value="Custom" /> Custom</label>
+            </div>
+          </div>
+          <div><label>Estimated area (sq ft)</label><input type="number" name="area_sqft" min="1" required /></div>
+          <div><label>Desired start date</label><input type="date" name="desired_start" /></div>
+          <div><label>Urgency</label>
+            <select name="urgency"><option value="flexible">Flexible</option><option value="moderate">Moderate</option><option value="urgent">Urgent</option></select>
+          </div>
+          <div class="bp-form-full"><label>Notes / specifications</label><textarea name="notes" rows="4"></textarea></div>
+          <div class="bp-form-full"><label>Plans or photos (optional)</label><input type="file" name="attachment" accept="image/*,.pdf" /></div>
+          <div class="bp-form-full"><label><input type="checkbox" name="site_access" value="1" /> I can provide site access before the estimate</label></div>
+          <div class="bp-form-full"><button type="submit" class="bp-btn-tan">Submit request</button></div>
+        </form>
+        <div id="estSuccess" class="bp-card hidden" style="margin-top:1rem;background:#dcfce7;border-color:#86efac">
+          <p><strong>Thank you!</strong> Reference: <span id="estRef"></span></p>
+          <p class="bp-muted">We sent a confirmation email. Our team will contact you soon.</p>
+        </div>
       </div>
     </main>
   </div>
+  <script src="crm-address-autocomplete.js"></script>
   <script src="builder-auth.js?v=2"></script>
-  <script>window.builderAuth?.requireAuth?.();</script>
+  <script src="builder-estimate-request.js?v=1"></script>
 </body>
 </html>

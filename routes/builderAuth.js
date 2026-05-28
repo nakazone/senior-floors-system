@@ -6,6 +6,7 @@ import rateLimit from 'express-rate-limit';
 import { getDBConnection } from '../config/db.js';
 import { signBuilderToken } from '../lib/builderJwt.js';
 import { requireBuilderAuth } from '../middleware/builderAuth.js';
+import { getUiConfig } from './uiConfig.js';
 
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -157,5 +158,6 @@ export function registerBuilderAuthRoutes(app) {
   app.post('/api/builder-auth/login', loginLimiter, postLogin);
   app.post('/api/builder-auth/logout', postLogout);
   app.get('/api/builder-auth/me', requireBuilderAuth, getMe);
+  app.get('/api/builder-auth/config', requireBuilderAuth, getUiConfig);
   app.post('/api/builder-auth/change-password', requireBuilderAuth, postChangePassword);
 }

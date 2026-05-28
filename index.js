@@ -131,6 +131,7 @@ import { registerBuilderPortalProjectRoutes } from './routes/builderPortalProjec
 import { registerBuilderPricingRoutes } from './routes/builderPricing.js';
 import { registerBuilderGalleryRoutes } from './routes/builderGallery.js';
 import { registerBuilderMessagesRoutes } from './routes/builderMessages.js';
+import { registerBuilderEstimateRoutes } from './routes/builderEstimates.js';
 import { ensureFinancialCompleteSchema } from './lib/ensureFinancialCompleteSchema.js';
 import { getUiConfig } from './routes/uiConfig.js';
 
@@ -493,6 +494,7 @@ registerBuilderPortalProjectRoutes(app);
 registerBuilderPricingRoutes(app);
 registerBuilderGalleryRoutes(app);
 registerBuilderMessagesRoutes(app);
+registerBuilderEstimateRoutes(app);
 registerBuilderRoutes(app);
 
 // Visits/Schedule

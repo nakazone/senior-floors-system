@@ -145,7 +145,21 @@
   async function fetchMapsKey() {
     var r = await fetch('/api/config/ui', { credentials: 'include', cache: 'no-store' });
     if (!r.ok) {
-      throw new Error('UI config HTTP ' + r.status);
+      var builderToken = null;
+      try {
+        builderToken = sessionStorage.getItem('sf_builder_token');
+      } catch (_) {
+        builderToken = null;
+      }
+      if (builderToken) {
+        r = await fetch('/api/builder-auth/config', {
+          headers: { Authorization: 'Bearer ' + builderToken },
+          cache: 'no-store',
+        });
+      }
+      if (!r.ok) {
+        throw new Error('UI config HTTP ' + r.status);
+      }
     }
     var j = await r.json().catch(function () {
       return {};
