@@ -13,7 +13,7 @@
     <link rel="icon" type="image/png" sizes="16x16" href="/assets/SeniorFloors.png">
     <link rel="apple-touch-icon" sizes="180x180" href="/assets/SeniorFloors.png">
     <link rel="icon" type="image/png" href="/assets/SeniorFloors.png">
-    <link rel="stylesheet" href="styles.css?v=20260509-lqs-status-save">
+    <link rel="stylesheet" href="styles.css?v=20260526-quotes-search-total">
     <link rel="stylesheet" href="design-system.css">
     <link rel="stylesheet" href="mobile-design-system.css">
     <link rel="stylesheet" href="crm-toast.css">
@@ -903,6 +903,15 @@
                             <button type="button" class="btn btn-secondary" onclick="loadEstimateAnalytics()">Analytics</button>
                         </div>
                     </header>
+
+                    <div class="quotes-list-toolbar sf-desktop-quotes-toolbar" role="region" aria-label="Busca e total">
+                        <input type="search" id="quotesDesktopSearch" class="sf-quotes-search quotes-list-toolbar__search" placeholder="Buscar cliente, nº quote ou e-mail…" autocomplete="off" aria-label="Buscar orçamentos" />
+                        <div class="quotes-list-toolbar__total" aria-live="polite">
+                            <span class="quotes-list-toolbar__total-label" id="quotesTotalFilterLabel">Total</span>
+                            <strong class="quotes-list-toolbar__total-value" id="quotesFilterTotalAmount">$0.00</strong>
+                            <span class="quotes-list-toolbar__total-meta" id="quotesTotalCountMeta"></span>
+                        </div>
+                    </div>
 
                     <div class="quotes-filter-chips sf-desktop-quotes-toolbar" role="toolbar" aria-label="Filtrar orçamentos">
                         <button type="button" class="quotes-filter-chip quotes-filter-chip--active" data-quotes-filter="all" onclick="setQuotesFilter('all')">Todos</button>
