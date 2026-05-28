@@ -869,8 +869,13 @@
                         <p class="sf-title" style="margin-bottom:4px;">Orçamentos</p>
                         <p class="sf-caption" id="quotesMobileSubtitle" style="margin:0 0 10px;"> </p>
                         <div class="sf-ptr-indicator" id="quotesPtrIndicator" aria-hidden="true">↓ Largar para atualizar</div>
-                        <div class="sf-quotes-toolbar">
-                            <input type="search" id="quotesMobileSearch" class="sf-quotes-search" placeholder="Buscar cliente ou quote…" autocomplete="off" />
+                        <div class="sf-quotes-toolbar quotes-list-toolbar quotes-list-toolbar--mobile">
+                            <input type="search" id="quotesMobileSearch" class="sf-quotes-search quotes-list-toolbar__search" placeholder="Buscar cliente, nº quote ou e-mail…" autocomplete="off" aria-label="Buscar orçamentos" />
+                            <div class="quotes-list-toolbar__total" aria-live="polite">
+                                <span class="quotes-list-toolbar__total-label" id="quotesMobileTotalFilterLabel">Total</span>
+                                <strong class="quotes-list-toolbar__total-value" id="quotesMobileFilterTotalAmount">$0.00</strong>
+                                <span class="quotes-list-toolbar__total-meta" id="quotesMobileTotalCountMeta"></span>
+                            </div>
                         </div>
                         <div class="sf-quotes-chips-scroll sf-mobile-only--flex" role="toolbar" aria-label="Filtros" style="flex-wrap:nowrap;overflow-x:auto;gap:8px;padding:4px 0 10px;-webkit-overflow-scrolling:touch;">
                             <button type="button" class="quotes-filter-chip" data-quotes-filter="all" onclick="setQuotesFilter('all')">Todos</button>

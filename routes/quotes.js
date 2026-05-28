@@ -46,6 +46,10 @@ function pdfBufferNonEmpty(buf) {
   return Buffer.byteLength(buf) > 0;
 }
 
+function escapeLikePattern(q) {
+  return String(q).replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
+}
+
 async function listQuotesQuery_(pool, req) {
   const page = Math.max(1, parseInt(req.query.page, 10) || 1);
   const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 20));
@@ -66,14 +70,21 @@ async function listQuotesQuery_(pool, req) {
       : NaN;
   const expiringWithin = Number.isFinite(expiringDays) && expiringDays > 0 && expiringDays <= 365 ? expiringDays : null;
 
+  const searchQ = (req.query.q || req.query.search || '').trim();
+
   const params = [];
   const plainParts = ['1=1'];
   const joinParts = ['1=1'];
 
   if (status) {
-    plainParts.push('status = ?');
-    joinParts.push('q.status = ?');
-    params.push(status);
+    if (String(status).toLowerCase() === 'rejected') {
+      plainParts.push("(status = 'rejected' OR status = 'declined')");
+      joinParts.push("(q.status = 'rejected' OR q.status = 'declined')");
+    } else {
+      plainParts.push('status = ?');
+      joinParts.push('q.status = ?');
+      params.push(status);
+    }
   }
   if (expiringWithin != null) {
     plainParts.push(
@@ -94,12 +105,20 @@ async function listQuotesQuery_(pool, req) {
     joinParts.push('q.lead_id = ?');
     params.push(leadId);
   }
+  if (searchQ) {
+    const like = `%${escapeLikePattern(searchQ)}%`;
+    joinParts.push(
+      "(q.quote_number LIKE ? OR CAST(q.id AS CHAR) LIKE ? OR COALESCE(c.name, '') LIKE ? OR COALESCE(l.name, '') LIKE ? OR COALESCE(c.email, '') LIKE ? OR COALESCE(l.email, '') LIKE ?)"
+    );
+    params.push(like, like, like, like, like, like);
+  }
 
   const whereClausePlain = plainParts.join(' AND ');
   const whereClauseJoined = joinParts.join(' AND ');
 
-  /** Página do lead só precisa de colunas de `quotes` — evita JOINs (menos pontos de falha e mais rápido). */
-  const simpleLeadList = leadId != null && !status && !customerId && expiringWithin == null;
+  /** Página do lead só precisa de colunas de `quotes` — evita JOINs quando não há busca nem filtros extra. */
+  let simpleLeadList =
+    leadId != null && !status && !customerId && expiringWithin == null && !searchQ;
 
   const { simple: quoteSelectSimple, joined: quoteSelectJoined } = await getQuoteListSelectParts(pool);
 
@@ -124,9 +143,29 @@ async function listQuotesQuery_(pool, req) {
     );
   }
 
-  const [[{ total }]] = await pool.query(`SELECT COUNT(*) as total FROM quotes WHERE ${whereClausePlain}`, params);
+  let total = 0;
+  let totalAmount = 0;
+  if (simpleLeadList) {
+    const [[agg]] = await pool.query(
+      `SELECT COUNT(*) AS total, COALESCE(SUM(total_amount), 0) AS total_amount FROM quotes WHERE lead_id = ?`,
+      [leadId]
+    );
+    total = Number(agg.total) || 0;
+    totalAmount = Number(agg.total_amount) || 0;
+  } else {
+    const [[agg]] = await pool.query(
+      `SELECT COUNT(*) AS total, COALESCE(SUM(q.total_amount), 0) AS total_amount
+       FROM quotes q
+       LEFT JOIN customers c ON q.customer_id = c.id
+       LEFT JOIN leads l ON q.lead_id = l.id
+       WHERE ${whereClauseJoined}`,
+      params
+    );
+    total = Number(agg.total) || 0;
+    totalAmount = Number(agg.total_amount) || 0;
+  }
 
-  return { rows, total, page, limit };
+  return { rows, total, total_amount: totalAmount, page, limit };
 }
 
 export async function listQuotes(req, res) {
@@ -150,7 +189,14 @@ export async function listQuotes(req, res) {
       out = await listQuotesQuery_(pool, req);
     }
 
-    res.json({ success: true, data: out.rows, total: out.total, page: out.page, limit: out.limit });
+    res.json({
+      success: true,
+      data: out.rows,
+      total: out.total,
+      total_amount: out.total_amount,
+      page: out.page,
+      limit: out.limit,
+    });
   } catch (error) {
     console.error('List quotes error:', error);
     res.status(500).json({ success: false, error: error.message });

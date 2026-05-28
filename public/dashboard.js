@@ -2430,6 +2430,51 @@ window.submitClientForm = submitClientForm;
 let quotesListPage = 1;
 let quotesListFilter = 'all';
 
+const QUOTES_FILTER_LABELS = {
+    all: 'Todos',
+    draft: 'Rascunho',
+    sent: 'Enviado',
+    viewed: 'Visto',
+    approved: 'Aprovado',
+    rejected: 'Rejeitado',
+    expiring7: 'Expira ≤7 dias',
+};
+
+function getQuotesListSearchQuery() {
+    const desktop = document.getElementById('quotesDesktopSearch');
+    const mobile = document.getElementById('quotesMobileSearch');
+    const raw = isMobile() ? mobile?.value : desktop?.value ?? mobile?.value;
+    return String(raw || '').trim();
+}
+
+function formatQuotesMoneyAmount(n) {
+    const x = Number(n) || 0;
+    return (
+        '$' +
+        x.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    );
+}
+
+function updateQuotesTotalsUi(totalCount, totalAmount) {
+    const filterLabel = QUOTES_FILTER_LABELS[quotesListFilter] || quotesListFilter;
+    const labelText = `Total (${filterLabel})`;
+    const amountText = formatQuotesMoneyAmount(totalAmount);
+    const t = typeof totalCount === 'number' ? totalCount : 0;
+    const metaText = t === 0 ? '' : t === 1 ? ' · 1 orçamento' : ` · ${t} orçamentos`;
+    [
+        ['quotesTotalFilterLabel', 'quotesFilterTotalAmount', 'quotesTotalCountMeta'],
+        ['quotesMobileTotalFilterLabel', 'quotesMobileFilterTotalAmount', 'quotesMobileTotalCountMeta'],
+    ].forEach(([labelId, amountId, metaId]) => {
+        const labelEl = document.getElementById(labelId);
+        const amountEl = document.getElementById(amountId);
+        const metaEl = document.getElementById(metaId);
+        if (labelEl) labelEl.textContent = labelText;
+        if (amountEl) amountEl.textContent = amountText;
+        if (metaEl) metaEl.textContent = metaText;
+    });
+}
+
+
 function updateQuotesFilterChipStyles() {
     document.querySelectorAll('.quotes-filter-chip').forEach((b) => {
         b.classList.toggle('quotes-filter-chip--active', b.getAttribute('data-quotes-filter') === quotesListFilter);
@@ -2509,15 +2554,7 @@ function quoteMobileCardHtml(q, opts) {
 }
 
 function getQuotesMobileFilteredRows() {
-    const input = document.getElementById('quotesMobileSearch');
-    const q = (input && input.value) || '';
-    const needle = String(q).trim().toLowerCase();
-    if (!needle) return sfQuotesListCache.slice();
-    return sfQuotesListCache.filter((row) => {
-        const c = String(row.customer_name || row.lead_name || '').toLowerCase();
-        const n = String(row.quote_number != null ? row.quote_number : '').toLowerCase();
-        return c.includes(needle) || n.includes(needle);
-    });
+    return sfQuotesListCache.slice();
 }
 
 function bindSfQuoteCardInteractions(container) {
@@ -2614,16 +2651,34 @@ function updateQuotesMobileChrome(total, totalPages) {
     }
 }
 
-function initQuotesMobileUx() {
-    const search = document.getElementById('quotesMobileSearch');
-    if (search && !search.dataset.sfBound) {
-        search.dataset.sfBound = '1';
+function syncQuotesSearchInputs(fromEl) {
+    const desktop = document.getElementById('quotesDesktopSearch');
+    const mobile = document.getElementById('quotesMobileSearch');
+    const v = fromEl ? String(fromEl.value || '') : '';
+    if (desktop && desktop !== fromEl) desktop.value = v;
+    if (mobile && mobile !== fromEl) mobile.value = v;
+}
+
+function initQuotesListSearchUx() {
+    const bindSearch = (el) => {
+        if (!el || el.dataset.sfQuotesSearchBound) return;
+        el.dataset.sfQuotesSearchBound = '1';
         let t;
-        search.addEventListener('input', () => {
+        el.addEventListener('input', () => {
+            syncQuotesSearchInputs(el);
             clearTimeout(t);
-            t = setTimeout(() => renderQuotesMobileFromCache(), 140);
+            t = setTimeout(() => {
+                quotesListPage = 1;
+                loadQuotes();
+            }, 280);
         });
-    }
+    };
+    bindSearch(document.getElementById('quotesMobileSearch'));
+    bindSearch(document.getElementById('quotesDesktopSearch'));
+}
+
+function initQuotesMobileUx() {
+    initQuotesListSearchUx();
 
     initSfPullToRefresh();
 
@@ -2788,6 +2843,10 @@ async function loadQuotes() {
     } else if (quotesListFilter !== 'all') {
         url += '&status=' + encodeURIComponent(quotesListFilter);
     }
+    const quotesSearchQ = getQuotesListSearchQuery();
+    if (quotesSearchQ) {
+        url += '&q=' + encodeURIComponent(quotesSearchQ);
+    }
 
     try {
         const response = await fetch(url, { credentials: 'include' });
@@ -2795,6 +2854,11 @@ async function loadQuotes() {
 
         if (data.success && data.data) {
             const total = typeof data.total === 'number' ? data.total : data.data.length;
+            const totalAmount =
+                typeof data.total_amount === 'number'
+                    ? data.total_amount
+                    : data.data.reduce((s, q) => s + (Number(q.total_amount) || 0), 0);
+            updateQuotesTotalsUi(total, totalAmount);
             if (subEl) {
                 subEl.textContent =
                     total === 0
@@ -2805,6 +2869,7 @@ async function loadQuotes() {
             }
             if (data.data.length === 0) {
                 sfQuotesListCache = [];
+                updateQuotesTotalsUi(0, 0);
                 tbody.innerHTML = quotesListEmptyStateRowHtml();
                 if (mobileList && isMobile()) {
                     mobileList.innerHTML = sfQuotesMobileEmptyHtml();
@@ -2868,6 +2933,7 @@ async function loadQuotes() {
             updateQuotesMobileChrome(total, totalPages);
         } else {
             if (subEl) subEl.textContent = 'Erro ao carregar';
+            updateQuotesTotalsUi(0, 0);
             tbody.innerHTML =
                 '<tr><td colspan="8" class="text-center">Resposta inválida do servidor</td></tr>';
             sfQuotesListCache = [];

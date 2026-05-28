@@ -2737,7 +2737,70 @@ input.score-auto {
     }
 }
 
-/* —— Quotes list (dashboard): filters, badges, table UX —— */
+/* —— Quotes list (dashboard): search, total, filters —— */
+.quotes-list-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem 1rem;
+    margin-bottom: var(--spacing-md);
+}
+
+.quotes-list-toolbar__search {
+    flex: 1 1 14rem;
+    min-width: 12rem;
+    max-width: 28rem;
+    padding: 0.55rem 0.85rem;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    font-size: 0.9rem;
+    background: var(--bg-white);
+    color: var(--text-dark);
+}
+
+.quotes-list-toolbar__search:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(26, 32, 54, 0.12);
+}
+
+.quotes-list-toolbar__total {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.35rem 0.5rem;
+    margin-left: auto;
+    padding: 0.5rem 0.85rem;
+    border-radius: 10px;
+    background: var(--bg-primary-light, #f1f5f9);
+    border: 1px solid var(--border-color);
+}
+
+.quotes-list-toolbar--mobile .quotes-list-toolbar__total {
+    margin-left: 0;
+    width: 100%;
+}
+
+.quotes-list-toolbar__total-label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-muted, #64748b);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.quotes-list-toolbar__total-value {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--primary-color);
+    font-variant-numeric: tabular-nums;
+}
+
+.quotes-list-toolbar__total-meta {
+    font-size: 0.8rem;
+    color: var(--text-muted, #64748b);
+}
+
 .quotes-filter-chips {
     display: flex;
     flex-wrap: wrap;
