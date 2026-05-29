@@ -179,6 +179,7 @@ fetch('/api/auth/session', { credentials: 'include' })
         if (pageParam === 'customers') {
             const tp = new URLSearchParams(window.location.search).get('type');
             customersTypeFilter = tp === 'builder' ? 'builder' : '';
+            customersSearchFilter = '';
             showPage('customers');
         } else if (routePage && document.querySelector(`#dashboardSidebar [data-page="${routePage}"]`)) {
             showPage(routePage);
@@ -743,12 +744,19 @@ function showPage(pageName) {
             if (typeof initMarketingPage === 'function') initMarketingPage();
             if (typeof loadMarketingDashboard === 'function') loadMarketingDashboard();
         }
-        else if (pageName === 'leads') { 
-            currentPage = 1; 
-            loadLeads(); 
+        else if (pageName === 'leads') {
+            currentPage = 1;
+            if (typeof loadCRMKanban === 'function') {
+                void loadCRMKanban();
+            } else if (typeof loadKanbanBoard === 'function') {
+                void loadKanbanBoard();
+            } else {
+                loadLeads();
+            }
         }
         else if (pageName === 'customers') {
             customersPage = 1;
+            syncCustomersPageChrome();
             loadCustomers();
         }
         else if (pageName === 'quotes') {
@@ -2001,9 +2009,72 @@ window.refreshLeads = refreshLeads;
 
 // Clients (/api/customers)
 let customersPage = 1;
-/** '' | 'builder' — filtro da lista em Clientes / Builders */
+/** '' | 'builder' | … — filtro da lista em Clientes / Builders */
 let customersTypeFilter = '';
+let customersSearchFilter = '';
 let customerInsightEditId = null;
+
+const CUSTOMERS_TYPE_LABELS = {
+    builder: 'Builder',
+    residential: 'Cliente final',
+    commercial: 'Comercial',
+    property_manager: 'Property manager',
+    investor: 'Investidor',
+};
+
+function customersTableColspan() {
+    return customersTypeFilter === 'builder' ? 11 : 10;
+}
+
+function syncCustomersPageChrome() {
+    const isBuilder = customersTypeFilter === 'builder';
+    const titleEl = document.getElementById('customersPageTitle');
+    const subEl = document.getElementById('customersPageSubtitle');
+    const nameCol = document.getElementById('customersColName');
+    const respCol = document.getElementById('customersColResponsible');
+    const typeSel = document.getElementById('customersTypeSelect');
+    const searchEl = document.getElementById('customersSearchInput');
+
+    if (titleEl) titleEl.textContent = isBuilder ? 'Builders' : 'Clientes';
+    if (subEl) {
+        subEl.textContent = isBuilder
+            ? 'Empresas parceiras e contacto responsável'
+            : 'Builders e clientes finais';
+    }
+    if (nameCol) nameCol.textContent = isBuilder ? 'Empresa' : 'Nome';
+    if (respCol) respCol.style.display = isBuilder ? '' : 'none';
+    if (typeSel && typeSel.value !== customersTypeFilter) {
+        typeSel.value = customersTypeFilter;
+    }
+    if (searchEl && searchEl.value !== customersSearchFilter) {
+        searchEl.value = customersSearchFilter;
+    }
+}
+
+function customersSearchSubmit() {
+    const searchEl = document.getElementById('customersSearchInput');
+    const typeSel = document.getElementById('customersTypeSelect');
+    customersSearchFilter = searchEl ? searchEl.value.trim() : '';
+    customersTypeFilter = typeSel ? typeSel.value.trim() : '';
+    customersPage = 1;
+    syncCustomersPageChrome();
+    loadCustomers();
+}
+
+function customersSearchClear() {
+    customersSearchFilter = '';
+    customersTypeFilter = '';
+    customersPage = 1;
+    const searchEl = document.getElementById('customersSearchInput');
+    const typeSel = document.getElementById('customersTypeSelect');
+    if (searchEl) searchEl.value = '';
+    if (typeSel) typeSel.value = '';
+    syncCustomersPageChrome();
+    loadCustomers();
+}
+
+window.customersSearchSubmit = customersSearchSubmit;
+window.customersSearchClear = customersSearchClear;
 
 function fmtMoneyInsight(n) {
     return new Intl.NumberFormat('en-US', {
@@ -2049,36 +2120,45 @@ function displayPhoneInClientForm(phone) {
 }
 
 async function loadCustomers() {
+    syncCustomersPageChrome();
     const tbody = document.getElementById('customersTableBody');
-    tbody.innerHTML = '<tr><td colspan="10" class="text-center">Loading...</td></tr>';
+    const colspan = customersTableColspan();
+    tbody.innerHTML = `<tr><td colspan="${colspan}" class="text-center">Loading...</td></tr>`;
     
     try {
         const qs = new URLSearchParams({ page: String(customersPage), limit: '20' });
-        if (customersTypeFilter === 'builder') qs.set('customer_type', 'builder');
+        if (customersTypeFilter) qs.set('customer_type', customersTypeFilter);
+        if (customersSearchFilter) qs.set('search', customersSearchFilter);
         const response = await fetch(`/api/customers?${qs}`, { credentials: 'include' });
         const data = await response.json();
         
         if (data.success && data.data) {
+            const showBuilderCols = customersTypeFilter === 'builder';
             if (data.data.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="10" class="text-center">No clients found</td></tr>';
+                tbody.innerHTML = `<tr><td colspan="${colspan}" class="text-center">No clients found</td></tr>`;
             } else {
                 tbody.innerHTML = data.data.map(c => {
                     const leadCell =
                         c.lead_id != null && c.lead_id !== ''
                             ? `<a href="lead-detail.html?id=${encodeURIComponent(c.lead_id)}">#${c.lead_id}</a>`
                             : '—';
-                    const nameCell =
-                        c.customer_type === 'builder' && c.responsible_name
-                            ? `${escapeClientCell(c.name) || '-'} · ${escapeClientCell(c.responsible_name)}`
-                            : escapeClientCell(c.name) || '-';
+                    const isBuilderRow = (c.customer_type || '') === 'builder';
+                    const nameCell = escapeClientCell(c.name) || '-';
+                    const respCell = isBuilderRow && c.responsible_name
+                        ? escapeClientCell(c.responsible_name)
+                        : '—';
+                    const respTd = showBuilderCols
+                        ? `<td>${respCell}</td>`
+                        : '';
                     return `
                     <tr>
                         <td>${c.id}</td>
                         <td>${nameCell}</td>
+                        ${respTd}
                         <td>${escapeClientCell(c.email) || '-'}</td>
                         <td>${escapeClientCell(c.phone) || '-'}</td>
                         <td>${escapeClientCell(c.city) || '-'}</td>
-                        <td>${escapeClientCell(c.customer_type) || '-'}</td>
+                        <td>${escapeClientCell(CUSTOMERS_TYPE_LABELS[c.customer_type] || c.customer_type) || '-'}</td>
                         <td>${leadCell}</td>
                         <td><span class="badge badge-${c.status || 'active'}">${c.status || 'active'}</span></td>
                         <td>${c.created_at ? new Date(c.created_at).toLocaleDateString() : '-'}</td>
@@ -2096,10 +2176,9 @@ async function loadCustomers() {
             document.getElementById('nextPageCustomers').disabled = customersPage >= totalPages;
         }
     } catch (error) {
-        tbody.innerHTML = '<tr><td colspan="10" class="text-center">Error: ' + escapeClientCell(error.message) + '</td></tr>';
+        tbody.innerHTML = `<tr><td colspan="${colspan}" class="text-center">Error: ${escapeClientCell(error.message)}</td></tr>`;
     }
 }
-
 function changePageCustomers(delta) {
     customersPage += delta;
     if (customersPage < 1) customersPage = 1;
@@ -2195,6 +2274,7 @@ async function inspectCustomer(id) {
             <p style="margin:0 0 8px;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--sf-muted,#666)">Cadastro</p>
             <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px 16px;font-size:14px;">
                 <div><span style="color:var(--sf-muted,#666)">Tipo</span><br><strong>${z(customer.customer_type)}</strong></div>
+                ${isB ? `<div><span style="color:var(--sf-muted,#666)">Empresa</span><br><strong>${z(customer.name)}</strong></div><div><span style="color:var(--sf-muted,#666)">Contato responsável</span><br><strong>${z(customer.responsible_name)}</strong></div>` : ''}
                 <div><span style="color:var(--sf-muted,#666)">Email</span><br><strong>${z(customer.email)}</strong></div>
                 <div><span style="color:var(--sf-muted,#666)">Telefone</span><br><strong>${z(customer.phone)}</strong></div>
                 <div><span style="color:var(--sf-muted,#666)">Cidade</span><br><strong>${z(customer.city)}</strong></div>
@@ -3828,6 +3908,22 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!crmUserAvatarPendingFile && crmUserAvatarRemove) {
                 updateCrmUserAvatarPreview(crmUserNameInput.value, null);
             }
+        });
+    }
+
+    const customersTypeSelect = document.getElementById('customersTypeSelect');
+    const customersSearchInput = document.getElementById('customersSearchInput');
+    if (customersTypeSelect) {
+        customersTypeSelect.addEventListener('change', () => {
+            customersTypeFilter = customersTypeSelect.value.trim();
+            customersPage = 1;
+            syncCustomersPageChrome();
+            loadCustomers();
+        });
+    }
+    if (customersSearchInput) {
+        customersSearchInput.addEventListener('search', () => {
+            if (customersSearchInput.value === '') customersSearchClear();
         });
     }
 

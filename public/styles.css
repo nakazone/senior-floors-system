@@ -2952,6 +2952,21 @@ input.score-auto {
     box-shadow: 0 0 0 3px rgba(26, 32, 54, 0.12);
 }
 
+.customers-list-toolbar__select {
+    flex: 0 1 11rem;
+    min-width: 9rem;
+    padding: 0.55rem 0.75rem;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    font-size: 0.9rem;
+    background: var(--bg-white);
+    color: var(--text-dark);
+}
+
+.customers-col-responsible {
+    min-width: 9rem;
+}
+
 .quotes-list-toolbar__total {
     display: flex;
     flex-wrap: wrap;
