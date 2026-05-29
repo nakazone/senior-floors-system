@@ -1,5 +1,5 @@
 /**
- * Partner pricing table PDF (pdf-lib) — same brand layout as modules/quotes/quotePdf.js.
+ * Partner pricing table PDF (pdf-lib)  same brand layout as modules/quotes/quotePdf.js.
  */
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import fs from 'fs';
@@ -10,7 +10,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const COMPANY = {
   name: 'Senior Floors',
-  tagline: 'Hardwood · LVP · Refinishing · Denver Metro',
+  tagline: 'Hardwood - LVP - Refinishing - Denver Metro',
   phone: '(720) 751-9813',
   email: 'contact@senior-floors.com',
 };
@@ -38,15 +38,10 @@ function money(n) {
   return `$${x.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-function winAnsiSafe(s, maxLen) {
-  let t = String(s ?? '')
-    .replace(/\u2192/g, '->')
-    .replace(/\u2014/g, '-')
-    .replace(/\u2013/g, '-')
-    .replace(/\u00A0/g, ' ');
-  t = t.replace(/[^\u0020-\u007E\u00A0-\u00FF]/g, '');
-  if (maxLen != null) t = t.slice(0, maxLen);
-  return t;
+const winAnsiSafe = sanitizePdfText;
+
+function drawTxt(page, text, opts) {
+  page.drawText(winAnsiSafe(text), opts);
 }
 
 async function tryEmbedLogo(pdf) {
@@ -165,10 +160,10 @@ export async function buildPartnerPricingPdfBuffer(opts) {
       color: PAL.primary,
       opacity: 0.06,
     });
-    page.drawText('Service', { x: colSvc + 4, y: baselineY, size: fs, font: fontBold, color: PAL.primary });
-    page.drawText('Unit', { x: colUnit, y: baselineY, size: fs, font: fontBold, color: PAL.primary });
-    page.drawText('Public range', { x: colPub, y: baselineY, size: fs, font: fontBold, color: PAL.primary });
-    page.drawText('Your price', { x: colPartner, y: baselineY, size: fs, font: fontBold, color: PAL.primary });
+    drawTxt(page, 'Service', { x: colSvc + 4, y: baselineY, size: fs, font: fontBold, color: PAL.primary });
+    drawTxt(page, 'Unit', { x: colUnit, y: baselineY, size: fs, font: fontBold, color: PAL.primary });
+    drawTxt(page, 'Public range', { x: colPub, y: baselineY, size: fs, font: fontBold, color: PAL.primary });
+    drawTxt(page, 'Your price', { x: colPartner, y: baselineY, size: fs, font: fontBold, color: PAL.primary });
     y = barBottom - 4;
     page.drawLine({
       start: { x: margin, y },
@@ -203,7 +198,7 @@ export async function buildPartnerPricingPdfBuffer(opts) {
       height: barH,
       color: PAL.primary,
     });
-    page.drawText(winAnsiSafe(label).toUpperCase(), {
+    drawTxt(page, winAnsiSafe(label).toUpperCase(), {
       x: margin + 10,
       y: baselineY,
       size: fs,
@@ -241,21 +236,21 @@ export async function buildPartnerPricingPdfBuffer(opts) {
   const tagBaselineY = nameBaselineY - 14;
   const contactBaselineY = tagBaselineY - 12;
 
-  page.drawText(COMPANY.name, {
+  drawTxt(page, COMPANY.name, {
     x: textColumnX,
     y: nameBaselineY,
     size: nameSize,
     font: fontBold,
     color: PAL.primary,
   });
-  page.drawText(COMPANY.tagline, {
+  drawTxt(page, COMPANY.tagline, {
     x: textColumnX,
     y: tagBaselineY,
     size: tagSize,
     font,
     color: PAL.primaryMuted,
   });
-  page.drawText(`${COMPANY.phone} · ${COMPANY.email}`, {
+  drawTxt(page, `${COMPANY.phone} | ${COMPANY.email}`, {
     x: textColumnX,
     y: contactBaselineY,
     size: tagSize,
@@ -287,10 +282,10 @@ export async function buildPartnerPricingPdfBuffer(opts) {
   });
 
   let ry = panelTopY - 16;
-  page.drawText('PARTNER PRICING', { x: rightX, y: ry, size: 11, font: fontBold, color: PAL.primary });
+  drawTxt(page, 'PARTNER PRICING', { x: rightX, y: ry, size: 11, font: fontBold, color: PAL.primary });
   ry -= lineH;
   if (meta.valid_through) {
-    page.drawText(`Valid through: ${String(meta.valid_through).slice(0, 10)}`, {
+    drawTxt(page, `Valid through: ${String(meta.valid_through).slice(0, 10)}`, {
       x: rightX,
       y: ry,
       size: 8,
@@ -300,7 +295,7 @@ export async function buildPartnerPricingPdfBuffer(opts) {
     ry -= lineH;
   }
   if (meta.last_updated) {
-    page.drawText(`Updated: ${String(meta.last_updated).slice(0, 10)}`, {
+    drawTxt(page, `Updated: ${String(meta.last_updated).slice(0, 10)}`, {
       x: rightX,
       y: ry,
       size: 8,
@@ -309,13 +304,13 @@ export async function buildPartnerPricingPdfBuffer(opts) {
     });
     ry -= lineH;
   }
-  page.drawText('Confidential partner rates', { x: rightX, y: ry, size: 8, font: fontItalic, color: PAL.lineMuted });
+  drawTxt(page, 'Confidential partner rates', { x: rightX, y: ry, size: 8, font: fontItalic, color: PAL.lineMuted });
 
   y = Math.min(headerLowY - 10, panelBottomY - 8) - 12;
 
-  page.drawText('Prepared for', { x: margin, y, size: 9, font: fontBold, color: PAL.secondaryDark });
+  drawTxt(page, 'Prepared for', { x: margin, y, size: 9, font: fontBold, color: PAL.secondaryDark });
   y -= lineH;
-  page.drawText(winAnsiSafe(meta.builder_display_name || 'Partner', 80), {
+  drawTxt(page, winAnsiSafe(meta.builder_display_name || 'Partner', 80), {
     x: margin,
     y,
     size: 11,
@@ -327,7 +322,7 @@ export async function buildPartnerPricingPdfBuffer(opts) {
   const sections = groupServices(services);
   if (!sections.length) {
     ensureSpace(80);
-    page.drawText('No services in this table.', { x: margin, y, size: 9, font, color: PAL.lineMuted });
+    drawTxt(page, 'No services in this table.', { x: margin, y, size: 9, font, color: PAL.lineMuted });
     y -= lineH;
   }
 
@@ -341,33 +336,33 @@ export async function buildPartnerPricingPdfBuffer(opts) {
       const rowStartY = y;
       if (s.is_locked) {
         for (const line of wrap(s.name || 'Service', svcMaxW, 9, fontBold)) {
-          page.drawText(line, { x: colSvc, y: rowStartY, size: 9, font: fontBold, color: PAL.primary });
+          drawTxt(page, line, { x: colSvc, y: rowStartY, size: 9, font: fontBold, color: PAL.primary });
         }
-        page.drawText('Contact manager', { x: colPartner, y: rowStartY, size: 8, font: fontItalic, color: PAL.lineMuted });
+        drawTxt(page, 'Contact manager', { x: colPartner, y: rowStartY, size: 8, font: fontItalic, color: PAL.lineMuted });
         y = rowStartY - lineH - 6;
         continue;
       }
 
       let dy = rowStartY;
       for (const line of wrap(s.name || '', svcMaxW, 9, fontBold)) {
-        page.drawText(line, { x: colSvc, y: dy, size: 9, font: fontBold, color: PAL.primary });
+        drawTxt(page, line, { x: colSvc, y: dy, size: 9, font: fontBold, color: PAL.primary });
         dy -= lineH;
       }
-      page.drawText(winAnsiSafe(s.unit || 'sq ft', 24), {
+      drawTxt(page, winAnsiSafe(s.unit || 'sq ft', 24), {
         x: colUnit,
         y: rowStartY,
         size: 8.5,
         font,
         color: PAL.primary,
       });
-      page.drawText(`${money(s.price_min)} - ${money(s.price_max)}`, {
+      drawTxt(page, `${money(s.price_min)} - ${money(s.price_max)}`, {
         x: colPub,
         y: rowStartY,
         size: 8.5,
         font,
         color: PAL.primary,
       });
-      page.drawText(money(s.partner_price), {
+      drawTxt(page, money(s.partner_price), {
         x: colPartner,
         y: rowStartY,
         size: 8.5,
@@ -378,7 +373,7 @@ export async function buildPartnerPricingPdfBuffer(opts) {
         dy -= 2;
         for (const line of wrap(s.notes, svcMaxW, 7, fontItalic)) {
           ensureSpace(70);
-          page.drawText(line, { x: colSvc, y: dy, size: 7, font: fontItalic, color: PAL.lineMuted });
+          drawTxt(page, line, { x: colSvc, y: dy, size: 7, font: fontItalic, color: PAL.lineMuted });
           dy -= lineH - 2;
         }
       }
@@ -410,7 +405,7 @@ export async function buildPartnerPricingPdfBuffer(opts) {
           ? `${v.min_sqft}${v.max_sqft != null ? ` - ${v.max_sqft}` : '+'} sq ft`
           : 'Volume tier');
       const pct = v.pct ?? v.discount_pct ?? 0;
-      page.drawText(winAnsiSafe(`${label}: ${pct}% off partner rate`, 120), {
+      drawTxt(page, winAnsiSafe(`${label}: ${pct}% off partner rate`, 120), {
         x: margin + 8,
         y,
         size: 8.5,
@@ -430,7 +425,7 @@ export async function buildPartnerPricingPdfBuffer(opts) {
     'Contact Senior Floors for locked services or project-specific estimates.';
   for (const line of wrap(footer, contentW, 7.5)) {
     ensureSpace(40);
-    page.drawText(line, { x: margin, y, size: 7.5, font, color: PAL.lineMuted });
+    drawTxt(page, line, { x: margin, y, size: 7.5, font, color: PAL.lineMuted });
     y -= lineH - 1;
   }
 

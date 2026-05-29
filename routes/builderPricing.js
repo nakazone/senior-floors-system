@@ -5,6 +5,7 @@ import { getDBConnection } from '../config/db.js';
 import { requireAuth, requirePermission } from '../middleware/auth.js';
 import { requireBuilderAuth } from '../middleware/builderAuth.js';
 import { buildPartnerPricingPdfBuffer } from '../modules/builder/partnerPricingPdf.js';
+import { sanitizePdfText } from '../lib/pdfWinAnsi.js';
 import { sendBuilderNotification } from '../lib/builderNotify.js';
 import { builderWantsEmail } from '../lib/builderNotifyPrefs.js';
 import { notifyBuilder } from './builderNotifications.js';
@@ -234,8 +235,17 @@ export async function getPartnerPricingPdf(req, res) {
     const data = await getPartnerPricingForBuilder(pool, builderId);
     const meta = await buildPricingMeta(pool, builderId);
     const pdfBuf = await buildPartnerPricingPdfBuffer({
-      services: data,
-      meta,
+      services: data.map((s) => ({
+        ...s,
+        name: sanitizePdfText(s.name),
+        notes: sanitizePdfText(s.notes),
+        unit: sanitizePdfText(s.unit),
+        category_label: sanitizePdfText(s.category_label),
+      })),
+      meta: {
+        ...meta,
+        builder_display_name: sanitizePdfText(meta.builder_display_name),
+      },
       volumeDiscounts: VOLUME_DISCOUNTS.map((v) => ({
         min_sqft: v.min_sqft,
         max_sqft: v.max_sqft,
