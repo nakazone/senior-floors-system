@@ -73,7 +73,7 @@
       const att =
         m.attachment_url && !internal
           ? m.attachment_url.match(/\.(pdf)$/i)
-            ? `<p><a href="${escapeHtml(m.attachment_url)}" target="_blank" rel="noopener">?? PDF attachment</a></p>`
+            ? `<p><a href="${escapeHtml(m.attachment_url)}" target="_blank" rel="noopener">PDF attachment</a></p>`
             : `<p><a href="${escapeHtml(m.attachment_url)}" target="_blank" rel="noopener"><img src="${escapeHtml(m.attachment_url)}" alt="" style="max-width:220px;border-radius:8px;margin-top:6px" loading="lazy" /></a></p>`
           : '';
       html += `<div class="bp-msg-bubble ${mine ? 'bp-msg-bubble--mine' : ''} ${internal ? 'bp-msg-bubble--note' : ''}">
@@ -89,7 +89,7 @@
       ${!isPortal() ? '<label style="font-size:11px;display:flex;align-items:center;gap:6px;margin-bottom:6px"><input type="checkbox" id="internalNote" /> Internal note (staff only)</label>' : ''}
       <textarea id="msgInput" rows="2" placeholder="Write a message..."></textarea>
       <div style="display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap">
-        ${isPortal() ? '<label class="bp-btn-ghost" style="cursor:pointer;font-size:12px;padding:6px 10px">?? <input type="file" id="msgAttach" accept=".jpg,.jpeg,.png,.webp,.pdf" hidden /></label>' : ''}
+        ${isPortal() ? '<label class="bp-btn-ghost" style="cursor:pointer;font-size:12px;padding:6px 10px">Attach <input type="file" id="msgAttach" accept=".jpg,.jpeg,.png,.webp,.pdf" hidden /></label>' : ''}
         <button type="button" class="bp-btn-tan" id="btnSend">Send</button>
       </div>
     </footer>`;

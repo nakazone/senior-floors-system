@@ -16,7 +16,7 @@
   }
 
   function fmtDate(d) {
-    if (!d) return '—';
+    if (!d) return '-';
     try {
       return new Date(`${String(d).slice(0, 10)}T12:00:00`).toLocaleDateString('en-US', {
         day: 'numeric',
@@ -68,7 +68,7 @@
       completed: ['completed', 'Completed'],
       cancelled: ['cancelled', 'Cancelled'],
     };
-    const m = map[s] || ['pending', s || '—'];
+    const m = map[s] || ['pending', s || '-'];
     return `<span class="bp-badge bp-badge--${m[0]}">${escapeHtml(m[1])}</span>`;
   }
 
@@ -94,7 +94,7 @@
   function photoMeta(p) {
     const who = p.partner_upload ? 'You' : 'Senior Floors';
     const when = p.created_at ? fmtDate(p.created_at) : '';
-    return [when, who].filter(Boolean).join(' · ');
+    return [when, who].filter(Boolean).join(' | ');
   }
 
   function renderPhotos(photos) {
@@ -155,7 +155,7 @@
         : '';
     const renderItem = (it, canToggle) => {
       const checked = it.checked === 1 || it.checked === true;
-      const due = it.due_date ? `<span class="bp-muted"> · Due ${fmtDate(it.due_date)}</span>` : '';
+      const due = it.due_date ? `<span class="bp-muted"> &middot; Due ${fmtDate(it.due_date)}</span>` : '';
       const resp = `<span class="bp-muted" style="display:block;font-size:11px">Responsible: ${responsibleLabel(it.assigned_to)}${due}</span>`;
       const notes = it.notes ? `<span class="bp-muted" style="display:block;font-size:11px">${escapeHtml(it.notes)}</span>` : '';
       return `<div class="bp-check-item ${checked ? 'bp-check-item--done' : ''}">
@@ -193,13 +193,13 @@
       const p = photos[curr];
       if (!p) return;
       img.src = p.url;
-      cap.textContent = `${photoMeta(p)} · ${curr + 1} / ${photos.length}`;
+      cap.textContent = `${photoMeta(p)} | ${curr + 1} / ${photos.length}`;
       nav.innerHTML = '';
       if (curr > 0) {
         const prev = document.createElement('button');
         prev.type = 'button';
         prev.className = 'bp-proj-lightbox__btn';
-        prev.textContent = '? Previous';
+        prev.textContent = 'Previous';
         prev.onclick = () => {
           curr--;
           draw();
@@ -216,7 +216,7 @@
         const next = document.createElement('button');
         next.type = 'button';
         next.className = 'bp-proj-lightbox__btn';
-        next.textContent = 'Next ?';
+        next.textContent = 'Next';
         next.onclick = () => {
           curr++;
           draw();
@@ -369,7 +369,7 @@
             ? `<p><a href="${escapeHtml(m.attachment_url)}" target="_blank" rel="noopener">PDF attachment</a></p>`
             : `<p><a href="${escapeHtml(m.attachment_url)}" target="_blank" rel="noopener"><img src="${escapeHtml(m.attachment_url)}" alt="" style="max-width:220px;border-radius:8px;margin-top:6px" loading="lazy" /></a></p>`
           : '';
-      const readMark = mine && m.is_read ? ' <span title="Read">??</span>' : mine ? ' <span title="Sent">?</span>' : '';
+      const readMark = mine && m.is_read ? ' <span title="Read">âœ“âœ“</span>' : mine ? ' <span title="Sent">âœ“</span>' : '';
       html += `<div class="bp-msg-bubble ${mine ? 'bp-msg-bubble--mine' : ''}">
         <span class="bp-msg-sender" style="font-size:10px;font-weight:600;opacity:.85">${escapeHtml(sender)}</span>
         <p>${escapeHtml(m.message)}</p>${att}
@@ -475,7 +475,7 @@
           m.received_date ? `Received ${fmtDate(m.received_date)}` : null,
         ]
           .filter(Boolean)
-          .join(' · ');
+          .join(' | ');
         const appr = m.builder_approval_status
           ? `<span class="bp-muted" style="display:block;font-size:11px">${approvalLabel[m.builder_approval_status] || m.builder_approval_status}</span>`
           : '';
@@ -489,10 +489,10 @@
         return `<tr data-mat-id="${m.id}">
           <td data-label="Product"><strong>${escapeHtml(m.product_name)}</strong>
             ${m.supplier ? `<span class="bp-muted" style="display:block;font-size:11px">${escapeHtml(m.supplier)}</span>` : ''}${appr}</td>
-          <td data-label="SKU">${escapeHtml(m.sku || '—')}</td>
+          <td data-label="SKU">${escapeHtml(m.sku || '-')}</td>
           <td data-label="Qty">${escapeHtml(qty)}</td>
-          <td data-label="Status"><span class="bp-badge bp-badge--pending">${escapeHtml(statusLabel[m.status] || m.status || '—')}</span></td>
-          <td data-label="Dates" style="font-size:12px">${escapeHtml(dates || '—')}</td>
+          <td data-label="Status"><span class="bp-badge bp-badge--pending">${escapeHtml(statusLabel[m.status] || m.status || '-')}</span></td>
+          <td data-label="Dates" style="font-size:12px">${escapeHtml(dates || '-')}</td>
           <td data-label="">${actions}</td>
         </tr>`;
       })
@@ -547,7 +547,7 @@
           <button type="button" class="bp-btn-ghost" id="btnIssue">Report issue</button>
         </div>
       </header>
-      <p class="bp-muted" style="margin:0 0 12px">${fmtDate(p.start_date)} ? ${fmtDate(p.end_date_estimated)}</p>
+      <p class="bp-muted" style="margin:0 0 12px">${fmtDate(p.start_date)} &rarr; ${fmtDate(p.end_date_estimated)}</p>
       ${
         manager
           ? `<div class="bp-card bp-manager">
@@ -598,10 +598,10 @@
         <div class="bp-summary-grid">
           <div class="bp-card">
             <h3 style="margin:0 0 10px;font-size:14px">Project details</h3>
-            <p><strong>Floor:</strong> ${escapeHtml(p.flooring_type || '—')}</p>
-            <p><strong>Area:</strong> ${p.total_sqft ? `${p.total_sqft} sq ft` : '—'}</p>
-            <p><strong>Service:</strong> ${escapeHtml(p.service_type || '—')}</p>
-            <p><strong>Address:</strong> ${escapeHtml(p.address || '—')}</p>
+            <p><strong>Floor:</strong> ${escapeHtml(p.flooring_type || '-')}</p>
+            <p><strong>Area:</strong> ${p.total_sqft ? `${p.total_sqft} sq ft` : '-'}</p>
+            <p><strong>Service:</strong> ${escapeHtml(p.service_type || '-')}</p>
+            <p><strong>Address:</strong> ${escapeHtml(p.address || '-')}</p>
             <p><strong>Start:</strong> ${fmtDate(p.start_date)}</p>
             <p><strong>Est. completion:</strong> ${fmtDate(p.end_date_estimated)}</p>
             ${
@@ -767,7 +767,7 @@
       row.innerHTML = `<span class="bp-upload-progress-item__name"></span><div class="bp-upload-progress-item__bar"><div class="bp-upload-progress-item__fill"></div></div>`;
       list.appendChild(row);
     }
-    row.querySelector('.bp-upload-progress-item__name').textContent = `${fileName} — ${pct}%`;
+    row.querySelector('.bp-upload-progress-item__name').textContent = `${fileName} - ${pct}%`;
     const fill = row.querySelector('.bp-upload-progress-item__fill');
     if (fill) fill.style.width = `${pct}%`;
   }
