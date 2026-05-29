@@ -70,8 +70,14 @@
       const internal = m.is_internal_note === 1 || m.is_internal_note === true;
       if (internal && !showInternal) return;
       const readMark = mine && m.is_read ? ' <span title="Read">&#10003;&#10003;</span>' : mine ? ' <span title="Sent">&#10003;</span>' : '';
+      const att =
+        m.attachment_url && !internal
+          ? m.attachment_url.match(/\.(pdf)$/i)
+            ? `<p><a href="${escapeHtml(m.attachment_url)}" target="_blank" rel="noopener">?? PDF attachment</a></p>`
+            : `<p><a href="${escapeHtml(m.attachment_url)}" target="_blank" rel="noopener"><img src="${escapeHtml(m.attachment_url)}" alt="" style="max-width:220px;border-radius:8px;margin-top:6px" loading="lazy" /></a></p>`
+          : '';
       html += `<div class="bp-msg-bubble ${mine ? 'bp-msg-bubble--mine' : ''} ${internal ? 'bp-msg-bubble--note' : ''}">
-        <p>${escapeHtml(m.message)}</p>
+        <p>${escapeHtml(m.message)}</p>${att}
         <span class="bp-msg-time">${fmtTime(m.created_at)}${readMark}${internal ? ' (internal)' : ''}</span>
       </div>`;
     });
@@ -82,7 +88,10 @@
     html += `<footer class="bp-msg-compose">
       ${!isPortal() ? '<label style="font-size:11px;display:flex;align-items:center;gap:6px;margin-bottom:6px"><input type="checkbox" id="internalNote" /> Internal note (staff only)</label>' : ''}
       <textarea id="msgInput" rows="2" placeholder="Write a message..."></textarea>
-      <button type="button" class="bp-btn-tan" id="btnSend">Send</button>
+      <div style="display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap">
+        ${isPortal() ? '<label class="bp-btn-ghost" style="cursor:pointer;font-size:12px;padding:6px 10px">?? <input type="file" id="msgAttach" accept=".jpg,.jpeg,.png,.webp,.pdf" hidden /></label>' : ''}
+        <button type="button" class="bp-btn-tan" id="btnSend">Send</button>
+      </div>
     </footer>`;
     host.innerHTML = html;
     const scroll = document.getElementById('msgScroll');
@@ -92,22 +101,30 @@
 
   async function sendMessage(host, opts) {
     const text = document.getElementById('msgInput')?.value?.trim();
-    if (!text) return;
-    const body = { message: text };
+    const file = document.getElementById('msgAttach')?.files?.[0];
+    if (!text && !file) return;
     if (isPortal() && projectFilter && projectFilter !== 'general') {
-      body.project_id = parseInt(projectFilter, 10);
+      /* project_id set below */
     }
     if (isPortal()) {
+      const fd = new FormData();
+      if (text) fd.append('message', text);
+      else if (file) fd.append('message', '(attachment)');
+      if (file) fd.append('attachment', file);
+      if (projectFilter && projectFilter !== 'general') {
+        fd.append('project_id', String(parseInt(projectFilter, 10)));
+      }
       const r = await window.builderAuth.fetch('/api/builder-messages/partner', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        body: fd,
       });
       if (!r.ok) {
         crmNotify?.('Send failed', 'error') || alert('Send failed');
         return;
       }
       document.getElementById('msgInput').value = '';
+      const att = document.getElementById('msgAttach');
+      if (att) att.value = '';
       await loadPortalThread(host);
     } else {
       body.builder_id = activeBuilderId;

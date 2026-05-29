@@ -4,7 +4,10 @@
 import { getDBConnection } from '../config/db.js';
 import { requireAuth, requirePermission } from '../middleware/auth.js';
 import { requireBuilderAuth } from '../middleware/builderAuth.js';
+import path from 'path';
 import { sendBuilderNotification, adminNotifyEmail } from '../lib/builderNotify.js';
+import { builderWantsEmail } from '../lib/builderNotifyPrefs.js';
+import { uploadBuilderMessageAttachment } from '../lib/builderMessageUpload.js';
 import { notifyBuilder } from './builderNotifications.js';
 
 function conversationIdForBuilder(builderId) {
@@ -117,8 +120,17 @@ export async function postMessage(req, res) {
       }
     }
 
-    const message = String(body.message || '').trim();
-    if (!message) return res.status(400).json({ success: false, error: 'message required' });
+    let attachmentUrl = body.attachment_url || null;
+    if (req.file && req.builderAuth) {
+      const rel = path
+        .join('builder-messages', String(req.builderAuth.builderId), req.file.filename)
+        .replace(/\\/g, '/');
+      attachmentUrl = `/uploads/${rel}`;
+    }
+    const message = String(body.message || '').trim() || (attachmentUrl ? '(attachment)' : '');
+    if (!message && !attachmentUrl) {
+      return res.status(400).json({ success: false, error: 'message or attachment required' });
+    }
 
     const isInternal = req.builderAuth ? false : !!body.is_internal_note;
     const projectId = body.project_id != null ? parseInt(body.project_id, 10) : null;
@@ -135,7 +147,7 @@ export async function postMessage(req, res) {
         senderType,
         senderId,
         message,
-        body.attachment_url || null,
+        attachmentUrl,
         isInternal ? 1 : 0,
       ]
     );
@@ -144,10 +156,11 @@ export async function postMessage(req, res) {
     const row = rows[0];
 
     if (!isInternal) {
-      const [b] = await pool.query('SELECT email, first_name, company FROM builders WHERE id = ?', [
-        builderId,
-      ]);
-      if (senderType === 'admin' && b[0]?.email) {
+      const [b] = await pool.query(
+        'SELECT email, first_name, company, notification_prefs FROM builders WHERE id = ?',
+        [builderId]
+      );
+      if (senderType === 'admin' && b[0]?.email && builderWantsEmail(b[0].notification_prefs, 'messages')) {
         const pub = process.env.PUBLIC_CRM_URL || '';
         sendBuilderNotification({
           to: b[0].email,
@@ -208,5 +221,15 @@ export function registerBuilderMessagesRoutes(app) {
     }
   });
   app.post('/api/builder-messages', requireAuth, requirePermission('builders.edit'), postMessage);
-  app.post('/api/builder-messages/partner', requireBuilderAuth, postMessage);
+  app.post(
+    '/api/builder-messages/partner',
+    requireBuilderAuth,
+    (req, res, next) => {
+      uploadBuilderMessageAttachment.single('attachment')(req, res, (err) => {
+        if (err) return res.status(400).json({ success: false, error: err.message });
+        next();
+      });
+    },
+    postMessage
+  );
 }

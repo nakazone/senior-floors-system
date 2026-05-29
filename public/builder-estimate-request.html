@@ -45,7 +45,7 @@
             <select name="urgency"><option value="flexible">Flexible</option><option value="moderate">Moderate</option><option value="urgent">Urgent</option></select>
           </div>
           <div class="bp-form-full"><label>Notes / specifications</label><textarea name="notes" rows="4"></textarea></div>
-          <div class="bp-form-full"><label>Plans or photos (optional)</label><input type="file" name="attachment" accept="image/*,.pdf" /></div>
+          <div class="bp-form-full"><label>Plans or photos (optional, up to 5)</label><input type="file" id="estFiles" name="attachments" accept="image/*,.pdf" multiple /><div id="estFilePreview" class="bp-file-preview"></div></div>
           <div class="bp-form-full"><label><input type="checkbox" name="site_access" value="1" /> I can provide site access before the estimate</label></div>
           <div class="bp-form-full"><button type="submit" class="bp-btn-tan">Submit request</button></div>
         </form>

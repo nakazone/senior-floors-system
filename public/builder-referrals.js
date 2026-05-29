@@ -19,22 +19,34 @@
     return STATUS_LABELS[String(s || '').toLowerCase()] || s || '—';
   }
 
+  function renderTimeline(events) {
+    if (!events || !events.length) return '';
+    return `<ul class="bp-ref-timeline">${events
+      .map(
+        (e) =>
+          `<li><span class="bp-ref-timeline__status">${escapeHtml(statusLabel(e.status))}</span>
+            <span class="bp-muted">${escapeHtml(String(e.created_at || '').slice(0, 16))}</span>
+            ${e.note ? `<span>${escapeHtml(e.note)}</span>` : ''}</li>`
+      )
+      .join('')}</ul>`;
+  }
+
   async function load() {
     const r = await window.builderAuth.fetch('/api/builder-referrals');
     const j = await r.json();
     const host = document.getElementById('refList');
     const items = j.data || [];
-    const estimates = items.filter((it) => it.type === 'estimate');
-    const converted = items.filter((it) => ['won', 'quoted'].includes(String(it.status || '').toLowerCase()));
+    const sum = j.summary || {};
 
     const summary = document.getElementById('refSummary');
     if (summary) {
       summary.innerHTML = `
         <div class="bp-metrics">
-          <div class="bp-card bp-metric"><div class="bp-metric__val">${items.length}</div><div class="bp-metric__lbl">Submitted</div></div>
-          <div class="bp-card bp-metric"><div class="bp-metric__val">${converted.length}</div><div class="bp-metric__lbl">In progress / won</div></div>
-          <div class="bp-card bp-metric"><div class="bp-metric__val">${estimates.length}</div><div class="bp-metric__lbl">Estimate requests</div></div>
-        </div>`;
+          <div class="bp-card bp-metric"><div class="bp-metric__val">${sum.submitted ?? items.length}</div><div class="bp-metric__lbl">Submitted</div></div>
+          <div class="bp-card bp-metric"><div class="bp-metric__val">${sum.converted ?? 0}</div><div class="bp-metric__lbl">In progress / won</div></div>
+          <div class="bp-card bp-metric"><div class="bp-metric__val">$${sum.commission_accrued ?? 0}</div><div class="bp-metric__lbl">Commission (when active)</div></div>
+        </div>
+        ${sum.note ? `<p class="bp-muted" style="font-size:12px">${escapeHtml(sum.note)}</p>` : ''}`;
     }
 
     if (!items.length) {
@@ -42,19 +54,29 @@
         '<p class="bp-card">No referrals yet. <a href="builder-estimate-request.html">Submit an estimate request</a> to get started.</p>';
       return;
     }
-    host.innerHTML = `<div class="bp-table-wrap"><table class="bp-table"><thead><tr>
-      <th>Reference</th><th>Type</th><th>Status</th><th>Address</th><th>Date</th></tr></thead><tbody>${items
-      .map((it) => {
+    host.innerHTML = items
+      .map((it, idx) => {
         const ref = it.ref_number || it.title || `#${it.id}`;
-        return `<tr>
-          <td><strong>${escapeHtml(ref)}</strong></td>
-          <td>${escapeHtml(it.type === 'estimate' ? 'Estimate' : 'Lead')}</td>
-          <td><span class="bp-badge bp-badge--pending">${escapeHtml(statusLabel(it.status))}</span></td>
-          <td>${escapeHtml(it.address || '—')}</td>
-          <td>${escapeHtml(String(it.created_at || '').slice(0, 10))}</td>
-        </tr>`;
+        const events = it.events || [];
+        return `<div class="bp-card bp-ref-row">
+          <button type="button" class="bp-ref-toggle" data-idx="${idx}" style="width:100%;text-align:left;background:none;border:none;cursor:pointer;padding:0">
+            <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px">
+              <strong>${escapeHtml(ref)}</strong>
+              <span class="bp-badge bp-badge--pending">${escapeHtml(statusLabel(it.status))}</span>
+            </div>
+            <p class="bp-muted" style="margin:4px 0;font-size:13px">${escapeHtml(it.address || '—')} — ${escapeHtml(String(it.created_at || '').slice(0, 10))}</p>
+          </button>
+          <div class="bp-ref-detail hidden" id="refDetail${idx}">${renderTimeline(events)}</div>
+        </div>`;
       })
-      .join('')}</tbody></table></div>`;
+      .join('');
+
+    host.querySelectorAll('.bp-ref-toggle').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const el = document.getElementById(`refDetail${btn.dataset.idx}`);
+        el?.classList.toggle('hidden');
+      });
+    });
   }
 
   document.addEventListener('DOMContentLoaded', () => {

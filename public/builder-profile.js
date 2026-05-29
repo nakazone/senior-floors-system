@@ -5,7 +5,57 @@
     return String(s)
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;');
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function docStatusLabel(status) {
+    const map = {
+      valid: 'Valid',
+      pending_review: 'Pending review',
+      expired: 'Expired',
+      rejected: 'Rejected',
+    };
+    return map[status] || status || '—';
+  }
+
+  function renderDocs(docs) {
+    const list = docs || me?.documents || [];
+    document.getElementById('docList').innerHTML = list.length
+      ? `<div class="bp-table-wrap"><table class="bp-table"><thead><tr><th>Document</th><th>Status</th><th>Expires</th><th></th></tr></thead><tbody>${list
+          .map((d) => {
+            const dl = d.download_url || d.url;
+            const del =
+              d.can_delete
+                ? `<button type="button" class="bp-link-btn bp-doc-del" data-id="${d.id}">Remove</button>`
+                : '';
+            return `<tr>
+              <td>${d.url ? `<a href="${escapeHtml(dl)}" target="_blank" rel="noopener">${escapeHtml(d.name)}</a>` : escapeHtml(d.name)}</td>
+              <td>${escapeHtml(docStatusLabel(d.status))}</td>
+              <td>${escapeHtml(String(d.expires_at || '').slice(0, 10) || '—')}</td>
+              <td>${del}</td>
+            </tr>`;
+          })
+          .join('')}</tbody></table></div>`
+      : '<p class="bp-muted">No documents on file yet. Upload insurance, license, or W-9 below.</p>';
+
+    document.querySelectorAll('.bp-doc-del').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        if (!confirm('Remove this document?')) return;
+        const r = await window.builderAuth.fetch(`/api/builder-documents/${btn.dataset.id}`, {
+          method: 'DELETE',
+        });
+        const j = await r.json();
+        if (!r.ok) alert(j.error || 'Could not delete');
+        else loadDocs();
+      });
+    });
+  }
+
+  async function loadDocs() {
+    const r = await window.builderAuth.fetch('/api/builder-documents');
+    const j = await r.json();
+    if (j.success) renderDocs(j.data);
   }
 
   async function load() {
@@ -34,15 +84,7 @@
         <a href="builder-messages.html" class="bp-btn-tan" style="display:inline-block;margin-top:10px;text-decoration:none;font-size:13px">Send message</a>`
       : '<p class="bp-muted">Your account manager will be assigned by Senior Floors.</p>';
 
-    const docs = me.documents || [];
-    document.getElementById('docList').innerHTML = docs.length
-      ? `<table class="bp-table"><thead><tr><th>Document</th><th>Status</th><th>Expires</th></tr></thead><tbody>${docs
-          .map(
-            (d) =>
-              `<tr><td>${escapeHtml(d.name)}</td><td>${escapeHtml(d.status)}</td><td>${escapeHtml(String(d.expires_at || '').slice(0, 10) || '—')}</td></tr>`
-          )
-          .join('')}</tbody></table>`
-      : '<p class="bp-muted">No documents on file yet.</p>';
+    renderDocs(me.documents);
   }
 
   document.getElementById('profileForm')?.addEventListener('submit', async (e) => {
@@ -78,6 +120,32 @@
     });
     const j = await r.json();
     alert(j.success ? 'Preferences saved' : j.error || 'Error');
+  });
+
+  document.getElementById('docUploadForm')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const file = document.getElementById('docFile')?.files?.[0];
+    const status = document.getElementById('docUploadStatus');
+    if (!file) {
+      status.textContent = 'Select a file.';
+      return;
+    }
+    status.textContent = 'Uploading...';
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('name', document.getElementById('docName')?.value || file.name);
+    fd.append('type', document.getElementById('docType')?.value || 'other');
+    const exp = document.getElementById('docExpires')?.value;
+    if (exp) fd.append('expires_at', exp);
+    const r = await window.builderAuth.fetch('/api/builder-documents', { method: 'POST', body: fd });
+    const j = await r.json();
+    if (!r.ok) {
+      status.textContent = j.error || 'Upload failed';
+      return;
+    }
+    status.textContent = 'Uploaded — pending Senior Floors review.';
+    e.target.reset();
+    loadDocs();
   });
 
   document.addEventListener('DOMContentLoaded', () => {

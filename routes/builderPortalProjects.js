@@ -17,6 +17,17 @@ import {
   projectNotDeletedClause,
 } from '../lib/builderProjectAccess.js';
 import { refreshChecklistCompletedFlag } from '../modules/projects/projectHelpers.js';
+import { fetchNextBuilderVisit } from '../lib/builderVisitScope.js';
+import { buildBuilderActivityFeed } from './builderPortalExtras.js';
+
+async function tableExists(pool, name) {
+  const [r] = await pool.query(
+    `SELECT COUNT(*) AS c FROM information_schema.TABLES
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?`,
+    [name]
+  );
+  return Number(r[0]?.c) > 0;
+}
 
 async function columnExists(pool, table, col) {
   const [r] = await pool.query(
@@ -99,8 +110,12 @@ export async function getBuilderPortalProject(req, res) {
     );
     if (!project) return res.status(404).json({ success: false, error: 'Project not found' });
 
+    const hasDue = await columnExists(pool, 'project_checklist', 'due_date');
+    const hasApprovalChk = await columnExists(pool, 'project_checklist', 'approval_status');
     const [checklist] = await pool.query(
-      `SELECT id, category, item, checked, notes, assigned_to, visible_to_builder
+      `SELECT id, category, item, checked, notes, assigned_to, visible_to_builder${
+        hasDue ? ', due_date' : ''
+      }${hasApprovalChk ? ', approval_status' : ''}
        FROM project_checklist WHERE project_id = ? AND visible_to_builder = 1
        ORDER BY sort_order ASC, id ASC`,
       [projectId]
@@ -111,6 +126,53 @@ export async function getBuilderPortalProject(req, res) {
        FROM project_photos WHERE project_id = ? ORDER BY created_at DESC`,
       [projectId]
     );
+
+    let materials = [];
+    const hasMatVisible = await columnExists(pool, 'project_materials', 'visible_to_builder');
+    const matWhere = hasMatVisible
+      ? 'project_id = ? AND visible_to_builder = 1'
+      : 'project_id = ?';
+    const hasApproval = await columnExists(pool, 'project_materials', 'builder_approval_status');
+    const matCols = `id, product_name, sku, supplier, unit, qty_ordered, qty_received, qty_used,
+              status, order_date, received_date, service_category, notes${
+                hasApproval ? ', builder_approval_status, builder_comment' : ''
+              }`;
+    const [matRows] = await pool.query(
+      `SELECT ${matCols} FROM project_materials WHERE ${matWhere} ORDER BY id`,
+      [projectId]
+    );
+    materials = matRows;
+
+    let documents = [];
+    if (await tableExists(pool, 'project_documents')) {
+      const hasDocVis = await columnExists(pool, 'project_documents', 'visible_to_builder');
+      const hasDocName = await columnExists(pool, 'project_documents', 'display_name');
+      const docWhere = hasDocVis ? 'project_id = ? AND visible_to_builder = 1' : 'project_id = ?';
+      const [docs] = await pool.query(
+        `SELECT id, file_path, doc_type, created_at${hasDocName ? ', display_name' : ''}
+         FROM project_documents WHERE ${docWhere} ORDER BY created_at DESC`,
+        [projectId]
+      );
+      documents = docs.map((d) => {
+        const fp = String(d.file_path || '').replace(/^\//, '');
+        const url = fp.startsWith('uploads/') ? `/${fp}` : `/uploads/${fp}`;
+        return {
+          id: d.id,
+          name: d.display_name || d.doc_type || 'Document',
+          doc_type: d.doc_type,
+          url,
+          created_at: d.created_at,
+        };
+      });
+    }
+
+    const builderItems = checklist.filter(
+      (it) => String(it.assigned_to || 'sf').toLowerCase() === 'builder'
+    );
+    const checklist_progress = {
+      total: builderItems.length,
+      done: builderItems.filter((it) => it.checked === 1 || it.checked === true).length,
+    };
 
     let manager = null;
     if (project.assigned_to) {
@@ -145,14 +207,25 @@ export async function getBuilderPortalProject(req, res) {
         checklist,
         checklist_progress,
         checklist_groups: {
-          builder: checklist.filter((it) => String(it.assigned_to || 'sf').toLowerCase() === 'builder'),
-          sf: checklist.filter((it) => String(it.assigned_to || 'sf').toLowerCase() !== 'builder'),
+          builder: checklist.filter(
+            (it) =>
+              String(it.assigned_to || 'sf').toLowerCase() === 'builder' &&
+              String(it.approval_status || '') !== 'pending_sf'
+          ),
+          sf: checklist.filter(
+            (it) =>
+              String(it.assigned_to || 'sf').toLowerCase() !== 'builder' &&
+              String(it.approval_status || '') !== 'pending_sf'
+          ),
+          awaiting: checklist.filter((it) => String(it.approval_status || '') === 'pending_sf'),
         },
+        documents,
         photos: photos.map((ph) => ({
           ...ph,
           url: photoPublicUrl(ph),
           partner_label: ph.partner_upload ? 'Sent by partner' : null,
         })),
+        materials,
         manager,
       },
     });
@@ -240,8 +313,10 @@ export async function putBuilderProjectChecklist(req, res) {
     }
 
     const checked = !!req.body?.checked;
+    const hasApprovalChk = await columnExists(pool, 'project_checklist', 'approval_status');
+    const approvalSet = hasApprovalChk && checked ? ", approval_status = 'pending_sf'" : hasApprovalChk && !checked ? ", approval_status = NULL" : '';
     await pool.execute(
-      `UPDATE project_checklist SET checked = ?, checked_at = IF(? = 1, NOW(), NULL), checked_by = NULL
+      `UPDATE project_checklist SET checked = ?, checked_at = IF(? = 1, NOW(), NULL), checked_by = NULL${approvalSet}
        WHERE id = ? AND project_id = ?`,
       [checked ? 1 : 0, checked ? 1 : 0, itemId, projectId]
     );
@@ -297,7 +372,44 @@ export async function listBuilderPortalProjects(req, res) {
        ORDER BY ${orderSql} DESC`,
       match.params
     );
-    res.json({ success: true, data: rows });
+
+    const enriched = [];
+    for (const row of rows.map(normalizeProjectRow)) {
+      const pid = row.id;
+      const [[{ photo_count }]] = await pool.query(
+        'SELECT COUNT(*) AS photo_count FROM project_photos WHERE project_id = ?',
+        [pid]
+      );
+      let manager_name = null;
+      if (row.assigned_to) {
+        const [u] = await pool.query('SELECT name FROM users WHERE id = ? LIMIT 1', [row.assigned_to]);
+        manager_name = u[0]?.name || null;
+      }
+      const pct = Number(row.completion_percentage) || 0;
+      let next_step = TIMELINE_STEPS[0].label;
+      for (let i = TIMELINE_STEPS.length - 1; i >= 0; i--) {
+        if (pct >= TIMELINE_STEPS[i].minPct) {
+          next_step = TIMELINE_STEPS[i].label;
+          break;
+        }
+      }
+      let cover_url = null;
+      const [cov] = await pool.query(
+        `SELECT file_path, file_url FROM project_photos WHERE project_id = ? ORDER BY created_at DESC LIMIT 1`,
+        [pid]
+      );
+      if (cov.length) cover_url = photoPublicUrl(cov[0]);
+
+      enriched.push({
+        ...row,
+        photo_count: Number(photo_count) || 0,
+        manager_name,
+        next_step,
+        cover_url,
+        updated_at: row.updated_at,
+      });
+    }
+    res.json({ success: true, data: enriched });
   } catch (e) {
     console.error('listBuilderPortalProjects:', e);
     res.status(500).json({ success: false, error: e.message });
@@ -319,8 +431,17 @@ export async function getBuilderDashboard(req, res) {
     let account_manager = null;
     const amId = builder[0]?.account_manager_user_id;
     if (amId) {
-      const [u] = await pool.query('SELECT id, name, email FROM users WHERE id = ?', [amId]);
-      if (u.length) account_manager = u[0];
+      const hasPhone = await columnExists(pool, 'users', 'phone');
+      const [u] = await pool.query(
+        `SELECT id, name, email${hasPhone ? ', phone' : ''} FROM users WHERE id = ?`,
+        [amId]
+      );
+      if (u.length) {
+        account_manager = {
+          ...u[0],
+          avatar_url: null,
+        };
+      }
     }
 
     const [docs] = await pool.query(
@@ -367,37 +488,24 @@ export async function getBuilderDashboard(req, res) {
       return d && d.startsWith(String(year));
     }).length;
 
-    const upcoming = active
-      .filter((p) => toYmd(p.start_date))
-      .sort((a, b) => String(a.start_date).localeCompare(String(b.start_date)));
-    const next_visit = upcoming[0]
-      ? {
+    let next_visit = await fetchNextBuilderVisit(pool, bid);
+    if (!next_visit) {
+      const upcoming = active
+        .filter((p) => toYmd(p.start_date))
+        .sort((a, b) => String(a.start_date).localeCompare(String(b.start_date)));
+      if (upcoming[0]) {
+        next_visit = {
+          kind: 'project_start',
           project_id: upcoming[0].id,
           project_name: upcoming[0].name,
           address: upcoming[0].address,
           start_date: upcoming[0].start_date,
-        }
-      : null;
+          scheduled_at: upcoming[0].start_date,
+        };
+      }
+    }
 
-    const [messages] = await pool.query(
-      `SELECT m.id, m.message, m.created_at, m.project_id, m.sender_type, p.name AS project_name
-       FROM builder_messages m
-       LEFT JOIN projects p ON m.project_id = p.id
-       WHERE m.builder_id = ? AND m.is_internal_note = 0
-       ORDER BY m.created_at DESC LIMIT 8`,
-      [bid]
-    );
-
-    const activity = (messages || []).map((m) => ({
-      type: m.sender_type === 'admin' ? 'message_sf' : 'message_builder',
-      text:
-        m.sender_type === 'admin'
-          ? `Senior Floors: ${String(m.message || '').slice(0, 120)}`
-          : `You: ${String(m.message || '').slice(0, 120)}`,
-      project_id: m.project_id,
-      project_name: m.project_name,
-      created_at: m.created_at,
-    }));
+    const activity = await buildBuilderActivityFeed(pool, bid, 12);
 
     res.json({
       success: true,

@@ -6,12 +6,22 @@ import { getDBConnection } from '../config/db.js';
 import { requireAuth, requirePermission } from '../middleware/auth.js';
 import { requireBuilderAuth } from '../middleware/builderAuth.js';
 import { generateEstimateRefNumber } from '../lib/estimateRefNumber.js';
-import { uploadEstimateAttachment } from '../lib/estimateUpload.js';
+import { uploadEstimateFiles } from '../lib/estimateMultiUpload.js';
 import { sendBuilderNotification, adminNotifyEmail } from '../lib/builderNotify.js';
+import { builderWantsEmail } from '../lib/builderNotifyPrefs.js';
 import { notifyBuilder } from './builderNotifications.js';
 import { getBuilderCustomerId, getProjectBuilderLinkMeta, buildProjectBuilderMatch, buildProjectOrderSql, buildProjectSelectSql, projectNotDeletedClause } from '../lib/builderProjectAccess.js';
 import { getPartnerPricingForBuilder } from './builderPricing.js';
 import { calculateLine } from '../lib/builderPricingCalc.js';
+
+async function tableExists(pool, name) {
+  const [r] = await pool.query(
+    `SELECT COUNT(*) AS c FROM information_schema.TABLES
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?`,
+    [name]
+  );
+  return Number(r[0]?.c) > 0;
+}
 
 async function columnExists(pool, table, col) {
   const [r] = await pool.query(
@@ -81,10 +91,9 @@ export async function postEstimateRequest(req, res) {
     if (!Array.isArray(services)) services = [];
     const refNumber = await generateEstimateRefNumber(pool);
     let attachmentUrl = body.attachment_url || null;
-    if (req.file) {
-      const rel = path
-        .join('estimates', String(builderId), req.file.filename)
-        .replace(/\\/g, '/');
+    const files = req.files && req.files.length ? req.files : req.file ? [req.file] : [];
+    if (files.length && !attachmentUrl) {
+      const rel = path.join('estimates', String(builderId), files[0].filename).replace(/\\/g, '/');
       attachmentUrl = `/uploads/${rel}`;
     }
 
@@ -120,9 +129,28 @@ export async function postEstimateRequest(req, res) {
     const leadId = await createLeadFromEstimate(pool, req.builderAuth, { ...estRow, services }, refNumber);
     await pool.execute('UPDATE estimate_requests SET lead_id = ? WHERE id = ?', [leadId, ins.insertId]);
 
-    const [builder] = await pool.query('SELECT email, first_name FROM builders WHERE id = ?', [builderId]);
+    if (await tableExists(pool, 'estimate_request_files')) {
+      for (const f of files) {
+        const rel = path.join('estimates', String(builderId), f.filename).replace(/\\/g, '/');
+        await pool.execute(
+          'INSERT INTO estimate_request_files (estimate_request_id, url, original_name) VALUES (?, ?, ?)',
+          [ins.insertId, `/uploads/${rel}`, f.originalname || null]
+        );
+      }
+    }
+    if (await tableExists(pool, 'estimate_request_events')) {
+      await pool.execute(
+        'INSERT INTO estimate_request_events (estimate_request_id, status, note) VALUES (?, ?, ?)',
+        [ins.insertId, 'pending', 'Request submitted']
+      );
+    }
+
+    const [builder] = await pool.query(
+      'SELECT email, first_name, notification_prefs FROM builders WHERE id = ?',
+      [builderId]
+    );
     const pub = process.env.PUBLIC_CRM_URL || '';
-    if (builder[0]?.email) {
+    if (builder[0]?.email && builderWantsEmail(builder[0].notification_prefs, 'project_status')) {
       sendBuilderNotification({
         to: builder[0].email,
         subject: `Estimate request received — ${refNumber}`,
@@ -231,12 +259,41 @@ export async function updateEstimateRequest(req, res) {
     const pool = await getDBConnection();
     const id = parseInt(req.params.id, 10);
     const { status, admin_notes } = req.body || {};
+    const [prev] = await pool.query('SELECT builder_id, status, ref_number FROM estimate_requests WHERE id = ?', [
+      id,
+    ]);
     await pool.execute(
-      'UPDATE estimate_requests SET status = COALESCE(?, status), admin_notes = COALESCE(?, admin_notes) WHERE id = ?',
+      'UPDATE estimate_requests SET status = COALESCE(?, status), admin_notes = COALESCE(?, admin_notes), updated_at = NOW() WHERE id = ?',
       [status, admin_notes, id]
     );
+    if (status && (await tableExists(pool, 'estimate_request_events'))) {
+      await pool.execute(
+        'INSERT INTO estimate_request_events (estimate_request_id, status, note) VALUES (?, ?, ?)',
+        [id, status, admin_notes ? String(admin_notes).slice(0, 500) : 'Status updated']
+      );
+    }
     const [rows] = await pool.query('SELECT * FROM estimate_requests WHERE id = ?', [id]);
-    res.json({ success: true, data: rows[0] });
+    const row = rows[0];
+    if (status && prev[0] && prev[0].status !== status && prev[0].builder_id) {
+      const [b] = await pool.query(
+        'SELECT email, first_name, notification_prefs FROM builders WHERE id = ?',
+        [prev[0].builder_id]
+      );
+      if (b[0]?.email && builderWantsEmail(b[0].notification_prefs, 'project_status')) {
+        sendBuilderNotification({
+          to: b[0].email,
+          subject: `Estimate ${prev[0].ref_number} — ${status}`,
+          html: `<p>Hi ${b[0].first_name || 'there'},</p><p>Your estimate <strong>${prev[0].ref_number}</strong> is now: <strong>${status}</strong>.</p><p><a href="${process.env.PUBLIC_CRM_URL || ''}/builder-referrals.html">View referrals</a></p>`,
+        }).catch(() => {});
+      }
+      notifyBuilder(pool, prev[0].builder_id, {
+        type: 'estimate',
+        title: `Estimate ${prev[0].ref_number} updated`,
+        body: `Status: ${status}`,
+        linkUrl: '/builder-referrals.html',
+      }).catch(() => {});
+    }
+    res.json({ success: true, data: row });
   } catch (e) {
     res.status(500).json({ success: false, error: e.message });
   }
@@ -349,21 +406,46 @@ export async function listBuilderReferrals(req, res) {
        ORDER BY created_at DESC LIMIT 50`,
       [builderId]
     );
+    const estIds = ests.map((e) => e.id);
+    const eventsByEst = {};
+    if (estIds.length && (await tableExists(pool, 'estimate_request_events'))) {
+      const [ev] = await pool.query(
+        `SELECT * FROM estimate_request_events WHERE estimate_request_id IN (${estIds.map(() => '?').join(',')}) ORDER BY created_at ASC`,
+        estIds
+      );
+      ev.forEach((row) => {
+        if (!eventsByEst[row.estimate_request_id]) eventsByEst[row.estimate_request_id] = [];
+        eventsByEst[row.estimate_request_id].push(row);
+      });
+    }
+
     ests.forEach((e) => {
       referrals.push({
         type: 'estimate',
         id: e.id,
+        ref_number: e.ref_number,
         title: e.ref_number,
         status: e.status,
         created_at: e.created_at,
         address: e.address,
         area_sqft: e.area_sqft,
         lead_id: e.lead_id,
+        events: eventsByEst[e.id] || [{ status: e.status, note: 'Submitted', created_at: e.created_at }],
       });
     });
 
     referrals.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-    res.json({ success: true, data: referrals });
+    const won = referrals.filter((r) => ['won', 'quoted'].includes(String(r.status || '').toLowerCase()));
+    res.json({
+      success: true,
+      data: referrals,
+      summary: {
+        submitted: referrals.length,
+        converted: won.length,
+        commission_accrued: 0,
+        note: 'Commission tracking will appear when your referral program is active.',
+      },
+    });
   } catch (e) {
     res.status(500).json({ success: false, error: e.message });
   }
@@ -387,7 +469,7 @@ export function registerBuilderEstimateRoutes(app) {
     '/api/estimate-requests',
     requireBuilderAuth,
     (req, res, next) => {
-      uploadEstimateAttachment.single('attachment')(req, res, (err) => {
+      uploadEstimateFiles.array('attachments', 5)(req, res, (err) => {
         if (err) return res.status(400).json({ success: false, error: err.message });
         next();
       });

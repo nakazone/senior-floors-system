@@ -31,7 +31,25 @@
         <div class="bp-card" id="documents" name="documents">
           <h2 style="font-size:1rem;margin:0 0 12px">Partner documents</h2>
           <div id="docList"></div>
-          <p class="bp-muted" style="margin-top:8px">Contact Senior Floors to upload or replace compliance documents.</p>
+          <form id="docUploadForm" class="bp-doc-upload" style="margin-top:16px;padding-top:16px;border-top:1px solid var(--bp-border)">
+            <h3 style="font-size:13px;margin:0 0 10px">Upload document</h3>
+            <div class="bp-form-grid">
+              <div><label>Name</label><input name="name" id="docName" placeholder="e.g. General liability 2026" /></div>
+              <div><label>Type</label>
+                <select id="docType">
+                  <option value="insurance">Insurance</option>
+                  <option value="license">License</option>
+                  <option value="w9">W-9</option>
+                  <option value="contract">Contract</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+              <div><label>Expires (optional)</label><input type="date" id="docExpires" /></div>
+              <div class="bp-form-full"><label>File (PDF or image)</label><input type="file" id="docFile" accept=".pdf,.jpg,.jpeg,.png,.webp" required /></div>
+              <div class="bp-form-full"><button type="submit" class="bp-btn-tan">Upload for review</button></div>
+            </div>
+            <p id="docUploadStatus" class="bp-muted" style="min-height:1.2em"></p>
+          </form>
         </div>
         <div class="bp-card" id="notifications" name="notifications">
           <h2 style="font-size:1rem;margin:0 0 12px">Email notifications</h2>

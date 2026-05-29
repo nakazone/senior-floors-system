@@ -70,10 +70,13 @@
           ? items
               .map(
                 (p) =>
-                  `<a href="${escapeHtml(p.url)}" target="_blank" rel="noopener" class="bp-photo-card" data-lightbox="${escapeHtml(p.url)}">
-                    <img src="${escapeHtml(p.url)}" alt="" loading="lazy" />
-                    ${p.partner_label ? '<span class="bp-photo-card__tag">You</span>' : '<span class="bp-photo-card__tag">SF</span>'}
-                  </a>`
+                  `<div class="bp-photo-card-wrap">
+                    <button type="button" class="bp-photo-card" data-photo-url="${escapeHtml(p.url)}" data-photo-id="${p.id}" data-partner="${p.partner_upload ? '1' : '0'}">
+                      <img src="${escapeHtml(p.url)}" alt="" loading="lazy" />
+                      ${p.partner_label ? '<span class="bp-photo-card__tag">You</span>' : '<span class="bp-photo-card__tag">SF</span>'}
+                    </button>
+                    ${p.partner_upload ? `<button type="button" class="bp-photo-del" data-photo-id="${p.id}" title="Remove">—</button>` : ''}
+                  </div>`
               )
               .join('')
           : '<p class="bp-muted">No photos yet.</p>';
@@ -85,7 +88,8 @@
   function renderChecklist(groups, progress) {
     const builder = groups?.builder || [];
     const sf = groups?.sf || [];
-    if (!builder.length && !sf.length) {
+    const awaiting = groups?.awaiting || [];
+    if (!builder.length && !sf.length && !awaiting.length) {
       return '<p class="bp-card">No checklist items visible yet. Senior Floors will enable items when ready.</p>';
     }
     const prog =
@@ -109,7 +113,7 @@
           })
           .join('')}</div>`
         : '';
-    return `${prog}${block('Your action items', builder, true)}${block('Senior Floors', sf, false)}`;
+    return `${prog}${block('Your action items', builder, true)}${block('Awaiting Senior Floors approval', awaiting, false)}${block('Senior Floors', sf, false)}`;
   }
 
   async function loadProjectMessages(panel) {
@@ -185,11 +189,63 @@
     });
   }
 
+  let lightboxUrls = [];
+  let lightboxIdx = 0;
+
+  function openLightbox(urls, start) {
+    lightboxUrls = urls;
+    lightboxIdx = start;
+    let lb = document.getElementById('bpPhotoLightbox');
+    if (!lb) {
+      lb = document.createElement('div');
+      lb.id = 'bpPhotoLightbox';
+      lb.className = 'bp-lightbox open';
+      lb.innerHTML = '<div class="bp-lightbox__inner" style="max-width:900px;background:#111;color:#fff;text-align:center;position:relative"><button type="button" class="bp-lightbox__close" id="lbClose">&times;</button><button type="button" id="lbPrev" style="position:absolute;left:8px;top:50%">&#' + '9664;</button><img id="lbImg" style="max-width:100%;max-height:70vh" alt="" /><button type="button" id="lbNext" style="position:absolute;right:8px;top:50%">&#' + '9654;</button></div>';
+      document.body.appendChild(lb);
+      lb.querySelector('#lbClose')?.addEventListener('click', () => lb.remove());
+      lb.querySelector('#lbPrev')?.addEventListener('click', () => { lightboxIdx = (lightboxIdx - 1 + lightboxUrls.length) % lightboxUrls.length; lb.querySelector('#lbImg').src = lightboxUrls[lightboxIdx]; });
+      lb.querySelector('#lbNext')?.addEventListener('click', () => { lightboxIdx = (lightboxIdx + 1) % lightboxUrls.length; lb.querySelector('#lbImg').src = lightboxUrls[lightboxIdx]; });
+      lb.addEventListener('click', (e) => { if (e.target === lb) lb.remove(); });
+    } else lb.classList.add('open');
+    lb.querySelector('#lbImg').src = lightboxUrls[lightboxIdx];
+  }
+
+  function renderMaterials(materials) {
+    const rows = materials || [];
+    if (!rows.length) return '<div class="bp-card"><p class="bp-muted">No materials shared for this project yet.</p></div>';
+    const supplyLabel = { pending: 'Not ordered', ordered: 'Ordered', received: 'Received', partial: 'Partial', returned: 'Returned' };
+    const apprLabel = { pending: 'Your review needed', approved: 'Approved', rejected: 'Change requested' };
+    const cards = rows.map((m) => {
+      const qty = (m.qty_received ?? 0) + ' / ' + (m.qty_ordered ?? 0) + ' ' + (m.unit || '');
+      const appr = m.builder_approval_status || 'pending';
+      return '<div class="bp-card bp-mat-card"><strong>' + m.product_name + '</strong> <span class="bp-badge">' + (apprLabel[appr]||appr) + '</span><p class="bp-muted">' + qty + '</p><textarea class="bp-mat-comment" data-mid="' + m.id + '" rows="2" style="width:100%"></textarea><button type="button" class="bp-btn-tan bp-mat-approve" data-mid="' + m.id + '">Approve</button> <button type="button" class="bp-btn-ghost bp-mat-reject" data-mid="' + m.id + '">Request change</button></div>';
+    }).join('');
+    return '<button type="button" class="bp-btn-tan" id="btnApproveAllMat">Approve all</button>' + cards;
+  }
+
+  function wireMaterials(panel) {
+    panel.querySelector('#btnApproveAllMat')?.addEventListener('click', async () => {
+      await window.builderAuth.fetch('/api/builder-projects/' + projectId + '/materials/approve-all', { method: 'POST' });
+      await load(); activeTab = 'materials'; render();
+    });
+    panel.querySelectorAll('.bp-mat-approve').forEach((btn) => btn.addEventListener('click', () => submitMaterial(btn.dataset.mid, 'approved', panel)));
+    panel.querySelectorAll('.bp-mat-reject').forEach((btn) => btn.addEventListener('click', () => submitMaterial(btn.dataset.mid, 'rejected', panel)));
+  }
+
+  async function submitMaterial(mid, status, panel) {
+    const comment = panel.querySelector('.bp-mat-comment[data-mid="' + mid + '"]')?.value || '';
+    await window.builderAuth.fetch('/api/builder-projects/' + projectId + '/materials/' + mid, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ builder_approval_status: status, builder_comment: comment }),
+    });
+    await load(); activeTab = 'materials'; render();
+  }
+
   function render() {
-    const { project: p, timeline, checklist, checklist_groups, checklist_progress, photos, manager } = state;
+    const { project: p, timeline, checklist, checklist_groups, checklist_progress, photos, materials, manager } = state;
     const pct = Math.min(100, Number(p.completion_percentage) || 0);
     app.innerHTML = `
-      <a href="builder-projects.html" class="bp-back-link">? Back to projects</a>
+      <a href="builder-projects.html" class="bp-back-link">\u2190 Back to projects</a>
       <header class="bp-proj-header">
         <div>
           <h1 class="bp-title">${escapeHtml(p.name || p.project_number || 'Project')}</h1>
@@ -200,7 +256,7 @@
           <button type="button" class="bp-btn-ghost" id="btnIssue">Report issue</button>
         </div>
       </header>
-      <p class="bp-muted" style="margin:0 0 12px">${fmtDate(p.start_date)} ? ${fmtDate(p.end_date_estimated)}</p>
+      <p class="bp-muted" style="margin:0 0 12px">${fmtDate(p.start_date)} \u2192 ${fmtDate(p.end_date_estimated)}</p>
       ${
         manager
           ? `<div class="bp-card bp-manager">
@@ -218,6 +274,7 @@
       <nav class="bp-tabs" role="tablist">
         <button type="button" data-tab="summary" class="${activeTab === 'summary' ? 'active' : ''}">Summary</button>
         <button type="button" data-tab="photos" class="${activeTab === 'photos' ? 'active' : ''}">Site photos</button>
+        <button type="button" data-tab="materials" class="${activeTab === 'materials' ? 'active' : ''}">Materials</button>
         <button type="button" data-tab="checklist" class="${activeTab === 'checklist' ? 'active' : ''}">Checklist</button>
         <button type="button" data-tab="messages" class="${activeTab === 'messages' ? 'active' : ''}">Messages</button>
       </nav>
@@ -226,6 +283,15 @@
     document.getElementById('btnIssue')?.addEventListener('click', openIssueModal);
     const panel = document.getElementById('tabPanel');
     if (activeTab === 'summary') {
+      const docs = state.documents || [];
+      const docList = docs.length
+        ? `<ul class="bp-doc-list">${docs
+            .map(
+              (d) =>
+                `<li><a href="${escapeHtml(d.url)}" target="_blank" rel="noopener">${escapeHtml(d.name)}</a> <span class="bp-muted">${escapeHtml(d.doc_type || '')}</span></li>`
+            )
+            .join('')}</ul>`
+        : '<p class="bp-muted">No project documents shared yet.</p>';
       panel.innerHTML = `
         <div class="bp-summary-grid">
           <div class="bp-card">
@@ -239,7 +305,9 @@
             ${manager ? `<p><strong>SF contact:</strong> ${escapeHtml(manager.name || '')}</p>` : ''}
           </div>
           <div class="bp-card">
-            <h3 style="margin:0 0 10px;font-size:14px">Notes from Senior Floors</h3>
+            <h3 style="margin:0 0 10px;font-size:14px">Project documents</h3>
+            ${docList}
+            <h3 style="margin:16px 0 10px;font-size:14px">Notes from Senior Floors</h3>
             <p>${escapeHtml(p.client_notes || p.internal_notes_for_builder || 'No notes yet.')}</p>
           </div>
         </div>`;
@@ -259,6 +327,26 @@
         </div>
         ${renderPhotos(photos)}`;
       wirePhotoUpload();
+      const urls = [...panel.querySelectorAll('[data-photo-url]')].map((el) => el.dataset.photoUrl);
+      panel.querySelectorAll('[data-photo-url]').forEach((btn, idx) => {
+        btn.addEventListener('click', () => openLightbox(urls, idx));
+      });
+      panel.querySelectorAll('.bp-photo-del').forEach((btn) => {
+        btn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          if (!confirm('Remove this photo?')) return;
+          await window.builderAuth.fetch(
+            `/api/builder-projects/${projectId}/photos/${btn.dataset.photoId}`,
+            { method: 'DELETE' }
+          );
+          await load();
+          activeTab = 'photos';
+          render();
+        });
+      });
+    } else if (activeTab === 'materials') {
+      panel.innerHTML = renderMaterials(materials);
+      wireMaterials(panel);
     } else if (activeTab === 'checklist') {
       panel.innerHTML = renderChecklist(checklist_groups, checklist_progress);
       panel.querySelectorAll('[data-chk-id]').forEach((inp) => {
@@ -322,7 +410,10 @@
     }
     status.textContent = 'Uploading...';
     let ok = 0;
+    let i = 0;
     for (const file of files) {
+      i++;
+      status.textContent = `Uploading ${i}/${files.length}...`;
       const fd = new FormData();
       fd.append('file', file);
       fd.append('phase', phase);

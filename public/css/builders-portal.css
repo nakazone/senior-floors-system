@@ -176,6 +176,13 @@
 .bp-calc-line { display: grid; grid-template-columns: 1fr 100px 36px; gap: 8px; margin-bottom: 8px; align-items: center; }
 .bp-info-btn { width: 20px; height: 20px; border-radius: 50%; border: 1px solid var(--bp-border); background: var(--bp-tan-pale); font-size: 11px; font-weight: 700; cursor: pointer; vertical-align: middle; }
 .bp-print-doc { padding: 16px; }
+.bp-calendar-filters { align-items: end; }
+.bp-cal-event__head { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; flex-wrap: wrap; }
+.bp-cal-event__when { font-weight: 600; color: var(--bp-navy); margin: 8px 0 0; font-size: 14px; }
+.bp-cal-event--request { border-left: 4px solid #f59e0b; }
+.bp-cal-event--visit { border-left: 4px solid var(--bp-tan); }
+.bp-doc-upload input[type="file"] { font-size: 12px; }
+.bp-materials-table td { vertical-align: top; }
 
 @media (max-width: 768px) {
   .bp-portal-layout { grid-template-columns: 1fr; }
@@ -186,4 +193,44 @@
   .bp-form-grid { grid-template-columns: 1fr; }
   .bp-tabs { overflow-x: auto; flex-wrap: nowrap; }
   .bp-calc-line { grid-template-columns: 1fr; }
+  .bp-materials-table thead { display: none; }
+  .bp-materials-table tr { display: block; border-bottom: 1px solid var(--bp-border); padding: 10px 0; }
+  .bp-materials-table td { display: block; border: none; padding: 4px 12px; }
+  .bp-materials-table td::before {
+    content: attr(data-label);
+    font-size: 10px;
+    text-transform: uppercase;
+    color: var(--bp-muted);
+    display: block;
+    margin-bottom: 2px;
+  }
+  .bp-cal-event__head { flex-direction: column; align-items: flex-start; }
+  body[data-bp-page="messages"] #portalShell .bp-portal-main { padding: 0; }
+  body[data-bp-page="messages"] #portalThread { min-height: 100vh; border-radius: 0; }
 }
+.bp-proj-toolbar { align-items: center; }
+.bp-view-toggle { display: flex; gap: 4px; margin-left: auto; }
+.bp-proj-card { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+.bp-proj-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; }
+.bp-proj-grid-card { text-decoration: none; color: inherit; border: 1px solid var(--bp-border); border-radius: 10px; overflow: hidden; background: #fff; }
+.bp-proj-grid-card__img { position: relative; aspect-ratio: 4/3; background: #e2e8f0; }
+.bp-proj-grid-card__img img { width: 100%; height: 100%; object-fit: cover; }
+.bp-proj-grid__ph { display: flex; align-items: center; justify-content: center; height: 100%; font-size: 12px; color: var(--bp-muted); }
+.bp-proj-grid-card__body { padding: 10px 12px; }
+.bp-photo-card-wrap { position: relative; }
+.bp-photo-del { position: absolute; top: 4px; right: 4px; background: #dc2626; color: #fff; border: none; border-radius: 50%; width: 22px; height: 22px; cursor: pointer; }
+.bp-photo-card { border: none; padding: 0; width: 100%; cursor: pointer; display: block; }
+.bp-doc-list { margin: 0; padding-left: 18px; font-size: 13px; }
+.bp-ref-timeline { list-style: none; padding: 12px 0 0; margin: 0; border-top: 1px solid var(--bp-border); }
+.bp-ref-timeline li { font-size: 12px; padding: 6px 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.bp-ref-timeline__status { font-weight: 600; }
+.bp-cal-month-nav { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.bp-cal-month-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.bp-cal-day { min-height: 72px; border: 1px solid var(--bp-border); border-radius: 6px; padding: 4px; font-size: 10px; background: #fff; }
+.bp-cal-day--has { background: var(--bp-tan-pale); }
+.bp-cal-day__num { font-weight: 700; display: block; margin-bottom: 4px; }
+.bp-cal-day__ev { display: block; background: var(--bp-navy); color: var(--bp-tan); padding: 2px 4px; border-radius: 3px; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bp-cal-view-toggle { display: flex; gap: 8px; }
+.bp-file-preview { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.bp-file-chip { font-size: 11px; background: var(--bp-tan-pale); padding: 4px 8px; border-radius: 6px; }
+.hidden { display: none !important; }

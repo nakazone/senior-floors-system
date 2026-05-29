@@ -3,6 +3,7 @@
   const PAGES = [
     { id: 'dashboard', href: 'builder-portal.html', label: 'Dashboard' },
     { id: 'projects', href: 'builder-projects.html', label: 'My Projects' },
+    { id: 'calendar', href: 'builder-calendar.html', label: 'Calendar' },
     { id: 'calculator', href: 'builder-calculator.html', label: 'Calculator' },
     { id: 'estimate', href: 'builder-estimate-request.html', label: 'Request estimate' },
     { id: 'pricing', href: 'builder-pricing.html', label: 'Pricing' },
@@ -21,6 +22,7 @@
       'builder-portal': 'dashboard',
       'builder-projects': 'projects',
       'builder-project': 'projects',
+      'builder-calendar': 'calendar',
       'builder-calculator': 'calculator',
       'builder-estimate-request': 'estimate',
       'builder-pricing': 'pricing',

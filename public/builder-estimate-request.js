@@ -25,6 +25,18 @@
     }, 200);
   });
 
+  document.getElementById('estFiles')?.addEventListener('change', (e) => {
+    const prev = document.getElementById('estFilePreview');
+    if (!prev) return;
+    prev.innerHTML = '';
+    [...(e.target.files || [])].slice(0, 5).forEach((f) => {
+      const span = document.createElement('span');
+      span.className = 'bp-file-chip';
+      span.textContent = f.name;
+      prev.appendChild(span);
+    });
+  });
+
   document.getElementById('estForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const form = e.target;
@@ -37,8 +49,12 @@
     fd.append('desired_start', form.desired_start.value || '');
     fd.append('urgency', form.urgency.value);
     fd.append('notes', form.notes.value || '');
-    const file = form.attachment.files[0];
-    if (file) fd.append('attachment', file);
+    const files = document.getElementById('estFiles')?.files;
+    if (files) {
+      for (let i = 0; i < Math.min(5, files.length); i++) {
+        fd.append('attachments', files[i]);
+      }
+    }
 
     const r = await window.builderAuth.fetch('/api/estimate-requests', { method: 'POST', body: fd });
     const j = await r.json();

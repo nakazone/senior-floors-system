@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Calendar - Builder Portal</title>
+  <link rel="icon" type="image/png" href="/assets/SeniorFloors.png" />
+  <link rel="stylesheet" href="css/builders-portal.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700&display=swap" rel="stylesheet" />
+</head>
+<body class="bp-page-body" data-bp-page="calendar">
+  <div class="bp-portal-layout">
+    <button type="button" class="bp-menu-toggle" id="bpMenuToggle" aria-label="Menu">&#9776;</button>
+    <aside class="bp-portal-sidebar">
+      <img src="/assets/SeniorFloors.png" alt="" width="40" style="margin-bottom:12px" onerror="this.style.display='none'" />
+      <nav id="bpPortalNav"></nav>
+    </aside>
+    <main class="bp-portal-main">
+      <div id="bpPortalHeader"></div>
+      <div class="bp-main">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;margin-bottom:1rem">
+          <div>
+            <h1 class="bp-title">Schedule</h1>
+            <p class="bp-muted" style="margin:4px 0 0">Confirmed visits and your pending requests.</p>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button type="button" class="bp-btn-tan" id="btnNewVisit">Request visit</button>
+            <a href="#" id="btnExportIcs" class="bp-btn-ghost" style="text-decoration:none;display:inline-block">Export calendar (.ics)</a>
+          </div>
+        </div>
+        <div class="bp-cal-view-toggle" style="margin-bottom:12px">
+          <button type="button" class="bp-btn-tan active" id="viewListCal">List</button>
+          <button type="button" class="bp-btn-ghost" id="viewMonthCal">Month</button>
+        </div>
+        <div id="calendarMonth" class="bp-cal-month hidden"></div>
+        <div class="bp-filters bp-calendar-filters">
+          <div>
+            <label style="font-size:11px;font-weight:600">From</label>
+            <input type="date" id="filterFrom" />
+          </div>
+          <div>
+            <label style="font-size:11px;font-weight:600">To</label>
+            <input type="date" id="filterTo" />
+          </div>
+          <button type="button" class="bp-btn-ghost" id="btnApplyFilter">Apply</button>
+        </div>
+        <div id="calendarList"></div>
+      </div>
+    </main>
+  </div>
+  <div class="bp-modal" id="visitModal">
+    <div class="bp-modal__box">
+      <h3 style="margin-top:0">Request a site visit</h3>
+      <form id="visitForm" class="bp-form-grid">
+        <div class="bp-form-full">
+          <label>Visit type</label>
+          <select id="visitType">
+            <option value="Site evaluation">Site evaluation</option>
+            <option value="Measurement">Measurement</option>
+            <option value="Material presentation">Material presentation</option>
+            <option value="General visit">General visit</option>
+          </select>
+        </div>
+        <div class="bp-form-full">
+          <label>Project (optional)</label>
+          <select id="visitProject"><option value="">— General / new site —</option></select>
+        </div>
+        <div class="bp-form-full">
+          <label>Date & time *</label>
+          <input type="datetime-local" id="visitWhen" required />
+        </div>
+        <div class="bp-form-full">
+          <label>Address line 1 *</label>
+          <input id="visitLine1" required />
+        </div>
+        <div>
+          <label>City *</label>
+          <input id="visitCity" required />
+        </div>
+        <div>
+          <label>ZIP</label>
+          <input id="visitZip" />
+        </div>
+        <div class="bp-form-full">
+          <label>Notes</label>
+          <textarea id="visitNotes" rows="3"></textarea>
+        </div>
+        <div class="bp-form-full" style="display:flex;gap:8px">
+          <button type="submit" class="bp-btn-tan">Submit request</button>
+          <button type="button" class="bp-btn-ghost" id="visitCancel">Cancel</button>
+        </div>
+      </form>
+      <p id="visitFormStatus" class="bp-muted" style="min-height:1.2em"></p>
+    </div>
+  </div>
+  <script src="builder-auth.js?v=3"></script>
+  <script src="builder-portal-nav.js?v=3"></script>
+  <script src="builder-portal-common.js?v=1"></script>
+  <script src="builder-calendar.js?v=1"></script>
+</body>
+</html>

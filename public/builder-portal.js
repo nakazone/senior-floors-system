@@ -66,12 +66,31 @@
         const nv = document.getElementById('nextVisitCard');
         nv.classList.remove('hidden');
         nv.className = 'bp-card bp-next-visit';
+        const kind =
+          d.next_visit.kind === 'visit'
+            ? 'Confirmed site visit'
+            : d.next_visit.kind === 'request'
+              ? 'Visit request (pending approval)'
+              : 'Upcoming project start';
+        const when = d.next_visit.scheduled_at || d.next_visit.start_date;
         nv.innerHTML = `
-          <div class="bp-next-visit__label">Next scheduled visit</div>
-          <div class="bp-next-visit__date">${fmtDate(d.next_visit.start_date)}</div>
+          <div class="bp-next-visit__label">${escapeHtml(kind)}</div>
+          <div class="bp-next-visit__date">${fmtDate(when)}</div>
           <p style="margin:6px 0 0"><strong>${escapeHtml(d.next_visit.project_name || '')}</strong></p>
           <p class="bp-muted" style="margin:4px 0 0">${escapeHtml(d.next_visit.address || '')}</p>
-          <a href="builder-project.html?id=${d.next_visit.project_id}" class="bp-btn-tan" style="display:inline-block;margin-top:10px;text-decoration:none">View project</a>`;
+          <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px">
+            ${d.next_visit.project_id ? `<a href="builder-project.html?id=${d.next_visit.project_id}" class="bp-btn-tan" style="text-decoration:none;font-size:13px">View project</a>` : ''}
+            ${d.next_visit.project_id ? `<button type="button" class="bp-btn-ghost" id="btnConfirmAccess" data-pid="${d.next_visit.project_id}" style="font-size:13px">Confirm property access</button>` : ''}
+            <a href="builder-calendar.html" class="bp-btn-ghost" style="text-decoration:none;font-size:13px">Calendar</a>
+          </div>`;
+        document.getElementById('btnConfirmAccess')?.addEventListener('click', async () => {
+          const pid = document.getElementById('btnConfirmAccess')?.dataset.pid;
+          const r = await window.builderAuth.fetch(`/api/builder-projects/${pid}/confirm-access`, {
+            method: 'POST',
+          });
+          const j = await r.json();
+          alert(j.success ? j.message || 'Confirmed' : j.error || 'Error');
+        });
       }
 
       const mgr = d.account_manager;
@@ -82,7 +101,8 @@
         mc.innerHTML = `
           <strong>Your Senior Floors manager</strong>
           <p style="margin:6px 0 0">${escapeHtml(mgr.name || '')}</p>
-          <p class="bp-muted" style="margin:4px 0 0">${escapeHtml(mgr.email || '')}</p>
+          ${mgr.phone ? `<p class="bp-muted" style="margin:4px 0 0">Tel: <a href="tel:${escapeHtml(mgr.phone)}">${escapeHtml(mgr.phone)}</a></p>` : ''}
+          <p class="bp-muted" style="margin:4px 0 0"><a href="mailto:${escapeHtml(mgr.email || '')}">${escapeHtml(mgr.email || '')}</a></p>
           <a href="builder-messages.html" class="bp-btn-tan" style="display:inline-block;margin-top:10px;text-decoration:none;font-size:13px">Send message</a>`;
       }
 
