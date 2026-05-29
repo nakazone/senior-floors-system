@@ -8,7 +8,7 @@ import { requireBuilderAuth } from '../middleware/builderAuth.js';
 import { generateEstimateRefNumber } from '../lib/estimateRefNumber.js';
 import { uploadEstimateAttachment } from '../lib/estimateUpload.js';
 import { sendBuilderNotification, adminNotifyEmail } from '../lib/builderNotify.js';
-import { getBuilderCustomerId } from '../lib/builderProjectAccess.js';
+import { getBuilderCustomerId, getProjectBuilderLinkMeta, buildProjectBuilderMatch, projectNotDeletedClause } from '../lib/builderProjectAccess.js';
 import { getPartnerPricingForBuilder } from './builderPricing.js';
 
 async function columnExists(pool, table, col) {
@@ -236,16 +236,19 @@ export async function updateEstimateRequest(req, res) {
 export async function listBuilderHistory(req, res) {
   try {
     const pool = await getDBConnection();
-    const cid = await getBuilderCustomerId(pool, req.builderAuth.builderId);
+    const builderId = req.builderAuth.builderId;
+    const cid = await getBuilderCustomerId(pool, builderId);
     if (!cid) return res.json({ success: true, data: [] });
+    const linkMeta = await getProjectBuilderLinkMeta(pool);
+    const match = buildProjectBuilderMatch('p', builderId, cid, linkMeta);
     const [rows] = await pool.query(
       `SELECT id, name, address, status, contract_value, completion_percentage,
               flooring_type, total_sqft, project_number, end_date_actual, start_date
-       FROM projects
-       WHERE builder_id = ? AND status IN ('completed','closed')
-         AND (deleted_at IS NULL)
+       FROM projects p
+       WHERE ${match.sql}${projectNotDeletedClause('p', linkMeta)}
+         AND status IN ('completed','closed')
        ORDER BY COALESCE(end_date_actual, updated_at) DESC`,
-      [cid]
+      match.params
     );
     res.json({ success: true, data: rows });
   } catch (e) {

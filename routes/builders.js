@@ -5,7 +5,13 @@ import bcrypt from 'bcryptjs';
 import { getDBConnection } from '../config/db.js';
 import { requireAuth, requirePermission } from '../middleware/auth.js';
 import { requireBuilderAuth } from '../middleware/builderAuth.js';
-import { randomTempPassword } from '../lib/builderJwt.js';
+import {
+  buildProjectBuilderCorrelatedMatch,
+  buildProjectBuilderMatch,
+  getBuilderCustomerId,
+  getProjectBuilderLinkMeta,
+  projectNotDeletedClause,
+} from '../lib/builderProjectAccess.js';
 
 function parseJsonField(val, fallback = []) {
   if (val == null) return fallback;
@@ -78,9 +84,13 @@ export async function listBuilders(req, res) {
       params.push(t, t, t, t);
     }
 
+    const linkMeta = await getProjectBuilderLinkMeta(pool);
+    const projectMatch = buildProjectBuilderCorrelatedMatch('p', 'b', linkMeta);
+    const projectDel = projectNotDeletedClause('p', linkMeta);
+
     const [rows] = await pool.query(
       `SELECT b.*,
-        (SELECT COUNT(*) FROM projects p WHERE p.builder_id = b.customer_id AND (p.deleted_at IS NULL OR p.deleted_at = '0000-00-00 00:00:00')) AS project_count
+        (SELECT COUNT(*) FROM projects p WHERE ${projectMatch}${projectDel}) AS project_count
        FROM builders b
        WHERE ${where}
        ORDER BY b.created_at DESC
@@ -102,9 +112,9 @@ export async function listBuilders(req, res) {
     const [[projStats]] = await pool.query(`
       SELECT COUNT(*) AS open_projects
       FROM projects p
-      INNER JOIN builders b ON p.builder_id = b.customer_id
-      WHERE p.status NOT IN ('completed','cancelled')
-        AND (p.deleted_at IS NULL)`);
+      INNER JOIN builders b ON ${projectMatch}
+      WHERE p.status NOT IN ('completed','cancelled','closed')
+        ${projectDel.replace(/^ AND /, 'AND ')}`);
 
     res.json({
       success: true,
@@ -136,13 +146,15 @@ export async function getBuilder(req, res) {
     b.regions = parseJsonField(b.regions);
     delete b.portal_password_hash;
 
+    const linkMeta = await getProjectBuilderLinkMeta(pool);
+    const match = buildProjectBuilderMatch('p', id, b.customer_id, linkMeta);
     const [projects] = await pool.query(
       `SELECT p.id, p.name, p.address, p.status, p.contract_value, p.start_date, p.end_date_estimated,
               p.completion_percentage, p.project_number
        FROM projects p
-       WHERE p.builder_id = ? AND (p.deleted_at IS NULL)
+       WHERE ${match.sql}${projectNotDeletedClause('p', linkMeta)}
        ORDER BY p.updated_at DESC`,
-      [b.customer_id]
+      match.params
     );
 
     const [docs] = await pool.query(
@@ -328,18 +340,19 @@ export async function listBuilderPortalProjects(req, res) {
   try {
     const pool = await getDBConnection();
     const auth = req.builderAuth;
-    const [b] = await pool.query('SELECT customer_id FROM builders WHERE id = ?', [auth.builderId]);
-    if (!b.length || !b[0].customer_id) {
+    const cid = await getBuilderCustomerId(pool, auth.builderId);
+    if (!cid) {
       return res.json({ success: true, data: [] });
     }
-    const cid = b[0].customer_id;
+    const linkMeta = await getProjectBuilderLinkMeta(pool);
+    const match = buildProjectBuilderMatch('p', auth.builderId, cid, linkMeta);
     const [rows] = await pool.query(
       `SELECT id, name, address, status, completion_percentage, start_date, end_date_estimated,
               flooring_type, total_sqft, project_number
-       FROM projects
-       WHERE builder_id = ? AND (deleted_at IS NULL)
+       FROM projects p
+       WHERE ${match.sql}${projectNotDeletedClause('p', linkMeta)}
        ORDER BY updated_at DESC`,
-      [cid]
+      match.params
     );
     res.json({ success: true, data: rows });
   } catch (e) {
