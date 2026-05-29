@@ -1,65 +1,100 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Request estimate — Builder Portal</title>
-  <link rel="stylesheet" href="css/builders-portal.css" />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+ <meta charset="UTF-8" />
+ <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+ <title>Request estimate - Builder Portal</title>
+ <link rel="icon" type="image/png" href="/assets/SeniorFloors.png" />
+ <link rel="stylesheet" href="css/builders-portal.css?v=20260529-estimate" />
+ <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
 </head>
-<body class="bp-page-body">
-  <div class="bp-portal-layout">
-    <aside class="bp-portal-sidebar">
-      <a href="builder-portal.html">Dashboard</a>
-      <a href="builder-calculator.html">Calculator</a>
-      <a href="builder-estimate-request.html" class="active">Request estimate</a>
-    </aside>
-    <main class="bp-portal-main">
-      <div class="bp-main" style="max-width:640px">
-        <h1 class="bp-title">Request formal estimate</h1>
-        <p class="bp-muted">Submit project details for a formal quote from Senior Floors.</p>
-        <form id="estForm" class="bp-card bp-form-grid">
-          <div class="bp-form-full"><label>Project type</label>
-            <select name="project_type" required>
-              <option value="my_client">New client of mine</option>
-              <option value="my_project">My own project</option>
-              <option value="sf_referral">Direct referral to SF</option>
-            </select>
-          </div>
-          <div class="bp-form-full"><label>Project address</label>
-            <input type="text" id="estAddress" name="address" required placeholder="Street, city, state" autocomplete="off" />
-          </div>
-          <div class="bp-form-full"><label>Services needed</label>
-            <div class="bp-check-group">
-              <label><input type="checkbox" name="svc" value="Sanding & Refinishing" /> Sanding & Refinishing</label>
-              <label><input type="checkbox" name="svc" value="Hardwood Installation" /> Hardwood Installation</label>
-              <label><input type="checkbox" name="svc" value="Engineered Wood" /> Engineered Wood</label>
-              <label><input type="checkbox" name="svc" value="LVP" /> LVP</label>
-              <label><input type="checkbox" name="svc" value="Tile" /> Tile</label>
-              <label><input type="checkbox" name="svc" value="Custom" /> Custom</label>
-            </div>
-          </div>
-          <div><label>Estimated area (sq ft)</label><input type="number" name="area_sqft" min="1" required /></div>
-          <div><label>Desired start date</label><input type="date" name="desired_start" /></div>
-          <div><label>Urgency</label>
-            <select name="urgency"><option value="flexible">Flexible</option><option value="moderate">Moderate</option><option value="urgent">Urgent</option></select>
-          </div>
-          <div class="bp-form-full"><label>Notes / specifications</label><textarea name="notes" rows="4"></textarea></div>
-          <div class="bp-form-full"><label>Plans or photos (optional, up to 5)</label><input type="file" id="estFiles" name="attachments" accept="image/*,.pdf" multiple /><div id="estFilePreview" class="bp-file-preview"></div></div>
-          <div class="bp-form-full"><label><input type="checkbox" name="site_access" value="1" /> I can provide site access before the estimate</label></div>
-          <div class="bp-form-full"><button type="submit" class="bp-btn-tan">Submit request</button></div>
-        </form>
-        <div id="estSuccess" class="bp-card hidden" style="margin-top:1rem;background:#dcfce7;border-color:#86efac">
-          <p><strong>Request received!</strong></p>
-          <p style="font-size:1.25rem;font-weight:700;margin:8px 0" id="estRef"></p>
-          <p class="bp-muted">We sent a confirmation email. Our team will contact you within <strong>48 hours</strong>.</p>
-          <p style="margin-top:12px"><a href="builder-referrals.html" class="bp-btn-tan" style="text-decoration:none;display:inline-block">Track status in Referrals</a></p>
-        </div>
-      </div>
-    </main>
-  </div>
-  <script src="crm-address-autocomplete.js"></script>
-  <script src="builder-auth.js?v=2"></script>
-  <script src="builder-estimate-request.js?v=1"></script>
+<body class="bp-page-body" data-bp-page="estimate">
+ <div class="bp-portal-layout">
+ <button type="button" class="bp-menu-toggle" id="bpMenuToggle" aria-label="Menu">&#9776;</button>
+ <aside class="bp-portal-sidebar"><nav id="bpPortalNav"></nav></aside>
+ <main class="bp-portal-main">
+ <div id="bpPortalHeader"></div>
+ <div class="bp-main" style="max-width:720px">
+ <h1 class="bp-title">Request formal estimate</h1>
+ <p class="bp-muted">Submit project details for a formal quote from Senior Floors.</p>
+
+ <form id="estForm" class="bp-card bp-form-grid">
+ <div class="bp-form-full">
+ <label for="estProjectType">Project type</label>
+ <select id="estProjectType" name="project_type" required>
+ <option value="my_client">New client of mine</option>
+ <option value="my_project">My own project</option>
+ <option value="sf_referral">Direct referral to Senior Floors</option>
+ </select>
+ </div>
+ <div class="bp-form-full">
+ <label for="estAddress">Project address</label>
+ <input type="text" id="estAddress" name="address" required placeholder="Start typing the address..." autocomplete="off" />
+ <p class="bp-form-hint sf-address-autocomplete-hint hidden" id="estAddressHint">Google Maps autocomplete active</p>
+ </div>
+ <div class="bp-form-full">
+ <label>Services needed</label>
+ <div class="bp-check-group">
+ <label><input type="checkbox" name="svc" value="Sanding & Refinishing" /> Sanding &amp; Refinishing</label>
+ <label><input type="checkbox" name="svc" value="Hardwood Installation" /> Hardwood Installation</label>
+ <label><input type="checkbox" name="svc" value="Engineered Wood" /> Engineered Wood</label>
+ <label><input type="checkbox" name="svc" value="LVP" /> LVP</label>
+ <label><input type="checkbox" name="svc" value="Tile" /> Tile</label>
+ <label><input type="checkbox" name="svc" value="Custom" /> Custom</label>
+ </div>
+ </div>
+ <div>
+ <label for="estArea">Estimated area (sq ft)</label>
+ <input type="number" id="estArea" name="area_sqft" min="1" required />
+ </div>
+ <div>
+ <label for="estStart">Desired start date</label>
+ <input type="date" id="estStart" name="desired_start" />
+ </div>
+ <div class="bp-form-full">
+ <label for="estUrgency">Urgency</label>
+ <select id="estUrgency" name="urgency">
+ <option value="flexible">Flexible</option>
+ <option value="moderate">Moderate</option>
+ <option value="urgent">Urgent</option>
+ </select>
+ </div>
+ <div class="bp-form-full">
+ <label for="estNotes">Notes / specifications</label>
+ <textarea id="estNotes" name="notes" rows="4" placeholder="Scope, finishes, access instructions..."></textarea>
+ </div>
+ <div class="bp-form-full">
+ <label for="estFiles">Plans or photos (optional)</label>
+ <p class="bp-form-hint">Up to 5 files - JPG, PNG, WebP or PDF. Max 20 MB each.</p>
+            </p>
+ <input type="file" id="estFiles" name="attachments" accept="image/jpeg,image/png,image/webp,application/pdf,.pdf" multiple />
+ <div id="estFilePreview" class="bp-est-file-preview" aria-live="polite"></div>
+ </div>
+ <div class="bp-form-full">
+ <label><input type="checkbox" id="estSiteAccess" name="site_access" value="1" /> I can provide site access before the estimate</label>
+ </div>
+ <div class="bp-form-full">
+ <button type="submit" class="bp-btn-tan" id="estSubmitBtn">Submit request</button>
+ </div>
+ </form>
+
+ <div id="estSuccess" class="bp-card bp-est-success hidden" aria-live="polite">
+ <p class="bp-est-success__eyebrow">Request received</p>
+ <p class="bp-est-success__ref" id="estRef"></p>
+ <p class="bp-muted">A confirmation email was sent to your account. Our team will contact you within <strong>48 hours</strong>.</p>
+ <div id="estSummary" class="bp-est-summary"></div>
+ <div class="bp-est-success__actions">
+ <a href="builder-referrals.html" class="bp-btn-tan" style="text-decoration:none">Track status in Referrals</a>
+ <a href="builder-estimate-request.html" class="bp-btn-ghost" style="text-decoration:none;margin-left:8px">Submit another</a>
+ </div>
+ </div>
+ </div>
+ </main>
+ </div>
+ <script src="crm-address-autocomplete.js?v=20260528-pac-dismiss"></script>
+ <script src="builder-auth.js?v=3"></script>
+ <script src="builder-portal-nav.js?v=2"></script>
+ <script src="builder-portal-common.js?v=20260529-portal-dash"></script>
+ <script src="builder-estimate-request.js?v=20260529-estimate"></script>
 </body>
 </html>

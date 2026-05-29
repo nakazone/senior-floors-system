@@ -1,5 +1,24 @@
 /* global crmNotify */
 (function () {
+  const STATUS_OPTIONS = [
+    { value: 'pending', label: 'Submitted' },
+    { value: 'reviewing', label: 'Under review' },
+    { value: 'quoted', label: 'Quote sent' },
+    { value: 'won', label: 'Accepted' },
+    { value: 'lost', label: 'Declined' },
+  ];
+
+  function escapeHtml(s) {
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  }
+
+  function statusLabel(v) {
+    return STATUS_OPTIONS.find((o) => o.value === v)?.label || v || '—';
+  }
+
   async function load() {
     const st = document.getElementById('filterSt').value;
     const url = st ? `/api/estimate-requests?status=${encodeURIComponent(st)}` : '/api/estimate-requests';
@@ -11,23 +30,22 @@
       return;
     }
     tbody.innerHTML = j.data
-      .map(
-        (e) => `<tr>
-          <td><strong>${e.ref_number}</strong></td>
-          <td>${e.company || e.first_name + ' ' + e.last_name}</td>
-          <td>${(e.address || '').slice(0, 40)}</td>
+      .map((e) => {
+        const opts = STATUS_OPTIONS.map(
+          (o) =>
+            `<option value="${o.value}" ${String(e.status).toLowerCase() === o.value || (o.value === 'reviewing' && e.status === 'in_review') ? 'selected' : ''}>${o.label}</option>`
+        ).join('');
+        return `<tr>
+          <td><strong>${escapeHtml(e.ref_number)}</strong></td>
+          <td>${escapeHtml(e.company || `${e.first_name || ''} ${e.last_name || ''}`.trim())}</td>
+          <td>${escapeHtml((e.address || '').slice(0, 40))}</td>
           <td>${e.area_sqft || '—'}</td>
-          <td>${e.status}</td>
-          <td>${e.lead_id ? `<a href="dashboard.html?page=leads">#${e.lead_id}</a>` : '—'}</td>
-          <td>${String(e.created_at).slice(0, 10)}</td>
-          <td><select data-id="${e.id}" class="st-sel">
-            <option value="pending" ${e.status === 'pending' ? 'selected' : ''}>pending</option>
-            <option value="in_review" ${e.status === 'in_review' ? 'selected' : ''}>in_review</option>
-            <option value="quoted" ${e.status === 'quoted' ? 'selected' : ''}>quoted</option>
-            <option value="closed" ${e.status === 'closed' ? 'selected' : ''}>closed</option>
-          </select></td>
-        </tr>`
-      )
+          <td>${escapeHtml(statusLabel(e.status === 'in_review' ? 'reviewing' : e.status))}</td>
+          <td>${e.lead_id ? `<a href="lead-detail.html?id=${e.lead_id}">#${e.lead_id}</a>` : '—'}</td>
+          <td>${escapeHtml(String(e.created_at).slice(0, 10))}</td>
+          <td><select data-id="${e.id}" class="st-sel">${opts}</select></td>
+        </tr>`;
+      })
       .join('');
     tbody.querySelectorAll('.st-sel').forEach((sel) => {
       sel.addEventListener('change', async () => {
@@ -38,6 +56,7 @@
           body: JSON.stringify({ status: sel.value }),
         });
         crmNotify('Status atualizado.', 'success');
+        load();
       });
     });
   }
@@ -48,7 +67,20 @@
       location.href = 'login.html';
       return;
     }
-    document.getElementById('filterSt').addEventListener('change', load);
+    const filter = document.getElementById('filterSt');
+    if (filter && !filter.options.length) {
+      STATUS_OPTIONS.forEach((o) => {
+        const opt = document.createElement('option');
+        opt.value = o.value;
+        opt.textContent = o.label;
+        filter.appendChild(opt);
+      });
+      const all = document.createElement('option');
+      all.value = '';
+      all.textContent = 'All statuses';
+      filter.insertBefore(all, filter.firstChild);
+    }
+    filter.addEventListener('change', load);
     load();
   }
 

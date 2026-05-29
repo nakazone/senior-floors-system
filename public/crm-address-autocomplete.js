@@ -336,6 +336,11 @@
       country: 'us',
       map: { combined: '#pd-edit-address' },
     },
+    {
+      input: '#estAddress',
+      country: 'us',
+      map: { combined: '#estAddress' },
+    },
   ];
 
   function initCrmAddressAutocomplete() {
