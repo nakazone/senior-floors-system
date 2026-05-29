@@ -14,6 +14,22 @@ let constructionPayrollRates = [];
 let builderPartnerOptions = null;
 let canEditProject = true;
 
+function isBuilderProject(p) {
+  if (!p) return false;
+  if (String(p.client_type || '').toLowerCase() === 'builder') return true;
+  if (p.partner_builder_id || p.builder_partner?.builder_table_id) return true;
+  if (p.builder_partner?.display_name) return true;
+  return false;
+}
+
+function builderPartnerLabel(p) {
+  const bp = p?.builder_partner;
+  if (bp?.display_name) {
+    return bp.company ? `${bp.display_name} · ${bp.company}` : bp.display_name;
+  }
+  return p?.builder_name || '';
+}
+
 const FLOORING_OPTIONS = ['hardwood', 'lvp', 'tile', 'laminate', 'engineered', 'other'];
 const SERVICE_TYPE_OPTIONS = [
   { value: 'installation', label: 'Installation' },
@@ -140,9 +156,7 @@ async function loadProject() {
   loadPortfolioStatusLine();
   loadPaymentForecastTab();
   const tb = document.getElementById('tab-btn-builder');
-  const hasBuilderLink =
-    !!(project.builder_partner?.builder_table_id || project.partner_builder_id || project.builder_id);
-  if (hasBuilderLink) {
+  if (isBuilderProject(project)) {
     if (tb) tb.style.display = '';
     await renderBuilderTab();
   } else if (tb) tb.style.display = 'none';
@@ -295,11 +309,18 @@ function serviceTypeOptionsHtml(selected) {
 }
 
 function renderProjectEditBlock(p) {
+  const builderJob = isBuilderProject(p);
+  const clientNameRow = builderJob
+    ? `<label class="pd-edit-span2">Nome do cliente (morador / cliente final)
+          <input type="text" id="pd-edit-client-name" maxlength="255" placeholder="Nome do cliente da obra" value="${escapeHtml(p.client_name || p.lead?.name || '')}" ${canEditProject ? '' : 'disabled'} />
+        </label>`
+    : '';
   if (!canEditProject) {
     return `
     <div class="pd-project-edit">
       <h3>Dados do projeto</h3>
-      <p class="pd-overview-meta__line" style="margin:0">${escapeHtml(p.address || 'Sem endereço')} · ${escapeHtml(p.flooring_type || '—')} · ${p.total_sqft != null ? `${p.total_sqft} sqft` : '—'}</p>
+      ${builderJob && (p.client_name || p.lead?.name) ? `<p class="pd-overview-meta__line" style="margin:0"><strong>Cliente:</strong> ${escapeHtml(p.client_name || p.lead?.name || '')}</p>` : ''}
+      <p class="pd-overview-meta__line" style="margin:${builderJob ? '6px' : '0'} 0 0">${escapeHtml(p.address || 'Sem endereço')} · ${escapeHtml(p.flooring_type || '—')} · ${p.total_sqft != null ? `${p.total_sqft} sqft` : '—'}</p>
       <p class="pd-muted" style="font-size:12px;margin:8px 0 0;color:var(--sf-muted)">Sem permissão para editar (projects.edit).</p>
     </div>`;
   }
@@ -307,6 +328,7 @@ function renderProjectEditBlock(p) {
     <div class="pd-project-edit" id="pd-project-edit">
       <h3>Dados do projeto</h3>
       <div class="pd-edit-grid">
+        ${clientNameRow}
         <label class="pd-edit-span2">Nome do projeto
           <input type="text" id="pd-edit-name" maxlength="255" value="${escapeHtml(p.name || '')}" />
         </label>
@@ -347,6 +369,9 @@ async function saveProjectDetails() {
   }
   const payload = {
     name,
+    ...(isBuilderProject(project)
+      ? { client_name: document.getElementById('pd-edit-client-name')?.value?.trim() || null }
+      : {}),
     address: document.getElementById('pd-edit-address')?.value?.trim() || null,
     project_number: document.getElementById('pd-edit-number')?.value?.trim() || null,
     flooring_type: document.getElementById('pd-edit-flooring')?.value || null,
@@ -377,6 +402,27 @@ async function saveProjectDetails() {
   }
 }
 
+function renderBuilderBanner(p) {
+  const el = document.getElementById('pd-builder-banner');
+  if (!el) return;
+  if (!isBuilderProject(p)) {
+    el.classList.add('hidden');
+    el.innerHTML = '';
+    return;
+  }
+  const label = builderPartnerLabel(p);
+  if (!label) {
+    el.classList.add('hidden');
+    return;
+  }
+  el.classList.remove('hidden');
+  const clientLine =
+    p.client_name || p.lead?.name
+      ? `<span class="pd-builder-banner__co"> · Cliente: ${escapeHtml(p.client_name || p.lead?.name || '')}</span>`
+      : '';
+  el.innerHTML = `<strong>Builder:</strong> ${escapeHtml(label)}${clientLine}`;
+}
+
 function renderHeader(p) {
   document.getElementById('pd-title').textContent = p.name || `Projeto #${p.id}`;
   const crumb = document.getElementById('pd-crumb-name');
@@ -390,18 +436,21 @@ function renderHeader(p) {
 
   const typeEl = document.getElementById('pd-client-type');
   if (typeEl) {
-    const t = (p.client_type || '').toLowerCase();
-    if (t === 'builder') {
+    if (isBuilderProject(p)) {
       typeEl.textContent = 'Builder';
       typeEl.style.display = '';
-    } else if (t === 'customer' || t) {
-      typeEl.textContent = 'Cliente';
-      typeEl.style.display = '';
     } else {
-      typeEl.textContent = '';
-      typeEl.style.display = 'none';
+      const t = (p.client_type || '').toLowerCase();
+      if (t === 'customer' || t) {
+        typeEl.textContent = 'Cliente';
+        typeEl.style.display = '';
+      } else {
+        typeEl.textContent = '';
+        typeEl.style.display = 'none';
+      }
     }
   }
+  renderBuilderBanner(p);
 
   const sel = document.getElementById('pd-status');
   if (sel && sel.options.length === 0) {
@@ -638,11 +687,11 @@ function renderOverviewTab(p, pl) {
     </div>`;
   }
 
-  const partnerLabel = p.builder_partner?.display_name || p.builder_name || '';
+  const partnerLabel = builderPartnerLabel(p);
   el.innerHTML = `
     ${renderProjectEditBlock(p)}
     <div class="pd-builder-link" style="margin-bottom:16px;padding:12px 14px;border:1px solid var(--border-color);border-radius:10px;background:var(--sf-surface,#f8fafc)">
-      <div style="font-size:12px;font-weight:600;color:var(--sf-navy);margin-bottom:8px">Portal do builder</div>
+      <div style="font-size:12px;font-weight:600;color:var(--sf-navy);margin-bottom:8px">Portal do builder${partnerLabel ? ` · <span style="font-weight:500">${escapeHtml(partnerLabel)}</span>` : ''}</div>
       <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center">
         <select id="pd-builder-partner" style="flex:1;min-width:220px;padding:8px;border-radius:8px;border:1px solid var(--border-color)">
           <option value="">— Sem parceiro —</option>
@@ -738,6 +787,8 @@ async function saveBuilderPartner() {
     return;
   }
   project = j.data;
+  renderHeader(project);
+  if (plData) renderOverviewTab(project, plData);
   showToast('Parceiro builder atualizado');
   const hint = document.getElementById('pd-builder-partner-hint');
   if (hint) {
@@ -746,9 +797,7 @@ async function saveBuilderPartner() {
       : 'Sem parceiro — o projeto não aparece no portal.';
   }
   const tb = document.getElementById('tab-btn-builder');
-  const hasBuilderLink =
-    !!(project.builder_partner?.builder_table_id || project.partner_builder_id || project.builder_id);
-  if (hasBuilderLink) {
+  if (isBuilderProject(project)) {
     if (tb) tb.style.display = '';
     await renderBuilderTab();
   } else if (tb) tb.style.display = 'none';

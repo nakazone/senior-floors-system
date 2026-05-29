@@ -131,6 +131,8 @@ function projectCardHTML(p) {
         <span style="font-size:11px;font-weight:700;color:var(--sf-gold4)">${p.completion_percentage}%</span>
       </div>
       <div style="font-size:14px;font-weight:700;color:var(--sf-navy);margin-bottom:2px">${escapeHtml(p.name)}</div>
+      ${String(p.client_type || '') === 'builder' && p.builder_name ? `<div style="font-size:11px;color:var(--sf-navy);margin-bottom:4px"><strong>Builder:</strong> ${escapeHtml(p.builder_name)}</div>` : ''}
+      ${p.client_name ? `<div style="font-size:11px;color:var(--sf-muted);margin-bottom:4px"><strong>Cliente:</strong> ${escapeHtml(p.client_name)}</div>` : ''}
       <div style="font-size:11px;color:var(--sf-muted);margin-bottom:10px">${escapeHtml(p.address || 'Endereço não definido')}</div>
       <div style="height:3px;background:rgba(26,32,54,.1);border-radius:3px;margin-bottom:10px">
         <div style="height:100%;width:${p.completion_percentage}%;background:var(--sf-gold3);border-radius:3px;transition:width .3s"></div>

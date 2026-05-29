@@ -4195,6 +4195,22 @@ body.lead-quick-sheet-open .pac-container {
   gap: 8px;
   align-items: center;
 }
+.pd-builder-banner {
+  margin-top: 8px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: rgba(26, 32, 54, 0.06);
+  border: 1px solid rgba(26, 32, 54, 0.12);
+  font-size: 13px;
+  color: var(--sf-navy, #1a2036);
+}
+.pd-builder-banner strong {
+  font-weight: 700;
+}
+.pd-builder-banner__co {
+  color: var(--sf-muted, #64748b);
+  font-size: 12px;
+}
 .pd-date-input:focus {
     border-color: var(--sf-gold3);
 }

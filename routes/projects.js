@@ -726,6 +726,10 @@ router.post('/', ...allAuthed, requirePermission('projects.create'), async (req,
       status: 'scheduled',
       created_by: uid,
       notes: b.notes != null ? String(b.notes) : null,
+      client_name:
+        b.client_name != null && String(b.client_name).trim()
+          ? String(b.client_name).trim().slice(0, 255)
+          : null,
     };
     const dtIns = projectDatePhysicalColumns(pcols);
     if (start != null && dtIns.start) rowMap[dtIns.start] = start;
@@ -2163,6 +2167,7 @@ router.put('/:id', ...allAuthed, requirePermission('projects.edit'), async (req,
       'contract_value',
       'service_type',
       'project_number',
+      'client_name',
     ];
     const moneyKeys = new Set([
       'supply_value',
@@ -2194,6 +2199,11 @@ router.put('/:id', ...allAuthed, requirePermission('projects.edit'), async (req,
         vals.push(
           b[k] == null || b[k] === '' ? null : String(b[k]).trim().slice(0, k === 'project_number' ? 64 : 100)
         );
+        continue;
+      }
+      if (k === 'client_name') {
+        updates.push('`client_name` = ?');
+        vals.push(b.client_name == null || b.client_name === '' ? null : String(b.client_name).trim().slice(0, 255));
         continue;
       }
       updates.push(`\`${k}\` = ?`);
