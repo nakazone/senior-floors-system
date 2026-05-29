@@ -168,6 +168,28 @@
 .bp-notif-foot { padding: 8px 12px; font-size: 12px; }
 .bp-link-btn { background: none; border: none; color: var(--bp-navy); font-size: 12px; cursor: pointer; text-decoration: underline; }
 .bp-dashboard-grid { display: grid; grid-template-columns: 1fr 320px; gap: 20px; }
+.bp-dashboard-quick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 1rem;
+}
+.bp-dashboard-quick__link {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--bp-border);
+  background: #fff;
+  color: var(--bp-navy);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.bp-dashboard-quick__link:hover {
+  border-color: var(--bp-tan);
+  background: var(--bp-tan-pale);
+}
 .bp-alert { padding: 12px 14px; border-radius: 8px; margin-bottom: 12px; font-size: 13px; }
 .bp-alert--warn { background: #fffbeb; border: 1px solid #fcd34d; color: #92400e; }
 .bp-next-visit { border-left: 4px solid var(--bp-tan); }

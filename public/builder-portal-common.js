@@ -161,25 +161,38 @@
     }
   }
 
+  let portalReadyPromise = null;
+
+  function whenPortalReady() {
+    if (!portalReadyPromise) {
+      portalReadyPromise = (async () => {
+        if (!window.builderAuth) return false;
+        const stem = pageStem();
+        if (SKIP_PASSWORD_PAGES.includes(stem)) return false;
+        const ok = await guardPortalPage();
+        if (!ok) return false;
+        if (window.builderPortalNav?.renderNav) {
+          window.builderPortalNav.renderNav(window.builderPortalNav.currentPage());
+        }
+        await loadPortalHeader();
+        wireMobileNav();
+        return true;
+      })();
+    }
+    return portalReadyPromise;
+  }
+
   window.builderPortalCommon = {
     guardPortalPage,
     loadPortalHeader,
     wireMobileNav,
+    whenPortalReady,
     RETURN_KEY,
     SF_LOGO_URL,
     sfContactBadgeHtml,
   };
 
-  document.addEventListener('DOMContentLoaded', async () => {
-    if (!window.builderAuth) return;
-    const stem = pageStem();
-    if (SKIP_PASSWORD_PAGES.includes(stem)) return;
-    const ok = await guardPortalPage();
-    if (!ok) return;
-    if (window.builderPortalNav?.renderNav) {
-      window.builderPortalNav.renderNav(window.builderPortalNav.currentPage());
-    }
-    await loadPortalHeader();
-    wireMobileNav();
+  document.addEventListener('DOMContentLoaded', () => {
+    void whenPortalReady();
   });
 })();

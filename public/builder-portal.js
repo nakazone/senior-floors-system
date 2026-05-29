@@ -28,7 +28,7 @@
   }
 
   function fmtDate(d) {
-    if (!d) return 'ù';
+    if (!d) return 'ó';
     try {
       return new Date(`${String(d).slice(0, 10)}T12:00:00`).toLocaleDateString('en-US', {
         day: 'numeric',
@@ -58,6 +58,25 @@
     return `/${u.replace(/^\//, '')}`;
   }
 
+  function resolveAccountManager(dashData) {
+    if (dashData?.account_manager) return dashData.account_manager;
+    return window.builderPortalUser?.account_manager || null;
+  }
+
+  function showDashboardError(msg) {
+    let el = document.getElementById('dashboardLoadError');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'dashboardLoadError';
+      el.className = 'bp-alert bp-alert--warn';
+      el.style.marginBottom = '1rem';
+      const anchor = document.getElementById('docAlert') || document.getElementById('bpPortalHeader');
+      anchor?.insertAdjacentElement('afterend', el);
+    }
+    el.classList.remove('hidden');
+    el.innerHTML = `<strong>Could not refresh dashboard.</strong> ${escapeHtml(msg || 'Please reload the page.')}`;
+  }
+
   function renderWelcomeManager(mgr) {
     const wrap = document.getElementById('welcomeManager');
     if (!wrap || !mgr) return;
@@ -76,7 +95,7 @@
         <div class="bp-welcome__avatar-wrap">${avatarHtml}${badge}</div>
         <div>
           <p class="bp-welcome__mgr-name">${escapeHtml(mgr.name || '')}</p>
-          ${mgr.phone ? `<p class="bp-welcome__mgr-meta">Tel: <a href="tel:${escapeHtml(mgr.phone)}">${escapeHtml(mgr.phone)}</a></p>` : ''}
+          ${mgr.phone ? `<p class="bp-welcome__mgr-meta bp-manager-phone">Tel: <a href="tel:${escapeHtml(String(mgr.phone).replace(/\D/g, ''))}">${escapeHtml(mgr.phone)}</a></p>` : ''}
           ${mgr.email ? `<p class="bp-welcome__mgr-meta"><a href="mailto:${escapeHtml(mgr.email)}">${escapeHtml(mgr.email)}</a></p>` : ''}
         </div>
       </div>
@@ -111,11 +130,18 @@
       window.builderAuth.fetch('/api/builder-dashboard'),
       window.builderAuth.fetch('/api/builder-projects'),
     ]);
-    const dash = await dashR.json();
-    const pj = await prR.json();
+    const dash = await dashR.json().catch(() => ({}));
+    const pj = await prR.json().catch(() => ({}));
+
+    if (!dashR.ok || !dash.success) {
+      showDashboardError(dash.error || `Server error (${dashR.status})`);
+    } else {
+      document.getElementById('dashboardLoadError')?.classList.add('hidden');
+    }
 
     if (dash.success && dash.data) {
       const d = dash.data;
+      const mgr = resolveAccountManager(d);
       const m = d.metrics || {};
       document.getElementById('metricActive').textContent = String(m.active_projects ?? 0);
       document.getElementById('metricTotal').textContent = String(m.total_projects ?? 0);
@@ -138,12 +164,12 @@
       const sub = document.getElementById('welcomeSub');
       if (sub) {
         sub.textContent = u.company
-          ? `${u.company} ù overview of your projects with Senior Floors.`
+          ? `${u.company} ó overview of your projects with Senior Floors.`
           : 'Here is an overview of your projects with Senior Floors.';
       }
 
-      if (d.account_manager) renderWelcomeManager(d.account_manager);
-      if (d.is_first_visit) renderFirstVisitBanner(true, d.account_manager);
+      if (mgr) renderWelcomeManager(mgr);
+      if (d.is_first_visit) renderFirstVisitBanner(true, mgr);
 
       if (d.pending_documents > 0) {
         const al = document.getElementById('docAlert');
@@ -208,6 +234,8 @@
             })
             .join('')
         : `<p class="bp-muted">${d.since_last_seen ? 'No new activity since your last visit.' : 'No recent activity yet.'}</p>`;
+    } else if (window.builderPortalUser?.account_manager) {
+      renderWelcomeManager(window.builderPortalUser.account_manager);
     }
 
     const el = document.getElementById('projectCards');
@@ -231,7 +259,7 @@
           <div>
             <strong>${escapeHtml(p.name || p.project_number || 'Project')}</strong>
             <p class="bp-muted" style="margin:4px 0 0">${escapeHtml(p.address || '')}</p>
-            <p class="bp-muted" style="font-size:11px;margin:4px 0 0">Start: ${fmtDate(p.start_date)} ù ${p.total_sqft ? p.total_sqft + ' sqft' : ''}</p>
+            <p class="bp-muted" style="font-size:11px;margin:4px 0 0">Start: ${fmtDate(p.start_date)} ó ${p.total_sqft ? p.total_sqft + ' sqft' : ''}</p>
             <div class="bp-progress-bar" style="margin-top:8px;max-width:220px"><div class="bp-progress-fill" style="width:${Math.min(100, p.completion_percentage || 0)}%"></div></div>
           </div>
           <a href="builder-project.html?id=${p.id}" class="bp-btn-tan" style="text-decoration:none;align-self:center">View details</a>
@@ -241,8 +269,15 @@
   }
 
   document.addEventListener('DOMContentLoaded', () => {
-    setTimeout(() => {
-      if (window.builderAuth?.getToken()) load().catch(console.error);
-    }, 100);
+    const boot = window.builderPortalCommon?.whenPortalReady;
+    if (typeof boot === 'function') {
+      boot()
+        .then((ok) => {
+          if (ok) return load();
+        })
+        .catch(console.error);
+      return;
+    }
+    if (window.builderAuth?.getToken()) load().catch(console.error);
   });
 })();

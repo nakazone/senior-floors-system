@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>My Dashboard - Senior Floors Builder Portal</title>
   <link rel="icon" type="image/png" href="/assets/SeniorFloors.png" />
-  <link rel="stylesheet" href="css/builders-portal.css" />
+  <link rel="stylesheet" href="css/builders-portal.css?v=20260529-portal-dash" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700&display=swap" rel="stylesheet" />
 </head>
 <body class="bp-page-body" data-bp-page="dashboard">
@@ -30,6 +30,13 @@
         </div>
       </div>
       <div id="nextVisitCard" class="hidden"></div>
+      <div class="bp-dashboard-quick" aria-label="Quick links">
+        <a href="builder-calculator.html" class="bp-dashboard-quick__link">Calculator</a>
+        <a href="builder-estimate-request.html" class="bp-dashboard-quick__link">Request estimate</a>
+        <a href="builder-messages.html" class="bp-dashboard-quick__link">Messages</a>
+        <a href="builder-calendar.html" class="bp-dashboard-quick__link">Calendar</a>
+        <a href="builder-projects.html" class="bp-dashboard-quick__link">All projects</a>
+      </div>
       <div class="bp-metrics" style="margin-top:1rem">
         <div class="bp-card bp-metric"><div class="bp-metric__val" id="metricActive">0</div><div class="bp-metric__lbl">Active projects</div></div>
         <div class="bp-card bp-metric"><div class="bp-metric__val" id="metricTotal">0</div><div class="bp-metric__lbl">Total projects</div></div>
@@ -56,7 +63,7 @@
   </div>
   <script src="builder-auth.js?v=3"></script>
   <script src="builder-portal-nav.js?v=2"></script>
-  <script src="builder-portal-common.js?v=2"></script>
-  <script src="builder-portal.js?v=7"></script>
+  <script src="builder-portal-common.js?v=20260529-portal-dash"></script>
+  <script src="builder-portal.js?v=20260529-portal-dash"></script>
 </body>
 </html>

@@ -464,7 +464,12 @@ export async function getBuilderDashboard(req, res) {
       return d && d.startsWith(String(year));
     }).length;
 
-    let next_visit = await fetchNextBuilderVisit(pool, bid);
+    let next_visit = null;
+    try {
+      next_visit = await fetchNextBuilderVisit(pool, bid);
+    } catch (visitErr) {
+      console.warn('getBuilderDashboard next_visit:', visitErr.message);
+    }
     if (!next_visit) {
       const upcoming = active
         .filter((p) => toYmd(p.start_date))
@@ -481,7 +486,12 @@ export async function getBuilderDashboard(req, res) {
       }
     }
 
-    const activity = await buildBuilderActivityFeed(pool, bid, 10, sinceActivity);
+    let activity = [];
+    try {
+      activity = await buildBuilderActivityFeed(pool, bid, 10, sinceActivity);
+    } catch (actErr) {
+      console.warn('getBuilderDashboard activity:', actErr.message);
+    }
 
     if (await columnExists(pool, 'builders', 'portal_last_seen_at')) {
       await pool.execute('UPDATE builders SET portal_last_seen_at = NOW() WHERE id = ?', [bid]);
