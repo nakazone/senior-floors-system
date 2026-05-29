@@ -1,4 +1,4 @@
-/* Builder Partner Portal ó brand-aligned */
+/* Builder Partner Portal ù brand-aligned */
 :root {
   --bp-navy: #1a2036;
   --bp-navy-deep: #141928;
@@ -113,18 +113,27 @@
 .bp-welcome__avatar--init { display: flex; align-items: center; justify-content: center; background: var(--bp-tan); color: var(--bp-navy); font-weight: 700; font-size: 1.1rem; }
 .bp-welcome__mgr-name { font-weight: 600; margin: 0 0 4px; }
 .bp-welcome__mgr-meta { font-size: 12px; margin: 2px 0; color: rgba(255, 255, 255, 0.88); }
-.bp-welcome__mgr-meta a {
-  color: var(--bp-tan);
+.bp-welcome__contact-link,
+.bp-welcome__contact-link:link,
+.bp-welcome__contact-link:visited,
+.bp-welcome__mgr-meta a,
+.bp-welcome__mgr-meta a:link,
+.bp-welcome__mgr-meta a:visited {
+  color: var(--bp-tan) !important;
+  -webkit-text-fill-color: var(--bp-tan);
   font-weight: 600;
   text-decoration: none;
 }
+.bp-welcome__contact-link:hover,
 .bp-welcome__mgr-meta a:hover {
-  color: #e8cdb8;
+  color: #e8cdb8 !important;
+  -webkit-text-fill-color: #e8cdb8;
   text-decoration: underline;
 }
 .bp-welcome__manager .bp-manager-phone,
 .bp-welcome__manager .bp-manager-phone a {
-  color: var(--bp-tan);
+  color: var(--bp-tan) !important;
+  -webkit-text-fill-color: var(--bp-tan);
 }
 .bp-welcome__mgr-actions { margin-top: 10px; }
 .bp-welcome__mgr-actions .bp-btn-tan { font-size: 12px; padding: 6px 12px; }
@@ -243,8 +252,8 @@
 .bp-doc-list li { padding: 8px 0; border-bottom: 1px solid var(--bp-border); }
 .bp-doc-list a { font-weight: 600; color: var(--bp-navy); }
 .bp-manager-phone { margin-top: 4px; }
-/* Light cards (project detail, profile) */
-.bp-card .bp-manager-phone a,
+/* Light cards (project detail, profile) ó not the dark welcome card */
+.bp-card:not(.bp-welcome) .bp-manager-phone a,
 .bp-manager-card .bp-manager-phone a {
   color: var(--bp-navy);
   font-weight: 600;

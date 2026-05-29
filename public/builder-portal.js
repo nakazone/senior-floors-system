@@ -95,8 +95,8 @@
         <div class="bp-welcome__avatar-wrap">${avatarHtml}${badge}</div>
         <div>
           <p class="bp-welcome__mgr-name">${escapeHtml(mgr.name || '')}</p>
-          ${mgr.phone ? `<p class="bp-welcome__mgr-meta bp-manager-phone">Tel: <a href="tel:${escapeHtml(String(mgr.phone).replace(/\D/g, ''))}">${escapeHtml(mgr.phone)}</a></p>` : ''}
-          ${mgr.email ? `<p class="bp-welcome__mgr-meta"><a href="mailto:${escapeHtml(mgr.email)}">${escapeHtml(mgr.email)}</a></p>` : ''}
+          ${mgr.phone ? `<p class="bp-welcome__mgr-meta bp-manager-phone">Tel: <a class="bp-welcome__contact-link" href="tel:${escapeHtml(String(mgr.phone).replace(/\D/g, ''))}">${escapeHtml(mgr.phone)}</a></p>` : ''}
+          ${mgr.email ? `<p class="bp-welcome__mgr-meta"><a class="bp-welcome__contact-link" href="mailto:${escapeHtml(mgr.email)}">${escapeHtml(mgr.email)}</a></p>` : ''}
         </div>
       </div>
       <div class="bp-welcome__mgr-actions">
