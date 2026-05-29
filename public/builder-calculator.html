@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Price calculator — Builder Portal</title>
-  <link rel="stylesheet" href="css/builders-portal.css" />
+  <title>Price calculator &mdash; Builder Portal</title>
+  <link rel="stylesheet" href="css/builders-portal.css?v=20260529-calc" />
 </head>
 <body class="bp-page-body" data-bp-page="calculator">
   <div class="bp-portal-layout">
@@ -12,36 +12,60 @@
     <aside class="bp-portal-sidebar"><nav id="bpPortalNav"></nav></aside>
     <main class="bp-portal-main">
       <div id="bpPortalHeader"></div>
-      <div class="bp-main" style="max-width:640px">
+      <div class="bp-main bp-calc-page">
         <h1 class="bp-title">Quick estimate</h1>
         <p class="bp-muted">Ballpark range from your partner rates (not a formal quote).</p>
+
+        <div class="bp-calc-mode" role="radiogroup" aria-label="Calculator mode">
+          <label class="bp-calc-mode__opt">
+            <input type="radio" name="calcMode" value="quick" checked />
+            <span>Single service</span>
+          </label>
+          <label class="bp-calc-mode__opt">
+            <input type="radio" name="calcMode" value="full" />
+            <span>Full project</span>
+          </label>
+        </div>
+        <p id="calcModeHint" class="bp-muted bp-calc-mode-hint">One service and area. Use the slider or type sq ft.</p>
+
         <div class="bp-card">
-          <p style="font-weight:600;margin:0 0 10px;font-size:13px">Project lines</p>
+          <p class="bp-calc-lines-title">Project lines</p>
           <div id="calcLines"></div>
-          <button type="button" class="bp-btn-ghost" id="btnAddLine" style="margin-top:8px">+ Add service</button>
+          <button type="button" class="bp-btn-ghost hidden" id="btnAddLine" style="margin-top:8px">+ Add service</button>
         </div>
+
         <button type="button" class="bp-btn-tan" id="btnCalc" style="margin-top:12px">Calculate total</button>
-        <div id="calcResult" class="bp-card hidden" style="margin-top:1rem;background:var(--bp-navy);color:#fff;border:none">
-          <p style="margin:0 0 8px;opacity:0.85">Estimated range (partner)</p>
-          <p id="calcRange" style="font-size:1.75rem;font-weight:700;margin:0"></p>
-          <p id="calcSavings" style="color:var(--bp-tan);font-size:13px;margin:8px 0 0"></p>
-          <p id="calcVol" style="opacity:0.85;margin-top:8px;font-size:12px"></p>
-          <p style="font-size:11px;opacity:0.75;margin-top:12px">This is an estimate only. Final pricing depends on site conditions and scope.</p>
-          <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
+
+        <div id="calcResult" class="bp-card bp-calc-result hidden">
+          <p class="bp-calc-result__label">Your partner estimate</p>
+          <p id="calcRange" class="bp-calc-result__range"></p>
+          <p id="calcRangeBefore" class="bp-calc-result__before"></p>
+          <p id="calcPublic" class="bp-calc-result__public"></p>
+          <p id="calcSavings" class="bp-calc-result__savings"></p>
+          <p id="calcVol" class="bp-calc-result__vol"></p>
+          <p class="bp-calc-result__disclaimer">This is an estimate only. Final pricing depends on site conditions and scope complexity.</p>
+          <div class="bp-calc-result__actions">
             <button type="button" class="bp-btn-tan" id="btnSaveCalc">Save estimate</button>
-            <button type="button" class="bp-btn-ghost" id="btnShareCalc" style="color:#fff;border-color:rgba(255,255,255,0.4)">Copy share link</button>
+            <button type="button" class="bp-btn-ghost bp-calc-result__ghost-btn" id="btnShareCalc">Copy share link</button>
+            <button type="button" class="bp-btn-ghost bp-calc-result__ghost-btn" id="btnPrintCalc">Print / PDF</button>
           </div>
+          <p id="calcShareNote" class="bp-calc-result__share-note hidden"></p>
         </div>
+
         <div id="calcBreakdown" class="bp-card hidden" style="margin-top:12px"></div>
-        <h2 style="font-size:1rem;margin:1.5rem 0 0.5rem">Recent estimates</h2>
+
+        <h2 class="bp-calc-recent-title">Recent estimates</h2>
         <div id="calcRecent"></div>
-        <p style="margin-top:1rem"><a href="builder-estimate-request.html" class="bp-btn-tan" style="text-decoration:none;display:inline-block">Request formal estimate</a></p>
+
+        <p style="margin-top:1rem">
+          <a href="builder-estimate-request.html" class="bp-btn-tan" style="text-decoration:none;display:inline-block">Request formal estimate</a>
+        </p>
       </div>
     </main>
   </div>
   <script src="builder-auth.js?v=3"></script>
   <script src="builder-portal-nav.js?v=2"></script>
-  <script src="builder-portal-common.js?v=1"></script>
-  <script src="builder-calculator.js?v=2"></script>
+  <script src="builder-portal-common.js?v=2"></script>
+  <script src="builder-calculator.js?v=3"></script>
 </body>
 </html>

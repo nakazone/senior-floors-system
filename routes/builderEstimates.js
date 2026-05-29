@@ -57,7 +57,7 @@ async function createLeadFromEstimate(pool, builder, est, refNumber) {
   const email = builderRow.email || `builder+${builder.builderId}@portal.local`;
   const phone = builderRow.phone || '0000000000';
   const zip = '80202';
-  const message = `Builder estimate ${refNumber} ‚Äî ${est.address || 'see notes'}`.slice(0, 65535);
+  const message = `Builder estimate ${refNumber} ù ${est.address || 'see notes'}`.slice(0, 65535);
 
   const hasReferring = await columnExists(pool, 'leads', 'referring_builder_id');
   const cols = ['name', 'email', 'phone', 'zipcode', 'message', 'source', 'form_type', 'status', 'notes'];
@@ -155,7 +155,7 @@ export async function postEstimateRequest(req, res) {
     if (builder[0]?.email && builderWantsEmail(builder[0].notification_prefs, 'project_status')) {
       sendBuilderNotification({
         to: builder[0].email,
-        subject: `Estimate request received ‚Äî ${refNumber}`,
+        subject: `Estimate request received ù ${refNumber}`,
         html: `<p>Hi ${builder[0].first_name || 'there'},</p><p>We received your estimate request <strong>${refNumber}</strong>. Our team will review it shortly.</p><p><a href="${pub}/builder-portal.html">Open portal</a></p>`,
       }).catch(() => {});
     }
@@ -163,8 +163,8 @@ export async function postEstimateRequest(req, res) {
     if (adminTo) {
       sendBuilderNotification({
         to: adminTo,
-        subject: `New builder estimate ‚Äî ${refNumber}`,
-        html: `<p>New estimate request from builder portal.</p><p>Ref: <strong>${refNumber}</strong></p><p>Address: ${estRow.address || '‚Äî'}</p><p><a href="${pub}/dashboard.html?page=leads">View leads</a></p>`,
+        subject: `New builder estimate ù ${refNumber}`,
+        html: `<p>New estimate request from builder portal.</p><p>Ref: <strong>${refNumber}</strong></p><p>Address: ${estRow.address || 'ù'}</p><p><a href="${pub}/dashboard.html?page=leads">View leads</a></p>`,
       }).catch(() => {});
     }
 
@@ -199,31 +199,23 @@ export async function postPricingCalculate(req, res) {
     if (!svc || svc.is_locked) {
       return res.status(404).json({ success: false, error: 'Service not available' });
     }
-    const rate = Number(svc.partner_price) || 0;
-    const low = Math.round(area * rate * 0.95 * 100) / 100;
-    const high = Math.round(area * rate * 1.1 * 100) / 100;
-
-    let volumePct = 0;
-    if (area >= 5000) volumePct = 15;
-    else if (area >= 2500) volumePct = 12;
-    else if (area >= 1000) volumePct = 8;
-    else if (area >= 500) volumePct = 5;
-
-    const discountedLow = Math.round(low * (1 - volumePct / 100) * 100) / 100;
-    const discountedHigh = Math.round(high * (1 - volumePct / 100) * 100) / 100;
-
+    const line = calculateLine(svc, area);
     res.json({
       success: true,
       data: {
-        service: svc.name,
-        unit: svc.unit,
-        rate,
-        area_sqft: area,
-        estimate_low: low,
-        estimate_high: high,
-        volume_discount_pct: volumePct,
-        estimate_low_discounted: discountedLow,
-        estimate_high_discounted: discountedHigh,
+        service: line.service,
+        unit: line.unit,
+        rate: line.partner_rate,
+        area_sqft: line.area_sqft,
+        estimate_low: line.estimate_low,
+        estimate_high: line.estimate_high,
+        volume_discount_pct: line.volume_discount_pct,
+        estimate_low_discounted: line.estimate_low_discounted,
+        estimate_high_discounted: line.estimate_high_discounted,
+        public_estimate_low: line.public_estimate_low,
+        public_estimate_high: line.public_estimate_high,
+        public_savings_low: line.public_savings_low,
+        public_savings_high: line.public_savings_high,
       },
     });
   } catch (e) {
@@ -293,7 +285,7 @@ export async function updateEstimateRequest(req, res) {
       if (b[0]?.email && builderWantsEmail(b[0].notification_prefs, 'project_status')) {
         sendBuilderNotification({
           to: b[0].email,
-          subject: `Estimate ${prev[0].ref_number} ‚Äî ${status}`,
+          subject: `Estimate ${prev[0].ref_number} ù ${status}`,
           html: `<p>Hi ${b[0].first_name || 'there'},</p><p>Your estimate <strong>${prev[0].ref_number}</strong> is now: <strong>${status}</strong>.</p><p><a href="${process.env.PUBLIC_CRM_URL || ''}/builder-referrals.html">View referrals</a></p>`,
         }).catch(() => {});
       }
