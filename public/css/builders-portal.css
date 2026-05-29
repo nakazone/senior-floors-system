@@ -108,6 +108,7 @@
 .bp-welcome__manager { flex: 0 1 280px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); border-radius: 10px; padding: 14px; }
 .bp-welcome__manager-head { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; opacity: 0.85; margin: 0 0 10px; }
 .bp-welcome__manager-row { display: flex; gap: 12px; align-items: center; }
+.bp-welcome__avatar-wrap { position: relative; flex-shrink: 0; }
 .bp-welcome__avatar { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; flex-shrink: 0; border: 2px solid var(--bp-tan); }
 .bp-welcome__avatar--init { display: flex; align-items: center; justify-content: center; background: var(--bp-tan); color: var(--bp-navy); font-weight: 700; font-size: 1.1rem; }
 .bp-welcome__mgr-name { font-weight: 600; margin: 0 0 4px; }
@@ -243,17 +244,28 @@
   font-size: 1.25rem;
   color: var(--bp-navy);
 }
+.bp-sf-contact-badge,
 .bp-team-card__badge {
   position: absolute;
-  bottom: -4px;
-  right: -8px;
+  bottom: -2px;
+  right: -6px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 2px solid #fff;
   background: var(--bp-navy);
-  border-radius: 6px;
-  padding: 3px 6px;
   line-height: 0;
-  box-shadow: 0 2px 6px rgba(26, 32, 54, 0.2);
+  box-shadow: 0 2px 8px rgba(26, 32, 54, 0.28);
+  z-index: 1;
 }
-.bp-team-card__badge img { height: 14px; width: auto; display: block; }
+.bp-sf-contact-badge img,
+.bp-team-card__badge img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
 .bp-team-card__role {
   font-size: 11px;
   text-transform: uppercase;

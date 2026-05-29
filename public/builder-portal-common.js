@@ -12,12 +12,20 @@
     return (location.pathname.split('/').pop() || '').replace(/\.html$/, '');
   }
 
+  const SF_LOGO_URL = '/assets/SeniorFloors.png?v=20260529';
+
   function escapeHtml(s) {
     return String(s)
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;');
+  }
+
+  /** Badge SF nos avatares de contactos Senior Floors (portal builder). */
+  function sfContactBadgeHtml(title) {
+    const t = escapeHtml(title || 'Senior Floors');
+    return `<span class="bp-sf-contact-badge" title="${t}"><img src="${SF_LOGO_URL}" alt="${t}" width="26" height="26" loading="lazy" /></span>`;
   }
 
   function enhanceAuthFetch() {
@@ -158,6 +166,8 @@
     loadPortalHeader,
     wireMobileNav,
     RETURN_KEY,
+    SF_LOGO_URL,
+    sfContactBadgeHtml,
   };
 
   document.addEventListener('DOMContentLoaded', async () => {

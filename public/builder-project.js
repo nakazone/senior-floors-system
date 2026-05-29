@@ -64,6 +64,14 @@
     return `/${u.replace(/^\//, '')}`;
   }
 
+
+  function sfContactBadge() {
+    if (window.builderPortalCommon?.sfContactBadgeHtml) {
+      return window.builderPortalCommon.sfContactBadgeHtml('Senior Floors team member');
+    }
+    return '<span class="bp-sf-contact-badge" title="Senior Floors"><img src="/assets/SeniorFloors.png?v=20260529" alt="Senior Floors" width="26" height="26" /></span>';
+  }
+
   function renderProjectTeam(team) {
     const roles = team && team.length ? team : [];
     const cards = roles
@@ -83,7 +91,7 @@
         return `<article class="bp-team-card">
           <div class="bp-team-card__avatar-wrap">
             ${avatar}
-            <span class="bp-team-card__badge" title="Senior Floors"><img src="/assets/SeniorFloors.png" alt="Senior Floors" /></span>
+            ${sfContactBadge()}
           </div>
           <h3 class="bp-team-card__role">${escapeHtml(member.title)}</h3>
           ${contact}

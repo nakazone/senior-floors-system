@@ -28,7 +28,7 @@
   }
 
   function fmtDate(d) {
-    if (!d) return '‚Äî';
+    if (!d) return 'ù';
     try {
       return new Date(`${String(d).slice(0, 10)}T12:00:00`).toLocaleDateString('en-US', {
         day: 'numeric',
@@ -64,13 +64,16 @@
     wrap.classList.remove('hidden');
     const src = avatarSrc(mgr.avatar_url);
     const initials = escapeHtml(managerInitials(mgr.name));
+    const badge =
+      window.builderPortalCommon?.sfContactBadgeHtml?.('Senior Floors manager') ||
+      '<span class="bp-sf-contact-badge" title="Senior Floors"><img src="/assets/SeniorFloors.png?v=20260529" alt="Senior Floors" width="26" height="26" /></span>';
     const avatarHtml = src
       ? `<img class="bp-welcome__avatar" src="${escapeHtml(src)}" alt="" onerror="this.classList.add('hidden');this.nextElementSibling?.classList.remove('hidden');" /><div class="bp-welcome__avatar bp-welcome__avatar--init hidden" aria-hidden="true">${initials}</div>`
       : `<div class="bp-welcome__avatar bp-welcome__avatar--init" aria-hidden="true">${initials}</div>`;
     wrap.innerHTML = `
       <p class="bp-welcome__manager-head">Your Senior Floors manager</p>
       <div class="bp-welcome__manager-row">
-        ${avatarHtml}
+        <div class="bp-welcome__avatar-wrap">${avatarHtml}${badge}</div>
         <div>
           <p class="bp-welcome__mgr-name">${escapeHtml(mgr.name || '')}</p>
           ${mgr.phone ? `<p class="bp-welcome__mgr-meta">Tel: <a href="tel:${escapeHtml(mgr.phone)}">${escapeHtml(mgr.phone)}</a></p>` : ''}
@@ -135,7 +138,7 @@
       const sub = document.getElementById('welcomeSub');
       if (sub) {
         sub.textContent = u.company
-          ? `${u.company} ‚Äî overview of your projects with Senior Floors.`
+          ? `${u.company} ù overview of your projects with Senior Floors.`
           : 'Here is an overview of your projects with Senior Floors.';
       }
 
@@ -228,7 +231,7 @@
           <div>
             <strong>${escapeHtml(p.name || p.project_number || 'Project')}</strong>
             <p class="bp-muted" style="margin:4px 0 0">${escapeHtml(p.address || '')}</p>
-            <p class="bp-muted" style="font-size:11px;margin:4px 0 0">Start: ${fmtDate(p.start_date)} ‚Äî ${p.total_sqft ? p.total_sqft + ' sqft' : ''}</p>
+            <p class="bp-muted" style="font-size:11px;margin:4px 0 0">Start: ${fmtDate(p.start_date)} ù ${p.total_sqft ? p.total_sqft + ' sqft' : ''}</p>
             <div class="bp-progress-bar" style="margin-top:8px;max-width:220px"><div class="bp-progress-fill" style="width:${Math.min(100, p.completion_percentage || 0)}%"></div></div>
           </div>
           <a href="builder-project.html?id=${p.id}" class="bp-btn-tan" style="text-decoration:none;align-self:center">View details</a>
