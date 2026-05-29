@@ -5,23 +5,21 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Project gallery - Builder Portal</title>
   <link rel="icon" type="image/png" href="/assets/SeniorFloors.png" />
-  <link rel="stylesheet" href="css/builders-portal.css?v=20260530-gallery" />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/builders-portal.css?v=20260531-ui" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700&display=swap" rel="stylesheet" />
 </head>
 <body class="bp-page-body" data-bp-page="gallery">
   <div class="bp-portal-layout">
-    <button type="button" class="bp-menu-toggle" id="bpMenuToggle" aria-label="Menu">&#9776;</button>
+    <button type="button" class="bp-menu-toggle" id="bpMenuToggle" aria-label="Open menu">&#9776;</button>
     <aside class="bp-portal-sidebar"><nav id="bpPortalNav"></nav></aside>
     <main class="bp-portal-main">
       <div id="bpPortalHeader"></div>
-      <div class="bp-main" id="portalGalleryRoot">
-        <p class="bp-muted">Loading gallery...</p>
-      </div>
+      <div id="portalGalleryRoot"><p class="bp-muted" style="padding:24px">Loading gallery...</p></div>
     </main>
   </div>
   <script src="builder-auth.js?v=3"></script>
-  <script src="builder-portal-nav.js?v=2"></script>
-  <script src="builder-portal-common.js?v=20260530-notifications"></script>
-  <script src="builder-gallery.js?v=20260530-gallery"></script>
+  <script src="builder-portal-nav.js?v=20260531-ui"></script>
+  <script src="builder-portal-common.js?v=20260531-ui"></script>
+  <script src="builder-gallery.js?v=20260531-ui"></script>
 </body>
 </html>

@@ -5,30 +5,38 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Messages - Builder Portal</title>
   <link rel="icon" type="image/png" href="/assets/SeniorFloors.png" />
-  <link rel="stylesheet" href="css/builders-portal.css?v=20260530-messages" />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/builders-portal.css?v=20260531-ui" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700&display=swap" rel="stylesheet" />
 </head>
 <body class="bp-page-body" data-bp-page="messages">
   <div class="bp-portal-layout">
-    <button type="button" class="bp-menu-toggle" id="bpMenuToggle" aria-label="Menu">&#9776;</button>
-    <aside class="bp-portal-sidebar"><nav id="bpPortalNav"></nav></aside>
+    <button type="button" class="bp-menu-toggle" id="bpMenuToggle" aria-label="Open menu">&#9776;</button>
+    <aside class="bp-portal-sidebar">
+      <nav id="bpPortalNav"></nav>
+    </aside>
     <main class="bp-portal-main">
       <div id="bpPortalHeader"></div>
-      <h1 class="bp-title">Messages</h1>
-      <div class="bp-filters bp-msg-filters">
+      <header class="bp-page-header">
+        <div class="bp-page-header__text">
+          <p class="bp-eyebrow">Senior Floors Partner</p>
+          <h1 class="bp-title">Messages</h1>
+          <p class="bp-page-header__sub">Conversations with your Senior Floors team.</p>
+        </div>
+      </header>
+      <div class="bp-toolbar bp-msg-filters">
         <label class="bp-msg-filters__label">Conversation
-          <select id="msgProjectFilter" class="bp-msg-filters__select">
+          <select id="msgProjectFilter" class="bp-msg-filters__select" aria-label="Filter by project">
             <option value="">All conversations</option>
             <option value="general">General conversations</option>
           </select>
         </label>
       </div>
-      <section class="bp-msg-thread bp-card" id="portalThread"></section>
+      <section class="bp-msg-thread bp-card" id="portalThread" aria-label="Message thread"></section>
     </main>
   </div>
   <script src="builder-auth.js?v=3"></script>
-  <script src="builder-portal-nav.js?v=2"></script>
-  <script src="builder-portal-common.js?v=20260530-notifications"></script>
-  <script src="builder-messages.js?v=20260530-messages"></script>
+  <script src="builder-portal-nav.js?v=20260531-ui"></script>
+  <script src="builder-portal-common.js?v=20260531-ui"></script>
+  <script src="builder-messages.js?v=20260531-ui"></script>
 </body>
 </html>

@@ -1,5 +1,5 @@
 /**
- * Builder portal — partner pricing (read-only static table).
+ * Builder portal  partner pricing (read-only static table).
  */
 (function () {
   const $ = (id) => document.getElementById(id);
@@ -178,15 +178,15 @@
         </tr>`;
       })
       .join('');
-    root.innerHTML = `
-      <div id="bpPortalHeader"></div>
-      <h1 class="bp-title">Partner pricing</h1>
-      <p class="bp-muted">Read-only partner rate sheet. Contact Senior Floors to request changes.</p>
+    const hdr =
+      window.builderPortalCommon?.pageHeaderHtml?.({
+        title: 'Partner pricing',
+        subtitle: 'Read-only partner rate sheet. Contact Senior Floors to request changes.',
+        actionsHtml: `<button type="button" class="bp-btn-ghost" id="btnViewPricingPdf">View PDF</button>
+        <button type="button" class="bp-btn-tan" id="btnDownloadPricing">Download PDF</button>`,
+      }) || '<h1 class="bp-title">Partner pricing</h1>';
+    root.innerHTML = `${hdr}
       <p class="bp-muted">${validLine}</p>
-      <div style="margin-bottom:12px;display:flex;flex-wrap:wrap;gap:8px">
-        <button type="button" class="bp-btn-ghost" id="btnViewPricingPdf">View PDF</button>
-        <button type="button" class="bp-btn-tan" id="btnDownloadPricing">Download PDF</button>
-      </div>
       <div class="bp-table-wrap"><table class="bp-table"><thead><tr><th>Service</th><th>Category</th><th>Unit</th><th>Public range</th><th>Your price</th></tr></thead><tbody>${rows}</tbody></table></div>
       <h2 style="font-size:1rem;margin-top:1.5rem">Volume discounts</h2>
       <div class="bp-card" id="volPortal"></div>

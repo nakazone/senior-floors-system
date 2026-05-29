@@ -12,7 +12,8 @@
     return (location.pathname.split('/').pop() || '').replace(/\.html$/, '');
   }
 
-  const SF_LOGO_URL = '/assets/SeniorFloors.png?v=20260529';
+  const SF_LOGO_URL = '/assets/SeniorFloors.png?v=20260531';
+  const PORTAL_UI_VERSION = '20260531-ui';
 
   const NOTIF_ICONS = {
     project: '\u{1F514}',
@@ -257,12 +258,68 @@
     });
   }
 
+  function pageHeaderHtml({ title, subtitle = '', actionsHtml = '', eyebrow = 'Senior Floors Partner' }) {
+    return `<header class="bp-page-header">
+      <div class="bp-page-header__text">
+        ${eyebrow ? `<p class="bp-eyebrow">${escapeHtml(eyebrow)}</p>` : ''}
+        <h1 class="bp-title">${escapeHtml(title)}</h1>
+        ${subtitle ? `<p class="bp-page-header__sub">${escapeHtml(subtitle)}</p>` : ''}
+      </div>
+      ${actionsHtml ? `<div class="bp-page-header__actions">${actionsHtml}</div>` : ''}
+    </header>`;
+  }
+
+  function ensureSidebarOverlay() {
+    let overlay = document.getElementById('bpSidebarOverlay');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = 'bpSidebarOverlay';
+      overlay.className = 'bp-sidebar-overlay';
+      document.body.appendChild(overlay);
+      overlay.addEventListener('click', closeMobileSidebar);
+    }
+    return overlay;
+  }
+
+  function closeMobileSidebar() {
+    document.querySelector('.bp-portal-sidebar')?.classList.remove('bp-sidebar--open');
+    document.getElementById('bpSidebarOverlay')?.classList.remove('is-visible');
+  }
+
+  function openMobileSidebar() {
+    document.querySelector('.bp-portal-sidebar')?.classList.add('bp-sidebar--open');
+    ensureSidebarOverlay().classList.add('is-visible');
+  }
+
+  function initPortalContentWrap() {
+    const main = document.querySelector('.bp-portal-main');
+    if (!main || main.querySelector('.bp-page-content')) return;
+    const headerSlot = document.getElementById('bpPortalHeader');
+    const children = [...main.children].filter((el) => el.id !== 'bpPortalHeader');
+    if (!children.length) return;
+    const wrap = document.createElement('div');
+    wrap.className = 'bp-page-content';
+    children.forEach((el) => wrap.appendChild(el));
+    if (headerSlot) main.insertBefore(wrap, headerSlot.nextSibling);
+    else main.appendChild(wrap);
+  }
+
   function wireMobileNav() {
     const btn = document.getElementById('bpMenuToggle');
     const sidebar = document.querySelector('.bp-portal-sidebar');
-    if (btn && sidebar) {
-      btn.addEventListener('click', () => sidebar.classList.toggle('bp-sidebar--open'));
-    }
+    if (!btn || !sidebar) return;
+    btn.addEventListener('click', () => {
+      if (sidebar.classList.contains('bp-sidebar--open')) closeMobileSidebar();
+      else openMobileSidebar();
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeMobileSidebar();
+    });
+    sidebar.querySelectorAll('a').forEach((a) => {
+      a.addEventListener('click', () => {
+        if (window.matchMedia('(max-width: 768px)').matches) closeMobileSidebar();
+      });
+    });
   }
 
   let portalReadyPromise = null;
@@ -278,6 +335,7 @@
         if (window.builderPortalNav?.renderNav) {
           window.builderPortalNav.renderNav(window.builderPortalNav.currentPage());
         }
+        initPortalContentWrap();
         await loadPortalHeader();
         wireMobileNav();
         startBadgePolling();
@@ -294,6 +352,9 @@
     startBadgePolling,
     wireMobileNav,
     whenPortalReady,
+    pageHeaderHtml,
+    initPortalContentWrap,
+    PORTAL_UI_VERSION,
     RETURN_KEY,
     SF_LOGO_URL,
     sfContactBadgeHtml,

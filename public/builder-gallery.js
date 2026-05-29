@@ -1,5 +1,5 @@
 /**
- * Builder portal ó project gallery (read-only inspiration).
+ * Builder portal ù project gallery (read-only inspiration).
  */
 (function () {
   const $ = (id) => document.getElementById(id);
@@ -93,7 +93,7 @@
   function renderPortalGrid(items, host) {
     if (!items.length) {
       host.innerHTML =
-        '<p class="bp-card">No published projects yet. Our team is adding inspiration photos ó check back soon.</p>';
+        '<p class="bp-card">No published projects yet. Our team is adding inspiration photos ù check back soon.</p>';
       return;
     }
     host.innerHTML = items.map(cardHtml).join('');
@@ -292,11 +292,13 @@
 
   function renderShell() {
     const host = $('portalGalleryRoot');
-    host.innerHTML = `
-      <div id="bpPortalHeader"></div>
-      <h1 class="bp-title">Project gallery</h1>
-      <p class="bp-muted">Completed Senior Floors work for inspiration. Read-only.</p>
-      <div class="bp-gallery-toolbar">
+    const hdr =
+      window.builderPortalCommon?.pageHeaderHtml?.({
+        title: 'Project gallery',
+        subtitle: 'Completed Senior Floors work for inspiration. Read-only.',
+      }) || '<h1 class="bp-title">Project gallery</h1>';
+    host.innerHTML = `${hdr}
+      <div class="bp-toolbar bp-gallery-toolbar">
         <input type="search" id="gallerySearch" placeholder="Search by keyword..." class="bp-gallery-search" />
         <select id="filterRegion" class="bp-gallery-select"><option value="">All regions</option></select>
       </div>

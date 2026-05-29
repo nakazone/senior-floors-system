@@ -5,37 +5,47 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Project history - Builder Portal</title>
   <link rel="icon" type="image/png" href="/assets/SeniorFloors.png" />
-  <link rel="stylesheet" href="css/builders-portal.css?v=20260530-history" />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/builders-portal.css?v=20260531-ui" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700&display=swap" rel="stylesheet" />
 </head>
 <body class="bp-page-body" data-bp-page="history">
   <div class="bp-portal-layout">
-    <button type="button" class="bp-menu-toggle" id="bpMenuToggle" aria-label="Menu">&#9776;</button>
+    <button type="button" class="bp-menu-toggle" id="bpMenuToggle" aria-label="Open menu">&#9776;</button>
     <aside class="bp-portal-sidebar"><nav id="bpPortalNav"></nav></aside>
     <main class="bp-portal-main">
       <div id="bpPortalHeader"></div>
-      <div class="bp-main">
-        <h1 class="bp-title">Completed projects</h1>
-        <p class="bp-muted">Your finished work with Senior Floors.</p>
-        <div id="histSummary" class="bp-metrics" style="margin:1rem 0"></div>
-        <div class="bp-filters" style="margin-bottom:12px">
-          <input type="search" id="histSearch" placeholder="Search name or address..." style="flex:1;min-width:160px;padding:8px;border-radius:8px;border:1px solid var(--bp-border)" />
-          <select id="histYear"><option value="">All years</option></select>
+      <header class="bp-page-header">
+        <div class="bp-page-header__text">
+          <p class="bp-eyebrow">Senior Floors Partner</p>
+          <h1 class="bp-title">Completed projects</h1>
+          <p class="bp-page-header__sub">Your finished work with Senior Floors.</p>
         </div>
-        <div class="bp-table-wrap"><table class="bp-table"><thead><tr>
-          <th>Project</th><th>Address</th><th>Floor</th><th>Area</th><th>Value</th><th>Completed</th><th>Photos</th>
-        </tr></thead><tbody id="histBody"><tr><td colspan="7" class="bp-muted">Loading...</td></tr></tbody></table></div>
-        <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+        <div class="bp-page-header__actions">
           <button type="button" class="bp-btn-tan" id="btnExportCsv">Export CSV</button>
           <button type="button" class="bp-btn-ghost" id="btnViewPdf">View PDF</button>
           <button type="button" class="bp-btn-ghost" id="btnExportPdf">Download PDF</button>
         </div>
+      </header>
+      <div id="histSummary" class="bp-metrics"></div>
+      <div class="bp-toolbar">
+        <input type="search" id="histSearch" placeholder="Search name or address..." aria-label="Search history" />
+        <select id="histYear" aria-label="Filter by year"><option value="">All years</option></select>
+      </div>
+      <div class="bp-table-wrap">
+        <table class="bp-table">
+          <thead>
+            <tr>
+              <th>Project</th><th>Address</th><th>Floor</th><th>Area</th><th>Value</th><th>Completed</th><th>Photos</th>
+            </tr>
+          </thead>
+          <tbody id="histBody"><tr><td colspan="7" class="bp-muted">Loading...</td></tr></tbody>
+        </table>
       </div>
     </main>
   </div>
   <script src="builder-auth.js?v=3"></script>
-  <script src="builder-portal-nav.js?v=2"></script>
-  <script src="builder-portal-common.js?v=20260530-notifications"></script>
-  <script src="builder-history.js?v=20260530-history"></script>
+  <script src="builder-portal-nav.js?v=20260531-ui"></script>
+  <script src="builder-portal-common.js?v=20260531-ui"></script>
+  <script src="builder-history.js?v=20260531-ui"></script>
 </body>
 </html>

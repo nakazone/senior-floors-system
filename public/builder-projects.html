@@ -5,38 +5,42 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>My Projects - Builder Portal</title>
   <link rel="icon" type="image/png" href="/assets/SeniorFloors.png" />
-  <link rel="stylesheet" href="css/builders-portal.css" />
+  <link rel="stylesheet" href="css/builders-portal.css?v=20260531-ui" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700&display=swap" rel="stylesheet" />
 </head>
 <body class="bp-page-body" data-bp-page="projects">
   <div class="bp-portal-layout">
-    <button type="button" class="bp-menu-toggle" id="bpMenuToggle" aria-label="Menu">&#9776;</button>
+    <button type="button" class="bp-menu-toggle" id="bpMenuToggle" aria-label="Open menu">&#9776;</button>
     <aside class="bp-portal-sidebar">
-      <img src="/assets/SeniorFloors.png" alt="" width="48" style="margin-bottom:16px" onerror="this.style.display='none'" />
       <nav id="bpPortalNav"></nav>
     </aside>
     <main class="bp-portal-main">
       <div id="bpPortalHeader"></div>
-      <h1 class="bp-title">My Projects</h1>
-      <p class="bp-muted" style="margin:0 0 1rem">Track all your jobs with Senior Floors.</p>
-      <div class="bp-filters bp-proj-toolbar">
-        <input type="search" id="projSearch" placeholder="Search name or address..." class="bp-gallery-search" />
-        <select id="filterYear"><option value="">All years</option></select>
-        <select id="filterService"><option value="">All services</option></select>
+      <header class="bp-page-header">
+        <div class="bp-page-header__text">
+          <p class="bp-eyebrow">Senior Floors Partner</p>
+          <h1 class="bp-title">My Projects</h1>
+          <p class="bp-page-header__sub">Track all your jobs with Senior Floors.</p>
+        </div>
+      </header>
+      <div class="bp-toolbar bp-proj-toolbar">
+        <input type="search" id="projSearch" placeholder="Search name or address..." class="bp-gallery-search" aria-label="Search projects" />
+        <select id="filterYear" aria-label="Filter by year"><option value="">All years</option></select>
+        <select id="filterService" aria-label="Filter by service"><option value="">All services</option></select>
         <button type="button" class="bp-btn-tan bp-filter-btn active" data-filter="active">Active</button>
         <button type="button" class="bp-btn-ghost bp-filter-btn" data-filter="all">All</button>
         <button type="button" class="bp-btn-ghost bp-filter-btn" data-filter="completed">Completed</button>
         <div class="bp-view-toggle">
-          <button type="button" class="bp-btn-ghost active" id="viewList" title="List">List</button>
-          <button type="button" class="bp-btn-ghost" id="viewGrid" title="Grid">Grid</button>
+          <button type="button" class="bp-btn-ghost active" id="viewList" title="List view">List</button>
+          <button type="button" class="bp-btn-ghost" id="viewGrid" title="Grid view">Grid</button>
         </div>
       </div>
       <div id="projectsHost"><p class="bp-card">Loading projects...</p></div>
     </main>
   </div>
   <script src="builder-auth.js?v=3"></script>
-  <script src="builder-portal-nav.js?v=3"></script>
-  <script src="builder-portal-common.js?v=20260530-notifications"></script>
-  <script src="builder-projects.js?v=3"></script>
+  <script src="builder-portal-nav.js?v=20260531-ui"></script>
+  <script src="builder-portal-common.js?v=20260531-ui"></script>
+  <script src="builder-projects.js?v=20260531-ui"></script>
 </body>
 </html>

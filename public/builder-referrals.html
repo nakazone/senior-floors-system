@@ -5,31 +5,32 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Referrals - Builder Portal</title>
   <link rel="icon" type="image/png" href="/assets/SeniorFloors.png" />
-  <link rel="stylesheet" href="css/builders-portal.css?v=20260530-referrals" />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/builders-portal.css?v=20260531-ui" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700&display=swap" rel="stylesheet" />
 </head>
 <body class="bp-page-body" data-bp-page="referrals">
   <div class="bp-portal-layout">
-    <button type="button" class="bp-menu-toggle" id="bpMenuToggle" aria-label="Menu">&#9776;</button>
+    <button type="button" class="bp-menu-toggle" id="bpMenuToggle" aria-label="Open menu">&#9776;</button>
     <aside class="bp-portal-sidebar"><nav id="bpPortalNav"></nav></aside>
     <main class="bp-portal-main">
       <div id="bpPortalHeader"></div>
-      <div class="bp-main">
-        <div class="bp-ref-head">
-          <div>
-            <h1 class="bp-title">Referral tracker</h1>
-            <p class="bp-muted" style="margin:0">Leads and estimate requests you submitted to Senior Floors.</p>
-          </div>
+      <header class="bp-page-header">
+        <div class="bp-page-header__text">
+          <p class="bp-eyebrow">Senior Floors Partner</p>
+          <h1 class="bp-title">Referral tracker</h1>
+          <p class="bp-page-header__sub">Leads and estimate requests you submitted to Senior Floors.</p>
+        </div>
+        <div class="bp-page-header__actions">
           <a href="builder-estimate-request.html?project_type=sf_referral" class="bp-btn-tan" id="btnNewReferral" style="text-decoration:none">Submit new referral</a>
         </div>
-        <div id="refSummary" class="bp-metrics" style="margin:1rem 0"></div>
-        <div id="refList"><p class="bp-muted">Loading...</p></div>
-      </div>
+      </header>
+      <div id="refSummary" class="bp-metrics"></div>
+      <div id="refList"><p class="bp-muted">Loading...</p></div>
     </main>
   </div>
   <script src="builder-auth.js?v=3"></script>
-  <script src="builder-portal-nav.js?v=2"></script>
-  <script src="builder-portal-common.js?v=20260530-notifications"></script>
-  <script src="builder-referrals.js?v=20260530-referrals"></script>
+  <script src="builder-portal-nav.js?v=20260531-ui"></script>
+  <script src="builder-portal-common.js?v=20260531-ui"></script>
+  <script src="builder-referrals.js?v=20260531-ui"></script>
 </body>
 </html>
