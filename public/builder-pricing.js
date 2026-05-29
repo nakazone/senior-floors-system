@@ -1,22 +1,8 @@
-/* global crmNotify */
+/**
+ * Builder portal — partner pricing (read-only static table).
+ */
 (function () {
   const $ = (id) => document.getElementById(id);
-
-  /** CRM staff session takes priority over stale builder portal tokens in sessionStorage. */
-  async function resolvePageMode() {
-    const forcePortal = new URLSearchParams(location.search).get('portal') === '1';
-    let crmSession = null;
-    try {
-      const r = await fetch('/api/auth/session', { credentials: 'include' });
-      crmSession = await r.json();
-    } catch {
-      crmSession = { authenticated: false };
-    }
-    if (crmSession?.authenticated && !forcePortal) return { mode: 'admin', session: crmSession };
-    if (window.builderAuth?.getToken?.()) return { mode: 'portal', session: null };
-    if (crmSession?.authenticated) return { mode: 'admin', session: crmSession };
-    return { mode: 'none', session: null };
-  }
 
   const VOLUME_DISCOUNTS = [
     { range: '500 - 999 sq ft', pct: 5 },
@@ -27,7 +13,6 @@
 
   let portalPricingData = [];
   let portalMeta = {};
-  let adminCanEdit = false;
 
   function money(n) {
     return '$' + (Number(n) || 0).toFixed(2);
@@ -47,13 +32,6 @@
       <button type="button" class="bp-info-btn" aria-label="Service notes">i</button>
       <span class="bp-tooltip" role="tooltip">${escapeHtml(notes)}</span>
     </span>`;
-  }
-
-  async function adminApi(path, opts) {
-    const r = await fetch(path, { credentials: 'include', ...opts });
-    const j = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(j.error || r.statusText);
-    return j;
   }
 
   function renderVolume(el) {
@@ -111,110 +89,74 @@
     });
   }
 
-  async function downloadPricingPdf() {
-    const btn = document.getElementById('btnDownloadPricing');
-    if (btn) {
-      btn.disabled = true;
-      btn.textContent = 'Generating PDF...';
+  async function fetchPricingPdfBlob() {
+    const r = await window.builderAuth.fetch('/api/pricing/partner/pdf');
+    if (!r.ok) {
+      const j = await r.json().catch(() => ({}));
+      throw new Error(j.error || 'Could not generate PDF');
     }
+    return r.blob();
+  }
+
+  function setPdfButtonsLoading(loading) {
+    ['btnViewPricingPdf', 'btnDownloadPricing'].forEach((id) => {
+      const btn = document.getElementById(id);
+      if (!btn) return;
+      btn.disabled = loading;
+    });
+    const viewBtn = document.getElementById('btnViewPricingPdf');
+    const dlBtn = document.getElementById('btnDownloadPricing');
+    if (!loading) {
+      if (viewBtn) viewBtn.textContent = 'View PDF';
+      if (dlBtn) dlBtn.textContent = 'Download PDF';
+    } else {
+      if (viewBtn) viewBtn.textContent = 'Loading...';
+      if (dlBtn) dlBtn.textContent = 'Loading...';
+    }
+  }
+
+  async function viewPricingPdf() {
+    setPdfButtonsLoading(true);
     try {
-      const r = await window.builderAuth.fetch('/api/pricing/partner/pdf');
-      if (!r.ok) {
-        const j = await r.json().catch(() => ({}));
-        throw new Error(j.error || 'Could not generate PDF');
-      }
-      const blob = await r.blob();
+      const blob = await fetchPricingPdfBlob();
       const url = URL.createObjectURL(blob);
       window.open(url, '_blank', 'noopener');
-      setTimeout(() => URL.revokeObjectURL(url), 60000);
+      setTimeout(() => URL.revokeObjectURL(url), 120000);
     } catch (e) {
       alert(e.message || 'PDF error');
     } finally {
-      if (btn) {
-        btn.disabled = false;
-        btn.textContent = 'Download PDF';
-      }
+      setPdfButtonsLoading(false);
     }
   }
 
-  function adminRowHtml(s) {
-    const dis = adminCanEdit ? '' : ' disabled';
-    return `<tr data-id="${s.id}">
-          <td><input class="bp-inline" data-f="sort_order" type="number" value="${s.sort_order ?? 0}" style="width:44px"${dis} /></td>
-          <td><input class="bp-inline" data-f="name" value="${escapeHtml(s.name)}"${dis} /></td>
-          <td><select data-f="category" class="bp-inline"${dis}>
-            <option value="installation" ${s.category === 'installation' ? 'selected' : ''}>Installation</option>
-            <option value="sand_finish" ${s.category === 'sand_finish' ? 'selected' : ''}>Sand & Finish</option>
-            <option value="supply" ${s.category === 'supply' ? 'selected' : ''}>Supply</option>
-            <option value="custom" ${s.category === 'custom' ? 'selected' : ''}>Custom</option>
-          </select></td>
-          <td><input class="bp-inline" data-f="unit" value="${escapeHtml(s.unit || '')}" style="width:70px"${dis} /></td>
-          <td><input class="bp-inline" data-f="price_min" type="number" step="0.01" value="${s.price_min}" style="width:72px"${dis} /></td>
-          <td><input class="bp-inline" data-f="price_max" type="number" step="0.01" value="${s.price_max}" style="width:72px"${dis} /></td>
-          <td><input class="bp-inline" data-f="partner_price" type="number" step="0.01" value="${s.partner_price}" style="width:72px"${dis} /></td>
-          <td><textarea class="bp-inline bp-inline-notes" data-f="notes" rows="2" placeholder="Nota para o builder..."${dis}>${escapeHtml(s.notes || '')}</textarea></td>
-          <td><input type="checkbox" data-f="is_visible" ${s.is_visible ? 'checked' : ''}${dis} /></td>
-          <td><input type="checkbox" data-f="is_locked" ${s.is_locked ? 'checked' : ''}${dis} /></td>
-          <td style="white-space:nowrap">
-            ${adminCanEdit ? `<button type="button" class="bp-btn-tan bp-btn-sm" data-save="${s.id}">Salvar</button>
-            <button type="button" class="bp-btn-ghost bp-btn-sm" data-del="${s.id}" style="margin-left:4px">Excluir</button>` : ''}
-          </td>
-        </tr>`;
-  }
-
-  async function loadAdmin() {
-    $('portalShell')?.classList.add('hidden');
-    $('adminShell')?.classList.remove('hidden');
-    const j = await adminApi('/api/pricing');
-    const tbody = $('pricingTbody');
-    tbody.innerHTML = (j.data || []).map(adminRowHtml).join('');
-    renderVolume($('volumeDiscounts'));
-    if (!adminCanEdit) return;
-    tbody.querySelectorAll('[data-save]').forEach((btn) => {
-      btn.addEventListener('click', () => saveRow(btn.dataset.save));
-    });
-    tbody.querySelectorAll('[data-del]').forEach((btn) => {
-      btn.addEventListener('click', () => deleteRow(btn.dataset.del));
-    });
-  }
-
-  async function saveRow(id) {
-    const tr = document.querySelector(`tr[data-id="${id}"]`);
-    const body = {};
-    tr.querySelectorAll('[data-f]').forEach((el) => {
-      const f = el.dataset.f;
-      if (el.type === 'checkbox') body[f] = el.checked;
-      else if (f === 'notes') body[f] = el.value;
-      else body[f] = el.type === 'number' ? parseFloat(el.value) : el.value;
-    });
+  async function downloadPricingPdf() {
+    setPdfButtonsLoading(true);
     try {
-      await adminApi(`/api/pricing/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      crmNotify('Salvo.', 'success');
+      const blob = await fetchPricingPdfBlob();
+      const url = URL.createObjectURL(blob);
+      const stamp = new Date().toISOString().slice(0, 10);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `senior-floors-partner-pricing-${stamp}.pdf`;
+      a.rel = 'noopener';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
     } catch (e) {
-      crmNotify(e.message, 'error');
-    }
-  }
-
-  async function deleteRow(id) {
-    if (!confirm('Excluir este servico da tabela?')) return;
-    try {
-      await adminApi(`/api/pricing/${id}`, { method: 'DELETE' });
-      crmNotify('Servico removido.', 'success');
-      await loadAdmin();
-    } catch (e) {
-      crmNotify(e.message, 'error');
+      alert(e.message || 'PDF error');
+    } finally {
+      setPdfButtonsLoading(false);
     }
   }
 
   async function loadPortal() {
-    $('adminShell')?.classList.add('hidden');
-    $('portalShell')?.classList.remove('hidden');
     const r = await window.builderAuth.fetch('/api/pricing/partner');
     const j = await r.json();
+    if (!r.ok || !j.success) {
+      $('portalPricingRoot').innerHTML = `<p class="bp-card">${escapeHtml(j.error || 'Could not load pricing')}</p>`;
+      return;
+    }
     portalPricingData = j.data || [];
     portalMeta = j.meta || {};
     const root = $('portalPricingRoot');
@@ -239,6 +181,7 @@
     root.innerHTML = `
       <div id="bpPortalHeader"></div>
       <h1 class="bp-title">Partner pricing</h1>
+      <p class="bp-muted">Read-only partner rate sheet. Contact Senior Floors to request changes.</p>
       <p class="bp-muted">${validLine}</p>
       <div style="margin-bottom:12px;display:flex;flex-wrap:wrap;gap:8px">
         <button type="button" class="bp-btn-ghost" id="btnViewPricingPdf">View PDF</button>
@@ -257,55 +200,14 @@
     });
   }
 
-  async function initAdmin(sess) {
-    $('portalShell')?.classList.add('hidden');
-    $('adminShell')?.classList.remove('hidden');
-    const perms = sess.permissions || sess.user?.permissions || [];
-    adminCanEdit = sess.role === 'admin' || perms.includes('builders.edit');
-    if (!adminCanEdit) {
-      $('adminReadOnlyBanner')?.classList.remove('hidden');
-      $('btnAddService')?.setAttribute('disabled', 'disabled');
-    }
-    $('btnAddService')?.addEventListener('click', async () => {
-      if (!adminCanEdit) return;
-      try {
-        await adminApi('/api/pricing', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: 'New service', category: 'installation' }),
-        });
-        await loadAdmin();
-        crmNotify('Servico adicionado.', 'success');
-      } catch (e) {
-        crmNotify(e.message, 'error');
-      }
-    });
-    await loadAdmin();
-  }
-
-  async function initPortal() {
+  document.addEventListener('DOMContentLoaded', () => {
     const boot = window.builderPortalCommon?.whenPortalReady;
-    const run = () => loadPortal();
     if (typeof boot === 'function') {
-      const ok = await boot();
-      if (ok) run();
-      return;
+      boot().then((ok) => {
+        if (ok) loadPortal();
+      });
+    } else if (window.builderAuth?.requireAuth?.()) {
+      loadPortal();
     }
-    if (window.builderAuth?.requireAuth?.()) run();
-  }
-
-  async function init() {
-    const { mode, session } = await resolvePageMode();
-    if (mode === 'admin') {
-      await initAdmin(session);
-      return;
-    }
-    if (mode === 'portal') {
-      await initPortal();
-      return;
-    }
-    location.href = 'login.html';
-  }
-
-  document.addEventListener('DOMContentLoaded', () => init());
+  });
 })();

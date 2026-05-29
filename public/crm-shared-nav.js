@@ -84,7 +84,7 @@
         { href: 'builders.html', label: 'Builders', perm: 'builders.view', page: '', iconKey: 'customers' },
         { href: 'builder-portal.html', label: 'Portal do Builder', perm: 'builders.view', page: '', iconKey: 'customers' },
         { href: 'projects.html?client_type=builder', label: 'Projetos Builders', perm: 'projects.view', page: '', iconKey: 'projects' },
-        { href: 'builder-pricing.html', label: 'Tabela de Valores', perm: 'builders.view', page: '', iconKey: 'quotes' },
+        { href: 'builder-pricing-admin.html', label: 'Tabela de Valores', perm: 'builders.view', page: '', iconKey: 'quotes' },
         { href: 'builder-gallery.html', label: 'Galeria de Projetos', perm: 'builders.view', page: '', iconKey: 'projects' },
         { href: 'builder-messages.html', label: 'Mensagens', perm: 'builders.view', page: '', iconKey: 'activities' },
         {
@@ -161,7 +161,7 @@
     }
     if (base === 'builders.html') return file === 'builders.html';
     if (base === 'builder-detail.html') return file === 'builder-detail.html';
-    if (base === 'builder-pricing.html') return file === 'builder-pricing.html';
+    if (base === 'builder-pricing-admin.html') return file === 'builder-pricing-admin.html';
     if (base === 'builder-gallery.html') return file === 'builder-gallery.html';
     if (base === 'builder-messages.html') return file === 'builder-messages.html';
     if (base === 'builder-portal.html') return file === 'builder-portal.html';
