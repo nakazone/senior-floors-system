@@ -38,10 +38,14 @@
   function renderNav(active) {
     const nav = document.getElementById('bpPortalNav');
     if (!nav) return;
-    nav.innerHTML = PAGES.map(
-      (p) =>
-        `<a href="${p.href}"${p.id === active ? ' class="active"' : ''}>${p.label}</a>`
-    ).join('');
+    nav.innerHTML = PAGES.map((p) => {
+      const badge =
+        p.id === 'messages'
+          ? ' <span class="bp-nav-badge hidden" id="bpNavMsgBadge" aria-label="Unread"></span>'
+          : '';
+      return `<a href="${p.href}"${p.id === active ? ' class="active"' : ''}>${p.label}${badge}</a>`;
+    }).join('');
+    window.builderPortalCommon?.refreshUnreadBadges?.();
   }
 
   window.builderPortalNav = { renderNav, currentPage };

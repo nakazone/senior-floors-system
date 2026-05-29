@@ -67,15 +67,65 @@
     }
   }
 
-  async function loadPortalHeader() {
-    const slot = document.getElementById('bpPortalHeader');
-    if (!slot) return;
+  let badgePollTimer = null;
+
+  async function fetchUnreadCounts() {
     let unread = { messages: 0, notifications: 0, total: 0 };
     try {
       const r = await window.builderAuth.fetch('/api/builder-notifications/unread-count');
       const j = await r.json();
       if (j.success) unread = j.data;
     } catch (_) {}
+    return unread;
+  }
+
+  function applyUnreadBadges(unread) {
+    const metric = document.getElementById('metricUnread');
+    if (metric) metric.textContent = String(unread.total || 0);
+    const navBadge = document.getElementById('bpNavMsgBadge');
+    if (navBadge) {
+      const n = unread.total || 0;
+      navBadge.textContent = n > 99 ? '99+' : String(n);
+      navBadge.classList.toggle('hidden', n <= 0);
+    }
+    const existing = document.querySelector('.bp-notif-badge');
+    if (existing) {
+      const n = unread.total || 0;
+      if (n > 0) {
+        existing.textContent = n > 99 ? '99+' : String(n);
+        existing.classList.remove('hidden');
+      } else {
+        existing.remove();
+      }
+    } else {
+      const btn = document.getElementById('bpNotifBtn');
+      const n = unread.total || 0;
+      if (btn && n > 0) {
+        const span = document.createElement('span');
+        span.className = 'bp-notif-badge';
+        span.textContent = n > 99 ? '99+' : String(n);
+        btn.appendChild(span);
+      }
+    }
+  }
+
+  async function refreshUnreadBadges() {
+    if (!window.builderAuth?.getToken?.()) return;
+    applyUnreadBadges(await fetchUnreadCounts());
+  }
+
+  function startBadgePolling() {
+    if (badgePollTimer) clearInterval(badgePollTimer);
+    if (!window.builderAuth?.getToken?.()) return;
+    badgePollTimer = setInterval(() => {
+      void refreshUnreadBadges();
+    }, 30000);
+  }
+
+  async function loadPortalHeader() {
+    const slot = document.getElementById('bpPortalHeader');
+    if (!slot) return;
+    const unread = await fetchUnreadCounts();
 
     const u = window.builderPortalUser || {};
     const name = [u.first_name, u.last_name].filter(Boolean).join(' ') || 'Partner';
@@ -176,6 +226,7 @@
         }
         await loadPortalHeader();
         wireMobileNav();
+        startBadgePolling();
         return true;
       })();
     }
@@ -185,12 +236,18 @@
   window.builderPortalCommon = {
     guardPortalPage,
     loadPortalHeader,
+    refreshUnreadBadges,
+    startBadgePolling,
     wireMobileNav,
     whenPortalReady,
     RETURN_KEY,
     SF_LOGO_URL,
     sfContactBadgeHtml,
   };
+
+  window.addEventListener('beforeunload', () => {
+    if (badgePollTimer) clearInterval(badgePollTimer);
+  });
 
   document.addEventListener('DOMContentLoaded', () => {
     void whenPortalReady();

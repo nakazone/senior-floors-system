@@ -68,7 +68,7 @@ export async function getThread(req, res) {
     if (Number.isFinite(projectId) && projectId > 0) {
       sql += ' AND m.project_id = ?';
       sqlParams.push(projectId);
-    } else if (req.builderAuth && req.query.general === '1') {
+    } else if (req.query.general === '1') {
       sql += ' AND m.project_id IS NULL';
     }
     sql += ' ORDER BY m.created_at ASC';
@@ -207,8 +207,8 @@ export async function postMessage(req, res) {
           const fromName = b[0]?.company || `${b[0]?.first_name || ''}`.trim() || 'Builder';
           sendBuilderNotification({
             to: adminTo,
-            subject: `New builder message ‚Äî ${fromName}`,
-            html: `<p>Message from partner:</p><p>${message.slice(0, 800)}</p><p><a href="${process.env.PUBLIC_CRM_URL || ''}/builder-messages.html?builder_id=${builderId}">Reply in CRM</a></p>`,
+            subject: `New builder message ù ${fromName}`,
+            html: `<p>Message from partner:</p><p>${message.slice(0, 800)}</p><p><a href="${process.env.PUBLIC_CRM_URL || ''}/builder-messages-admin.html?builder_id=${builderId}">Reply in CRM</a></p>`,
           }).catch((e) => console.warn('[builderMessages] notify admin:', e));
         }
       }
