@@ -28,7 +28,7 @@
   }
 
   function fmtDate(d) {
-    if (!d) return '—';
+    if (!d) return '\u2014';
     try {
       return new Date(`${String(d).slice(0, 10)}T12:00:00`).toLocaleDateString('en-US', {
         day: 'numeric',
@@ -164,7 +164,7 @@
       const sub = document.getElementById('welcomeSub');
       if (sub) {
         sub.textContent = u.company
-          ? `${u.company} — overview of your projects with Senior Floors.`
+          ? `${u.company} \u2014 overview of your projects with Senior Floors.`
           : 'Here is an overview of your projects with Senior Floors.';
       }
 
@@ -259,7 +259,7 @@
           <div>
             <strong>${escapeHtml(p.name || p.project_number || 'Project')}</strong>
             <p class="bp-muted" style="margin:4px 0 0">${escapeHtml(p.address || '')}</p>
-            <p class="bp-muted" style="font-size:11px;margin:4px 0 0">Start: ${fmtDate(p.start_date)} — ${p.total_sqft ? p.total_sqft + ' sqft' : ''}</p>
+            <p class="bp-muted" style="font-size:11px;margin:4px 0 0">Start: ${fmtDate(p.start_date)} \u2014 ${p.total_sqft ? p.total_sqft + ' sqft' : ''}</p>
             <div class="bp-progress-bar" style="margin-top:8px;max-width:220px"><div class="bp-progress-fill" style="width:${Math.min(100, p.completion_percentage || 0)}%"></div></div>
           </div>
           <a href="builder-project.html?id=${p.id}" class="bp-btn-tan" style="text-decoration:none;align-self:center">View details</a>

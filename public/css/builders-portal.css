@@ -1,4 +1,4 @@
-/* Builder Partner Portal ù brand-aligned */
+/* Builder Partner Portal ó brand-aligned */
 :root {
   --bp-navy: #1a2036;
   --bp-navy-deep: #141928;
@@ -112,17 +112,19 @@
 .bp-welcome__avatar { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; flex-shrink: 0; border: 2px solid var(--bp-tan); }
 .bp-welcome__avatar--init { display: flex; align-items: center; justify-content: center; background: var(--bp-tan); color: var(--bp-navy); font-weight: 700; font-size: 1.1rem; }
 .bp-welcome__mgr-name { font-weight: 600; margin: 0 0 4px; }
-.bp-welcome__mgr-meta { font-size: 12px; opacity: 0.95; margin: 2px 0; color: rgba(255, 255, 255, 0.92); }
+.bp-welcome__mgr-meta { font-size: 12px; margin: 2px 0; color: rgba(255, 255, 255, 0.88); }
 .bp-welcome__mgr-meta a {
-  color: #fff;
+  color: var(--bp-tan);
   font-weight: 600;
-  text-decoration: underline;
-  text-decoration-color: rgba(214, 181, 152, 0.85);
-  text-underline-offset: 2px;
+  text-decoration: none;
 }
 .bp-welcome__mgr-meta a:hover {
+  color: #e8cdb8;
+  text-decoration: underline;
+}
+.bp-welcome__manager .bp-manager-phone,
+.bp-welcome__manager .bp-manager-phone a {
   color: var(--bp-tan);
-  text-decoration-color: var(--bp-tan);
 }
 .bp-welcome__mgr-actions { margin-top: 10px; }
 .bp-welcome__mgr-actions .bp-btn-tan { font-size: 12px; padding: 6px 12px; }
