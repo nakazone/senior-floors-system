@@ -1,11 +1,29 @@
 (function () {
-  if (!window.builderAuth.requireAuth()) return;
+  const params = new URLSearchParams(location.search);
 
   if (typeof window.sfAttachAddressAutocomplete === 'function') {
     window.sfEnsureCrmAddressAutocomplete?.().then(() => {
       window.sfAttachAddressAutocomplete(document.getElementById('estAddress'), { country: 'us' });
     });
   }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(() => {
+      const floor = params.get('floor');
+      const sqft = params.get('sqft');
+      if (sqft) {
+        const inp = document.querySelector('[name=area_sqft]');
+        if (inp) inp.value = sqft;
+      }
+      if (floor) {
+        document.querySelectorAll('input[name=svc]').forEach((cb) => {
+          const v = (cb.value || '').toLowerCase();
+          const f = floor.toLowerCase();
+          if (v.includes(f) || f.includes('hardwood') && v.includes('hardwood')) cb.checked = true;
+        });
+      }
+    }, 200);
+  });
 
   document.getElementById('estForm').addEventListener('submit', async (e) => {
     e.preventDefault();

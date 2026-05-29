@@ -78,10 +78,30 @@ export async function listPricingBuilder(req, res) {
     const pool = await getDBConnection();
     const builderId = req.builderAuth.builderId;
     const data = await getPartnerPricingForBuilder(pool, builderId);
+    const [[metaRow]] = await pool.query(
+      'SELECT MAX(updated_at) AS last_updated FROM pricing_services WHERE is_visible = 1'
+    );
+    const lastUpdated = metaRow?.last_updated || null;
+    let validThrough = null;
+    if (lastUpdated) {
+      const d = new Date(lastUpdated);
+      d.setMonth(d.getMonth() + 3);
+      validThrough = d.toISOString().slice(0, 10);
+    }
+    const [b] = await pool.query(
+      'SELECT company, first_name, last_name FROM builders WHERE id = ?',
+      [builderId]
+    );
     res.json({
       success: true,
       data,
       volume_discounts: VOLUME_DISCOUNTS,
+      meta: {
+        last_updated: lastUpdated,
+        valid_through: validThrough,
+        builder_display_name:
+          b[0]?.company || [b[0]?.first_name, b[0]?.last_name].filter(Boolean).join(' ') || 'Partner',
+      },
     });
   } catch (e) {
     res.status(500).json({ success: false, error: e.message });

@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Shared estimate — Senior Floors</title>
+  <link rel="stylesheet" href="css/builders-portal.css" />
+</head>
+<body class="bp-page-body">
+  <div class="bp-main" style="max-width:560px;margin:2rem auto">
+    <img src="/assets/SeniorFloors.png" alt="Senior Floors" width="64" style="display:block;margin-bottom:16px" onerror="this.style.display='none'" />
+    <div id="shareContent"><p class="bp-muted">Loading...</p></div>
+  </div>
+  <script>
+    (async function () {
+      const token = new URLSearchParams(location.search).get('token');
+      const host = document.getElementById('shareContent');
+      if (!token) {
+        host.innerHTML = '<p>Invalid link.</p>';
+        return;
+      }
+      const r = await fetch(`/api/builder-calculations/share/${encodeURIComponent(token)}`);
+      const j = await r.json();
+      if (!r.ok || !j.success) {
+        host.innerHTML = '<p>Estimate not found or link expired.</p>';
+        return;
+      }
+      const d = j.data;
+      const fmt = (n) => '$' + Number(n).toLocaleString('en-US', { maximumFractionDigits: 0 });
+      host.innerHTML = `
+        <h1 class="bp-title">Partner estimate</h1>
+        <p class="bp-muted">Prepared by ${d.builder_name || 'Senior Floors partner'} — ${String(d.created_at).slice(0, 10)}</p>
+        ${d.label ? `<p><strong>${d.label}</strong></p>` : ''}
+        <div class="bp-card" style="background:var(--bp-navy);color:#fff;border:none;margin:16px 0">
+          <p style="margin:0;opacity:0.85">Estimated range</p>
+          <p style="font-size:1.5rem;font-weight:700;margin:8px 0 0">${fmt(d.total_low)} — ${fmt(d.total_high)}</p>
+          <p style="font-size:12px;opacity:0.8;margin:8px 0 0">${d.area_sqft_total ? d.area_sqft_total + ' sq ft total' : ''}</p>
+        </div>
+        <table class="bp-table"><thead><tr><th>Service</th><th>Area</th><th>Range</th></tr></thead>
+        <tbody>${(d.items || [])
+          .map(
+            (l) =>
+              `<tr><td>${l.service || ''}</td><td>${l.area_sqft || ''}</td><td>${fmt(l.estimate_low_discounted)} — ${fmt(l.estimate_high_discounted)}</td></tr>`
+          )
+          .join('')}</tbody></table>
+        <p style="font-size:11px;color:var(--bp-muted);margin-top:20px">Ballpark estimate only — not a binding quote. Contact Senior Floors for a formal proposal.</p>`;
+    })();
+  </script>
+</body>
+</html>

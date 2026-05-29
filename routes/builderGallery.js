@@ -30,6 +30,7 @@ export async function listGallery(req, res) {
     const status = req.query.status;
     const floorType = req.query.floor_type;
     const region = req.query.region;
+    const q = req.query.q ? String(req.query.q).trim() : '';
 
     let where = '1=1';
     const params = [];
@@ -47,9 +48,16 @@ export async function listGallery(req, res) {
       where += ' AND g.region = ?';
       params.push(region);
     }
+    if (q) {
+      where += ' AND (g.title LIKE ? OR g.description LIKE ? OR g.floor_type LIKE ? OR g.region LIKE ?)';
+      const like = `%${q}%`;
+      params.push(like, like, like, like);
+    }
 
     const [rows] = await pool.query(
       `SELECT g.*,
+        (SELECT url FROM gallery_photos gp WHERE gp.gallery_project_id = g.id AND gp.phase = 'after' ORDER BY gp.sort_order ASC, gp.id ASC LIMIT 1) AS cover_after,
+        (SELECT url FROM gallery_photos gp WHERE gp.gallery_project_id = g.id AND gp.phase = 'before' ORDER BY gp.sort_order ASC, gp.id ASC LIMIT 1) AS cover_before,
         (SELECT url FROM gallery_photos gp WHERE gp.gallery_project_id = g.id ORDER BY gp.sort_order ASC, gp.id ASC LIMIT 1) AS cover_url
        FROM gallery_projects g
        WHERE ${where}
@@ -63,6 +71,8 @@ export async function listGallery(req, res) {
         ...r,
         materials: parseMaterials(r.materials),
         cover_url: r.cover_url ? galleryPhotoUrl({ url: r.cover_url }) : null,
+        cover_before: r.cover_before ? galleryPhotoUrl({ url: r.cover_before }) : null,
+        cover_after: r.cover_after ? galleryPhotoUrl({ url: r.cover_after }) : null,
       })),
     });
   } catch (e) {

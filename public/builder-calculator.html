@@ -6,36 +6,42 @@
   <title>Price calculator — Builder Portal</title>
   <link rel="stylesheet" href="css/builders-portal.css" />
 </head>
-<body class="bp-page-body">
+<body class="bp-page-body" data-bp-page="calculator">
   <div class="bp-portal-layout">
-    <aside class="bp-portal-sidebar">
-      <a href="builder-portal.html">Dashboard</a>
-      <a href="builder-calculator.html" class="active">Calculator</a>
-      <a href="builder-pricing.html">Full pricing</a>
-      <a href="builder-estimate-request.html">Request estimate</a>
-    </aside>
+    <button type="button" class="bp-menu-toggle" id="bpMenuToggle" aria-label="Menu">&#9776;</button>
+    <aside class="bp-portal-sidebar"><nav id="bpPortalNav"></nav></aside>
     <main class="bp-portal-main">
-      <div class="bp-main" style="max-width:520px">
+      <div id="bpPortalHeader"></div>
+      <div class="bp-main" style="max-width:640px">
         <h1 class="bp-title">Quick estimate</h1>
         <p class="bp-muted">Ballpark range from your partner rates (not a formal quote).</p>
-        <div class="bp-card bp-form-grid">
-          <div class="bp-form-full"><label>Service</label><select id="calcService"></select></div>
-          <div class="bp-form-full"><label>Area (sq ft): <strong id="areaLabel">1000</strong></label>
-            <input type="range" id="calcArea" min="100" max="8000" step="50" value="1000" style="width:100%" />
-            <input type="number" id="calcAreaNum" min="100" value="1000" style="margin-top:8px;width:120px" />
-          </div>
-          <button type="button" class="bp-btn-tan" id="btnCalc">Calculate</button>
+        <div class="bp-card">
+          <p style="font-weight:600;margin:0 0 10px;font-size:13px">Project lines</p>
+          <div id="calcLines"></div>
+          <button type="button" class="bp-btn-ghost" id="btnAddLine" style="margin-top:8px">+ Add service</button>
         </div>
+        <button type="button" class="bp-btn-tan" id="btnCalc" style="margin-top:12px">Calculate total</button>
         <div id="calcResult" class="bp-card hidden" style="margin-top:1rem;background:var(--bp-navy);color:#fff;border:none">
-          <p style="margin:0 0 8px;opacity:0.85">Estimated range</p>
+          <p style="margin:0 0 8px;opacity:0.85">Estimated range (partner)</p>
           <p id="calcRange" style="font-size:1.75rem;font-weight:700;margin:0"></p>
-          <p id="calcVol" class="bp-muted" style="color:var(--bp-tan);margin-top:8px;font-size:13px"></p>
+          <p id="calcSavings" style="color:var(--bp-tan);font-size:13px;margin:8px 0 0"></p>
+          <p id="calcVol" style="opacity:0.85;margin-top:8px;font-size:12px"></p>
+          <p style="font-size:11px;opacity:0.75;margin-top:12px">This is an estimate only. Final pricing depends on site conditions and scope.</p>
+          <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
+            <button type="button" class="bp-btn-tan" id="btnSaveCalc">Save estimate</button>
+            <button type="button" class="bp-btn-ghost" id="btnShareCalc" style="color:#fff;border-color:rgba(255,255,255,0.4)">Copy share link</button>
+          </div>
         </div>
-        <p style="margin-top:1rem"><a href="builder-estimate-request.html" class="bp-btn-tan" style="text-decoration:none;display:inline-block">Request formal estimate ?</a></p>
+        <div id="calcBreakdown" class="bp-card hidden" style="margin-top:12px"></div>
+        <h2 style="font-size:1rem;margin:1.5rem 0 0.5rem">Recent estimates</h2>
+        <div id="calcRecent"></div>
+        <p style="margin-top:1rem"><a href="builder-estimate-request.html" class="bp-btn-tan" style="text-decoration:none;display:inline-block">Request formal estimate</a></p>
       </div>
     </main>
   </div>
-  <script src="builder-auth.js?v=2"></script>
-  <script src="builder-calculator.js?v=1"></script>
+  <script src="builder-auth.js?v=3"></script>
+  <script src="builder-portal-nav.js?v=2"></script>
+  <script src="builder-portal-common.js?v=1"></script>
+  <script src="builder-calculator.js?v=2"></script>
 </body>
 </html>

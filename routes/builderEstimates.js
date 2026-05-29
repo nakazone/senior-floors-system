@@ -11,6 +11,7 @@ import { sendBuilderNotification, adminNotifyEmail } from '../lib/builderNotify.
 import { notifyBuilder } from './builderNotifications.js';
 import { getBuilderCustomerId, getProjectBuilderLinkMeta, buildProjectBuilderMatch, buildProjectOrderSql, buildProjectSelectSql, projectNotDeletedClause } from '../lib/builderProjectAccess.js';
 import { getPartnerPricingForBuilder } from './builderPricing.js';
+import { calculateLine } from '../lib/builderPricingCalc.js';
 
 async function columnExists(pool, table, col) {
   const [r] = await pool.query(
@@ -275,7 +276,42 @@ export async function listBuilderHistory(req, res) {
        ORDER BY ${orderSql} DESC`,
       match.params
     );
-    res.json({ success: true, data: rows });
+
+    const projectIds = rows.map((r) => r.id).filter(Boolean);
+    const photoCounts = {};
+    if (projectIds.length) {
+      const [ph] = await pool.query(
+        `SELECT project_id, COUNT(*) AS c FROM project_photos WHERE project_id IN (${projectIds.map(() => '?').join(',')}) GROUP BY project_id`,
+        projectIds
+      );
+      ph.forEach((row) => {
+        photoCounts[row.project_id] = Number(row.c) || 0;
+      });
+    }
+
+    let totalSqft = 0;
+    let totalValue = 0;
+    const data = rows.map((r) => {
+      const sqft = Number(r.total_sqft) || 0;
+      const val = Number(r.contract_value) || 0;
+      totalSqft += sqft;
+      totalValue += val;
+      return {
+        ...r,
+        photo_count: photoCounts[r.id] || 0,
+        completed_year: r.end_date_actual ? String(r.end_date_actual).slice(0, 4) : null,
+      };
+    });
+
+    res.json({
+      success: true,
+      data,
+      summary: {
+        project_count: data.length,
+        total_sqft: totalSqft,
+        total_value: Math.round(totalValue * 100) / 100,
+      },
+    });
   } catch (e) {
     res.status(500).json({ success: false, error: e.message });
   }

@@ -19,28 +19,26 @@
       <div class="bp-main">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;margin-bottom:1rem">
           <div><p class="bp-eyebrow">Builders</p><h1 class="bp-title">Tabela de Valores</h1></div>
-          <button type="button" class="bp-btn-tan" id="btnAddService">+ Serviço</button>
+          <button type="button" class="bp-btn-tan" id="btnAddService">+ Servi—o</button>
         </div>
         <div class="bp-table-wrap"><table class="bp-table" id="pricingTable"><thead><tr>
-          <th>Serviço</th><th>Categoria</th><th>Unidade</th><th>Mín</th><th>Máx</th><th>Parceiro</th><th>Visível</th><th>Bloqueado</th><th></th>
+          <th>Servi—o</th><th>Categoria</th><th>Unidade</th><th>M—n</th><th>M—x</th><th>Parceiro</th><th>Vis—vel</th><th>Bloqueado</th><th></th>
         </tr></thead><tbody id="pricingTbody"></tbody></table></div>
         <h2 class="bp-title" style="font-size:1rem;margin-top:1.5rem">Desconto por volume</h2>
         <div class="bp-card" id="volumeDiscounts"></div>
       </div>
     </main>
   </div>
-  <div class="bp-portal-layout hidden" id="portalShell">
-    <aside class="bp-portal-sidebar">
-      <a href="builder-portal.html">Dashboard</a>
-      <a href="builder-pricing.html" class="active">Pricing</a>
-      <a href="builder-gallery.html">Gallery</a>
-      <a href="builder-messages.html">Messages</a>
-    </aside>
+  <div class="bp-portal-layout hidden" id="portalShell" data-bp-page="pricing">
+    <button type="button" class="bp-menu-toggle" id="bpMenuToggle" aria-label="Menu">&#9776;</button>
+    <aside class="bp-portal-sidebar"><nav id="bpPortalNav"></nav></aside>
     <main class="bp-portal-main"><div class="bp-main" id="portalPricingRoot"></div></main>
   </div>
   <script src="crm-toast.js"></script>
   <script src="crm-shared-nav.js?v=12"></script>
-  <script src="builder-auth.js?v=2"></script>
-  <script src="builder-pricing.js?v=1"></script>
+  <script src="builder-auth.js?v=3"></script>
+  <script src="builder-portal-nav.js?v=2"></script>
+  <script src="builder-portal-common.js?v=1"></script>
+  <script src="builder-pricing.js?v=2"></script>
 </body>
 </html>
