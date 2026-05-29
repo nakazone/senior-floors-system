@@ -22,6 +22,7 @@
   box-shadow: 0 2px 12px rgba(26, 32, 54, 0.05);
 }
 .bp-metrics { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; margin-bottom: 1.25rem; }
+#histSummary.bp-metrics { align-items: stretch; }
 .bp-metric__val { font-size: 1.5rem; font-weight: 700; color: var(--bp-navy); }
 .bp-metric__lbl { font-size: 12px; color: var(--bp-muted); }
 .bp-table-wrap { overflow-x: auto; border: 1px solid var(--bp-border); border-radius: 10px; background: #fff; }

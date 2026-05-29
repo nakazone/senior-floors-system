@@ -15,6 +15,8 @@ import { getPartnerPricingForBuilder } from './builderPricing.js';
 import { calculateLine } from '../lib/builderPricingCalc.js';
 import { logEstimateEvent } from '../lib/builderActivityLog.js';
 import { estimateStatusLabel, normalizeEstimateStatus } from '../lib/estimateRequestStatus.js';
+import { buildBuilderHistoryPdfBuffer } from '../modules/builder/builderHistoryPdf.js';
+import { sanitizePdfText } from '../lib/pdfWinAnsi.js';
 
 async function tableExists(pool, name) {
  const [r] = await pool.query(
@@ -335,77 +337,158 @@ export async function updateEstimateRequest(req, res) {
  }
 }
 
-export async function listBuilderHistory(req, res) {
- try {
- const pool = await getDBConnection();
- const builderId = req.builderAuth.builderId;
+export function filterBuilderHistoryRows(rows, { year, q } = {}) {
+ let list = rows || [];
+ if (year) list = list.filter((p) => p.completed_year === String(year));
+ const qq = String(q || '')
+  .trim()
+  .toLowerCase();
+ if (qq) {
+  list = list.filter((p) => {
+   const hay = [p.name, p.address, p.project_number, p.flooring_type].filter(Boolean).join(' ').toLowerCase();
+   return hay.includes(qq);
+  });
+ }
+ return list;
+}
+
+export function summarizeBuilderHistory(rows) {
+ let totalSqft = 0;
+ let totalValue = 0;
+ (rows || []).forEach((r) => {
+  totalSqft += Number(r.total_sqft) || 0;
+  totalValue += Number(r.contract_value) || 0;
+ });
+ return {
+  project_count: (rows || []).length,
+  total_sqft: totalSqft,
+  total_value: Math.round(totalValue * 100) / 100,
+ };
+}
+
+export async function fetchBuilderHistoryProjects(pool, builderId) {
  const cid = await getBuilderCustomerId(pool, builderId);
- if (!cid) return res.json({ success: true, data: [] });
+ if (!cid) return { data: [], builderName: '' };
  const linkMeta = await getProjectBuilderLinkMeta(pool);
  const match = buildProjectBuilderMatch('p', builderId, cid, linkMeta);
  const selectSql = await buildProjectSelectSql(
- pool,
- [
- 'id',
- 'name',
- 'address',
- 'status',
- 'contract_value',
- 'completion_percentage',
- 'flooring_type',
- 'total_sqft',
- 'project_number',
- 'end_date_actual',
- 'start_date',
- ],
- 'p'
+  pool,
+  [
+   'id',
+   'name',
+   'address',
+   'status',
+   'contract_value',
+   'completion_percentage',
+   'flooring_type',
+   'total_sqft',
+   'project_number',
+   'end_date_actual',
+   'start_date',
+  ],
+  'p'
  );
  const orderSql = await buildProjectOrderSql(pool, 'end_date_actual', 'p');
  const [rows] = await pool.query(
- `SELECT ${selectSql}
- FROM projects p
- WHERE ${match.sql}${projectNotDeletedClause('p', linkMeta)}
- AND status IN ('completed','closed')
- ORDER BY ${orderSql} DESC`,
- match.params
+  `SELECT ${selectSql}
+   FROM projects p
+   WHERE ${match.sql}${projectNotDeletedClause('p', linkMeta)}
+   AND status IN ('completed','closed')
+   ORDER BY ${orderSql} DESC`,
+  match.params
  );
 
  const projectIds = rows.map((r) => r.id).filter(Boolean);
- const photoCounts = {};
+ const photoMeta = {};
  if (projectIds.length) {
- const [ph] = await pool.query(
- `SELECT project_id, COUNT(*) AS c FROM project_photos WHERE project_id IN (${projectIds.map(() => '?').join(',')}) GROUP BY project_id`,
- projectIds
- );
- ph.forEach((row) => {
- photoCounts[row.project_id] = Number(row.c) || 0;
- });
+  const [ph] = await pool.query(
+   `SELECT project_id,
+      COUNT(*) AS c,
+      SUM(CASE WHEN phase = 'before' THEN 1 ELSE 0 END) AS before_cnt,
+      SUM(CASE WHEN phase = 'after' THEN 1 ELSE 0 END) AS after_cnt
+    FROM project_photos
+    WHERE project_id IN (${projectIds.map(() => '?').join(',')})
+    GROUP BY project_id`,
+   projectIds
+  );
+  ph.forEach((row) => {
+   photoMeta[row.project_id] = {
+    count: Number(row.c) || 0,
+    has_before_after: Number(row.before_cnt) > 0 && Number(row.after_cnt) > 0,
+   };
+  });
  }
 
- let totalSqft = 0;
- let totalValue = 0;
  const data = rows.map((r) => {
- const sqft = Number(r.total_sqft) || 0;
- const val = Number(r.contract_value) || 0;
- totalSqft += sqft;
- totalValue += val;
- return {
- ...r,
- photo_count: photoCounts[r.id] || 0,
- completed_year: r.end_date_actual ? String(r.end_date_actual).slice(0, 4) : null,
- };
+  const pm = photoMeta[r.id] || { count: 0, has_before_after: false };
+  return {
+   ...r,
+   photo_count: pm.count,
+   has_before_after: pm.has_before_after,
+   completed_year: r.end_date_actual ? String(r.end_date_actual).slice(0, 4) : null,
+  };
  });
 
+ const [b] = await pool.query(
+  'SELECT first_name, last_name, company FROM builders WHERE id = ?',
+  [builderId]
+ );
+ const builderName =
+  b[0]?.company || [b[0]?.first_name, b[0]?.last_name].filter(Boolean).join(' ') || '';
+
+ return { data, builderName };
+}
+
+export async function listBuilderHistory(req, res) {
+ try {
+ const pool = await getDBConnection();
+ const { data } = await fetchBuilderHistoryProjects(pool, req.builderAuth.builderId);
  res.json({
- success: true,
- data,
- summary: {
- project_count: data.length,
- total_sqft: totalSqft,
- total_value: Math.round(totalValue * 100) / 100,
- },
+  success: true,
+  data,
+  summary: summarizeBuilderHistory(data),
  });
  } catch (e) {
+ res.status(500).json({ success: false, error: e.message });
+ }
+}
+
+export async function getBuilderHistoryPdf(req, res) {
+ try {
+ const pool = await getDBConnection();
+ const builderId = req.builderAuth.builderId;
+ const { data, builderName } = await fetchBuilderHistoryProjects(pool, builderId);
+ const year = req.query.year ? String(req.query.year) : '';
+ const q = req.query.q ? String(req.query.q) : '';
+ const filtered = filterBuilderHistoryRows(data, { year, q });
+ const summary = summarizeBuilderHistory(filtered);
+ const filterParts = [];
+ if (year) filterParts.push(`Year ${year}`);
+ if (q.trim()) filterParts.push(`Search "${q.trim()}"`);
+ const filterLabel = filterParts.length ? filterParts.join('  ') : 'All completed projects';
+
+ const pdfBuf = await buildBuilderHistoryPdfBuffer({
+  projects: filtered.map((p) => ({
+   ...p,
+   name: sanitizePdfText(p.name),
+   address: sanitizePdfText(p.address),
+   flooring_type: sanitizePdfText(p.flooring_type),
+   project_number: sanitizePdfText(p.project_number),
+  })),
+  summary,
+  builderName: sanitizePdfText(builderName),
+  filterLabel: sanitizePdfText(filterLabel),
+ });
+
+ const stamp = new Date().toISOString().slice(0, 10);
+ res.setHeader('Content-Type', 'application/pdf');
+ res.setHeader(
+  'Content-Disposition',
+  `attachment; filename="senior-floors-completed-projects-${stamp}.pdf"`
+ );
+ res.send(pdfBuf);
+ } catch (e) {
+ console.error('getBuilderHistoryPdf:', e);
  res.status(500).json({ success: false, error: e.message });
  }
 }
@@ -518,5 +601,6 @@ export function registerBuilderEstimateRoutes(app) {
 
  app.post('/api/pricing/calculate', requireBuilderAuth, postPricingCalculate);
  app.get('/api/builder-history', requireBuilderAuth, listBuilderHistory);
+ app.get('/api/builder-history/pdf', requireBuilderAuth, getBuilderHistoryPdf);
  app.get('/api/builder-referrals', requireBuilderAuth, listBuilderReferrals);
 }

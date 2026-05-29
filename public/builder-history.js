@@ -1,6 +1,8 @@
+/**
+ * Builder portal � completed project history (summary, filters, CSV/PDF export).
+ */
 (function () {
   let rows = [];
-  let summary = { project_count: 0, total_sqft: 0, total_value: 0 };
   let searchQ = '';
   let yearFilter = '';
 
@@ -14,7 +16,8 @@
     return String(s)
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;');
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
   }
 
   function filtered() {
@@ -30,37 +33,68 @@
     return list;
   }
 
+  function summarizeList(list) {
+    let totalSqft = 0;
+    let totalValue = 0;
+    list.forEach((p) => {
+      totalSqft += Number(p.total_sqft) || 0;
+      totalValue += Number(p.contract_value) || 0;
+    });
+    return {
+      project_count: list.length,
+      total_sqft: totalSqft,
+      total_value: Math.round(totalValue * 100) / 100,
+    };
+  }
+
+  function isFilteredView() {
+    return !!yearFilter || !!searchQ.trim();
+  }
+
   function renderSummary() {
     const el = document.getElementById('histSummary');
     if (!el) return;
-    el.innerHTML = `
-      <div class="bp-card bp-metric"><div class="bp-metric__val">${summary.project_count}</div><div class="bp-metric__lbl">Projects completed</div></div>
-      <div class="bp-card bp-metric"><div class="bp-metric__val">${Math.round(summary.total_sqft || 0).toLocaleString()}</div><div class="bp-metric__lbl">Sq ft installed</div></div>
-      <div class="bp-card bp-metric"><div class="bp-metric__val">${money(summary.total_value)}</div><div class="bp-metric__lbl">Total project value</div></div>`;
+    const s = summarizeList(filtered());
+    const hint = isFilteredView()
+      ? '<p class="bp-muted" style="grid-column:1/-1;margin:0 0 4px;font-size:12px">Totals for current filter</p>'
+      : '';
+    el.innerHTML = `${hint}
+      <div class="bp-card bp-metric"><div class="bp-metric__val">${s.project_count}</div><div class="bp-metric__lbl">Projects completed</div></div>
+      <div class="bp-card bp-metric"><div class="bp-metric__val">${Math.round(s.total_sqft || 0).toLocaleString()}</div><div class="bp-metric__lbl">Sq ft installed</div></div>
+      <div class="bp-card bp-metric"><div class="bp-metric__val">${money(s.total_value)}</div><div class="bp-metric__lbl">Total project value</div></div>`;
+  }
+
+  function photosCell(p) {
+    if (!p.photo_count) return '<span class="bp-muted">\u2014</span>';
+    const label = p.has_before_after
+      ? `${p.photo_count} photos (Before/After)`
+      : `${p.photo_count} photo${p.photo_count === 1 ? '' : 's'}`;
+    return `<a href="builder-project.html?id=${p.id}&amp;tab=photos">${escapeHtml(label)}</a>`;
   }
 
   function renderTable() {
     const list = filtered();
     const tbody = document.getElementById('histBody');
+    if (!rows.length) {
+      tbody.innerHTML =
+        '<tr><td colspan="7">No completed projects yet. Finished work with Senior Floors will appear here.</td></tr>';
+      return;
+    }
     if (!list.length) {
-      tbody.innerHTML = '<tr><td colspan="7">No completed projects in this view.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="7">No completed projects match this filter.</td></tr>';
       return;
     }
     tbody.innerHTML = list
       .map((p) => {
         const title = p.project_number || p.name || `#${p.id}`;
-        const photos =
-          p.photo_count > 0
-            ? `<a href="builder-project.html?id=${p.id}">${p.photo_count} photos</a>`
-            : '—';
         return `<tr>
           <td>${escapeHtml(title)}</td>
-          <td>${escapeHtml(p.address || '—')}</td>
-          <td>${escapeHtml(p.flooring_type || '—')}</td>
-          <td>${p.total_sqft ? p.total_sqft + ' sqft' : '—'}</td>
+          <td>${escapeHtml(p.address || '\u2014')}</td>
+          <td>${escapeHtml(p.flooring_type || '\u2014')}</td>
+          <td>${p.total_sqft ? `${p.total_sqft} sqft` : '\u2014'}</td>
           <td>${money(p.contract_value)}</td>
-          <td>${escapeHtml(String(p.end_date_actual || '').slice(0, 10) || '—')}</td>
-          <td>${photos}</td>
+          <td>${escapeHtml(String(p.end_date_actual || '').slice(0, 10) || '\u2014')}</td>
+          <td>${photosCell(p)}</td>
         </tr>`;
       })
       .join('');
@@ -68,32 +102,108 @@
 
   function populateYears() {
     const sel = document.getElementById('histYear');
+    if (!sel) return;
+    while (sel.options.length > 1) sel.remove(1);
     const years = [...new Set(rows.map((p) => p.completed_year).filter(Boolean))].sort().reverse();
     years.forEach((y) => {
       const o = document.createElement('option');
       o.value = y;
       o.textContent = y;
+      if (y === yearFilter) o.selected = true;
       sel.appendChild(o);
     });
+  }
+
+  function pdfQuery() {
+    const p = new URLSearchParams();
+    if (yearFilter) p.set('year', yearFilter);
+    if (searchQ.trim()) p.set('q', searchQ.trim());
+    const qs = p.toString();
+    return qs ? `?${qs}` : '';
+  }
+
+  function setPdfLoading(loading) {
+    ['btnExportPdf', 'btnViewPdf'].forEach((id) => {
+      const btn = document.getElementById(id);
+      if (!btn) return;
+      btn.disabled = loading;
+    });
+    const dl = document.getElementById('btnExportPdf');
+    const view = document.getElementById('btnViewPdf');
+    if (!loading) {
+      if (dl) dl.textContent = 'Download PDF';
+      if (view) view.textContent = 'View PDF';
+    } else {
+      if (dl) dl.textContent = 'Loading...';
+      if (view) view.textContent = 'Loading...';
+    }
+  }
+
+  async function fetchHistoryPdfBlob() {
+    const r = await window.builderAuth.fetch(`/api/builder-history/pdf${pdfQuery()}`);
+    if (!r.ok) {
+      const j = await r.json().catch(() => ({}));
+      throw new Error(j.error || 'Could not generate PDF');
+    }
+    return r.blob();
+  }
+
+  async function viewPdf() {
+    setPdfLoading(true);
+    try {
+      const blob = await fetchHistoryPdfBlob();
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank', 'noopener');
+      setTimeout(() => URL.revokeObjectURL(url), 120000);
+    } catch (e) {
+      alert(e.message || 'PDF error');
+    } finally {
+      setPdfLoading(false);
+    }
+  }
+
+  async function downloadPdf() {
+    setPdfLoading(true);
+    try {
+      const blob = await fetchHistoryPdfBlob();
+      const url = URL.createObjectURL(blob);
+      const stamp = new Date().toISOString().slice(0, 10);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `senior-floors-completed-projects-${stamp}.pdf`;
+      a.rel = 'noopener';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+    } catch (e) {
+      alert(e.message || 'PDF error');
+    } finally {
+      setPdfLoading(false);
+    }
   }
 
   async function load() {
     const r = await window.builderAuth.fetch('/api/builder-history');
     const j = await r.json();
     rows = j.data || [];
-    summary = j.summary || summary;
-    renderSummary();
     populateYears();
+    renderSummary();
+    renderTable();
+  }
+
+  function onFilterChange() {
+    renderSummary();
     renderTable();
   }
 
   document.getElementById('histSearch')?.addEventListener('input', (e) => {
     searchQ = e.target.value;
-    renderTable();
+    onFilterChange();
   });
   document.getElementById('histYear')?.addEventListener('change', (e) => {
     yearFilter = e.target.value;
-    renderTable();
+    onFilterChange();
   });
 
   document.getElementById('btnExportCsv')?.addEventListener('click', () => {
@@ -120,44 +230,12 @@
     a.click();
   });
 
-  document.getElementById('btnExportPdf')?.addEventListener('click', () => {
-    const list = filtered();
-    const print = document.getElementById('histPrintArea');
-    print.classList.remove('hidden');
-    print.innerHTML = `
-      <div class="bp-print-doc">
-        <img src="/assets/SeniorFloors.png" alt="" width="80" onerror="this.style.display='none'" />
-        <h1>Senior Floors — Completed Projects</h1>
-        <p>${summary.project_count} projects — ${Math.round(summary.total_sqft)} sq ft — ${money(summary.total_value)} total value</p>
-        <table><thead><tr><th>Project</th><th>Address</th><th>Floor</th><th>Sqft</th><th>Value</th><th>Completed</th></tr></thead>
-        <tbody>${list
-          .map(
-            (p) =>
-              `<tr><td>${escapeHtml(p.name || p.project_number || '')}</td><td>${escapeHtml(p.address || '')}</td><td>${escapeHtml(p.flooring_type || '')}</td><td>${p.total_sqft || ''}</td><td>${money(p.contract_value)}</td><td>${String(p.end_date_actual || '').slice(0, 10)}</td></tr>`
-          )
-          .join('')}</tbody></table>
-        <p style="font-size:11px;margin-top:24px;color:#666">Generated ${new Date().toLocaleDateString()} — Senior Floors Builder Portal</p>
-      </div>`;
-    const w = window.open('', '_blank');
-    if (!w) {
-      alert('Allow popups to export PDF, or use Print on this page.');
-      return;
-    }
-    w.document.write(`<html><head><title>Project History</title><style>
-      body{font-family:Inter,sans-serif;padding:24px;color:#1a2036}
-      table{width:100%;border-collapse:collapse;font-size:12px;margin-top:16px}
-      th,td{border:1px solid #e2e8f0;padding:8px;text-align:left}
-      th{background:#f8f9fc}
-    </style></head><body>${print.innerHTML}</body></html>`);
-    w.document.close();
-    w.focus();
-    w.print();
-    print.classList.add('hidden');
-  });
+  document.getElementById('btnExportPdf')?.addEventListener('click', downloadPdf);
+  document.getElementById('btnViewPdf')?.addEventListener('click', viewPdf);
 
   document.addEventListener('DOMContentLoaded', () => {
-    setTimeout(() => {
-      if (window.builderAuth?.getToken()) load();
-    }, 120);
+    const boot = window.builderPortalCommon?.whenPortalReady;
+    if (boot) boot().then((ok) => ok && load());
+    else if (window.builderAuth?.getToken()) load();
   });
 })();

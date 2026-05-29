@@ -3,8 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Project history — Builder Portal</title>
-  <link rel="stylesheet" href="css/builders-portal.css" />
+  <title>Project history - Builder Portal</title>
+  <link rel="icon" type="image/png" href="/assets/SeniorFloors.png" />
+  <link rel="stylesheet" href="css/builders-portal.css?v=20260530-history" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
 </head>
 <body class="bp-page-body" data-bp-page="history">
   <div class="bp-portal-layout">
@@ -22,18 +24,18 @@
         </div>
         <div class="bp-table-wrap"><table class="bp-table"><thead><tr>
           <th>Project</th><th>Address</th><th>Floor</th><th>Area</th><th>Value</th><th>Completed</th><th>Photos</th>
-        </tr></thead><tbody id="histBody"></tbody></table></div>
+        </tr></thead><tbody id="histBody"><tr><td colspan="7" class="bp-muted">Loading...</td></tr></tbody></table></div>
         <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
           <button type="button" class="bp-btn-tan" id="btnExportCsv">Export CSV</button>
-          <button type="button" class="bp-btn-ghost" id="btnExportPdf">Export PDF</button>
+          <button type="button" class="bp-btn-ghost" id="btnViewPdf">View PDF</button>
+          <button type="button" class="bp-btn-ghost" id="btnExportPdf">Download PDF</button>
         </div>
-        <div id="histPrintArea" class="hidden"></div>
       </div>
     </main>
   </div>
   <script src="builder-auth.js?v=3"></script>
   <script src="builder-portal-nav.js?v=2"></script>
-  <script src="builder-portal-common.js?v=1"></script>
-  <script src="builder-history.js?v=2"></script>
+  <script src="builder-portal-common.js?v=20260530-messages"></script>
+  <script src="builder-history.js?v=20260530-history"></script>
 </body>
 </html>

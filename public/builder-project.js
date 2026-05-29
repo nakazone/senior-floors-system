@@ -1,8 +1,11 @@
 (function () {
-  const projectId = new URLSearchParams(location.search).get('id');
+  const projectParams = new URLSearchParams(location.search);
+  const projectId = projectParams.get('id');
   const app = document.getElementById('app');
   let state = null;
-  let activeTab = 'summary';
+  const VALID_TABS = new Set(['summary', 'photos', 'materials', 'checklist', 'messages']);
+  const tabParam = projectParams.get('tab');
+  let activeTab = VALID_TABS.has(tabParam) ? tabParam : 'summary';
 
   function escapeHtml(s) {
     return String(s)
@@ -684,10 +687,13 @@
     if (app) app.textContent = 'Invalid project';
   } else {
     document.addEventListener('DOMContentLoaded', () => {
-      setTimeout(() => {
+      const boot = window.builderPortalCommon?.whenPortalReady;
+      const run = () => {
         if (window.builderAuth?.getToken()) load();
         else location.href = 'builder-login.html';
-      }, 100);
+      };
+      if (boot) boot().then((ok) => ok && run());
+      else setTimeout(run, 100);
     });
   }
 })();
