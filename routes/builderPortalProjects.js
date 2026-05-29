@@ -17,6 +17,7 @@ import {
   projectNotDeletedClause,
 } from '../lib/builderProjectAccess.js';
 import { refreshChecklistCompletedFlag } from '../modules/projects/projectHelpers.js';
+import { enrichBuilderMaterials } from '../lib/builderMaterialPortal.js';
 import { fetchNextBuilderVisit } from '../lib/builderVisitScope.js';
 import { buildBuilderActivityFeed } from './builderPortalExtras.js';
 import { resolveProjectTeamForBuilder } from '../lib/builderProjectTeam.js';
@@ -163,15 +164,21 @@ export async function getBuilderPortalProject(req, res) {
       ? 'project_id = ? AND visible_to_builder = 1'
       : 'project_id = ?';
     const hasApproval = await columnExists(pool, 'project_materials', 'builder_approval_status');
+    const hasColor = await columnExists(pool, 'project_materials', 'material_color');
+    const hasSpec = await columnExists(pool, 'project_materials', 'material_spec');
+    const hasImg = await columnExists(pool, 'project_materials', 'material_image_url');
+    const hasErp = await columnExists(pool, 'project_materials', 'erp_product_id');
     const matCols = `id, product_name, sku, supplier, unit, qty_ordered, qty_received, qty_used,
               status, order_date, received_date, service_category, notes${
                 hasApproval ? ', builder_approval_status, builder_comment' : ''
-              }`;
+              }${hasColor ? ', material_color' : ''}${hasSpec ? ', material_spec' : ''}${
+                hasImg ? ', material_image_url' : ''
+              }${hasErp ? ', erp_product_id' : ''}`;
     const [matRows] = await pool.query(
       `SELECT ${matCols} FROM project_materials WHERE ${matWhere} ORDER BY id`,
       [projectId]
     );
-    materials = matRows;
+    materials = await enrichBuilderMaterials(pool, matRows);
 
     let documents = [];
     if (await tableExists(pool, 'project_documents')) {

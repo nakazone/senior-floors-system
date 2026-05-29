@@ -1223,6 +1223,12 @@ function wireMaterialCalcAndRowActions(root) {
       }
       const notes = form.querySelector('[data-f="mat_notes"]');
       if (notes) notes.value = m.notes != null ? String(m.notes) : '';
+      const mc = form.querySelector('[data-f="material_color"]');
+      if (mc) mc.value = m.material_color != null ? String(m.material_color) : '';
+      const ms = form.querySelector('[data-f="material_spec"]');
+      if (ms) ms.value = m.material_spec != null ? String(m.material_spec) : '';
+      const mi = form.querySelector('[data-f="material_image_url"]');
+      if (mi) mi.value = m.material_image_url != null ? String(m.material_image_url) : '';
       const hid = form.querySelector('[data-f="erp_product_id"]');
       const search = form.querySelector('[data-f="erp_product_search"]');
       if (m.erp_product_id != null && String(m.erp_product_id).trim() !== '') {
@@ -1459,6 +1465,9 @@ function materialFormFields() {
     <p class="pd-mat-calc-line" style="grid-column:1/-1">Total (qtd base × custo unit.): <strong data-f="material_calc_total">—</strong></p>
     <select data-f="service_category"><option value="general">general</option><option value="supply">supply</option><option value="installation">installation</option><option value="sand_finish">sand_finish</option></select>
     <input type="text" data-f="mat_notes" placeholder="Notas (opcional)" style="grid-column:1/-1" />
+    <input type="text" data-f="material_color" placeholder="Cor (portal builder)" style="grid-column:1/-1" />
+    <input type="text" data-f="material_spec" placeholder="Especificação (dimensões, acabamento…)" style="grid-column:1/-1" />
+    <input type="url" data-f="material_image_url" placeholder="URL foto do material (portal)" style="grid-column:1/-1" />
     <button type="button" class="pd-btn" style="grid-column:1/-1;display:none" data-cancel-mat-edit>Cancelar edição</button>`;
 }
 
@@ -1681,6 +1690,9 @@ function wireCostForms(root) {
           service_category: get('service_category') || 'general',
           status: get('status') || undefined,
           notes: (get('mat_notes') || '').trim() || null,
+          material_color: (get('material_color') || '').trim() || null,
+          material_spec: (get('material_spec') || '').trim() || null,
+          material_image_url: (get('material_image_url') || '').trim() || null,
           is_projected: get('is_projected') === '1',
         };
         const eidRaw = get('erp_product_id');

@@ -492,6 +492,59 @@
 .bp-doc-upload { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--bp-border); }
 .bp-materials-table td { vertical-align: top; }
 
+.bp-mat-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  background: var(--bp-tan-pale);
+  border-radius: var(--bp-radius);
+  border: 1px solid var(--bp-border);
+}
+.bp-mat-all-done { margin-bottom: 12px; font-size: 13px; }
+.bp-mat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+.bp-mat-card {
+  display: flex;
+  gap: 12px;
+  padding: 12px;
+  background: var(--bp-card);
+  border: 1px solid var(--bp-border);
+  border-radius: var(--bp-radius);
+}
+.bp-mat-card__img {
+  width: 72px;
+  height: 72px;
+  object-fit: cover;
+  border-radius: 8px;
+  flex-shrink: 0;
+  background: var(--bp-bg);
+}
+.bp-mat-card__img--placeholder { background: linear-gradient(135deg, var(--bp-tan-pale), var(--bp-bg)); }
+.bp-mat-card__body { flex: 1; min-width: 0; }
+.bp-mat-card__title { margin: 0 0 6px; font-size: 14px; font-weight: 600; }
+.bp-mat-card__spec, .bp-mat-card__color, .bp-mat-card__comment { font-size: 12px; margin: 4px 0 0; color: var(--bp-muted); }
+.bp-mat-card__actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+.bp-mat-card__actions .bp-btn-tan, .bp-mat-card__actions .bp-btn-ghost { font-size: 11px; padding: 5px 10px; }
+.bp-mat-card__comment-label { display: block; font-size: 11px; margin-top: 8px; color: var(--bp-muted); }
+.bp-mat-card__comment-label textarea { width: 100%; margin-top: 4px; font-size: 12px; padding: 6px 8px; border-radius: 6px; border: 1px solid var(--bp-border); }
+.bp-mat-card__footer { margin-top: 8px; }
+
+.bp-star-rating { display: flex; gap: 6px; margin-top: 8px; }
+.bp-star {
+  background: none;
+  border: none;
+  font-size: 28px;
+  line-height: 1;
+  color: var(--bp-border);
+  cursor: pointer;
+  padding: 0;
+}
+.bp-star--on { color: #e6a817; }
+.bp-eval-modal .bp-modal__box { max-width: 420px; }
+
 @media (max-width: 768px) {
   .bp-portal-layout { grid-template-columns: 1fr; }
   .bp-portal-sidebar { position: fixed; left: -260px; top: 0; bottom: 0; width: 240px; z-index: 90; transition: left 0.2s; }

@@ -16,7 +16,7 @@
   }
 
   function fmtDate(d) {
-    if (!d) return '-';
+    if (!d) return '�';
     try {
       return new Date(`${String(d).slice(0, 10)}T12:00:00`).toLocaleDateString('en-US', {
         day: 'numeric',
@@ -67,7 +67,6 @@
     return `/${u.replace(/^\//, '')}`;
   }
 
-
   function sfContactBadge() {
     if (window.builderPortalCommon?.sfContactBadgeHtml) {
       return window.builderPortalCommon.sfContactBadgeHtml('Senior Floors team member');
@@ -116,7 +115,7 @@
       completed: ['completed', 'Completed'],
       cancelled: ['cancelled', 'Cancelled'],
     };
-    const m = map[s] || ['pending', s || '-'];
+    const m = map[s] || ['pending', s || '�'];
     return `<span class="bp-badge bp-badge--${m[0]}">${escapeHtml(m[1])}</span>`;
   }
 
@@ -140,19 +139,13 @@
   }
 
   function photoMeta(p) {
+    const who = p.partner_upload ? 'You' : 'Senior Floors';
     const when = p.created_at ? fmtDate(p.created_at) : '';
-    const phase = p.phase ? String(p.phase).charAt(0).toUpperCase() + String(p.phase).slice(1) : '';
-    return [when, phase].filter(Boolean).join(' | ');
+    return [when, who].filter(Boolean).join(' � ');
   }
 
   function renderPhotos(photos) {
     const list = photos || [];
-    if (!list.length) {
-      return `<div class="bp-card bp-photos-empty">
-        <p><strong>No site photos yet</strong></p>
-        <p class="bp-muted">Senior Floors will publish project photos here after they are added in our system. Check back after your next site visit is documented.</p>
-      </div>`;
-    }
     const byPhase = { before: [], during: [], after: [] };
     list.forEach((p) => {
       const phase = ['before', 'during', 'after'].includes(p.phase) ? p.phase : 'during';
@@ -209,7 +202,7 @@
         : '';
     const renderItem = (it, canToggle) => {
       const checked = it.checked === 1 || it.checked === true;
-      const due = it.due_date ? `<span class="bp-muted"> - Due ${fmtDate(it.due_date)}</span>` : '';
+      const due = it.due_date ? `<span class="bp-muted"> � Due ${fmtDate(it.due_date)}</span>` : '';
       const resp = `<span class="bp-muted" style="display:block;font-size:11px">Responsible: ${responsibleLabel(it.assigned_to)}${due}</span>`;
       const notes = it.notes ? `<span class="bp-muted" style="display:block;font-size:11px">${escapeHtml(it.notes)}</span>` : '';
       return `<div class="bp-check-item ${checked ? 'bp-check-item--done' : ''}">
@@ -247,7 +240,7 @@
       const p = photos[curr];
       if (!p) return;
       img.src = p.url;
-      cap.textContent = `${photoMeta(p)} - ${curr + 1} / ${photos.length}`;
+      cap.textContent = `${photoMeta(p)} � ${curr + 1} / ${photos.length}`;
       nav.innerHTML = '';
       if (curr > 0) {
         const prev = document.createElement('button');
@@ -305,6 +298,96 @@
     draw();
   }
 
+  function compressImage(file, maxDim = 1920, quality = 0.82) {
+    return new Promise((resolve, reject) => {
+      if (!file.type.startsWith('image/')) {
+        resolve(file);
+        return;
+      }
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        let { width, height } = img;
+        if (width <= maxDim && height <= maxDim && file.size < 900000) {
+          resolve(file);
+          return;
+        }
+        const scale = Math.min(1, maxDim / Math.max(width, height));
+        width = Math.round(width * scale);
+        height = Math.round(height * scale);
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        canvas.toBlob(
+          (blob) => {
+            if (!blob) {
+              resolve(file);
+              return;
+            }
+            resolve(new File([blob], file.name.replace(/\.\w+$/, '.jpg'), { type: 'image/jpeg' }));
+          },
+          'image/jpeg',
+          quality
+        );
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        resolve(file);
+      };
+      img.src = url;
+    });
+  }
+
+  function renderPreviewGrid() {
+    const host = document.getElementById('photoPreviewGrid');
+    if (!host) return;
+    if (!pendingUploads.length) {
+      host.innerHTML = '';
+      return;
+    }
+    host.innerHTML = pendingUploads
+      .map(
+        (item, i) =>
+          `<div class="bp-photo-preview" data-preview-idx="${i}">
+            <img src="${item.previewUrl}" alt="" />
+            <button type="button" class="bp-photo-preview__remove" data-remove-idx="${i}" aria-label="Remove">&times;</button>
+          </div>`
+      )
+      .join('');
+    host.querySelectorAll('[data-remove-idx]').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const idx = parseInt(btn.dataset.removeIdx, 10);
+        const removed = pendingUploads.splice(idx, 1)[0];
+        if (removed?.previewUrl) URL.revokeObjectURL(removed.previewUrl);
+        renderPreviewGrid();
+      });
+    });
+  }
+
+  async function addFilesToQueue(fileList) {
+    const files = Array.from(fileList || []).filter((f) => f.type.startsWith('image/'));
+    if (!files.length) return;
+    const room = MAX_PHOTOS_PER_BATCH - pendingUploads.length;
+    if (room <= 0) {
+      alert(`Maximum ${MAX_PHOTOS_PER_BATCH} photos per upload. Remove some previews first.`);
+      return;
+    }
+    const slice = files.slice(0, room);
+    if (files.length > room) {
+      alert(`Only ${room} more photo(s) added (max ${MAX_PHOTOS_PER_BATCH} per batch).`);
+    }
+    for (const file of slice) {
+      pendingUploads.push({
+        file,
+        previewUrl: URL.createObjectURL(file),
+      });
+    }
+    renderPreviewGrid();
+  }
 
   async function loadProjectMessages(panel) {
     panel.innerHTML = '<p class="bp-muted">Loading messages...</p>';
@@ -416,66 +499,139 @@
     });
   }
 
+  const approvalLabel = {
+    pending: 'Awaiting your approval',
+    approved: 'Approved',
+    rejected: 'Rejected',
+    change_requested: 'Change requested',
+  };
+
+  function materialsPendingCount(rows) {
+    return (rows || []).filter((m) => m.builder_approval_status === 'pending').length;
+  }
+
   function renderMaterials(materials) {
     const rows = materials || [];
     if (!rows.length) {
-      return '<div class="bp-card"><p class="bp-muted">No materials shared for this project yet. Senior Floors will update when orders are placed.</p></div>';
+      return '<div class="bp-card"><p class="bp-muted">No materials shared for this project yet. Senior Floors will publish selections for your approval before work begins.</p></div>';
     }
-    const statusLabel = {
-      pending: 'Pending',
-      ordered: 'Ordered',
-      received: 'Received',
-      partial: 'Partial',
-      returned: 'Returned',
-    };
-    const approvalLabel = { pending: 'Awaiting your approval', approved: 'Approved', rejected: 'Rejected' };
-    return `<div class="bp-table-wrap"><table class="bp-table bp-materials-table"><thead><tr>
-      <th>Product</th><th>SKU</th><th>Qty</th><th>Status</th><th>Dates</th><th></th>
-    </tr></thead><tbody>${rows
+    const pending = materialsPendingCount(rows);
+    const header =
+      pending > 0
+        ? `<div class="bp-mat-banner">
+            <p><strong>${pending}</strong> material(s) awaiting your approval before work can proceed.</p>
+            <button type="button" class="bp-btn-tan" id="btnMatApproveAll">Approve all</button>
+          </div>`
+        : `<p class="bp-muted bp-mat-all-done">All shared materials have been reviewed.</p>`;
+
+    const cards = rows
       .map((m) => {
-        const qty = `${m.qty_received ?? 0} / ${m.qty_ordered ?? 0} ${escapeHtml(m.unit || '')}`.trim();
-        const dates = [
-          m.order_date ? `Ordered ${fmtDate(m.order_date)}` : null,
-          m.received_date ? `Received ${fmtDate(m.received_date)}` : null,
-        ]
-          .filter(Boolean)
-          .join(' - ');
-        const appr = m.builder_approval_status
-          ? `<span class="bp-muted" style="display:block;font-size:11px">${approvalLabel[m.builder_approval_status] || m.builder_approval_status}</span>`
+        const status = m.builder_approval_status || 'pending';
+        const img = m.material_image_url
+          ? `<img class="bp-mat-card__img" src="${escapeHtml(m.material_image_url)}" alt="" loading="lazy" onerror="this.style.display='none'" />`
+          : '<div class="bp-mat-card__img bp-mat-card__img--placeholder" aria-hidden="true"></div>';
+        const spec = m.material_spec
+          ? `<p class="bp-mat-card__spec">${escapeHtml(m.material_spec)}</p>`
           : '';
-        const actions =
-          m.builder_approval_status === 'pending'
-            ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
-                <button type="button" class="bp-btn-tan bp-mat-approve" data-mid="${m.id}" style="font-size:11px;padding:4px 8px">Approve</button>
-                <button type="button" class="bp-btn-ghost bp-mat-reject" data-mid="${m.id}" style="font-size:11px;padding:4px 8px">Reject</button>
-              </div>`
+        const color = m.material_color
+          ? `<p class="bp-mat-card__color"><strong>Color:</strong> ${escapeHtml(m.material_color)}</p>`
+          : '';
+        const commentBlock =
+          m.builder_comment && status !== 'pending'
+            ? `<p class="bp-mat-card__comment"><strong>Your note:</strong> ${escapeHtml(m.builder_comment)}</p>`
             : '';
-        return `<tr data-mat-id="${m.id}">
-          <td data-label="Product"><strong>${escapeHtml(m.product_name)}</strong>
-            ${m.supplier ? `<span class="bp-muted" style="display:block;font-size:11px">${escapeHtml(m.supplier)}</span>` : ''}${appr}</td>
-          <td data-label="SKU">${escapeHtml(m.sku || '-')}</td>
-          <td data-label="Qty">${escapeHtml(qty)}</td>
-          <td data-label="Status"><span class="bp-badge bp-badge--pending">${escapeHtml(statusLabel[m.status] || m.status || '-')}</span></td>
-          <td data-label="Dates" style="font-size:12px">${escapeHtml(dates || '-')}</td>
-          <td data-label="">${actions}</td>
-        </tr>`;
+        const actions =
+          status === 'pending'
+            ? `<div class="bp-mat-card__actions">
+                <button type="button" class="bp-btn-tan bp-mat-approve" data-mid="${m.id}">Approve</button>
+                <button type="button" class="bp-btn-ghost bp-mat-change" data-mid="${m.id}">Request change</button>
+                <button type="button" class="bp-btn-ghost bp-mat-reject" data-mid="${m.id}">Reject</button>
+              </div>
+              <label class="bp-mat-card__comment-label">Comment (optional)
+                <textarea class="bp-mat-comment" data-mid="${m.id}" rows="2" placeholder="Notes for Senior Floors…"></textarea>
+              </label>`
+            : `<span class="bp-badge bp-badge--${status === 'approved' ? 'completed' : status === 'rejected' ? 'cancelled' : 'pending'}">${escapeHtml(approvalLabel[status] || status)}</span>`;
+        return `<article class="bp-mat-card" data-mat-id="${m.id}">
+            ${img}
+            <div class="bp-mat-card__body">
+              <h3 class="bp-mat-card__title">${escapeHtml(m.product_name)}</h3>
+              ${m.sku ? `<p class="bp-muted" style="font-size:12px;margin:0">SKU: ${escapeHtml(m.sku)}</p>` : ''}
+              ${m.supplier ? `<p class="bp-muted" style="font-size:12px;margin:4px 0 0">Supplier: ${escapeHtml(m.supplier)}</p>` : ''}
+              ${color}${spec}${commentBlock}
+              <div class="bp-mat-card__footer">${actions}</div>
+            </div>
+          </article>`;
       })
-      .join('')}</tbody></table></div>`;
+      .join('');
+
+    return `${header}<div class="bp-mat-grid">${cards}</div>`;
+  }
+
+  function openMaterialActionModal(materialId, status, title) {
+    const modal = document.createElement('div');
+    modal.className = 'bp-modal open';
+    modal.innerHTML = `<div class="bp-modal__box">
+      <h3>${escapeHtml(title)}</h3>
+      <textarea id="matActionComment" rows="3" style="width:100%;box-sizing:border-box" placeholder="Explain what should change (required for change requests)"></textarea>
+      <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+        <button type="button" class="bp-btn-tan" id="matActionSubmit">Submit</button>
+        <button type="button" class="bp-btn-ghost" id="matActionCancel">Cancel</button>
+      </div>
+    </div>`;
+    document.body.appendChild(modal);
+    modal.querySelector('#matActionCancel')?.addEventListener('click', () => modal.remove());
+    modal.querySelector('#matActionSubmit')?.addEventListener('click', async () => {
+      const card = document.querySelector(`.bp-mat-comment[data-mid="${materialId}"]`);
+      const inline = card?.value?.trim() || '';
+      const modalComment = document.getElementById('matActionComment')?.value?.trim() || '';
+      const comment = modalComment || inline;
+      if (status === 'change_requested' && !comment) {
+        alert('Please describe what you would like changed.');
+        return;
+      }
+      modal.remove();
+      await updateMaterial(materialId, status, comment);
+    });
   }
 
   function wireMaterials(panel) {
+    panel.querySelector('#btnMatApproveAll')?.addEventListener('click', approveAllMaterials);
     panel.querySelectorAll('.bp-mat-approve').forEach((btn) => {
-      btn.addEventListener('click', () => updateMaterial(btn.dataset.mid, 'approved'));
+      btn.addEventListener('click', () => {
+        const card = panel.querySelector(`.bp-mat-comment[data-mid="${btn.dataset.mid}"]`);
+        const comment = card?.value?.trim() || '';
+        updateMaterial(btn.dataset.mid, 'approved', comment);
+      });
     });
     panel.querySelectorAll('.bp-mat-reject').forEach((btn) => {
-      btn.addEventListener('click', async () => {
-        const comment = prompt('Optional comment for rejection:') || '';
-        updateMaterial(btn.dataset.mid, 'rejected', comment);
-      });
+      btn.addEventListener('click', () =>
+        openMaterialActionModal(btn.dataset.mid, 'rejected', 'Reject material')
+      );
+    });
+    panel.querySelectorAll('.bp-mat-change').forEach((btn) => {
+      btn.addEventListener('click', () =>
+        openMaterialActionModal(btn.dataset.mid, 'change_requested', 'Request material change')
+      );
     });
   }
 
-  async function updateMaterial(materialId, status, comment) {
+  async function approveAllMaterials() {
+    if (!confirm('Approve all pending materials for this project?')) return;
+    const r = await window.builderAuth.fetch(
+      `/api/builder-projects/${projectId}/materials/approve-all`,
+      { method: 'POST' }
+    );
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      alert(j.error || 'Could not approve materials');
+      return;
+    }
+    await load();
+    activeTab = 'materials';
+    render();
+  }
+
+    async function updateMaterial(materialId, status, comment) {
     const r = await window.builderAuth.fetch(
       `/api/builder-projects/${projectId}/materials/${materialId}`,
       {
@@ -508,6 +664,11 @@
         </div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
           ${statusBadge(p.status)}
+          ${
+            ['completed', 'closed'].includes(String(p.status || '').toLowerCase())
+              ? `<button type="button" class="bp-btn-tan" id="btnClientReport">Client report (PDF)</button>`
+              : ''
+          }
           <button type="button" class="bp-btn-ghost" id="btnContact">Contact SF</button>
           <button type="button" class="bp-btn-ghost" id="btnIssue">Report issue</button>
         </div>
@@ -528,6 +689,7 @@
       <div id="tabPanel"></div>
       ${renderProjectTeam(project_team)}`;
 
+    document.getElementById('btnClientReport')?.addEventListener('click', downloadClientReport);
     document.getElementById('btnIssue')?.addEventListener('click', () =>
       openMessageModal('Report an issue', 'Describe the issue or site problem...', 'Issue')
     );
@@ -556,10 +718,10 @@
         <div class="bp-summary-grid">
           <div class="bp-card">
             <h3 style="margin:0 0 10px;font-size:14px">Project details</h3>
-            <p><strong>Floor:</strong> ${escapeHtml(p.flooring_type || '-')}</p>
-            <p><strong>Area:</strong> ${p.total_sqft ? `${p.total_sqft} sq ft` : '-'}</p>
-            <p><strong>Service:</strong> ${escapeHtml(p.service_type || '-')}</p>
-            <p><strong>Address:</strong> ${escapeHtml(p.address || '-')}</p>
+            <p><strong>Floor:</strong> ${escapeHtml(p.flooring_type || '�')}</p>
+            <p><strong>Area:</strong> ${p.total_sqft ? `${p.total_sqft} sq ft` : '�'}</p>
+            <p><strong>Service:</strong> ${escapeHtml(p.service_type || '�')}</p>
+            <p><strong>Address:</strong> ${escapeHtml(p.address || '�')}</p>
             <p><strong>Start:</strong> ${fmtDate(p.start_date)}</p>
             <p><strong>Est. completion:</strong> ${fmtDate(p.end_date_estimated)}</p>
           </div>
@@ -606,6 +768,37 @@
     });
   }
 
+  function wirePhotoUpload() {
+    const dz = document.getElementById('photoDropzone');
+    const input = document.getElementById('uploadFiles');
+    if (!dz || !input) return;
+
+    document.querySelectorAll('#phasePills .bp-phase-pill').forEach((pill) => {
+      pill.addEventListener('click', () => {
+        uploadPhase = pill.dataset.phase || 'during';
+        document.querySelectorAll('#phasePills .bp-phase-pill').forEach((p) => {
+          p.classList.toggle('active', p.dataset.phase === uploadPhase);
+        });
+      });
+    });
+
+    dz.addEventListener('click', () => input.click());
+    input.addEventListener('change', () => {
+      addFilesToQueue(input.files);
+      input.value = '';
+    });
+    dz.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dz.classList.add('bp-dropzone--over');
+    });
+    dz.addEventListener('dragleave', () => dz.classList.remove('bp-dropzone--over'));
+    dz.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dz.classList.remove('bp-dropzone--over');
+      addFilesToQueue(e.dataTransfer.files);
+    });
+    document.getElementById('btnUpload')?.addEventListener('click', uploadPhotos);
+  }
 
   async function load() {
     try {
@@ -658,6 +851,7 @@
         };
       }
       render();
+      void maybeShowEvaluationModal();
     } catch (err) {
       console.error('load project:', err);
       app.innerHTML = `<p class="bp-card">Could not load project. ${escapeHtml(err.message || 'Network error')}</p>
@@ -665,6 +859,155 @@
     }
   }
 
+  function setUploadProgress(fileName, pct) {
+    const list = document.getElementById('uploadProgressList');
+    if (!list) return;
+    let row = list.querySelector(`[data-file="${CSS.escape(fileName)}"]`);
+    if (!row) {
+      row = document.createElement('div');
+      row.className = 'bp-upload-progress-item';
+      row.dataset.file = fileName;
+      row.innerHTML = `<span class="bp-upload-progress-item__name"></span><div class="bp-upload-progress-item__bar"><div class="bp-upload-progress-item__fill"></div></div>`;
+      list.appendChild(row);
+    }
+    row.querySelector('.bp-upload-progress-item__name').textContent = `${fileName} � ${pct}%`;
+    const fill = row.querySelector('.bp-upload-progress-item__fill');
+    if (fill) fill.style.width = `${pct}%`;
+  }
+
+  async function uploadPhotos() {
+    if (!pendingUploads.length) {
+      const status = document.getElementById('uploadStatus');
+      if (status) status.textContent = 'Add photos using drag & drop or file picker.';
+      return;
+    }
+    const status = document.getElementById('uploadStatus');
+    const progressList = document.getElementById('uploadProgressList');
+    if (progressList) progressList.innerHTML = '';
+    const phase = uploadPhase;
+    let ok = 0;
+    const total = pendingUploads.length;
+    status.textContent = 'Preparing uploads...';
+
+    for (let i = 0; i < total; i++) {
+      const item = pendingUploads[i];
+      const name = item.file.name;
+      setUploadProgress(name, 10);
+      status.textContent = `Compressing ${i + 1}/${total}...`;
+      let blob;
+      try {
+        blob = await compressImage(item.file);
+      } catch {
+        blob = item.file;
+      }
+      setUploadProgress(name, 40);
+      status.textContent = `Uploading ${i + 1}/${total}...`;
+      const fd = new FormData();
+      fd.append('file', blob, blob.name || name);
+      fd.append('phase', phase);
+      setUploadProgress(name, 70);
+      const r = await window.builderAuth.fetch(`/api/builder-projects/${projectId}/photos`, {
+        method: 'POST',
+        body: fd,
+      });
+      setUploadProgress(name, r.ok ? 100 : 0);
+      if (r.ok) ok++;
+    }
+
+    pendingUploads.forEach((p) => {
+      if (p.previewUrl) URL.revokeObjectURL(p.previewUrl);
+    });
+    pendingUploads = [];
+    status.textContent = `Uploaded ${ok} of ${total} photo(s).`;
+    await load();
+    activeTab = 'photos';
+    render();
+  }
+
+  async function downloadClientReport() {
+    try {
+      const r = await window.builderAuth.fetch(
+        `/api/builder-projects/${projectId}/client-report.pdf`
+      );
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({}));
+        alert(j.error || 'Could not generate report');
+        return;
+      }
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `client-report-${projectId}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      alert(e.message || 'Download failed');
+    }
+  }
+
+  function openEvaluationModal(googleReviewUrl) {
+    const modal = document.createElement('div');
+    modal.className = 'bp-modal open bp-eval-modal';
+    modal.innerHTML = `<div class="bp-modal__box">
+      <h3>How was this project with Senior Floors?</h3>
+      <p class="bp-muted">Your feedback helps us improve. This project is marked completed.</p>
+      <div class="bp-star-rating" id="evalStars" role="group" aria-label="Rating">
+        ${[1, 2, 3, 4, 5].map((n) => `<button type="button" class="bp-star" data-star="${n}" aria-label="${n} stars">&#9733;</button>`).join('')}
+      </div>
+      <textarea id="evalComment" rows="3" style="width:100%;box-sizing:border-box;margin-top:12px" placeholder="Optional comment�"></textarea>
+      <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
+        <button type="button" class="bp-btn-tan" id="evalSubmit" disabled>Submit feedback</button>
+        <button type="button" class="bp-btn-ghost" id="evalLater">Remind me later</button>
+      </div>
+    </div>`;
+    document.body.appendChild(modal);
+    let selected = 0;
+    modal.querySelectorAll('.bp-star').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        selected = parseInt(btn.dataset.star, 10);
+        modal.querySelectorAll('.bp-star').forEach((s) => {
+          s.classList.toggle('bp-star--on', parseInt(s.dataset.star, 10) <= selected);
+        });
+        modal.querySelector('#evalSubmit').disabled = false;
+      });
+    });
+    modal.querySelector('#evalLater')?.addEventListener('click', () => {
+      sessionStorage.setItem(`bp_eval_skip_${projectId}`, '1');
+      modal.remove();
+    });
+    modal.querySelector('#evalSubmit')?.addEventListener('click', async () => {
+      if (!selected) return;
+      const comment = document.getElementById('evalComment')?.value?.trim() || '';
+      const r = await window.builderAuth.fetch(`/api/builder-projects/${projectId}/evaluation`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rating: selected, comment }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        alert(j.error || 'Could not save feedback');
+        return;
+      }
+      modal.remove();
+      const reviewUrl = j.data?.google_review_url || googleReviewUrl;
+      if (reviewUrl && confirm('Thank you! Would you like to leave a Google review for Senior Floors?')) {
+        window.open(reviewUrl, '_blank', 'noopener');
+      }
+    });
+  }
+
+  async function maybeShowEvaluationModal() {
+    const p = state?.project;
+    if (!p || !['completed', 'closed'].includes(String(p.status || '').toLowerCase())) return;
+    if (sessionStorage.getItem(`bp_eval_skip_${projectId}`)) return;
+    try {
+      const r = await window.builderAuth.fetch(`/api/builder-projects/${projectId}/evaluation`);
+      const j = await r.json();
+      if (!j.success || !j.data?.eligible || j.data?.submitted) return;
+      openEvaluationModal(j.data.google_review_url);
+    } catch (_) {}
+  }
 
   async function toggleChecklist(itemId, checked) {
     const r = await window.builderAuth.fetch(`/api/builder-projects/${projectId}/checklist/${itemId}`, {

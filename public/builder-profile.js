@@ -1,5 +1,5 @@
 /**
- * Builder portal ó profile, password, documents, manager, notification prefs.
+ * Builder portal ù profile, password, documents, manager, notification prefs.
  */
 (function () {
   let me = null;
@@ -215,6 +215,8 @@
     document.getElementById('phone').value = me.phone || '';
     document.getElementById('company').value = me.company || '';
     document.getElementById('website').value = me.website || '';
+    const logoEl = document.getElementById('company_logo_url');
+    if (logoEl) logoEl.value = me.company_logo_url || '';
     document.getElementById('email').value = me.email || '';
 
     const prefs = me.notification_prefs || {};
@@ -247,6 +249,7 @@
         phone: document.getElementById('phone').value.trim(),
         company: document.getElementById('company').value.trim(),
         website: document.getElementById('website').value.trim(),
+        company_logo_url: document.getElementById('company_logo_url')?.value?.trim() || null,
       }),
     });
     const j = await r.json();
@@ -335,7 +338,7 @@
       await window.builderAuth.fetch(`/api/builder-documents/${replaceDocId}`, { method: 'DELETE' });
       cancelReplace();
     }
-    statusEl.textContent = 'Uploaded ó pending Senior Floors review.';
+    statusEl.textContent = 'Uploaded ù pending Senior Floors review.';
     e.target.reset();
     document.getElementById('docType').value = 'w9';
     loadDocs();

@@ -114,7 +114,7 @@ export async function getMe(req, res) {
     const [rows] = await pool.query(
       `SELECT id, customer_id, first_name, last_name, email, phone, company, website, type, status,
               regions, avg_ticket, portal_access, last_login, created_at, portal_password_must_change,
-              account_manager_user_id, notification_prefs
+              account_manager_user_id, notification_prefs, company_logo_url
        FROM builders WHERE id = ?`,
       [req.builderAuth.builderId]
     );
@@ -281,6 +281,7 @@ export async function putProfile(req, res) {
       ['phone', 50],
       ['company', 255],
       ['website', 500],
+      ['company_logo_url', 500],
     ];
     for (const [col, max] of allowed) {
       if (b[col] !== undefined) {

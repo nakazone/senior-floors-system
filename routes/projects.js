@@ -37,6 +37,7 @@ import {
   resolveBuilderPartnerForProject,
 } from '../lib/linkProjectToBuilder.js';
 import { logBuilderActivityForProject, recordProjectCrmUpdate } from '../lib/builderActivityLog.js';
+import { applyPortalMaterialDisplayFields } from '../lib/builderMaterialPortal.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const router = Router();
@@ -1431,6 +1432,7 @@ router.post('/:id/materials', ...allAuthed, requirePermission('projects.edit'), 
     }
     const sql = `INSERT INTO project_materials (${colNames.map((c) => `\`${c}\``).join(', ')}) VALUES (${colNames.map(() => '?').join(', ')})`;
     const [ins] = await pool.execute(sql, vals);
+    await applyPortalMaterialDisplayFields(pool, ins.insertId, b);
     await recalculateProjectCosts(pool, id);
     const [rows] = await pool.query('SELECT * FROM project_materials WHERE id = ?', [ins.insertId]);
     res.status(201).json({
@@ -1559,6 +1561,7 @@ router.put('/:id/materials/:materialId', ...allAuthed, requirePermission('projec
         [erpPidVal, mid, id]
       );
     }
+    await applyPortalMaterialDisplayFields(pool, mid, b);
     await recalculateProjectCosts(pool, id);
     const [rows] = await pool.query('SELECT * FROM project_materials WHERE id = ?', [mid]);
     res.json({

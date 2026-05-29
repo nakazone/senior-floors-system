@@ -14,6 +14,7 @@ import {
   fetchBuilderActivityFeed,
   logBuilderActivity,
 } from '../lib/builderActivityLog.js';
+import { notifySfMaterialAction } from '../lib/builderMaterialPortal.js';
 
 async function columnExists(pool, table, col) {
   const [r] = await pool.query(
@@ -51,7 +52,7 @@ export async function putBuilderProjectMaterial(req, res) {
     if (!project) return res.status(404).json({ success: false, error: 'Project not found' });
 
     const status = String(req.body?.builder_approval_status || '').toLowerCase();
-    if (!['approved', 'rejected', 'pending'].includes(status)) {
+    if (!['approved', 'rejected', 'pending', 'change_requested'].includes(status)) {
       return res.status(400).json({ success: false, error: 'Invalid approval status' });
     }
     const hasVisible = await columnExists(pool, 'project_materials', 'visible_to_builder');
@@ -71,19 +72,19 @@ export async function putBuilderProjectMaterial(req, res) {
       [status, comment, mid, projectId]
     );
 
-    if (status === 'rejected' || status === 'approved') {
-      const adminTo = adminNotifyEmail();
-      if (adminTo) {
-        const [m] = await pool.query(
-          'SELECT product_name FROM project_materials WHERE id = ?',
-          [mid]
-        );
-        await sendBuilderNotification({
-          to: adminTo,
-          subject: `Builder ${status} material on project #${projectId}`,
-          html: `<p>Material <strong>${m[0]?.product_name || mid}</strong> was <strong>${status}</strong> by the partner.</p>${comment ? `<p>Comment: ${comment}</p>` : ''}`,
-        });
-      }
+    if (['rejected', 'approved', 'change_requested'].includes(status)) {
+      const [m] = await pool.query(
+        'SELECT product_name FROM project_materials WHERE id = ?',
+        [mid]
+      );
+      await notifySfMaterialAction(pool, {
+        projectId,
+        projectName: project.name,
+        builderId: bid,
+        action: status === 'change_requested' ? 'change_requested' : status,
+        productName: m[0]?.product_name,
+        comment,
+      });
     }
 
     const [rows] = await pool.query('SELECT * FROM project_materials WHERE id = ?', [mid]);
@@ -107,9 +108,18 @@ export async function postBuilderMaterialsApproveAll(req, res) {
       ? 'project_id = ? AND visible_to_builder = 1 AND builder_approval_status = \'pending\''
       : 'project_id = ? AND builder_approval_status = \'pending\'';
     const [r] = await pool.execute(
-      `UPDATE project_materials SET builder_approval_status = 'approved' WHERE ${where}`,
+      `UPDATE project_materials SET builder_approval_status = 'approved', builder_comment = NULL WHERE ${where}`,
       [projectId]
     );
+    if (r.affectedRows > 0) {
+      await notifySfMaterialAction(pool, {
+        projectId,
+        projectName: project.name,
+        builderId: bid,
+        action: 'approve_all',
+        count: r.affectedRows,
+      });
+    }
     res.json({ success: true, updated: r.affectedRows });
   } catch (e) {
     res.status(500).json({ success: false, error: e.message });
