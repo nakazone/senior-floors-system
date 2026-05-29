@@ -1,9 +1,22 @@
 /* global crmNotify */
 (function () {
-  function isPortal() {
-    return !!window.builderAuth?.getToken?.();
-  }
   const $ = (id) => document.getElementById(id);
+
+  /** CRM staff session takes priority over stale builder portal tokens in sessionStorage. */
+  async function resolvePageMode() {
+    const forcePortal = new URLSearchParams(location.search).get('portal') === '1';
+    let crmSession = null;
+    try {
+      const r = await fetch('/api/auth/session', { credentials: 'include' });
+      crmSession = await r.json();
+    } catch {
+      crmSession = { authenticated: false };
+    }
+    if (crmSession?.authenticated && !forcePortal) return { mode: 'admin', session: crmSession };
+    if (window.builderAuth?.getToken?.()) return { mode: 'portal', session: null };
+    if (crmSession?.authenticated) return { mode: 'admin', session: crmSession };
+    return { mode: 'none', session: null };
+  }
 
   const VOLUME_DISCOUNTS = [
     { range: '500 - 999 sq ft', pct: 5 },
@@ -150,6 +163,8 @@
   }
 
   async function loadAdmin() {
+    $('portalShell')?.classList.add('hidden');
+    $('adminShell')?.classList.remove('hidden');
     const j = await adminApi('/api/pricing');
     const tbody = $('pricingTbody');
     tbody.innerHTML = (j.data || []).map(adminRowHtml).join('');
@@ -225,8 +240,9 @@
       <div id="bpPortalHeader"></div>
       <h1 class="bp-title">Partner pricing</h1>
       <p class="bp-muted">${validLine}</p>
-      <div style="margin-bottom:12px">
-        <button type="button" class="bp-btn-ghost" id="btnDownloadPricing">Download PDF</button>
+      <div style="margin-bottom:12px;display:flex;flex-wrap:wrap;gap:8px">
+        <button type="button" class="bp-btn-ghost" id="btnViewPricingPdf">View PDF</button>
+        <button type="button" class="bp-btn-tan" id="btnDownloadPricing">Download PDF</button>
       </div>
       <div class="bp-table-wrap"><table class="bp-table"><thead><tr><th>Service</th><th>Category</th><th>Unit</th><th>Public range</th><th>Your price</th></tr></thead><tbody>${rows}</tbody></table></div>
       <h2 style="font-size:1rem;margin-top:1.5rem">Volume discounts</h2>
@@ -234,30 +250,16 @@
       <p style="margin-top:1rem"><a href="builder-calculator.html" class="bp-btn-tan" style="text-decoration:none;display:inline-block;margin-right:8px">Open calculator</a>
       <a href="builder-estimate-request.html" class="bp-btn-ghost" style="text-decoration:none;display:inline-block">Request formal estimate</a></p>`;
     renderVolume($('volPortal'));
+    document.getElementById('btnViewPricingPdf')?.addEventListener('click', viewPricingPdf);
     document.getElementById('btnDownloadPricing')?.addEventListener('click', downloadPricingPdf);
     root.querySelectorAll('[data-calc]').forEach((btn) => {
       btn.addEventListener('click', () => openInlineCalc(parseInt(btn.dataset.calc, 10)));
     });
   }
 
-  async function init() {
-    if (isPortal()) {
-      const boot = window.builderPortalCommon?.whenPortalReady;
-      const run = () => loadPortal();
-      if (typeof boot === 'function') {
-        boot().then((ok) => {
-          if (ok) run();
-        });
-      } else if (window.builderAuth?.getToken()) {
-        run();
-      }
-      return;
-    }
-    const sess = await fetch('/api/auth/session', { credentials: 'include' }).then((r) => r.json());
-    if (!sess.authenticated) {
-      location.href = 'login.html';
-      return;
-    }
+  async function initAdmin(sess) {
+    $('portalShell')?.classList.add('hidden');
+    $('adminShell')?.classList.remove('hidden');
     const perms = sess.permissions || sess.user?.permissions || [];
     adminCanEdit = sess.role === 'admin' || perms.includes('builders.edit');
     if (!adminCanEdit) {
@@ -281,7 +283,29 @@
     await loadAdmin();
   }
 
-  document.addEventListener('DOMContentLoaded', () => {
-    setTimeout(init, isPortal() ? 120 : 0);
-  });
+  async function initPortal() {
+    const boot = window.builderPortalCommon?.whenPortalReady;
+    const run = () => loadPortal();
+    if (typeof boot === 'function') {
+      const ok = await boot();
+      if (ok) run();
+      return;
+    }
+    if (window.builderAuth?.requireAuth?.()) run();
+  }
+
+  async function init() {
+    const { mode, session } = await resolvePageMode();
+    if (mode === 'admin') {
+      await initAdmin(session);
+      return;
+    }
+    if (mode === 'portal') {
+      await initPortal();
+      return;
+    }
+    location.href = 'login.html';
+  }
+
+  document.addEventListener('DOMContentLoaded', () => init());
 })();
