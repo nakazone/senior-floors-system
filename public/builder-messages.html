@@ -1,38 +1,45 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Mensagens — Senior Floors</title>
-  <link rel="icon" type="image/png" href="/assets/SeniorFloors.png" />
-  <link rel="stylesheet" href="styles.css" />
-  <link rel="stylesheet" href="design-system.css" />
-  <link rel="stylesheet" href="crm-shared-nav.css?v=12" />
-  <link rel="stylesheet" href="crm-toast.css" />
+  <title>Messages — Builder Portal</title>
   <link rel="stylesheet" href="css/builders-portal.css" />
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="crm-toast.css" />
 </head>
-<body class="dashboard-app-body bp-page-body payroll-sidebar-page" id="msgBody">
+<body class="bp-page-body" data-bp-page="messages" id="msgBody">
   <div class="dashboard-container" id="adminShell">
     <aside class="dashboard-sidebar"><nav class="sidebar-nav"><div id="crmSharedNavRoot" data-layout="sidebar"></div></nav></aside>
     <main class="dashboard-main bp-msg-page">
       <div class="bp-msg-layout">
-        <aside class="bp-msg-list" id="convList"><p class="bp-muted" style="padding:12px">A carregar…</p></aside>
-        <section class="bp-msg-thread" id="threadPanel">
-          <p class="bp-muted" style="padding:24px">Selecione uma conversa</p>
-        </section>
+        <aside class="bp-msg-list" id="convList"><p class="bp-muted" style="padding:12px">Loading...</p></aside>
+        <section class="bp-msg-thread" id="threadPanel"><p class="bp-muted" style="padding:24px">Select a conversation</p></section>
       </div>
     </main>
   </div>
   <div class="bp-portal-layout hidden" id="portalShell">
-    <aside class="bp-portal-sidebar">
-      <a href="builder-portal.html">Dashboard</a>
-      <a href="builder-messages.html" class="active">Messages</a>
-    </aside>
-    <main class="bp-portal-main bp-msg-thread" id="portalThread" style="display:flex;flex-direction:column;min-height:80vh"></main>
+    <button type="button" class="bp-menu-toggle" id="bpMenuToggle" aria-label="Menu">&#9776;</button>
+    <aside class="bp-portal-sidebar"><nav id="bpPortalNav"></nav></aside>
+    <main class="bp-portal-main">
+      <div id="bpPortalHeader"></div>
+      <h1 class="bp-title">Messages</h1>
+      <div class="bp-filters" style="margin-bottom:12px">
+        <label style="font-size:12px;font-weight:600">Conversation
+          <select id="msgProjectFilter" style="margin-left:8px;padding:8px;border-radius:8px;border:1px solid var(--bp-border)">
+            <option value="">All messages</option>
+            <option value="general">General (no project)</option>
+          </select>
+        </label>
+      </div>
+      <section class="bp-msg-thread bp-card" id="portalThread" style="display:flex;flex-direction:column;min-height:60vh;padding:0;overflow:hidden"></section>
+    </main>
   </div>
   <script src="crm-toast.js"></script>
   <script src="crm-shared-nav.js?v=12"></script>
-  <script src="builder-auth.js?v=2"></script>
-  <script src="builder-messages.js?v=1"></script>
+  <script src="builder-auth.js?v=3"></script>
+  <script src="builder-portal-nav.js?v=2"></script>
+  <script src="builder-portal-common.js?v=1"></script>
+  <script src="builder-messages.js?v=2"></script>
 </body>
 </html>

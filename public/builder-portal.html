@@ -10,33 +10,47 @@
 </head>
 <body class="bp-page-body" data-bp-page="dashboard">
   <div class="bp-portal-layout">
+    <button type="button" class="bp-menu-toggle" id="bpMenuToggle" aria-label="Menu">&#9776;</button>
     <aside class="bp-portal-sidebar">
       <img src="/assets/SeniorFloors.png" alt="" width="48" style="margin-bottom:16px" onerror="this.style.display='none'" />
-      <p id="portalUserName" style="font-weight:600;margin:0 0 4px;color:var(--bp-tan)">-</p>
-      <p id="portalUserCo" style="font-size:12px;opacity:0.8;margin:0 0 20px">-</p>
       <nav id="bpPortalNav"></nav>
-      <button type="button" id="btnLogout" style="margin-top:24px;background:transparent;border:1px solid rgba(255,255,255,0.3);color:#fff;padding:8px 12px;border-radius:8px;cursor:pointer;width:100%">Sign out</button>
     </aside>
     <main class="bp-portal-main">
+      <div id="bpPortalHeader"></div>
+      <div id="docAlert" class="hidden"></div>
       <div class="bp-card" style="background:var(--bp-navy);color:#fff;border:none">
         <h1 class="bp-title" style="color:#fff;font-size:1.25rem" id="welcomeTitle">Welcome</h1>
         <p style="opacity:0.9;margin:0 0 12px">Here is an overview of your projects with Senior Floors.</p>
         <a href="builder-estimate-request.html" class="bp-btn-tan" style="text-decoration:none;display:inline-block">Request new project estimate</a>
       </div>
+      <div id="managerCard" class="hidden"></div>
+      <div id="nextVisitCard" class="hidden"></div>
       <div class="bp-metrics" style="margin-top:1rem">
         <div class="bp-card bp-metric"><div class="bp-metric__val" id="metricActive">0</div><div class="bp-metric__lbl">Active projects</div></div>
         <div class="bp-card bp-metric"><div class="bp-metric__val" id="metricTotal">0</div><div class="bp-metric__lbl">Total projects</div></div>
-        <div class="bp-card bp-metric"><div class="bp-metric__val" id="metricUnread">0</div><div class="bp-metric__lbl">Unread messages</div></div>
+        <div class="bp-card bp-metric"><div class="bp-metric__val" id="metricUnread">0</div><div class="bp-metric__lbl">Unread</div></div>
+        <div class="bp-card bp-metric"><div class="bp-metric__val" id="metricSqft">0</div><div class="bp-metric__lbl">Sq ft completed</div></div>
+        <div class="bp-card bp-metric"><div class="bp-metric__val" id="metricValue">$0</div><div class="bp-metric__lbl">Completed value</div></div>
+        <div class="bp-card bp-metric"><div class="bp-metric__val" id="metricYear">0</div><div class="bp-metric__lbl">Completed this year</div></div>
       </div>
-      <div style="display:flex;justify-content:space-between;align-items:center;margin:1rem 0 0.5rem;flex-wrap:wrap;gap:8px">
-        <h2 class="bp-title" style="font-size:1rem;margin:0">Projects in progress</h2>
-        <a href="builder-projects.html" class="bp-btn-tan" style="text-decoration:none;font-size:13px">View all projects</a>
+      <div class="bp-dashboard-grid">
+        <div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin:1rem 0 0.5rem;flex-wrap:wrap;gap:8px">
+            <h2 class="bp-title" style="font-size:1rem;margin:0">Projects in progress</h2>
+            <a href="builder-projects.html" class="bp-btn-tan" style="text-decoration:none;font-size:13px">View all</a>
+          </div>
+          <div id="projectCards"></div>
+        </div>
+        <div>
+          <h2 class="bp-title" style="font-size:1rem;margin:1rem 0 0.5rem">Recent activity</h2>
+          <div id="activityFeed" class="bp-card"></div>
+        </div>
       </div>
-      <div id="projectCards"></div>
     </main>
   </div>
-  <script src="builder-auth.js?v=2"></script>
-  <script src="builder-portal-nav.js?v=1"></script>
-  <script src="builder-portal.js?v=3"></script>
+  <script src="builder-auth.js?v=3"></script>
+  <script src="builder-portal-nav.js?v=2"></script>
+  <script src="builder-portal-common.js?v=1"></script>
+  <script src="builder-portal.js?v=4"></script>
 </body>
 </html>

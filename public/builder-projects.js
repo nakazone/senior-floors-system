@@ -4,6 +4,7 @@
   const host = document.getElementById('projectsHost');
   let allProjects = [];
   let filter = 'active';
+  let searchQ = '';
 
   const COMPLETED = new Set(['completed', 'closed', 'cancelled']);
 
@@ -22,12 +23,33 @@
     return `<span class="bp-badge ${cls}">${escapeHtml(status || 'unknown')}</span>`;
   }
 
-  function filtered() {
-    if (filter === 'all') return allProjects;
-    if (filter === 'completed') {
-      return allProjects.filter((p) => COMPLETED.has(String(p.status || '').toLowerCase()));
+  function fmtDate(d) {
+    if (!d) return '';
+    try {
+      return new Date(`${String(d).slice(0, 10)}T12:00:00`).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+      });
+    } catch {
+      return '';
     }
-    return allProjects.filter((p) => !COMPLETED.has(String(p.status || '').toLowerCase()));
+  }
+
+  function filtered() {
+    let rows = allProjects;
+    if (filter === 'completed') {
+      rows = rows.filter((p) => COMPLETED.has(String(p.status || '').toLowerCase()));
+    } else if (filter !== 'all') {
+      rows = rows.filter((p) => !COMPLETED.has(String(p.status || '').toLowerCase()));
+    }
+    const q = searchQ.trim().toLowerCase();
+    if (q) {
+      rows = rows.filter((p) => {
+        const hay = [p.name, p.address, p.project_number, p.flooring_type].filter(Boolean).join(' ').toLowerCase();
+        return hay.includes(q);
+      });
+    }
+    return rows;
   }
 
   function renderList() {
@@ -63,6 +85,11 @@
   document.getElementById('btnLogout')?.addEventListener('click', () => {
     window.builderAuth.setToken(null);
     location.href = 'builder-login.html';
+  });
+
+  document.getElementById('projSearch')?.addEventListener('input', (e) => {
+    searchQ = e.target.value;
+    renderList();
   });
 
   document.querySelectorAll('.bp-filter-btn').forEach((btn) => {

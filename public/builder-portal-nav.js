@@ -10,6 +10,7 @@
     { id: 'messages', href: 'builder-messages.html', label: 'Messages' },
     { id: 'history', href: 'builder-history.html', label: 'History' },
     { id: 'referrals', href: 'builder-referrals.html', label: 'Referrals' },
+    { id: 'profile', href: 'builder-profile.html', label: 'Profile' },
   ];
 
   function currentPage() {
@@ -27,6 +28,7 @@
       'builder-messages': 'messages',
       'builder-history': 'history',
       'builder-referrals': 'referrals',
+      'builder-profile': 'profile',
     };
     return map[file] || '';
   }

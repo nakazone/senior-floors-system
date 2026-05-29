@@ -37,17 +37,54 @@ const TIMELINE_STEPS = [
   { key: 'completed', label: 'Completed', minPct: 100 },
 ];
 
+function toYmd(d) {
+  if (!d) return null;
+  const s = String(d).slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null;
+}
+
+function addDaysYmd(ymd, days) {
+  if (!ymd) return null;
+  const d = new Date(`${ymd}T12:00:00`);
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+function daysBetweenYmd(a, b) {
+  if (!a || !b) return null;
+  const d0 = new Date(`${a}T12:00:00`);
+  const d1 = new Date(`${b}T12:00:00`);
+  return Math.max(0, Math.round((d1 - d0) / 86400000));
+}
+
 function buildTimeline(project) {
   const pct = Number(project.completion_percentage) || 0;
   const st = String(project.status || '').toLowerCase();
   const forceDone = st === 'completed' || pct >= 100;
+  const startYmd = toYmd(project.start_date);
+  const endEstYmd = toYmd(project.end_date_estimated);
+  const endActYmd = toYmd(project.end_date_actual);
+  const spanDays = startYmd && endEstYmd ? daysBetweenYmd(startYmd, endEstYmd) : null;
+
   return TIMELINE_STEPS.map((step, idx) => {
     const next = TIMELINE_STEPS[idx + 1];
     const done = forceDone || pct >= (next ? next.minPct : 100);
     const active = !done && pct >= step.minPct && (!next || pct < next.minPct);
+    let date_planned = null;
+    let date_actual = null;
+    if (startYmd && spanDays != null) {
+      date_planned = addDaysYmd(startYmd, Math.round((spanDays * step.minPct) / 100));
+    }
+    if (done && forceDone && endActYmd && idx === TIMELINE_STEPS.length - 1) {
+      date_actual = endActYmd;
+    } else if (done && startYmd && next) {
+      date_actual = addDaysYmd(startYmd, Math.round((spanDays * next.minPct) / 100));
+    }
     return {
       ...step,
       status: done ? 'done' : active ? 'active' : 'pending',
+      date_planned,
+      date_actual,
     };
   });
 }
@@ -97,6 +134,7 @@ export async function getBuilderPortalProject(req, res) {
       service_type: project.service_type,
       project_number: project.project_number,
       client_notes: project.notes,
+      internal_notes_for_builder: project.internal_notes || null,
     };
 
     res.json({
@@ -105,6 +143,11 @@ export async function getBuilderPortalProject(req, res) {
         project: safeProject,
         timeline: buildTimeline(project),
         checklist,
+        checklist_progress,
+        checklist_groups: {
+          builder: checklist.filter((it) => String(it.assigned_to || 'sf').toLowerCase() === 'builder'),
+          sf: checklist.filter((it) => String(it.assigned_to || 'sf').toLowerCase() !== 'builder'),
+        },
         photos: photos.map((ph) => ({
           ...ph,
           url: photoPublicUrl(ph),
@@ -240,6 +283,9 @@ export async function listBuilderPortalProjects(req, res) {
         'flooring_type',
         'total_sqft',
         'project_number',
+        'service_type',
+        'updated_at',
+        'contract_value',
       ],
       'p'
     );
@@ -258,7 +304,126 @@ export async function listBuilderPortalProjects(req, res) {
   }
 }
 
+export async function getBuilderDashboard(req, res) {
+  try {
+    const pool = await getDBConnection();
+    if (!pool) return res.status(503).json({ success: false, error: 'Database not available' });
+    const auth = req.builderAuth;
+    const bid = auth.builderId;
+    const cid = await getBuilderCustomerId(pool, bid);
+
+    const [builder] = await pool.query(
+      `SELECT first_name, last_name, company, account_manager_user_id FROM builders WHERE id = ?`,
+      [bid]
+    );
+    let account_manager = null;
+    const amId = builder[0]?.account_manager_user_id;
+    if (amId) {
+      const [u] = await pool.query('SELECT id, name, email FROM users WHERE id = ?', [amId]);
+      if (u.length) account_manager = u[0];
+    }
+
+    const [docs] = await pool.query(
+      `SELECT COUNT(*) AS c FROM builder_documents WHERE builder_id = ? AND status != 'valid'`,
+      [bid]
+    );
+    const pending_documents = Number(docs[0]?.c) || 0;
+
+    let projects = [];
+    if (cid) {
+      const linkMeta = await getProjectBuilderLinkMeta(pool);
+      const match = buildProjectBuilderMatch('p', bid, cid, linkMeta);
+      const selectSql = await buildProjectSelectSql(
+        pool,
+        [
+          'id',
+          'name',
+          'address',
+          'status',
+          'completion_percentage',
+          'start_date',
+          'end_date_estimated',
+          'total_sqft',
+          'contract_value',
+        ],
+        'p'
+      );
+      const [rows] = await pool.query(
+        `SELECT ${selectSql} FROM projects p WHERE ${match.sql}${projectNotDeletedClause('p', linkMeta)}`,
+        match.params
+      );
+      projects = rows.map(normalizeProjectRow);
+    }
+
+    const active = projects.filter(
+      (p) => !['completed', 'cancelled', 'closed'].includes(String(p.status || '').toLowerCase())
+    );
+    const completed = projects.filter((p) => String(p.status || '').toLowerCase() === 'completed');
+    const totalSqft = completed.reduce((s, p) => s + (Number(p.total_sqft) || 0), 0);
+    const totalValue = completed.reduce((s, p) => s + (Number(p.contract_value) || 0), 0);
+    const year = new Date().getFullYear();
+    const completedThisYear = completed.filter((p) => {
+      const d = toYmd(p.end_date_actual) || toYmd(p.end_date_estimated);
+      return d && d.startsWith(String(year));
+    }).length;
+
+    const upcoming = active
+      .filter((p) => toYmd(p.start_date))
+      .sort((a, b) => String(a.start_date).localeCompare(String(b.start_date)));
+    const next_visit = upcoming[0]
+      ? {
+          project_id: upcoming[0].id,
+          project_name: upcoming[0].name,
+          address: upcoming[0].address,
+          start_date: upcoming[0].start_date,
+        }
+      : null;
+
+    const [messages] = await pool.query(
+      `SELECT m.id, m.message, m.created_at, m.project_id, m.sender_type, p.name AS project_name
+       FROM builder_messages m
+       LEFT JOIN projects p ON m.project_id = p.id
+       WHERE m.builder_id = ? AND m.is_internal_note = 0
+       ORDER BY m.created_at DESC LIMIT 8`,
+      [bid]
+    );
+
+    const activity = (messages || []).map((m) => ({
+      type: m.sender_type === 'admin' ? 'message_sf' : 'message_builder',
+      text:
+        m.sender_type === 'admin'
+          ? `Senior Floors: ${String(m.message || '').slice(0, 120)}`
+          : `You: ${String(m.message || '').slice(0, 120)}`,
+      project_id: m.project_id,
+      project_name: m.project_name,
+      created_at: m.created_at,
+    }));
+
+    res.json({
+      success: true,
+      data: {
+        metrics: {
+          active_projects: active.length,
+          total_projects: projects.length,
+          completed_projects: completed.length,
+          completed_this_year: completedThisYear,
+          total_sqft_completed: totalSqft,
+          total_value_completed: totalValue,
+        },
+        next_visit,
+        pending_documents,
+        account_manager,
+        activity,
+      },
+    });
+  } catch (e) {
+    console.error('getBuilderDashboard:', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+}
+
 export function registerBuilderPortalProjectRoutes(app) {
+  app.get('/api/builder-dashboard', requireBuilderAuth, getBuilderDashboard);
   app.get('/api/builder-projects', requireBuilderAuth, listBuilderPortalProjects);
   app.get('/api/builder-projects/:id', requireBuilderAuth, getBuilderPortalProject);
   app.post(

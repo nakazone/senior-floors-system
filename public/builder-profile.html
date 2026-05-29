@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Profile — Builder Portal</title>
+  <link rel="stylesheet" href="css/builders-portal.css" />
+</head>
+<body class="bp-page-body" data-bp-page="profile">
+  <div class="bp-portal-layout">
+    <button type="button" class="bp-menu-toggle" id="bpMenuToggle" aria-label="Menu">&#9776;</button>
+    <aside class="bp-portal-sidebar"><nav id="bpPortalNav"></nav></aside>
+    <main class="bp-portal-main">
+      <div id="bpPortalHeader"></div>
+      <div class="bp-main" style="max-width:720px">
+        <h1 class="bp-title">Profile & settings</h1>
+        <form id="profileForm" class="bp-card bp-form-grid">
+          <div><label>First name</label><input name="first_name" id="first_name" /></div>
+          <div><label>Last name</label><input name="last_name" id="last_name" /></div>
+          <div><label>Phone</label><input name="phone" id="phone" /></div>
+          <div><label>Company</label><input name="company" id="company" /></div>
+          <div class="bp-form-full"><label>Website</label><input name="website" id="website" /></div>
+          <div class="bp-form-full"><label>Email (login)</label><input id="email" readonly disabled /></div>
+          <div class="bp-form-full"><button type="submit" class="bp-btn-tan">Save changes</button></div>
+        </form>
+        <div class="bp-card" id="managerBlock"></div>
+        <div class="bp-card">
+          <h2 style="font-size:1rem;margin:0 0 12px">Change password</h2>
+          <a href="builder-change-password.html" class="bp-btn-tan" style="text-decoration:none;display:inline-block">Update password</a>
+        </div>
+        <div class="bp-card" id="documents" name="documents">
+          <h2 style="font-size:1rem;margin:0 0 12px">Partner documents</h2>
+          <div id="docList"></div>
+          <p class="bp-muted" style="margin-top:8px">Contact Senior Floors to upload or replace compliance documents.</p>
+        </div>
+        <div class="bp-card" id="notifications" name="notifications">
+          <h2 style="font-size:1rem;margin:0 0 12px">Email notifications</h2>
+          <label style="display:flex;gap:8px;margin-bottom:8px;font-size:13px"><input type="checkbox" id="pref_project" /> Project status updates</label>
+          <label style="display:flex;gap:8px;margin-bottom:8px;font-size:13px"><input type="checkbox" id="pref_message" /> New messages</label>
+          <label style="display:flex;gap:8px;margin-bottom:8px;font-size:13px"><input type="checkbox" id="pref_checklist" /> Checklist assignments</label>
+          <label style="display:flex;gap:8px;margin-bottom:12px;font-size:13px"><input type="checkbox" id="pref_documents" /> Document expiry reminders</label>
+          <button type="button" class="bp-btn-tan" id="btnSavePrefs">Save preferences</button>
+        </div>
+      </div>
+    </main>
+  </div>
+  <script src="builder-auth.js?v=3"></script>
+  <script src="builder-portal-nav.js?v=2"></script>
+  <script src="builder-portal-common.js?v=1"></script>
+  <script src="builder-profile.js?v=1"></script>
+</body>
+</html>

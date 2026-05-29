@@ -126,6 +126,7 @@ import { ensureBuilderPaymentForecastsTable } from './lib/ensureBuilderPaymentFo
 import { ensureBuilderPortalSchema } from './lib/ensureBuilderPortalSchema.js';
 import { ensureProjectChildTables } from './lib/ensureProjectChildTables.js';
 import { registerBuilderAuthRoutes } from './routes/builderAuth.js';
+import { registerBuilderNotificationRoutes } from './routes/builderNotifications.js';
 import { registerBuilderRoutes } from './routes/builders.js';
 import { registerBuilderPortalProjectRoutes } from './routes/builderPortalProjects.js';
 import { registerBuilderPricingRoutes } from './routes/builderPricing.js';
@@ -490,6 +491,7 @@ app.put('/api/projects/:projectId/financial', requireAuth, updateProjectFinancia
 app.use('/api/projects', projectsRouter);
 app.use('/api/builder-payment-forecasts', builderPaymentForecastsRouter);
 registerBuilderAuthRoutes(app);
+registerBuilderNotificationRoutes(app);
 registerBuilderPortalProjectRoutes(app);
 registerBuilderPricingRoutes(app);
 registerBuilderGalleryRoutes(app);

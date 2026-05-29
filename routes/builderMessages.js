@@ -5,6 +5,7 @@ import { getDBConnection } from '../config/db.js';
 import { requireAuth, requirePermission } from '../middleware/auth.js';
 import { requireBuilderAuth } from '../middleware/builderAuth.js';
 import { sendBuilderNotification, adminNotifyEmail } from '../lib/builderNotify.js';
+import { notifyBuilder } from './builderNotifications.js';
 
 function conversationIdForBuilder(builderId) {
   return Number(builderId);
@@ -47,15 +48,27 @@ export async function getThread(req, res) {
     } else {
       builderId = parseInt(req.params.builderId, 10);
     }
+    const projectId =
+      req.query.project_id != null && req.query.project_id !== ''
+        ? parseInt(req.query.project_id, 10)
+        : null;
+
     let sql = `SELECT m.*, u.name AS admin_name
       FROM builder_messages m
       LEFT JOIN users u ON m.sender_type = 'admin' AND m.sender_id = u.id
       WHERE m.builder_id = ?`;
+    const sqlParams = [builderId];
     if (req.builderAuth || !includeInternal) {
       sql += ' AND m.is_internal_note = 0';
     }
+    if (Number.isFinite(projectId) && projectId > 0) {
+      sql += ' AND m.project_id = ?';
+      sqlParams.push(projectId);
+    } else if (req.builderAuth && req.query.general === '1') {
+      sql += ' AND m.project_id IS NULL';
+    }
     sql += ' ORDER BY m.created_at ASC';
-    const [rows] = await pool.query(sql, [builderId]);
+    const [rows] = await pool.query(sql, sqlParams);
 
     if (req.builderAuth) {
       await pool.execute(
@@ -135,11 +148,18 @@ export async function postMessage(req, res) {
         builderId,
       ]);
       if (senderType === 'admin' && b[0]?.email) {
+        const pub = process.env.PUBLIC_CRM_URL || '';
         sendBuilderNotification({
           to: b[0].email,
           subject: 'New message from Senior Floors',
-          html: `<p>Hi ${b[0].first_name || 'there'},</p><p>You have a new message in your Builder Portal.</p><p><em>${message.slice(0, 500)}</em></p><p><a href="${process.env.PUBLIC_CRM_URL || ''}/builder-messages.html">Open messages</a></p>`,
+          html: `<p>Hi ${b[0].first_name || 'there'},</p><p>You have a new message in your Builder Portal.</p><p><em>${message.slice(0, 500)}</em></p><p><a href="${pub}/builder-messages.html">Open messages</a></p>`,
         }).catch((e) => console.warn('[builderMessages] notify builder:', e));
+        notifyBuilder(pool, builderId, {
+          type: 'message',
+          title: 'New message from Senior Floors',
+          body: message.slice(0, 200),
+          linkUrl: '/builder-messages.html',
+        }).catch(() => {});
       } else if (senderType === 'builder') {
         const adminTo = adminNotifyEmail();
         if (adminTo) {
@@ -174,6 +194,19 @@ export function registerBuilderMessagesRoutes(app) {
     getThread
   );
   app.get('/api/builder-messages/partner/thread', requireBuilderAuth, getThread);
+  app.get('/api/builder-messages/partner/unread-count', requireBuilderAuth, async (req, res) => {
+    try {
+      const pool = await getDBConnection();
+      const [[row]] = await pool.query(
+        `SELECT COUNT(*) AS c FROM builder_messages
+         WHERE builder_id = ? AND sender_type = 'admin' AND is_read = 0 AND is_internal_note = 0`,
+        [req.builderAuth.builderId]
+      );
+      res.json({ success: true, data: { count: Number(row?.c) || 0 } });
+    } catch (e) {
+      res.status(500).json({ success: false, error: e.message });
+    }
+  });
   app.post('/api/builder-messages', requireAuth, requirePermission('builders.edit'), postMessage);
   app.post('/api/builder-messages/partner', requireBuilderAuth, postMessage);
 }

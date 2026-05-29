@@ -6,6 +6,8 @@ import rateLimit from 'express-rate-limit';
 import { getDBConnection } from '../config/db.js';
 import { signBuilderToken } from '../lib/builderJwt.js';
 import { clearBuilderAdminPasswordCopy } from '../lib/builderPortalPassword.js';
+import { createPasswordResetForEmail, consumePasswordResetToken } from '../lib/builderPasswordReset.js';
+import { sendBuilderNotification } from '../lib/builderNotify.js';
 import { requireBuilderAuth } from '../middleware/builderAuth.js';
 import { getUiConfig } from './uiConfig.js';
 
@@ -50,7 +52,7 @@ export async function postLogin(req, res) {
 
     const [rows] = await pool.query(
       `SELECT id, email, customer_id, portal_access, portal_password_hash, portal_blocked, status,
-              first_name, last_name, company
+              first_name, last_name, company, portal_password_must_change
        FROM builders WHERE LOWER(email) = ? LIMIT 1`,
       [email]
     );
@@ -89,6 +91,7 @@ export async function postLogin(req, res) {
           last_name: b.last_name,
           company: b.company,
           customer_id: b.customer_id,
+          password_must_change: !!b.portal_password_must_change,
         },
       },
     });
@@ -108,7 +111,8 @@ export async function getMe(req, res) {
     if (!pool) return res.status(503).json({ success: false, error: 'Database not available' });
     const [rows] = await pool.query(
       `SELECT id, customer_id, first_name, last_name, email, phone, company, website, type, status,
-              regions, avg_ticket, portal_access, last_login, created_at
+              regions, avg_ticket, portal_access, last_login, created_at, portal_password_must_change,
+              account_manager_user_id, notification_prefs
        FROM builders WHERE id = ?`,
       [req.builderAuth.builderId]
     );
@@ -122,7 +126,44 @@ export async function getMe(req, res) {
       }
     }
     delete b.portal_password_hash;
-    res.json({ success: true, data: b });
+
+    let account_manager = null;
+    if (b.account_manager_user_id) {
+      const [u] = await pool.query(
+        'SELECT id, name, email FROM users WHERE id = ? LIMIT 1',
+        [b.account_manager_user_id]
+      );
+      if (u.length) account_manager = u[0];
+    } else {
+      const [u] = await pool.query(
+        'SELECT id, name, email FROM users ORDER BY id ASC LIMIT 1'
+      );
+      if (u.length) account_manager = u[0];
+    }
+
+    const [docs] = await pool.query(
+      `SELECT id, name, type, url, expires_at, status, created_at
+       FROM builder_documents WHERE builder_id = ? ORDER BY created_at DESC`,
+      [b.id]
+    );
+
+    if (b.notification_prefs && typeof b.notification_prefs === 'string') {
+      try {
+        b.notification_prefs = JSON.parse(b.notification_prefs);
+      } catch {
+        b.notification_prefs = {};
+      }
+    }
+
+    res.json({
+      success: true,
+      data: {
+        ...b,
+        account_manager,
+        documents: docs,
+        pending_documents: docs.filter((d) => d.status !== 'valid').length,
+      },
+    });
   } catch (e) {
     console.error('builder me:', e);
     res.status(500).json({ success: false, error: e.message });
@@ -133,15 +174,25 @@ export async function postChangePassword(req, res) {
   try {
     const current = String(req.body?.current_password || '');
     const next = String(req.body?.new_password || '');
-    if (!current || next.length < 8) {
-      return res.status(400).json({ success: false, error: 'Current password and new password (8+ chars) required' });
-    }
     const pool = await getDBConnection();
-    const [rows] = await pool.query('SELECT portal_password_hash FROM builders WHERE id = ?', [
-      req.builderAuth.builderId,
-    ]);
-    if (!rows.length || !(await bcrypt.compare(current, rows[0].portal_password_hash))) {
-      return res.status(401).json({ success: false, error: 'Current password incorrect' });
+    const [rows] = await pool.query(
+      'SELECT portal_password_hash, portal_password_must_change FROM builders WHERE id = ?',
+      [req.builderAuth.builderId]
+    );
+    const mustChange = !!rows[0]?.portal_password_must_change;
+    if (!rows.length) {
+      return res.status(404).json({ success: false, error: 'Builder not found' });
+    }
+    if (next.length < 8) {
+      return res.status(400).json({ success: false, error: 'New password must be at least 8 characters' });
+    }
+    if (!mustChange) {
+      if (!current) {
+        return res.status(400).json({ success: false, error: 'Current password required' });
+      }
+      if (!(await bcrypt.compare(current, rows[0].portal_password_hash))) {
+        return res.status(401).json({ success: false, error: 'Current password incorrect' });
+      }
     }
     const hash = await bcrypt.hash(next, 10);
     await pool.execute('UPDATE builders SET portal_password_hash = ? WHERE id = ?', [
@@ -149,6 +200,9 @@ export async function postChangePassword(req, res) {
       req.builderAuth.builderId,
     ]);
     await clearBuilderAdminPasswordCopy(pool, req.builderAuth.builderId);
+    await pool.execute('UPDATE builders SET portal_password_must_change = 0 WHERE id = ?', [
+      req.builderAuth.builderId,
+    ]);
     res.json({ success: true, message: 'Password updated' });
   } catch (e) {
     console.error('builder change password:', e);
@@ -156,10 +210,102 @@ export async function postChangePassword(req, res) {
   }
 }
 
+const forgotLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 5,
+  message: { success: false, error: 'Too many reset requests. Try again later.' },
+});
+
+export async function postForgotPassword(req, res) {
+  try {
+    const email = String(req.body?.email || '')
+      .trim()
+      .toLowerCase();
+    if (!email) return res.status(400).json({ success: false, error: 'Email required' });
+
+    const token = await createPasswordResetForEmail(email);
+    const pub = (process.env.PUBLIC_CRM_URL || '').replace(/\/$/, '');
+    if (token && pub) {
+      const [rows] = await (
+        await getDBConnection()
+      ).query('SELECT first_name FROM builders WHERE LOWER(email) = ? LIMIT 1', [email]);
+      const link = `${pub}/builder-reset-password.html?token=${encodeURIComponent(token)}`;
+      sendBuilderNotification({
+        to: email,
+        subject: 'Reset your Senior Floors Builder Portal password',
+        html: `<p>Hi ${rows[0]?.first_name || 'there'},</p>
+          <p>We received a request to reset your portal password.</p>
+          <p><a href="${link}">Reset password</a></p>
+          <p>This link expires in 1 hour. If you did not request this, ignore this email.</p>`,
+      }).catch(() => {});
+    }
+    res.json({
+      success: true,
+      message: 'If that email is registered, you will receive reset instructions shortly.',
+    });
+  } catch (e) {
+    console.error('builder forgot password:', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+}
+
+export async function postResetPassword(req, res) {
+  try {
+    const token = String(req.body?.token || '').trim();
+    const password = String(req.body?.password || '');
+    if (!token || password.length < 8) {
+      return res.status(400).json({ success: false, error: 'Token and password (8+ chars) required' });
+    }
+    await consumePasswordResetToken(token, password);
+    res.json({ success: true, message: 'Password updated. You can sign in now.' });
+  } catch (e) {
+    const status = e.status || 500;
+    res.status(status).json({ success: false, error: e.message });
+  }
+}
+
+export async function putProfile(req, res) {
+  try {
+    const pool = await getDBConnection();
+    const b = req.body || {};
+    const sets = [];
+    const vals = [];
+    const allowed = [
+      ['first_name', 100],
+      ['last_name', 100],
+      ['phone', 50],
+      ['company', 255],
+      ['website', 500],
+    ];
+    for (const [col, max] of allowed) {
+      if (b[col] !== undefined) {
+        sets.push(`\`${col}\` = ?`);
+        vals.push(b[col] == null ? null : String(b[col]).slice(0, max));
+      }
+    }
+    if (b.notification_prefs !== undefined) {
+      sets.push('notification_prefs = ?');
+      vals.push(JSON.stringify(b.notification_prefs || {}));
+    }
+    if (!sets.length) {
+      return res.status(400).json({ success: false, error: 'No fields to update' });
+    }
+    vals.push(req.builderAuth.builderId);
+    await pool.execute(`UPDATE builders SET ${sets.join(', ')} WHERE id = ?`, vals);
+    return getMe(req, res);
+  } catch (e) {
+    console.error('builder put profile:', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+}
+
 export function registerBuilderAuthRoutes(app) {
   app.post('/api/builder-auth/login', loginLimiter, postLogin);
   app.post('/api/builder-auth/logout', postLogout);
+  app.post('/api/builder-auth/forgot-password', forgotLimiter, postForgotPassword);
+  app.post('/api/builder-auth/reset-password', postResetPassword);
   app.get('/api/builder-auth/me', requireBuilderAuth, getMe);
   app.get('/api/builder-auth/config', requireBuilderAuth, getUiConfig);
+  app.put('/api/builder-auth/profile', requireBuilderAuth, putProfile);
   app.post('/api/builder-auth/change-password', requireBuilderAuth, postChangePassword);
 }

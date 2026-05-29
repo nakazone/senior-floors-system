@@ -8,6 +8,7 @@ import { requireBuilderAuth } from '../middleware/builderAuth.js';
 import { generateEstimateRefNumber } from '../lib/estimateRefNumber.js';
 import { uploadEstimateAttachment } from '../lib/estimateUpload.js';
 import { sendBuilderNotification, adminNotifyEmail } from '../lib/builderNotify.js';
+import { notifyBuilder } from './builderNotifications.js';
 import { getBuilderCustomerId, getProjectBuilderLinkMeta, buildProjectBuilderMatch, buildProjectOrderSql, buildProjectSelectSql, projectNotDeletedClause } from '../lib/builderProjectAccess.js';
 import { getPartnerPricingForBuilder } from './builderPricing.js';
 
@@ -135,6 +136,13 @@ export async function postEstimateRequest(req, res) {
         html: `<p>New estimate request from builder portal.</p><p>Ref: <strong>${refNumber}</strong></p><p>Address: ${estRow.address || '—'}</p><p><a href="${pub}/dashboard.html?page=leads">View leads</a></p>`,
       }).catch(() => {});
     }
+
+    notifyBuilder(pool, builderId, {
+      type: 'estimate',
+      title: `Estimate request ${refNumber}`,
+      body: 'We received your request. Our team will respond within 48 hours.',
+      linkUrl: '/builder-referrals.html',
+    }).catch(() => {});
 
     res.status(201).json({
       success: true,
