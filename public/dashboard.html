@@ -1394,6 +1394,21 @@
             </div>
             <form id="crmUserForm" class="modal-body" style="overflow-y: auto; flex: 1;">
                 <input type="hidden" id="crmUserFormId" value="">
+                <div class="crm-user-avatar-field">
+                    <label>Foto de perfil</label>
+                    <div class="crm-user-avatar-row">
+                        <div class="crm-user-avatar-preview" id="crmUserAvatarPreview" aria-hidden="true">
+                            <img id="crmUserAvatarImg" class="crm-user-avatar-preview__img hidden" alt="">
+                            <div id="crmUserAvatarInitials" class="crm-user-avatar-preview__init">?</div>
+                        </div>
+                        <div class="crm-user-avatar-actions">
+                            <input type="file" id="crmUserAvatarInput" accept="image/jpeg,image/png,image/webp,image/gif" hidden>
+                            <button type="button" class="btn btn-secondary btn-sm" id="crmUserAvatarChooseBtn">Escolher foto</button>
+                            <button type="button" class="btn btn-secondary btn-sm" id="crmUserAvatarRemoveBtn" style="display:none">Remover</button>
+                            <p class="crm-user-avatar-hint">JPG, PNG, WebP ou GIF. Máx. 5 MB.</p>
+                        </div>
+                    </div>
+                </div>
                 <div class="form-group">
                     <label for="crmUserName">Nome</label>
                     <input type="text" id="crmUserName" required maxlength="255" autocomplete="name">
@@ -1553,7 +1568,7 @@
     <script src="crm-command-palette.js"></script>
     <script src="notification-center.js"></script>
     <script src="marketing-dashboard.js"></script>
-    <script src="dashboard.js?v=20260528-quotes-client-visible"></script>
+    <script src="dashboard.js?v=20260528-user-avatar"></script>
     <script src="pipeline-stage-labels.js?v=20260510-follow-up-status"></script>
     <script src="lead-contact-links.js?v=20260526-utf8"></script>
     <script src="crm-address-autocomplete.js?v=20260528-pac-dismiss"></script>

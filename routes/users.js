@@ -2,9 +2,24 @@
  * Users API - User management, permissões por módulo
  */
 import bcrypt from 'bcryptjs';
+import fs from 'fs';
+import path from 'path';
 import { getDBConnection } from '../config/db.js';
 import { ROLE_DEFAULT_PERMISSION_KEYS, normalizeRoleForPermissions } from '../lib/userPermissions.js';
 import { ensureUserModuleColumns } from '../lib/ensureUserModuleColumns.js';
+
+function deleteLocalAvatarFile(avatarUrl) {
+  if (!avatarUrl || typeof avatarUrl !== 'string') return;
+  const normalized = avatarUrl.trim();
+  if (!normalized.startsWith('/uploads/users/')) return;
+  const rel = normalized.replace(/^\/uploads\//, '');
+  const full = path.join(process.cwd(), 'uploads', rel);
+  try {
+    fs.unlinkSync(full);
+  } catch {
+    /* ignore missing file */
+  }
+}
 
 /** Colunas seguras para listagem (sem password) — só as que existem na tabela */
 function buildUserSelectColumns(columnNames) {
@@ -14,6 +29,7 @@ function buildUserSelectColumns(columnNames) {
     'name',
     'email',
     'phone',
+    'avatar',
     'role',
     'is_active',
     'active',
@@ -297,7 +313,7 @@ export async function updateUser(req, res) {
     }
     await ensureUserModuleColumns(pool);
 
-    const { name, email, phone, role, password, is_active, force_password_change } = req.body;
+    const { name, email, phone, avatar, role, password, is_active, force_password_change } = req.body;
 
     const [columns] = await pool.query(`SHOW COLUMNS FROM users`);
     const columnNames = columns.map((c) => c.Field);
@@ -326,6 +342,22 @@ export async function updateUser(req, res) {
         phone == null || String(phone).trim() === '' ? null : String(phone).trim().slice(0, 50);
       updates.push('phone = ?');
       values.push(phoneVal);
+    }
+    if (avatar !== undefined) {
+      if (!columnNames.includes('avatar')) {
+        return res.status(503).json({
+          success: false,
+          error: 'Coluna avatar em users ainda não existe. Reinicie o servidor para aplicar a migração automática.',
+        });
+      }
+      const avatarVal =
+        avatar == null || String(avatar).trim() === '' ? null : String(avatar).trim().slice(0, 500);
+      if (avatarVal === null) {
+        const [prevRows] = await pool.query('SELECT avatar FROM users WHERE id = ?', [req.params.id]);
+        deleteLocalAvatarFile(prevRows[0]?.avatar);
+      }
+      updates.push('avatar = ?');
+      values.push(avatarVal);
     }
     if (role !== undefined) {
       updates.push('role = ?');
@@ -363,6 +395,52 @@ export async function updateUser(req, res) {
     res.json({ success: true, message: 'User updated', data: user });
   } catch (error) {
     console.error('Update user error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+}
+
+/** Upload de foto de perfil (multipart field: file) */
+export async function postUserAvatar(req, res) {
+  try {
+    const pool = await getDBConnection();
+    if (!pool) {
+      return res.status(503).json({ success: false, error: 'Database not available' });
+    }
+    await ensureUserModuleColumns(pool);
+
+    const id = parseInt(req.params.id, 10);
+    if (!id) return res.status(400).json({ success: false, error: 'Invalid id' });
+    if (!req.file) return res.status(400).json({ success: false, error: 'Ficheiro de imagem obrigatório.' });
+
+    const [columns] = await pool.query('SHOW COLUMNS FROM users');
+    const columnNames = columns.map((c) => c.Field);
+    if (!columnNames.includes('avatar')) {
+      return res.status(503).json({
+        success: false,
+        error: 'Coluna avatar em users ainda não existe. Reinicie o servidor para aplicar a migração automática.',
+      });
+    }
+
+    const [users] = await pool.query('SELECT id, avatar FROM users WHERE id = ?', [id]);
+    if (!users.length) return res.status(404).json({ success: false, error: 'User not found' });
+
+    const rel = path.join('users', String(id), req.file.filename).replace(/\\/g, '/');
+    const fileUrl = `/uploads/${rel}`;
+
+    deleteLocalAvatarFile(users[0].avatar);
+    await pool.execute('UPDATE users SET avatar = ? WHERE id = ?', [fileUrl, id]);
+
+    const selectList = buildUserSelectColumns(columnNames);
+    const [rows] = await pool.query(`SELECT ${selectList} FROM users WHERE id = ?`, [id]);
+    const user = rows[0] || null;
+    if (user) {
+      delete user.password;
+      delete user.password_hash;
+    }
+
+    res.json({ success: true, message: 'Foto atualizada.', data: user, avatar_url: fileUrl });
+  } catch (error) {
+    console.error('postUserAvatar:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 }

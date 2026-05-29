@@ -62,7 +62,9 @@ import {
   deleteUser,
   getUserPermissions,
   updateUserPermissions,
+  postUserAvatar,
 } from './routes/users.js';
+import { uploadUserAvatar } from './lib/userAvatarUpload.js';
 import { listPermissionRegistry } from './routes/permissions.js';
 import { getDashboardStats, getDashboardDebug, fixDashboardOrphanLeads } from './routes/dashboard.js';
 import marketingRouter from './routes/marketing.js';
@@ -667,6 +669,18 @@ app.put(
 );
 app.get('/api/users', requireAuth, requirePermission('users.view'), listUsers);
 app.get('/api/users/:id', requireAuth, requirePermission('users.view'), getUser);
+app.post(
+  '/api/users/:id/avatar',
+  requireAuth,
+  requirePermission('users.edit'),
+  (req, res, next) => {
+    uploadUserAvatar.single('file')(req, res, (err) => {
+      if (err) return res.status(400).json({ success: false, error: err.message });
+      next();
+    });
+  },
+  postUserAvatar
+);
 app.post('/api/users', requireAuth, requirePermission('users.create'), createUser);
 app.put('/api/users/:id', requireAuth, requirePermission('users.edit'), updateUser);
 app.delete('/api/users/:id', requireAuth, requirePermission('users.delete'), deleteUser);
