@@ -1,11 +1,8 @@
 (function () {
   const projectId = new URLSearchParams(location.search).get('id');
   const app = document.getElementById('app');
-  const MAX_PHOTOS_PER_BATCH = 10;
   let state = null;
   let activeTab = 'summary';
-  let pendingUploads = [];
-  let uploadPhase = 'during';
 
   function escapeHtml(s) {
     return String(s)
@@ -132,19 +129,26 @@
   }
 
   function photoMeta(p) {
-    const who = p.partner_upload ? 'You' : 'Senior Floors';
     const when = p.created_at ? fmtDate(p.created_at) : '';
-    return [when, who].filter(Boolean).join(' - ');
+    const phase = p.phase ? String(p.phase).charAt(0).toUpperCase() + String(p.phase).slice(1) : '';
+    return [when, phase].filter(Boolean).join(' | ');
   }
 
   function renderPhotos(photos) {
+    const list = photos || [];
+    if (!list.length) {
+      return `<div class="bp-card bp-photos-empty">
+        <p><strong>No site photos yet</strong></p>
+        <p class="bp-muted">Senior Floors will publish project photos here after they are added in our system. Check back after your next site visit is documented.</p>
+      </div>`;
+    }
     const byPhase = { before: [], during: [], after: [] };
-    (photos || []).forEach((p) => {
+    list.forEach((p) => {
       const phase = ['before', 'during', 'after'].includes(p.phase) ? p.phase : 'during';
       byPhase[phase].push(p);
     });
     const phaseLabel = { before: 'Before', during: 'During', after: 'After' };
-    const allPhotos = photos || [];
+    const allPhotos = list;
     return Object.keys(byPhase)
       .map((phase) => {
         const items = byPhase[phase];
@@ -155,9 +159,8 @@
                 return `<div class="bp-photo-card-wrap">
                     <button type="button" class="bp-photo-card" data-photo-idx="${globalIdx >= 0 ? globalIdx : idx}">
                       <img src="${escapeHtml(p.url)}" alt="" loading="lazy" />
-                      <span class="bp-photo-card__tag">${p.partner_upload ? 'You' : 'SF'}</span>
+                      <span class="bp-photo-card__tag">SF</span>
                     </button>
-                    ${p.partner_upload ? `<button type="button" class="bp-photo-del" data-photo-id="${p.id}" title="Remove">&times;</button>` : ''}
                     <div class="bp-photo-card__meta">${escapeHtml(photoMeta(p))}</div>
                   </div>`;
               })
@@ -291,96 +294,6 @@
     draw();
   }
 
-  function compressImage(file, maxDim = 1920, quality = 0.82) {
-    return new Promise((resolve, reject) => {
-      if (!file.type.startsWith('image/')) {
-        resolve(file);
-        return;
-      }
-      const img = new Image();
-      const url = URL.createObjectURL(file);
-      img.onload = () => {
-        URL.revokeObjectURL(url);
-        let { width, height } = img;
-        if (width <= maxDim && height <= maxDim && file.size < 900000) {
-          resolve(file);
-          return;
-        }
-        const scale = Math.min(1, maxDim / Math.max(width, height));
-        width = Math.round(width * scale);
-        height = Math.round(height * scale);
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, width, height);
-        canvas.toBlob(
-          (blob) => {
-            if (!blob) {
-              resolve(file);
-              return;
-            }
-            resolve(new File([blob], file.name.replace(/\.\w+$/, '.jpg'), { type: 'image/jpeg' }));
-          },
-          'image/jpeg',
-          quality
-        );
-      };
-      img.onerror = () => {
-        URL.revokeObjectURL(url);
-        resolve(file);
-      };
-      img.src = url;
-    });
-  }
-
-  function renderPreviewGrid() {
-    const host = document.getElementById('photoPreviewGrid');
-    if (!host) return;
-    if (!pendingUploads.length) {
-      host.innerHTML = '';
-      return;
-    }
-    host.innerHTML = pendingUploads
-      .map(
-        (item, i) =>
-          `<div class="bp-photo-preview" data-preview-idx="${i}">
-            <img src="${item.previewUrl}" alt="" />
-            <button type="button" class="bp-photo-preview__remove" data-remove-idx="${i}" aria-label="Remove">&times;</button>
-          </div>`
-      )
-      .join('');
-    host.querySelectorAll('[data-remove-idx]').forEach((btn) => {
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const idx = parseInt(btn.dataset.removeIdx, 10);
-        const removed = pendingUploads.splice(idx, 1)[0];
-        if (removed?.previewUrl) URL.revokeObjectURL(removed.previewUrl);
-        renderPreviewGrid();
-      });
-    });
-  }
-
-  async function addFilesToQueue(fileList) {
-    const files = Array.from(fileList || []).filter((f) => f.type.startsWith('image/'));
-    if (!files.length) return;
-    const room = MAX_PHOTOS_PER_BATCH - pendingUploads.length;
-    if (room <= 0) {
-      alert(`Maximum ${MAX_PHOTOS_PER_BATCH} photos per upload. Remove some previews first.`);
-      return;
-    }
-    const slice = files.slice(0, room);
-    if (files.length > room) {
-      alert(`Only ${room} more photo(s) added (max ${MAX_PHOTOS_PER_BATCH} per batch).`);
-    }
-    for (const file of slice) {
-      pendingUploads.push({
-        file,
-        previewUrl: URL.createObjectURL(file),
-      });
-    }
-    renderPreviewGrid();
-  }
 
   async function loadProjectMessages(panel) {
     panel.innerHTML = '<p class="bp-muted">Loading messages...</p>';
@@ -648,45 +561,17 @@
           </div>
         </div>`;
     } else if (activeTab === 'photos') {
-      panel.innerHTML = `
-        <div class="bp-card">
-          <h3 style="margin:0 0 12px;font-size:1rem">Upload photos</h3>
-          <p class="bp-muted" style="margin:0 0 8px;font-size:12px">Up to ${MAX_PHOTOS_PER_BATCH} images per batch. Photos are compressed before upload.</p>
-          <div class="bp-phase-pills" id="phasePills">
-            <button type="button" class="bp-phase-pill" data-phase="before">Before</button>
-            <button type="button" class="bp-phase-pill active" data-phase="during">During</button>
-            <button type="button" class="bp-phase-pill" data-phase="after">After</button>
-          </div>
-          <div class="bp-dropzone" id="photoDropzone">
-            <p>Drag & drop images here or tap to select</p>
-            <input type="file" id="uploadFiles" accept="image/*" multiple hidden />
-          </div>
-          <div id="photoPreviewGrid" class="bp-photo-preview-grid"></div>
-          <div id="uploadProgressList" class="bp-upload-progress-list"></div>
-          <button type="button" class="bp-btn-tan" id="btnUpload" style="margin-top:10px">Upload ${pendingUploads.length ? `(${pendingUploads.length})` : ''}</button>
-          <p id="uploadStatus" class="bp-muted" style="min-height:1.2em;margin-top:8px"></p>
-        </div>
-        ${renderPhotos(photos)}`;
-      wirePhotoUpload();
-      renderPreviewGrid();
       const photoList = photos || [];
+      panel.innerHTML = `
+        <div class="bp-card" style="margin-bottom:16px">
+          <h3 style="margin:0 0 8px;font-size:1rem">Site photos</h3>
+          <p class="bp-muted" style="margin:0;font-size:13px">Photos added by Senior Floors for this project. Tap any image to view full size.</p>
+        </div>
+        ${renderPhotos(photoList)}`;
       panel.querySelectorAll('[data-photo-idx]').forEach((btn) => {
         btn.addEventListener('click', () => {
           const idx = parseInt(btn.dataset.photoIdx, 10);
           openLightbox(photoList, idx);
-        });
-      });
-      panel.querySelectorAll('.bp-photo-del').forEach((btn) => {
-        btn.addEventListener('click', async (e) => {
-          e.stopPropagation();
-          if (!confirm('Remove this photo?')) return;
-          await window.builderAuth.fetch(
-            `/api/builder-projects/${projectId}/photos/${btn.dataset.photoId}`,
-            { method: 'DELETE' }
-          );
-          await load();
-          activeTab = 'photos';
-          render();
         });
       });
     } else if (activeTab === 'materials') {
@@ -710,37 +595,6 @@
     });
   }
 
-  function wirePhotoUpload() {
-    const dz = document.getElementById('photoDropzone');
-    const input = document.getElementById('uploadFiles');
-    if (!dz || !input) return;
-
-    document.querySelectorAll('#phasePills .bp-phase-pill').forEach((pill) => {
-      pill.addEventListener('click', () => {
-        uploadPhase = pill.dataset.phase || 'during';
-        document.querySelectorAll('#phasePills .bp-phase-pill').forEach((p) => {
-          p.classList.toggle('active', p.dataset.phase === uploadPhase);
-        });
-      });
-    });
-
-    dz.addEventListener('click', () => input.click());
-    input.addEventListener('change', () => {
-      addFilesToQueue(input.files);
-      input.value = '';
-    });
-    dz.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      dz.classList.add('bp-dropzone--over');
-    });
-    dz.addEventListener('dragleave', () => dz.classList.remove('bp-dropzone--over'));
-    dz.addEventListener('drop', (e) => {
-      e.preventDefault();
-      dz.classList.remove('bp-dropzone--over');
-      addFilesToQueue(e.dataTransfer.files);
-    });
-    document.getElementById('btnUpload')?.addEventListener('click', uploadPhotos);
-  }
 
   async function load() {
     try {
@@ -800,70 +654,6 @@
     }
   }
 
-  function setUploadProgress(fileName, pct) {
-    const list = document.getElementById('uploadProgressList');
-    if (!list) return;
-    let row = list.querySelector(`[data-file="${CSS.escape(fileName)}"]`);
-    if (!row) {
-      row = document.createElement('div');
-      row.className = 'bp-upload-progress-item';
-      row.dataset.file = fileName;
-      row.innerHTML = `<span class="bp-upload-progress-item__name"></span><div class="bp-upload-progress-item__bar"><div class="bp-upload-progress-item__fill"></div></div>`;
-      list.appendChild(row);
-    }
-    row.querySelector('.bp-upload-progress-item__name').textContent = `${fileName} - ${pct}%`;
-    const fill = row.querySelector('.bp-upload-progress-item__fill');
-    if (fill) fill.style.width = `${pct}%`;
-  }
-
-  async function uploadPhotos() {
-    if (!pendingUploads.length) {
-      const status = document.getElementById('uploadStatus');
-      if (status) status.textContent = 'Add photos using drag & drop or file picker.';
-      return;
-    }
-    const status = document.getElementById('uploadStatus');
-    const progressList = document.getElementById('uploadProgressList');
-    if (progressList) progressList.innerHTML = '';
-    const phase = uploadPhase;
-    let ok = 0;
-    const total = pendingUploads.length;
-    status.textContent = 'Preparing uploads...';
-
-    for (let i = 0; i < total; i++) {
-      const item = pendingUploads[i];
-      const name = item.file.name;
-      setUploadProgress(name, 10);
-      status.textContent = `Compressing ${i + 1}/${total}...`;
-      let blob;
-      try {
-        blob = await compressImage(item.file);
-      } catch {
-        blob = item.file;
-      }
-      setUploadProgress(name, 40);
-      status.textContent = `Uploading ${i + 1}/${total}...`;
-      const fd = new FormData();
-      fd.append('file', blob, blob.name || name);
-      fd.append('phase', phase);
-      setUploadProgress(name, 70);
-      const r = await window.builderAuth.fetch(`/api/builder-projects/${projectId}/photos`, {
-        method: 'POST',
-        body: fd,
-      });
-      setUploadProgress(name, r.ok ? 100 : 0);
-      if (r.ok) ok++;
-    }
-
-    pendingUploads.forEach((p) => {
-      if (p.previewUrl) URL.revokeObjectURL(p.previewUrl);
-    });
-    pendingUploads = [];
-    status.textContent = `Uploaded ${ok} of ${total} photo(s).`;
-    await load();
-    activeTab = 'photos';
-    render();
-  }
 
   async function toggleChecklist(itemId, checked) {
     const r = await window.builderAuth.fetch(`/api/builder-projects/${projectId}/checklist/${itemId}`, {

@@ -1,5 +1,5 @@
 /**
- * Builder portal ‚Äî photos delete, materials approval, confirm access, activity.
+ * Builder portal ù photos delete, materials approval, confirm access, activity.
  */
 import path from 'path';
 import fs from 'fs';
@@ -34,43 +34,10 @@ async function tableExists(pool, name) {
 }
 
 export async function deleteBuilderProjectPhoto(req, res) {
-  try {
-    const pool = await getDBConnection();
-    if (!pool) return res.status(503).json({ success: false, error: 'Database not available' });
-    const projectId = parseInt(req.params.id, 10);
-    const photoId = parseInt(req.params.photoId, 10);
-    const bid = req.builderAuth.builderId;
-    const project = await assertBuilderOwnsProject(pool, bid, projectId);
-    if (!project) return res.status(404).json({ success: false, error: 'Project not found' });
-
-    const hasPartner = await columnExists(pool, 'project_photos', 'partner_upload');
-    const hasBuilderCol = await columnExists(pool, 'project_photos', 'uploaded_by_builder_id');
-    let sql = 'SELECT * FROM project_photos WHERE id = ? AND project_id = ?';
-    const [rows] = await pool.query(sql, [photoId, projectId]);
-    if (!rows.length) return res.status(404).json({ success: false, error: 'Photo not found' });
-    const ph = rows[0];
-    if (hasPartner && ph.partner_upload !== 1) {
-      return res.status(403).json({ success: false, error: 'Only photos you uploaded can be removed' });
-    }
-    if (hasBuilderCol && ph.uploaded_by_builder_id && Number(ph.uploaded_by_builder_id) !== bid) {
-      return res.status(403).json({ success: false, error: 'Only your uploads can be removed' });
-    }
-
-    const fp = String(ph.file_path || '').replace(/^\//, '');
-    if (fp) {
-      const abs = path.join(process.cwd(), 'uploads', fp);
-      try {
-        if (fs.existsSync(abs)) fs.unlinkSync(abs);
-      } catch (_) {
-        /* ignore */
-      }
-    }
-    await pool.execute('DELETE FROM project_photos WHERE id = ? AND project_id = ?', [photoId, projectId]);
-    res.json({ success: true });
-  } catch (e) {
-    console.error('deleteBuilderProjectPhoto:', e);
-    res.status(500).json({ success: false, error: e.message });
-  }
+  return res.status(403).json({
+    success: false,
+    error: 'Builders cannot delete site photos. Contact Senior Floors if a photo should be removed.',
+  });
 }
 
 export async function putBuilderProjectMaterial(req, res) {
@@ -198,7 +165,7 @@ export async function postBuilderConfirmAccess(req, res) {
     if (adminTo) {
       await sendBuilderNotification({
         to: adminTo,
-        subject: `Builder confirmed property access ‚Äî ${project.name || projectId}`,
+        subject: `Builder confirmed property access ù ${project.name || projectId}`,
         html: `<p>Partner confirmed site access for project <strong>${project.name || projectId}</strong>.</p><p>${project.address || ''}</p>`,
       });
     }

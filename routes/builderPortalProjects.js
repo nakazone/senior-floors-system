@@ -47,13 +47,17 @@ async function fetchBuilderProjectPhotos(pool, projectId) {
   if (await columnExists(pool, 'project_photos', 'uploaded_by_builder_id')) {
     cols.push('uploaded_by_builder_id');
   }
+  const hasPartner = cols.includes('partner_upload');
+  const where = hasPartner
+    ? 'project_id = ? AND (partner_upload = 0 OR partner_upload IS NULL)'
+    : 'project_id = ?';
   const [rows] = await pool.query(
-    `SELECT ${cols.join(', ')} FROM project_photos WHERE project_id = ? ORDER BY created_at DESC`,
+    `SELECT ${cols.join(', ')} FROM project_photos WHERE ${where} ORDER BY created_at DESC`,
     [projectId]
   );
   return rows.map((ph) => ({
     ...ph,
-    partner_upload: ph.partner_upload != null ? ph.partner_upload : 0,
+    partner_upload: 0,
   }));
 }
 
@@ -244,7 +248,7 @@ export async function getBuilderPortalProject(req, res) {
         photos: photos.map((ph) => ({
           ...ph,
           url: photoPublicUrl(ph),
-          partner_label: ph.partner_upload ? 'Sent by partner' : null,
+          partner_label: null,
         })),
         materials,
         manager,
@@ -258,65 +262,11 @@ export async function getBuilderPortalProject(req, res) {
 }
 
 export async function postBuilderProjectPhotos(req, res) {
-  try {
-    const pool = await getDBConnection();
-    if (!pool) return res.status(503).json({ success: false, error: 'Database not available' });
-    const projectId = parseInt(req.params.id, 10);
-    const project = await assertBuilderOwnsProject(pool, req.builderAuth.builderId, projectId);
-    if (!project) return res.status(404).json({ success: false, error: 'Project not found' });
-    if (!req.file) return res.status(400).json({ success: false, error: 'file required' });
-
-    const phase = ['before', 'during', 'after'].includes(req.body?.phase) ? req.body.phase : 'during';
-    const rel = path.join('projects', String(projectId), req.file.filename).replace(/\\/g, '/');
-    const fileUrl = `/uploads/${rel}`;
-    const builderId = req.builderAuth.builderId;
-    const hasFileUrl = await columnExists(pool, 'project_photos', 'file_url');
-    const hasPartner = await columnExists(pool, 'project_photos', 'partner_upload');
-    const hasBuilderCol = await columnExists(pool, 'project_photos', 'uploaded_by_builder_id');
-
-    const caption =
-      req.body?.caption != null
-        ? String(req.body.caption).slice(0, 255)
-        : 'Sent by partner';
-
-    const cols = ['project_id', 'phase', 'filename', 'original_name', 'file_path'];
-    const vals = [projectId, phase, req.file.filename, req.file.originalname || null, rel];
-    if (hasFileUrl) {
-      cols.push('file_url');
-      vals.push(fileUrl);
-    }
-    cols.push('file_size', 'mime_type', 'caption');
-    vals.push(req.file.size || null, req.file.mimetype || null, caption);
-    if (hasPartner) {
-      cols.push('partner_upload');
-      vals.push(1);
-    }
-    if (hasBuilderCol) {
-      cols.push('uploaded_by_builder_id');
-      vals.push(builderId);
-    }
-
-    const [ins] = await pool.execute(
-      `INSERT INTO project_photos (${cols.join(', ')}) VALUES (${cols.map(() => '?').join(', ')})`,
-      vals
-    );
-    const [rows] = await pool.query('SELECT * FROM project_photos WHERE id = ?', [ins.insertId]);
-    const row = rows[0];
-    const [pn] = await pool.query('SELECT name FROM projects WHERE id = ?', [projectId]);
-    await logBuilderActivity(pool, {
-      builderId,
-      projectId,
-      type: 'photo',
-      text: `Photo added to ${pn[0]?.name || 'project'} (${phase})`,
-    });
-    res.status(201).json({
-      success: true,
-      data: { ...row, url: photoPublicUrl(row), partner_label: 'Sent by partner' },
-    });
-  } catch (e) {
-    console.error('postBuilderProjectPhotos:', e);
-    res.status(500).json({ success: false, error: e.message });
-  }
+  return res.status(403).json({
+    success: false,
+    error:
+      'Builders cannot upload site photos. Senior Floors adds photos from the CRM; use this tab to view them.',
+  });
 }
 
 export async function putBuilderProjectChecklist(req, res) {
