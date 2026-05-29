@@ -406,6 +406,7 @@
     root.querySelectorAll('[data-calc]').forEach((btn) => {
       btn.addEventListener('click', () => openInlineCalc(parseInt(btn.dataset.calc, 10)));
     });
+    void loadSimulations();
   }
 
   document.addEventListener('DOMContentLoaded', () => {
