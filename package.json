@@ -31,7 +31,9 @@
     "migrate:projects-complete": "node database/migrate-projects-complete.js",
     "migrate:financial-complete": "node database/migrate-financial-complete.js",
     "migrate:financial-complete:railway": "railway run npm run migrate:financial-complete",
-    "google-calendar:token": "node scripts/google-oauth-token.mjs"
+    "google-calendar:token": "node scripts/google-oauth-token.mjs",
+    "check:encoding": "node scripts/check-encoding.mjs",
+    "fix:encoding": "node scripts/fix-encoding-apply.mjs"
   },
   "engines": {
     "node": ">=18"

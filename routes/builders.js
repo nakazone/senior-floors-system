@@ -1,5 +1,5 @@
 /**
- * Builder Partner Portal — admin CRUD + builder-scoped reads.
+ * Builder Partner Portal â€” admin CRUD + builder-scoped reads.
  */
 import { getDBConnection } from '../config/db.js';
 import { requireAuth, requirePermission } from '../middleware/auth.js';
