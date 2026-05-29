@@ -1,5 +1,5 @@
 /**
- * Builder portal ó project tracking, photos, checklist (scoped to logged-in partner).
+ * Builder portal ù project tracking, photos, checklist (scoped to logged-in partner).
  */
 import path from 'path';
 import { getDBConnection } from '../config/db.js';
@@ -51,7 +51,9 @@ export async function getBuilderPortalProject(req, res) {
     const pool = await getDBConnection();
     if (!pool) return res.status(503).json({ success: false, error: 'Database not available' });
     const projectId = parseInt(req.params.id, 10);
-    const project = await assertBuilderOwnsProject(pool, req.builderAuth.builderId, projectId);
+    const project = normalizeProjectRow(
+      await assertBuilderOwnsProject(pool, req.builderAuth.builderId, projectId)
+    );
     if (!project) return res.status(404).json({ success: false, error: 'Project not found' });
 
     const [checklist] = await pool.query(
