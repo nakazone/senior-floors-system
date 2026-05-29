@@ -112,8 +112,18 @@
 .bp-welcome__avatar { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; flex-shrink: 0; border: 2px solid var(--bp-tan); }
 .bp-welcome__avatar--init { display: flex; align-items: center; justify-content: center; background: var(--bp-tan); color: var(--bp-navy); font-weight: 700; font-size: 1.1rem; }
 .bp-welcome__mgr-name { font-weight: 600; margin: 0 0 4px; }
-.bp-welcome__mgr-meta { font-size: 12px; opacity: 0.9; margin: 2px 0; }
-.bp-welcome__mgr-meta a { color: var(--bp-tan); }
+.bp-welcome__mgr-meta { font-size: 12px; opacity: 0.95; margin: 2px 0; color: rgba(255, 255, 255, 0.92); }
+.bp-welcome__mgr-meta a {
+  color: #fff;
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-color: rgba(214, 181, 152, 0.85);
+  text-underline-offset: 2px;
+}
+.bp-welcome__mgr-meta a:hover {
+  color: var(--bp-tan);
+  text-decoration-color: var(--bp-tan);
+}
 .bp-welcome__mgr-actions { margin-top: 10px; }
 .bp-welcome__mgr-actions .bp-btn-tan { font-size: 12px; padding: 6px 12px; }
 .bp-first-visit { background: rgba(212, 175, 116, 0.2); border: 1px solid var(--bp-tan); border-radius: 8px; padding: 14px; margin-bottom: 14px; font-size: 14px; }
@@ -231,7 +241,12 @@
 .bp-doc-list li { padding: 8px 0; border-bottom: 1px solid var(--bp-border); }
 .bp-doc-list a { font-weight: 600; color: var(--bp-navy); }
 .bp-manager-phone { margin-top: 4px; }
-.bp-manager-phone a { color: var(--bp-navy); font-weight: 600; }
+/* Light cards (project detail, profile) */
+.bp-card .bp-manager-phone a,
+.bp-manager-card .bp-manager-phone a {
+  color: var(--bp-navy);
+  font-weight: 600;
+}
 
 .bp-proj-team { margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--bp-border); }
 .bp-proj-team__title { font-size: 1rem; font-weight: 700; color: var(--bp-navy); margin: 0 0 14px; }

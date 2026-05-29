@@ -21,6 +21,7 @@ import { fetchNextBuilderVisit } from '../lib/builderVisitScope.js';
 import { buildBuilderActivityFeed } from './builderPortalExtras.js';
 import { resolveProjectTeamForBuilder } from '../lib/builderProjectTeam.js';
 import { logBuilderActivity } from '../lib/builderActivityLog.js';
+import { resolveBuilderAccountManager } from '../lib/builderAccountManager.js';
 
 async function tableExists(pool, name) {
   const [r] = await pool.query(
