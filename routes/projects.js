@@ -1615,6 +1615,10 @@ router.put('/:id/checklist/:itemId', ...allAuthed, requirePermission('projects.e
     const id = parseInt(req.params.id, 10);
     const itemId = parseInt(req.params.itemId, 10);
     const b = req.body || {};
+    const { loadChecklistItemState, notifyBuilderChecklistAssigned } = await import(
+      '../lib/builderChecklistNotify.js'
+    );
+    const prevState = await loadChecklistItemState(pool, itemId);
     const uid = req.session?.userId || null;
     const checked = !!b.checked;
     const hasVisible = await columnExists(pool, 'project_checklist', 'visible_to_builder');
@@ -1644,7 +1648,13 @@ router.put('/:id/checklist/:itemId', ...allAuthed, requirePermission('projects.e
     );
     await refreshChecklistCompletedFlag(pool, id);
     const [rows] = await pool.query('SELECT * FROM project_checklist WHERE id = ?', [itemId]);
-    res.json({ success: true, data: rows[0] || null });
+    const updated = rows[0];
+    if (updated && prevState) {
+      notifyBuilderChecklistAssigned(pool, id, [updated], {
+        [itemId]: prevState,
+      }).catch((err) => console.warn('[checklist notify]', err.message));
+    }
+    res.json({ success: true, data: updated || null });
   } catch (e) {
     console.error('checklist put', e);
     res.status(500).json({ success: false, error: e.message });

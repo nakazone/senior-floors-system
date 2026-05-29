@@ -1,5 +1,5 @@
 /**
- * Builder portal â€” project tracking, photos, checklist (scoped to logged-in partner).
+ * Builder portal — project tracking, photos, checklist (scoped to logged-in partner).
  */
 import path from 'path';
 import { getDBConnection } from '../config/db.js';
@@ -201,10 +201,8 @@ export async function getBuilderPortalProject(req, res) {
 
     let manager = null;
     if (project.assigned_to) {
-      const [u] = await pool.query('SELECT id, name, email FROM users WHERE id = ? LIMIT 1', [
-        project.assigned_to,
-      ]);
-      if (u.length) manager = u[0];
+      const { resolveBuilderAccountManager } = await import('../lib/builderAccountManager.js');
+      manager = await resolveBuilderAccountManager(pool, project.assigned_to);
     }
 
     const safeProject = {
