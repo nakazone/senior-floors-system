@@ -1,4 +1,4 @@
-/* Builder Partner Portal ‚Äî brand-aligned */
+/* Builder Partner Portal ù brand-aligned */
 :root {
   --bp-navy: #1a2036;
   --bp-navy-deep: #141928;
@@ -209,6 +209,67 @@
 .bp-doc-list a { font-weight: 600; color: var(--bp-navy); }
 .bp-manager-phone { margin-top: 4px; }
 .bp-manager-phone a { color: var(--bp-navy); font-weight: 600; }
+
+.bp-proj-team { margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--bp-border); }
+.bp-proj-team__title { font-size: 1rem; font-weight: 700; color: var(--bp-navy); margin: 0 0 14px; }
+.bp-proj-team__grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.bp-team-card {
+  position: relative;
+  background: #fff;
+  border: 1px solid var(--bp-border);
+  border-radius: 12px;
+  padding: 16px 14px 14px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-height: 220px;
+}
+.bp-team-card__avatar-wrap { position: relative; margin-bottom: 4px; }
+.bp-team-card__avatar {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--bp-tan);
+  background: var(--bp-tan-pale);
+}
+.bp-team-card__avatar--init {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 1.25rem;
+  color: var(--bp-navy);
+}
+.bp-team-card__badge {
+  position: absolute;
+  bottom: -4px;
+  right: -8px;
+  background: var(--bp-navy);
+  border-radius: 6px;
+  padding: 3px 6px;
+  line-height: 0;
+  box-shadow: 0 2px 6px rgba(26, 32, 54, 0.2);
+}
+.bp-team-card__badge img { height: 14px; width: auto; display: block; }
+.bp-team-card__role {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--bp-muted);
+  margin: 8px 0 0;
+  font-weight: 600;
+}
+.bp-team-card__name { font-size: 15px; font-weight: 700; color: var(--bp-navy); margin: 0; }
+.bp-team-card__contact { font-size: 12px; margin: 0; }
+.bp-team-card__contact a { color: var(--bp-navy); font-weight: 600; text-decoration: none; }
+.bp-team-card__contact a:hover { text-decoration: underline; }
+.bp-team-card__empty { font-size: 12px; color: var(--bp-muted); margin: 4px 0 0; }
+@media (max-width: 900px) {
+  .bp-proj-team__grid { grid-template-columns: 1fr; }
+}
 .bp-back-link { font-size: 13px; color: var(--bp-muted); text-decoration: none; display: inline-block; margin-bottom: 8px; }
 
 @media (max-width: 900px) {

@@ -2178,6 +2178,9 @@ router.put('/:id', ...allAuthed, requirePermission('projects.edit'), async (req,
       'service_type',
       'project_number',
       'client_name',
+      'general_manager_id',
+      'installation_supervisor_id',
+      'sand_finish_supervisor_id',
     ];
     const moneyKeys = new Set([
       'supply_value',
@@ -2186,7 +2189,16 @@ router.put('/:id', ...allAuthed, requirePermission('projects.edit'), async (req,
       'total_sqft',
       'contract_value',
     ]);
-    const intKeys = new Set(['completion_percentage', 'crew_id', 'assigned_to', 'days_actual', 'days_estimated']);
+    const intKeys = new Set([
+      'completion_percentage',
+      'crew_id',
+      'assigned_to',
+      'days_actual',
+      'days_estimated',
+      'general_manager_id',
+      'installation_supervisor_id',
+      'sand_finish_supervisor_id',
+    ]);
     const updates = [];
     const vals = [];
     for (const k of allowed) {

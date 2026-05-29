@@ -49,14 +49,54 @@
     return fmtDate(day);
   }
 
-  function managerContactHtml(m, inline) {
-    if (!m) return '';
-    const phone = m.phone ? String(m.phone).trim() : '';
-    const tel = phone ? phone.replace(/[^\d+]/g, '') : '';
-    const phoneLine = phone
-      ? `<p class="bp-manager-phone">${inline ? '<strong>Phone:</strong> ' : ''}<a href="tel:${escapeHtml(tel)}">${escapeHtml(phone)}</a></p>`
-      : '';
-    return `${escapeHtml(m.name || '')}${m.email ? `<p class="bp-muted" style="margin:2px 0 0">${escapeHtml(m.email)}</p>` : ''}${phoneLine}`;
+  function teamInitials(name) {
+    const parts = String(name || '')
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean);
+    if (!parts.length) return 'SF';
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  }
+
+  function avatarSrc(url) {
+    if (!url) return null;
+    const u = String(url).trim();
+    if (/^https?:\/\//i.test(u)) return u;
+    if (u.startsWith('/')) return u;
+    return `/${u.replace(/^\//, '')}`;
+  }
+
+  function renderProjectTeam(team) {
+    const roles = team && team.length ? team : [];
+    const cards = roles
+      .map((member) => {
+        const src = avatarSrc(member.avatar_url);
+        const initials = escapeHtml(teamInitials(member.name));
+        const avatar = src
+          ? `<img class="bp-team-card__avatar" src="${escapeHtml(src)}" alt="" loading="lazy" onerror="this.classList.add('hidden');this.nextElementSibling?.classList.remove('hidden');" /><div class="bp-team-card__avatar bp-team-card__avatar--init hidden">${initials}</div>`
+          : `<div class="bp-team-card__avatar bp-team-card__avatar--init">${initials}</div>`;
+        const phone = member.phone ? String(member.phone).trim() : '';
+        const tel = phone ? phone.replace(/[^\d+]/g, '') : '';
+        const contact = member.name
+          ? `<p class="bp-team-card__name">${escapeHtml(member.name)}</p>
+            ${phone ? `<p class="bp-team-card__contact"><a href="tel:${escapeHtml(tel)}">${escapeHtml(phone)}</a></p>` : ''}
+            ${member.email ? `<p class="bp-team-card__contact"><a href="mailto:${escapeHtml(member.email)}">${escapeHtml(member.email)}</a></p>` : ''}`
+          : `<p class="bp-team-card__empty">To be assigned by Senior Floors</p>`;
+        return `<article class="bp-team-card">
+          <div class="bp-team-card__avatar-wrap">
+            ${avatar}
+            <span class="bp-team-card__badge" title="Senior Floors"><img src="/assets/SeniorFloors.png" alt="Senior Floors" /></span>
+          </div>
+          <h3 class="bp-team-card__role">${escapeHtml(member.title)}</h3>
+          ${contact}
+        </article>`;
+      })
+      .join('');
+    return `<section class="bp-proj-team" aria-label="Senior Floors project team">
+      <h2 class="bp-proj-team__title">Your Senior Floors team</h2>
+      <div class="bp-proj-team__grid">${cards}</div>
+    </section>`;
   }
 
   function statusBadge(status) {
@@ -94,7 +134,7 @@
   function photoMeta(p) {
     const who = p.partner_upload ? 'You' : 'Senior Floors';
     const when = p.created_at ? fmtDate(p.created_at) : '';
-    return [when, who].filter(Boolean).join(' | ');
+    return [when, who].filter(Boolean).join(' - ');
   }
 
   function renderPhotos(photos) {
@@ -155,7 +195,7 @@
         : '';
     const renderItem = (it, canToggle) => {
       const checked = it.checked === 1 || it.checked === true;
-      const due = it.due_date ? `<span class="bp-muted"> &middot; Due ${fmtDate(it.due_date)}</span>` : '';
+      const due = it.due_date ? `<span class="bp-muted"> - Due ${fmtDate(it.due_date)}</span>` : '';
       const resp = `<span class="bp-muted" style="display:block;font-size:11px">Responsible: ${responsibleLabel(it.assigned_to)}${due}</span>`;
       const notes = it.notes ? `<span class="bp-muted" style="display:block;font-size:11px">${escapeHtml(it.notes)}</span>` : '';
       return `<div class="bp-check-item ${checked ? 'bp-check-item--done' : ''}">
@@ -193,13 +233,13 @@
       const p = photos[curr];
       if (!p) return;
       img.src = p.url;
-      cap.textContent = `${photoMeta(p)} | ${curr + 1} / ${photos.length}`;
+      cap.textContent = `${photoMeta(p)} - ${curr + 1} / ${photos.length}`;
       nav.innerHTML = '';
       if (curr > 0) {
         const prev = document.createElement('button');
         prev.type = 'button';
         prev.className = 'bp-proj-lightbox__btn';
-        prev.textContent = 'Previous';
+        prev.textContent = '? Previous';
         prev.onclick = () => {
           curr--;
           draw();
@@ -216,7 +256,7 @@
         const next = document.createElement('button');
         next.type = 'button';
         next.className = 'bp-proj-lightbox__btn';
-        next.textContent = 'Next';
+        next.textContent = 'Next ?';
         next.onclick = () => {
           curr++;
           draw();
@@ -369,7 +409,7 @@
             ? `<p><a href="${escapeHtml(m.attachment_url)}" target="_blank" rel="noopener">PDF attachment</a></p>`
             : `<p><a href="${escapeHtml(m.attachment_url)}" target="_blank" rel="noopener"><img src="${escapeHtml(m.attachment_url)}" alt="" style="max-width:220px;border-radius:8px;margin-top:6px" loading="lazy" /></a></p>`
           : '';
-      const readMark = mine && m.is_read ? ' <span title="Read">✓✓</span>' : mine ? ' <span title="Sent">✓</span>' : '';
+      const readMark = mine && m.is_read ? ' <span title="Read">??</span>' : mine ? ' <span title="Sent">?</span>' : '';
       html += `<div class="bp-msg-bubble ${mine ? 'bp-msg-bubble--mine' : ''}">
         <span class="bp-msg-sender" style="font-size:10px;font-weight:600;opacity:.85">${escapeHtml(sender)}</span>
         <p>${escapeHtml(m.message)}</p>${att}
@@ -475,7 +515,7 @@
           m.received_date ? `Received ${fmtDate(m.received_date)}` : null,
         ]
           .filter(Boolean)
-          .join(' | ');
+          .join(' - ');
         const appr = m.builder_approval_status
           ? `<span class="bp-muted" style="display:block;font-size:11px">${approvalLabel[m.builder_approval_status] || m.builder_approval_status}</span>`
           : '';
@@ -532,10 +572,11 @@
 
   function render() {
     if (!state?.project) return;
-    const { project: p, timeline, checklist_groups, checklist_progress, photos, materials, manager } = state;
+    const { project: p, timeline, checklist_groups, checklist_progress, photos, materials, project_team } =
+      state;
     const pct = Math.min(100, Number(p.completion_percentage) || 0);
     app.innerHTML = `
-      <a href="builder-projects.html" class="bp-back-link">? Back to projects</a>
+      <a href="builder-projects.html" class="bp-back-link">&larr; Back to projects</a>
       <header class="bp-proj-header">
         <div>
           <h1 class="bp-title">${escapeHtml(p.name || p.project_number || 'Project')}</h1>
@@ -548,14 +589,6 @@
         </div>
       </header>
       <p class="bp-muted" style="margin:0 0 12px">${fmtDate(p.start_date)} &rarr; ${fmtDate(p.end_date_estimated)}</p>
-      ${
-        manager
-          ? `<div class="bp-card bp-manager">
-          <strong>Senior Floors contact</strong>
-          <div style="margin-top:6px">${managerContactHtml(manager, false)}</div>
-        </div>`
-          : ''
-      }
       <div class="bp-progress-wrap">
         <div class="bp-progress-bar"><div class="bp-progress-fill" style="width:${pct}%"></div></div>
         <span class="bp-progress-pct">${pct}%</span>
@@ -568,7 +601,8 @@
         <button type="button" data-tab="checklist" class="${activeTab === 'checklist' ? 'active' : ''}">Checklist</button>
         <button type="button" data-tab="messages" class="${activeTab === 'messages' ? 'active' : ''}">Messages</button>
       </nav>
-      <div id="tabPanel"></div>`;
+      <div id="tabPanel"></div>
+      ${renderProjectTeam(project_team)}`;
 
     document.getElementById('btnIssue')?.addEventListener('click', () =>
       openMessageModal('Report an issue', 'Describe the issue or site problem...', 'Issue')
@@ -604,11 +638,6 @@
             <p><strong>Address:</strong> ${escapeHtml(p.address || '-')}</p>
             <p><strong>Start:</strong> ${fmtDate(p.start_date)}</p>
             <p><strong>Est. completion:</strong> ${fmtDate(p.end_date_estimated)}</p>
-            ${
-              manager
-                ? `<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--bp-border)"><strong>SF contact</strong><div style="margin-top:4px">${managerContactHtml(manager, true)}</div></div>`
-                : ''
-            }
           </div>
           <div class="bp-card">
             <h3 style="margin:0 0 10px;font-size:14px">Project documents</h3>
@@ -733,6 +762,21 @@
         return;
       }
       state = j.data;
+      if (!state.project_team || !state.project_team.length) {
+        const gm = state.manager;
+        state.project_team = [
+          {
+            role: 'general_manager',
+            title: 'General Manager',
+            name: gm?.name,
+            email: gm?.email,
+            phone: gm?.phone,
+            avatar_url: gm?.avatar_url,
+          },
+          { role: 'installation_supervisor', title: 'Installation Supervisor' },
+          { role: 'sand_finish_supervisor', title: 'Sand & Finish Supervisor' },
+        ];
+      }
       if (!state.checklist_groups) {
         state.checklist_groups = {
           builder: (state.checklist || []).filter(

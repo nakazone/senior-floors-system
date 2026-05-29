@@ -1,5 +1,5 @@
 /**
- * Builder portal â€” project tracking, photos, checklist (scoped to logged-in partner).
+ * Builder portal  project tracking, photos, checklist (scoped to logged-in partner).
  */
 import path from 'path';
 import { getDBConnection } from '../config/db.js';
@@ -19,7 +19,7 @@ import {
 import { refreshChecklistCompletedFlag } from '../modules/projects/projectHelpers.js';
 import { fetchNextBuilderVisit } from '../lib/builderVisitScope.js';
 import { buildBuilderActivityFeed } from './builderPortalExtras.js';
-import { resolveBuilderAccountManager } from '../lib/builderAccountManager.js';
+import { resolveProjectTeamForBuilder } from '../lib/builderProjectTeam.js';
 import { logBuilderActivity } from '../lib/builderActivityLog.js';
 
 async function tableExists(pool, name) {
@@ -199,11 +199,9 @@ export async function getBuilderPortalProject(req, res) {
       done: builderItems.filter((it) => it.checked === 1 || it.checked === true).length,
     };
 
-    let manager = null;
-    if (project.assigned_to) {
-      const { resolveBuilderAccountManager } = await import('../lib/builderAccountManager.js');
-      manager = await resolveBuilderAccountManager(pool, project.assigned_to);
-    }
+    const project_team = await resolveProjectTeamForBuilder(pool, project);
+    const manager =
+      project_team.find((m) => m.role === 'general_manager' && m.name) || project_team[0] || null;
 
     const safeProject = {
       id: project.id,
@@ -250,6 +248,7 @@ export async function getBuilderPortalProject(req, res) {
         })),
         materials,
         manager,
+        project_team,
       },
     });
   } catch (e) {

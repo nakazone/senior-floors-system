@@ -308,6 +308,102 @@ function serviceTypeOptionsHtml(selected) {
   ).join('');
 }
 
+let crmUsersForTeam = null;
+
+async function ensureCrmUsersForTeam() {
+  if (crmUsersForTeam) return crmUsersForTeam;
+  try {
+    const r = await fetch('/api/users?limit=200&page=1', { credentials: 'include' });
+    const j = await r.json();
+    const list = j.data?.users || j.data || j.users || [];
+    crmUsersForTeam = Array.isArray(list) ? list.filter((u) => u.is_active !== 0) : [];
+  } catch {
+    crmUsersForTeam = [];
+  }
+  return crmUsersForTeam;
+}
+
+function userSelectOptions(users, selectedId) {
+  const sid = selectedId != null && selectedId !== '' ? String(selectedId) : '';
+  let html = '<option value="">— Não atribuído —</option>';
+  for (const u of users) {
+    html += `<option value="${u.id}"${String(u.id) === sid ? ' selected' : ''}>${escapeHtml(u.name || u.email || `User #${u.id}`)}</option>`;
+  }
+  return html;
+}
+
+function renderProjectTeamBlock(p) {
+  const gm = p.general_manager_id ?? p.project_manager_id ?? p.assigned_to ?? '';
+  const inst = p.installation_supervisor_id ?? '';
+  const sand = p.sand_finish_supervisor_id ?? '';
+  if (!canEditProject) {
+    return `<div class="pd-project-team" style="margin-bottom:16px">
+      <h3 style="font-size:14px;margin:0 0 8px">Equipa SF (portal builder)</h3>
+      <p class="pd-muted" style="font-size:12px">Sem permissão para editar (projects.edit).</p>
+    </div>`;
+  }
+  return `<div class="pd-project-team" id="pd-project-team" style="margin-bottom:16px;padding:12px 14px;border:1px solid var(--border-color);border-radius:10px;background:var(--sf-surface,#f8fafc)">
+    <h3 style="font-size:14px;margin:0 0 10px">Equipa SF (portal builder)</h3>
+    <p class="pd-muted" style="font-size:11px;margin:0 0 10px">Contactos exibidos na página do projeto no portal do builder.</p>
+    <div class="pd-edit-grid">
+      <label>General Manager
+        <select id="pd-team-gm"><option value="">A carregar…</option></select>
+      </label>
+      <label>Installation Supervisor
+        <select id="pd-team-install"><option value="">A carregar…</option></select>
+      </label>
+      <label>Sand &amp; Finish Supervisor
+        <select id="pd-team-sand"><option value="">A carregar…</option></select>
+      </label>
+    </div>
+    <div class="pd-project-edit__actions" style="margin-top:10px">
+      <button type="button" class="pd-action-btn pd-action-filled" id="pd-team-save">Guardar equipa</button>
+    </div>
+  </div>`;
+}
+
+async function initProjectTeamSelects(p) {
+  const users = await ensureCrmUsersForTeam();
+  const gm = p.general_manager_id ?? p.project_manager_id ?? p.assigned_to ?? '';
+  const inst = p.installation_supervisor_id ?? '';
+  const sand = p.sand_finish_supervisor_id ?? '';
+  const gmSel = document.getElementById('pd-team-gm');
+  const instSel = document.getElementById('pd-team-install');
+  const sandSel = document.getElementById('pd-team-sand');
+  if (gmSel) gmSel.innerHTML = userSelectOptions(users, gm);
+  if (instSel) instSel.innerHTML = userSelectOptions(users, inst);
+  if (sandSel) sandSel.innerHTML = userSelectOptions(users, sand);
+  document.getElementById('pd-team-save')?.addEventListener('click', saveProjectTeam);
+}
+
+async function saveProjectTeam() {
+  if (!canEditProject) return;
+  const parseId = (el) => {
+    const v = el?.value;
+    if (!v) return null;
+    const n = parseInt(v, 10);
+    return Number.isFinite(n) ? n : null;
+  };
+  const payload = {
+    general_manager_id: parseId(document.getElementById('pd-team-gm')),
+    installation_supervisor_id: parseId(document.getElementById('pd-team-install')),
+    sand_finish_supervisor_id: parseId(document.getElementById('pd-team-sand')),
+  };
+  const res = await fetch(`/api/projects/${projectId}`, {
+    method: 'PUT',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const j = await res.json();
+  if (!res.ok || !j.success) {
+    showToast(j.error || 'Erro ao guardar equipa', 'error');
+    return;
+  }
+  project = { ...project, ...j.data };
+  showToast('Equipa atualizada');
+}
+
 function renderProjectEditBlock(p) {
   const builderJob = isBuilderProject(p);
   const clientNameRow = builderJob
@@ -690,6 +786,7 @@ function renderOverviewTab(p, pl) {
   const partnerLabel = builderPartnerLabel(p);
   el.innerHTML = `
     ${renderProjectEditBlock(p)}
+    ${renderProjectTeamBlock(p)}
     <div class="pd-builder-link" style="margin-bottom:16px;padding:12px 14px;border:1px solid var(--border-color);border-radius:10px;background:var(--sf-surface,#f8fafc)">
       <div style="font-size:12px;font-weight:600;color:var(--sf-navy);margin-bottom:8px">Portal do builder${partnerLabel ? ` · <span style="font-weight:500">${escapeHtml(partnerLabel)}</span>` : ''}</div>
       <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center">
@@ -731,6 +828,7 @@ function renderOverviewTab(p, pl) {
     ${daysBar}
   `;
   wireBuilderPartnerBlock(p);
+  initProjectTeamSelects(p);
   document.getElementById('pd-project-save')?.addEventListener('click', saveProjectDetails);
   wireProjectAddressAutocomplete();
 }
