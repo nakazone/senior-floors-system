@@ -311,7 +311,7 @@ function renderProjectEditBlock(p) {
           <input type="text" id="pd-edit-name" maxlength="255" value="${escapeHtml(p.name || '')}" />
         </label>
         <label class="pd-edit-span2">Endereço da obra
-          <textarea id="pd-edit-address" rows="2" placeholder="Rua, cidade, ZIP…">${escapeHtml(p.address || '')}</textarea>
+          <input type="text" id="pd-edit-address" placeholder="Digite o endereço (autocomplete)…" autocomplete="off" value="${escapeHtml(p.address || '')}" />
         </label>
         <label>Nº projeto
           <input type="text" id="pd-edit-number" maxlength="64" value="${escapeHtml(p.project_number != null ? String(p.project_number) : '')}" />
@@ -683,6 +683,16 @@ function renderOverviewTab(p, pl) {
   `;
   wireBuilderPartnerBlock(p);
   document.getElementById('pd-project-save')?.addEventListener('click', saveProjectDetails);
+  wireProjectAddressAutocomplete();
+}
+
+function wireProjectAddressAutocomplete() {
+  const el = document.getElementById('pd-edit-address');
+  if (!el || typeof window.sfAttachAddressAutocomplete !== 'function') return;
+  window.sfAttachAddressAutocomplete(el, {
+    country: 'us',
+    map: { combined: '#pd-edit-address' },
+  }).catch(() => {});
 }
 
 async function ensureBuilderPartnerOptions() {

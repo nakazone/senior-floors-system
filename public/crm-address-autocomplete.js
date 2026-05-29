@@ -331,6 +331,11 @@
         zip: '#editClientZip',
       },
     },
+    {
+      input: '#pd-edit-address',
+      country: 'us',
+      map: { combined: '#pd-edit-address' },
+    },
   ];
 
   function initCrmAddressAutocomplete() {
