@@ -227,6 +227,19 @@ async function populateModalSelects() {
       });
     } catch (_) {}
   }
+  const builderSel = document.getElementById('np-builder-partner');
+  if (builderSel && builderSel.options.length <= 1) {
+    try {
+      const r = await fetch('/api/projects/lookup/builders', { credentials: 'include' });
+      const j = await r.json();
+      (j.data || []).forEach((b) => {
+        const o = document.createElement('option');
+        o.value = String(b.id);
+        o.textContent = b.label || `Builder #${b.id}`;
+        builderSel.appendChild(o);
+      });
+    } catch (_) {}
+  }
 }
 
 function wireModal() {
@@ -236,8 +249,10 @@ function wireModal() {
     if (e.target.id === 'modalNewProject') closeModal();
   });
   document.getElementById('np-client-type')?.addEventListener('change', (e) => {
-    const w = document.getElementById('np-builder-wrap');
-    if (w) w.style.display = e.target.value === 'builder' ? 'block' : 'none';
+    const partner = document.getElementById('np-builder-partner');
+    if (e.target.value === 'builder' && partner && !partner.value) {
+      partner.focus();
+    }
   });
   document.getElementById('np-days')?.addEventListener('change', syncEndDate);
   document.getElementById('np-start')?.addEventListener('change', syncEndDate);
@@ -258,11 +273,17 @@ async function submitNewProject(ev) {
   const name = document.getElementById('np-name')?.value?.trim();
   const leadId = document.getElementById('np-lead')?.value;
   if (!name) return;
+  const builderPartnerId = document.getElementById('np-builder-partner')?.value || '';
+  const clientType = document.getElementById('np-client-type')?.value || 'customer';
+  if (clientType === 'builder' && !builderPartnerId && !leadId) {
+    alert('Para projeto tipo Builder, selecione um parceiro na lista ou associe um lead com cliente.');
+    return;
+  }
   const body = {
     name,
     lead_id: leadId ? parseInt(leadId, 10) : null,
-    client_type: document.getElementById('np-client-type')?.value || 'customer',
-    builder_name: document.getElementById('np-builder-name')?.value || null,
+    client_type: builderPartnerId ? 'builder' : clientType,
+    builder_partner_id: builderPartnerId ? parseInt(builderPartnerId, 10) : null,
     flooring_type: document.getElementById('np-flooring')?.value || null,
     total_sqft: document.getElementById('np-sqft')?.value || null,
     start_date: document.getElementById('np-start')?.value || null,

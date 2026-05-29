@@ -127,7 +127,13 @@
         <div class="proj-form-row"><label for="np-client-type">Tipo de cliente</label>
           <select id="np-client-type" name="client_type"><option value="customer">Customer</option><option value="builder">Builder</option></select>
         </div>
-        <div class="proj-form-row" id="np-builder-wrap" style="display:none"><label for="np-builder-name">Nome do builder</label><input id="np-builder-name" name="builder_name" /></div>
+        <div class="proj-form-row" id="np-builder-wrap">
+          <label for="np-builder-partner">Parceiro builder (portal)</label>
+          <select id="np-builder-partner" name="builder_partner_id">
+            <option value="">— Nenhum / cliente direto —</option>
+          </select>
+          <p style="font-size:11px;color:var(--sf-muted);margin:6px 0 0">O projeto aparece em &quot;My Projects&quot; no portal do builder selecionado.</p>
+        </div>
         <div class="proj-form-row"><label for="np-flooring">Flooring</label>
           <select id="np-flooring" name="flooring_type">
             <option value="">—</option>

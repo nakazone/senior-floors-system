@@ -32,6 +32,10 @@ import {
 import { sumQuoteItemsRevenueByCategory } from '../lib/quoteRevenueSplit.js';
 import { applyQuoteLineRevenueToProject } from '../lib/syncProjectRevenueFromQuote.js';
 import * as productsRepo from '../modules/erp/productsRepo.js';
+import {
+  linkProjectToBuilderPartner,
+  resolveBuilderPartnerForProject,
+} from '../lib/linkProjectToBuilder.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const router = Router();
@@ -659,14 +663,24 @@ router.post('/', ...allAuthed, requirePermission('projects.create'), async (req,
 
     let customerId = b.customer_id != null ? parseInt(String(b.customer_id), 10) : null;
     const leadId = b.lead_id != null ? parseInt(String(b.lead_id), 10) : null;
+    const partnerBuilderId =
+      b.builder_partner_id != null ? parseInt(String(b.builder_partner_id), 10) || null : null;
+
     if (!customerId && leadId) {
       const [c] = await pool.query('SELECT id FROM customers WHERE lead_id = ? LIMIT 1', [leadId]);
       if (c.length) customerId = c[0].id;
     }
+    if (!customerId && partnerBuilderId) {
+      const [br] = await pool.query('SELECT customer_id FROM builders WHERE id = ? LIMIT 1', [
+        partnerBuilderId,
+      ]);
+      if (br.length && br[0].customer_id) customerId = Number(br[0].customer_id);
+    }
     if (!customerId) {
       return res.status(400).json({
         success: false,
-        error: 'customer_id ou lead_id com cliente associado é obrigatório',
+        error:
+          'Selecione um lead com cliente, um cliente, ou um parceiro builder para associar o projeto.',
       });
     }
 
@@ -690,7 +704,13 @@ router.post('/', ...allAuthed, requirePermission('projects.create'), async (req,
       estimate_id: b.estimate_id != null ? parseInt(String(b.estimate_id), 10) || null : null,
       name: name.slice(0, 255),
       project_number: pn,
-      client_type: fromLead ? 'customer' : b.client_type === 'builder' ? 'builder' : 'customer',
+      client_type: partnerBuilderId
+        ? 'builder'
+        : fromLead
+          ? 'customer'
+          : b.client_type === 'builder'
+            ? 'builder'
+            : 'customer',
       builder_id: fromLead ? null : b.builder_id != null ? parseInt(String(b.builder_id), 10) || null : null,
       builder_name: fromLead ? null : b.builder_name != null ? String(b.builder_name).slice(0, 255) : null,
       flooring_type: b.flooring_type != null ? String(b.flooring_type).slice(0, 100) : null,
@@ -752,6 +772,14 @@ router.post('/', ...allAuthed, requirePermission('projects.create'), async (req,
     await seedChecklistIfEmpty(pool, projectId);
     if (leadId) await setLeadPipelineBySlug(leadId, 'production');
 
+    if (partnerBuilderId) {
+      await linkProjectToBuilderPartner(pool, projectId, partnerBuilderId);
+    } else if (b.client_type === 'builder' && b.builder_id != null) {
+      const legacyCid = parseInt(String(b.builder_id), 10);
+      const [br] = await pool.query('SELECT id FROM builders WHERE customer_id = ? LIMIT 1', [legacyCid]);
+      if (br.length) await linkProjectToBuilderPartner(pool, projectId, br[0].id);
+    }
+
     const [rows] = await pool.query(
       `SELECT p.*,
         c.address AS _customer_address,
@@ -766,7 +794,11 @@ router.post('/', ...allAuthed, requirePermission('projects.create'), async (req,
        WHERE p.id = ?`,
       [projectId]
     );
-    res.status(201).json({ success: true, data: mapListProjectRow(rows[0]) });
+    const created = mapListProjectRow(rows[0]);
+    created.builder_partner = await resolveBuilderPartnerForProject(pool, rows[0]);
+    created.partner_builder_id =
+      created.builder_partner?.builder_table_id ?? rows[0].partner_builder_id ?? null;
+    res.status(201).json({ success: true, data: created });
   } catch (e) {
     console.error('createProject', e);
     res.status(500).json({ success: false, error: e.message });
@@ -803,6 +835,36 @@ router.get(
     }
   }
 );
+
+/** Parceiros builder para associar ao projeto (portal). */
+router.get('/lookup/builders', ...allAuthed, requirePermission('projects.view'), async (req, res) => {
+  try {
+    const pool = await getDBConnection();
+    if (!pool) return res.status(503).json({ success: false, error: 'Database not available' });
+    const [rows] = await pool.query(
+      `SELECT id, customer_id, first_name, last_name, company, email, status
+       FROM builders
+       WHERE status IN ('active', 'pending')
+       ORDER BY company ASC, first_name ASC, last_name ASC
+       LIMIT 500`
+    );
+    res.json({
+      success: true,
+      data: rows.map((b) => ({
+        id: b.id,
+        customer_id: b.customer_id,
+        label:
+          [b.company, [b.first_name, b.last_name].filter(Boolean).join(' ')].filter(Boolean).join(' — ') ||
+          b.email ||
+          `Builder #${b.id}`,
+        status: b.status,
+      })),
+    });
+  } catch (e) {
+    console.error('lookup builders', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
 
 /** Produtos do ERP para preencher materiais do projeto (quem tem projects.view). */
 router.get(
@@ -2039,11 +2101,14 @@ router.get('/:id', ...allAuthed, requirePermission('projects.view'), async (req,
     const cust = customer[0] && customer[0].id ? customer[0] : null;
     const leadRow = lead[0] && lead[0].id ? lead[0] : null;
     const address = resolveProjectAddress(base.address, cust, leadRow) || base.address;
+    const builderPartner = await resolveBuilderPartnerForProject(pool, p);
     res.json({
       success: true,
       data: {
         ...base,
         address,
+        builder_partner: builderPartner,
+        partner_builder_id: builderPartner?.builder_table_id ?? p.partner_builder_id ?? null,
         costs: costs.map((c) => floatMoneyFields(c, ['quantity', 'unit_cost', 'total_cost'])),
         materials: materials.map((m) =>
           floatMoneyFields(m, ['qty_ordered', 'qty_received', 'qty_used', 'unit_cost', 'total_cost'])
@@ -2134,9 +2199,23 @@ router.put('/:id', ...allAuthed, requirePermission('projects.edit'), async (req,
       }
     }
 
-    if (updates.length === 0) return res.status(400).json({ success: false, error: 'No fields to update' });
-    vals.push(id);
-    await pool.execute(`UPDATE projects SET ${updates.join(', ')} WHERE id = ?`, vals);
+    if (b.builder_partner_id !== undefined) {
+      await linkProjectToBuilderPartner(
+        pool,
+        id,
+        b.builder_partner_id === null || b.builder_partner_id === ''
+          ? null
+          : parseInt(String(b.builder_partner_id), 10)
+      );
+    }
+
+    if (updates.length === 0 && b.builder_partner_id === undefined) {
+      return res.status(400).json({ success: false, error: 'No fields to update' });
+    }
+    if (updates.length > 0) {
+      vals.push(id);
+      await pool.execute(`UPDATE projects SET ${updates.join(', ')} WHERE id = ?`, vals);
+    }
 
     const [rows] = await pool.query(
       `SELECT p.*,
@@ -2152,7 +2231,11 @@ router.put('/:id', ...allAuthed, requirePermission('projects.edit'), async (req,
        WHERE p.id = ?`,
       [id]
     );
-    res.json({ success: true, data: mapListProjectRow(rows[0]) });
+    const mapped = mapListProjectRow(rows[0]);
+    mapped.builder_partner = await resolveBuilderPartnerForProject(pool, rows[0]);
+    mapped.partner_builder_id =
+      mapped.builder_partner?.builder_table_id ?? rows[0].partner_builder_id ?? null;
+    res.json({ success: true, data: mapped });
   } catch (e) {
     console.error('put project', e);
     res.status(500).json({ success: false, error: e.message });

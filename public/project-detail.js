@@ -10,6 +10,8 @@ let activeTab = 'overview';
 let galleryUploadPhase = 'during';
 /** @type {Array<{id:number,name:string,role?:string,payment_type:string,daily_rate?:number,hourly_rate?:number}>} */
 let constructionPayrollRates = [];
+/** @type {Array<{id:number,label:string}>|null} */
+let builderPartnerOptions = null;
 
 const fmt$ = (v) =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(
@@ -130,7 +132,9 @@ async function loadProject() {
   loadPortfolioStatusLine();
   loadPaymentForecastTab();
   const tb = document.getElementById('tab-btn-builder');
-  if (project.client_type === 'builder' && project.builder_id) {
+  const hasBuilderLink =
+    !!(project.builder_partner?.builder_table_id || project.partner_builder_id || project.builder_id);
+  if (hasBuilderLink) {
     if (tb) tb.style.display = '';
     await renderBuilderTab();
   } else if (tb) tb.style.display = 'none';
@@ -511,7 +515,18 @@ function renderOverviewTab(p, pl) {
     </div>`;
   }
 
+  const partnerLabel = p.builder_partner?.display_name || p.builder_name || '';
   el.innerHTML = `
+    <div class="pd-builder-link" style="margin-bottom:16px;padding:12px 14px;border:1px solid var(--border-color);border-radius:10px;background:var(--sf-surface,#f8fafc)">
+      <div style="font-size:12px;font-weight:600;color:var(--sf-navy);margin-bottom:8px">Portal do builder</div>
+      <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center">
+        <select id="pd-builder-partner" style="flex:1;min-width:220px;padding:8px;border-radius:8px;border:1px solid var(--border-color)">
+          <option value="">— Sem parceiro —</option>
+        </select>
+        <button type="button" class="pd-action-btn pd-action-filled" id="pd-builder-partner-save">Guardar</button>
+      </div>
+      <p id="pd-builder-partner-hint" style="font-size:11px;color:var(--sf-muted);margin:8px 0 0">${partnerLabel ? `Ligado: ${escapeHtml(partnerLabel)}` : 'Selecione um builder cadastrado para o projeto aparecer no portal dele.'}</p>
+    </div>
     <div class="pd-overview-meta">
       <p class="pd-overview-meta__line">${escapeHtml(p.address || 'Sem endereço')} · ${escapeHtml(p.flooring_type || '—')} · ${p.total_sqft != null ? `${p.total_sqft} sqft` : '—'}</p>
       <p class="pd-overview-meta__line">Início: <strong>${fmtDatePtLong(p.start_date)}</strong> · Fim previsto: <strong>${fmtDatePtLong(p.end_date_estimated)}</strong></p>
@@ -546,6 +561,66 @@ function renderOverviewTab(p, pl) {
     ${compareBlock}
     ${daysBar}
   `;
+  wireBuilderPartnerBlock(p);
+}
+
+async function ensureBuilderPartnerOptions() {
+  if (builderPartnerOptions) return builderPartnerOptions;
+  try {
+    const r = await fetch('/api/projects/lookup/builders', { credentials: 'include' });
+    const j = await r.json();
+    builderPartnerOptions = j.success && Array.isArray(j.data) ? j.data : [];
+  } catch {
+    builderPartnerOptions = [];
+  }
+  return builderPartnerOptions;
+}
+
+async function wireBuilderPartnerBlock(p) {
+  const sel = document.getElementById('pd-builder-partner');
+  if (!sel) return;
+  const opts = await ensureBuilderPartnerOptions();
+  const current = p.partner_builder_id || p.builder_partner?.builder_table_id || '';
+  sel.innerHTML =
+    '<option value="">— Sem parceiro —</option>' +
+    opts
+      .map(
+        (b) =>
+          `<option value="${b.id}"${String(b.id) === String(current) ? ' selected' : ''}>${escapeHtml(b.label || `Builder #${b.id}`)}</option>`
+      )
+      .join('');
+  document.getElementById('pd-builder-partner-save')?.addEventListener('click', saveBuilderPartner);
+}
+
+async function saveBuilderPartner() {
+  const sel = document.getElementById('pd-builder-partner');
+  const val = sel?.value ?? '';
+  const res = await fetch(`/api/projects/${projectId}`, {
+    method: 'PUT',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ builder_partner_id: val ? parseInt(val, 10) : null }),
+  });
+  const j = await res.json();
+  if (!res.ok || !j.success) {
+    showToast(j.error || 'Erro ao guardar builder', 'error');
+    return;
+  }
+  project = j.data;
+  showToast('Parceiro builder atualizado');
+  const hint = document.getElementById('pd-builder-partner-hint');
+  if (hint) {
+    hint.textContent = project.builder_partner?.display_name
+      ? `Ligado: ${project.builder_partner.display_name}. Visível no portal do builder.`
+      : 'Sem parceiro — o projeto não aparece no portal.';
+  }
+  const tb = document.getElementById('tab-btn-builder');
+  const hasBuilderLink =
+    !!(project.builder_partner?.builder_table_id || project.partner_builder_id || project.builder_id);
+  if (hasBuilderLink) {
+    if (tb) tb.style.display = '';
+    await renderBuilderTab();
+  } else if (tb) tb.style.display = 'none';
 }
 
 function escapeHtml(s) {

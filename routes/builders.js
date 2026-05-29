@@ -379,7 +379,34 @@ export async function postAdminResetPassword(req, res) {
   }
 }
 
+/** Lista simples para selects no CRM (projetos). */
+export async function listBuildersForSelect(req, res) {
+  try {
+    const pool = await getDBConnection();
+    if (!pool) return res.status(503).json({ success: false, error: 'Database not available' });
+    const [rows] = await pool.query(
+      `SELECT id, customer_id, first_name, last_name, company, email, status
+       FROM builders
+       WHERE status IN ('active', 'pending')
+       ORDER BY company ASC, first_name ASC, last_name ASC
+       LIMIT 500`
+    );
+    res.json({
+      success: true,
+      data: rows.map((b) => ({
+        id: b.id,
+        customer_id: b.customer_id,
+        label: [b.company, [b.first_name, b.last_name].filter(Boolean).join(' ')].filter(Boolean).join(' · ') || b.email,
+        status: b.status,
+      })),
+    });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+}
+
 export function registerBuilderRoutes(app) {
+  app.get('/api/builders/select', requireAuth, requirePermission('builders.view'), listBuildersForSelect);
   app.get('/api/builders', requireAuth, requirePermission('builders.view'), listBuilders);
   app.post('/api/builders', requireAuth, requirePermission('builders.edit'), createBuilder);
   app.get('/api/builders/:id', requireAuth, requirePermission('builders.view'), getBuilder);
