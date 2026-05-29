@@ -4145,6 +4145,56 @@ body.lead-quick-sheet-open .pac-container {
     outline: none;
 }
 
+.pd-project-edit {
+  margin-bottom: 16px;
+  padding: 14px 16px;
+  border: 1px solid var(--border-color, #e2e8f0);
+  border-radius: 10px;
+  background: var(--sf-surface, #f8fafc);
+}
+.pd-project-edit h3 {
+  margin: 0 0 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--sf-navy, #1a2036);
+}
+.pd-edit-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 10px 14px;
+}
+.pd-edit-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--sf-muted, #64748b);
+}
+.pd-edit-grid input,
+.pd-edit-grid select,
+.pd-edit-grid textarea {
+  font-size: 13px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color, #e2e8f0);
+  font-weight: 400;
+  color: var(--sf-navy, #1a2036);
+}
+.pd-edit-grid textarea {
+  min-height: 64px;
+  resize: vertical;
+}
+.pd-edit-grid .pd-edit-span2 {
+  grid-column: 1 / -1;
+}
+.pd-project-edit__actions {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
 .pd-date-input:focus {
     border-color: var(--sf-gold3);
 }

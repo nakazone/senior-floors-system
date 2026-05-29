@@ -2156,14 +2156,46 @@ router.put('/:id', ...allAuthed, requirePermission('projects.edit'), async (req,
       'supply_value',
       'installation_value',
       'sand_finish_value',
+      'name',
+      'address',
+      'flooring_type',
+      'total_sqft',
+      'contract_value',
+      'service_type',
+      'project_number',
     ];
-    const moneyKeys = new Set(['supply_value', 'installation_value', 'sand_finish_value']);
+    const moneyKeys = new Set([
+      'supply_value',
+      'installation_value',
+      'sand_finish_value',
+      'total_sqft',
+      'contract_value',
+    ]);
     const intKeys = new Set(['completion_percentage', 'crew_id', 'assigned_to', 'days_actual', 'days_estimated']);
     const updates = [];
     const vals = [];
     for (const k of allowed) {
       if (b[k] === undefined) continue;
       if (!pcols.has(k)) continue;
+      if (k === 'name') {
+        const n = String(b.name).trim();
+        if (!n) return res.status(400).json({ success: false, error: 'name cannot be empty' });
+        updates.push('`name` = ?');
+        vals.push(n.slice(0, 255));
+        continue;
+      }
+      if (k === 'address') {
+        updates.push('`address` = ?');
+        vals.push(b.address == null || b.address === '' ? null : String(b.address).trim().slice(0, 2000));
+        continue;
+      }
+      if (k === 'flooring_type' || k === 'service_type' || k === 'project_number') {
+        updates.push(`\`${k}\` = ?`);
+        vals.push(
+          b[k] == null || b[k] === '' ? null : String(b[k]).trim().slice(0, k === 'project_number' ? 64 : 100)
+        );
+        continue;
+      }
       updates.push(`\`${k}\` = ?`);
       if (moneyKeys.has(k)) vals.push(money(b[k]));
       else if (intKeys.has(k)) vals.push(b[k] === null || b[k] === '' ? null : parseInt(String(b[k]), 10));

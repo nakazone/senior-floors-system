@@ -12,6 +12,14 @@ let galleryUploadPhase = 'during';
 let constructionPayrollRates = [];
 /** @type {Array<{id:number,label:string}>|null} */
 let builderPartnerOptions = null;
+let canEditProject = true;
+
+const FLOORING_OPTIONS = ['hardwood', 'lvp', 'tile', 'laminate', 'engineered', 'other'];
+const SERVICE_TYPE_OPTIONS = [
+  { value: 'installation', label: 'Installation' },
+  { value: 'supply', label: 'Supply' },
+  { value: 'sand_finish', label: 'Sand & Finish' },
+];
 
 const fmt$ = (v) =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(
@@ -209,27 +217,41 @@ function updateProgressDatesLine(p) {
 function bindProjectSchedule(p) {
   const ds = document.getElementById('pd-date-start');
   const de = document.getElementById('pd-date-end');
+  const da = document.getElementById('pd-date-end-actual');
   const btn = document.getElementById('pd-dates-save');
   if (ds) {
     const v = toYmdFromApi(p.start_date || p.estimated_start_date);
     ds.value = v || '';
+    ds.disabled = !canEditProject;
   }
   if (de) {
     const v = toYmdFromApi(p.end_date_estimated || p.estimated_end_date);
     de.value = v || '';
+    de.disabled = !canEditProject;
   }
-  if (btn && !btn.dataset.bound) {
-    btn.dataset.bound = '1';
-    btn.addEventListener('click', saveProjectSchedule);
+  if (da) {
+    const v = toYmdFromApi(p.end_date_actual || p.actual_end_date);
+    da.value = v || '';
+    da.disabled = !canEditProject;
+  }
+  if (btn) {
+    btn.style.display = canEditProject ? '' : 'none';
+    if (!btn.dataset.bound) {
+      btn.dataset.bound = '1';
+      btn.addEventListener('click', saveProjectSchedule);
+    }
   }
 }
 
 async function saveProjectSchedule() {
+  if (!canEditProject) return;
   const start = document.getElementById('pd-date-start')?.value?.trim() || '';
   const end = document.getElementById('pd-date-end')?.value?.trim() || '';
+  const endActual = document.getElementById('pd-date-end-actual')?.value?.trim() || '';
   const payload = {
     start_date: start || null,
     end_date_estimated: end || null,
+    end_date_actual: endActual || null,
   };
   if (start && end) {
     const d0 = new Date(`${start}T12:00:00`);
@@ -251,7 +273,108 @@ async function saveProjectSchedule() {
   }
   project = { ...project, ...j.data };
   updateProgressDatesLine(project);
+  bindProjectSchedule(project);
   showToast('Datas guardadas');
+}
+
+function flooringOptionsHtml(selected) {
+  const sel = String(selected || '');
+  return (
+    '<option value="">—</option>' +
+    FLOORING_OPTIONS.map(
+      (f) => `<option value="${f}"${sel === f ? ' selected' : ''}>${f}</option>`
+    ).join('')
+  );
+}
+
+function serviceTypeOptionsHtml(selected) {
+  const sel = String(selected || 'installation').toLowerCase();
+  return SERVICE_TYPE_OPTIONS.map(
+    (o) => `<option value="${o.value}"${sel === o.value ? ' selected' : ''}>${o.label}</option>`
+  ).join('');
+}
+
+function renderProjectEditBlock(p) {
+  if (!canEditProject) {
+    return `
+    <div class="pd-project-edit">
+      <h3>Dados do projeto</h3>
+      <p class="pd-overview-meta__line" style="margin:0">${escapeHtml(p.address || 'Sem endereço')} · ${escapeHtml(p.flooring_type || '—')} · ${p.total_sqft != null ? `${p.total_sqft} sqft` : '—'}</p>
+      <p class="pd-muted" style="font-size:12px;margin:8px 0 0;color:var(--sf-muted)">Sem permissão para editar (projects.edit).</p>
+    </div>`;
+  }
+  return `
+    <div class="pd-project-edit" id="pd-project-edit">
+      <h3>Dados do projeto</h3>
+      <div class="pd-edit-grid">
+        <label class="pd-edit-span2">Nome do projeto
+          <input type="text" id="pd-edit-name" maxlength="255" value="${escapeHtml(p.name || '')}" />
+        </label>
+        <label class="pd-edit-span2">Endereço da obra
+          <textarea id="pd-edit-address" rows="2" placeholder="Rua, cidade, ZIP…">${escapeHtml(p.address || '')}</textarea>
+        </label>
+        <label>Nº projeto
+          <input type="text" id="pd-edit-number" maxlength="64" value="${escapeHtml(p.project_number != null ? String(p.project_number) : '')}" />
+        </label>
+        <label>Tipo de piso
+          <select id="pd-edit-flooring">${flooringOptionsHtml(p.flooring_type)}</select>
+        </label>
+        <label>Serviço principal
+          <select id="pd-edit-service">${serviceTypeOptionsHtml(p.service_type)}</select>
+        </label>
+        <label>Total sqft
+          <input type="number" id="pd-edit-sqft" step="0.01" min="0" value="${p.total_sqft != null && p.total_sqft !== '' ? escapeHtml(String(p.total_sqft)) : ''}" />
+        </label>
+        <label>Valor do contrato (USD)
+          <input type="number" id="pd-edit-contract" step="0.01" min="0" value="${p.contract_value != null && p.contract_value !== '' ? escapeHtml(String(p.contract_value)) : ''}" />
+        </label>
+        <label class="pd-edit-span2">Notas (visíveis no projeto)
+          <textarea id="pd-edit-notes" rows="2" placeholder="Observações gerais…">${escapeHtml(p.notes || '')}</textarea>
+        </label>
+      </div>
+      <div class="pd-project-edit__actions">
+        <button type="button" class="pd-action-btn pd-action-filled" id="pd-project-save">Guardar alterações</button>
+      </div>
+    </div>`;
+}
+
+async function saveProjectDetails() {
+  if (!canEditProject) return;
+  const name = document.getElementById('pd-edit-name')?.value?.trim() || '';
+  if (!name) {
+    showToast('O nome do projeto é obrigatório', 'error');
+    return;
+  }
+  const payload = {
+    name,
+    address: document.getElementById('pd-edit-address')?.value?.trim() || null,
+    project_number: document.getElementById('pd-edit-number')?.value?.trim() || null,
+    flooring_type: document.getElementById('pd-edit-flooring')?.value || null,
+    service_type: document.getElementById('pd-edit-service')?.value || null,
+    total_sqft: document.getElementById('pd-edit-sqft')?.value?.trim() || null,
+    contract_value: document.getElementById('pd-edit-contract')?.value?.trim() || null,
+    notes: document.getElementById('pd-edit-notes')?.value?.trim() || null,
+  };
+  const res = await fetch(`/api/projects/${projectId}`, {
+    method: 'PUT',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const j = await res.json();
+  if (!res.ok || !j.success) {
+    showToast(j.error || 'Erro ao guardar projeto', 'error');
+    return;
+  }
+  project = { ...project, ...j.data };
+  renderHeader(project);
+  showToast('Projeto atualizado');
+  const plRes = await fetch(`/api/projects/${projectId}/profitability`, { credentials: 'include' });
+  const plJson = await plRes.json();
+  if (plJson.success) {
+    plData = plJson.data;
+    renderOverviewTab(project, plData);
+  }
 }
 
 function renderHeader(p) {
@@ -517,6 +640,7 @@ function renderOverviewTab(p, pl) {
 
   const partnerLabel = p.builder_partner?.display_name || p.builder_name || '';
   el.innerHTML = `
+    ${renderProjectEditBlock(p)}
     <div class="pd-builder-link" style="margin-bottom:16px;padding:12px 14px;border:1px solid var(--border-color);border-radius:10px;background:var(--sf-surface,#f8fafc)">
       <div style="font-size:12px;font-weight:600;color:var(--sf-navy);margin-bottom:8px">Portal do builder</div>
       <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center">
@@ -526,10 +650,6 @@ function renderOverviewTab(p, pl) {
         <button type="button" class="pd-action-btn pd-action-filled" id="pd-builder-partner-save">Guardar</button>
       </div>
       <p id="pd-builder-partner-hint" style="font-size:11px;color:var(--sf-muted);margin:8px 0 0">${partnerLabel ? `Ligado: ${escapeHtml(partnerLabel)}` : 'Selecione um builder cadastrado para o projeto aparecer no portal dele.'}</p>
-    </div>
-    <div class="pd-overview-meta">
-      <p class="pd-overview-meta__line">${escapeHtml(p.address || 'Sem endereço')} · ${escapeHtml(p.flooring_type || '—')} · ${p.total_sqft != null ? `${p.total_sqft} sqft` : '—'}</p>
-      <p class="pd-overview-meta__line">Início: <strong>${fmtDatePtLong(p.start_date)}</strong> · Fim previsto: <strong>${fmtDatePtLong(p.end_date_estimated)}</strong></p>
     </div>
     <div class="pd-service-grid" id="service-cards-grid">
       ${serviceCardHtml('supply', 'Supply', supply, pr, contractVal)}
@@ -562,6 +682,7 @@ function renderOverviewTab(p, pl) {
     ${daysBar}
   `;
   wireBuilderPartnerBlock(p);
+  document.getElementById('pd-project-save')?.addEventListener('click', saveProjectDetails);
 }
 
 async function ensureBuilderPartnerOptions() {
@@ -1950,6 +2071,15 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!j.authenticated) {
       window.location.href = '/login.html';
       return;
+    }
+    const perms = j.user?.permissions || j.permissions || [];
+    const isAdmin = j.user?.role === 'admin' || j.user?.role === 'superadmin';
+    canEditProject = isAdmin || (Array.isArray(perms) && perms.includes('projects.edit'));
+    const pct = document.getElementById('pd-pct');
+    const statusSel = document.getElementById('pd-status');
+    if (!canEditProject) {
+      if (pct) pct.disabled = true;
+      if (statusSel) statusSel.disabled = true;
     }
     loadProject();
   });
