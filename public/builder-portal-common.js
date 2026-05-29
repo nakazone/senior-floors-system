@@ -13,7 +13,7 @@
   }
 
   const SF_LOGO_URL = '/assets/SeniorFloors.png?v=20260531';
-  const PORTAL_UI_VERSION = '20260531-ui';
+  const PORTAL_UI_VERSION = '20260531-crm-nav';
 
   const NOTIF_ICONS = {
     project: '\u{1F514}',
@@ -155,39 +155,27 @@
     }, 30000);
   }
 
-  async function loadPortalHeader() {
-    const slot = document.getElementById('bpPortalHeader');
-    if (!slot) return;
-    const unread = await fetchUnreadCounts();
+  let notifClickBound = false;
 
-    const u = window.builderPortalUser || {};
-    const name = [u.first_name, u.last_name].filter(Boolean).join(' ') || 'Partner';
+  function notifBtnHtml(unread) {
+    const n = unread.total || 0;
+    return `<button type="button" class="bp-sidebar-notif-btn" id="bpNotifBtn" aria-label="Notifications">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+      ${n > 0 ? `<span class="bp-notif-badge">${n > 99 ? '99+' : n}</span>` : ''}
+    </button>
+    <div class="bp-notif-dropdown bp-notif-dropdown--sidebar hidden" id="bpNotifDropdown"></div>`;
+  }
 
-    slot.innerHTML = `
-      <div class="bp-header-bar">
-        <div class="bp-header-bar__user">
-          <a href="builder-profile.html" class="bp-header-avatar" title="Profile">${escapeHtml((u.first_name || 'B')[0])}</a>
-          <div>
-            <div class="bp-header-bar__name">${escapeHtml(name)}</div>
-            <div class="bp-header-bar__co">${escapeHtml(u.company || '')}</div>
-          </div>
-        </div>
-        <div class="bp-header-bar__actions">
-          <div class="bp-notif-wrap">
-            <button type="button" class="bp-notif-btn" id="bpNotifBtn" aria-label="Notifications">
-              &#128276;
-              ${unread.total > 0 ? `<span class="bp-notif-badge">${unread.total > 99 ? '99+' : unread.total}</span>` : ''}
-            </button>
-            <div class="bp-notif-dropdown hidden" id="bpNotifDropdown"></div>
-          </div>
-          <button type="button" class="bp-btn-ghost" id="btnPortalLogout">Logout</button>
-        </div>
-      </div>`;
-
+  function wirePortalLogout() {
     document.getElementById('btnPortalLogout')?.addEventListener('click', () => {
       window.builderAuth.setToken(null);
       location.href = 'builder-login.html';
     });
+  }
+
+  function wireNotificationDropdown() {
+    if (notifClickBound) return;
+    notifClickBound = true;
 
     document.getElementById('bpNotifBtn')?.addEventListener('click', async () => {
       const dd = document.getElementById('bpNotifDropdown');
@@ -246,16 +234,69 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ all: true }),
         });
-        await loadPortalHeader();
+        await loadPortalSidebarFooter();
         void refreshUnreadBadges();
       });
     });
 
     document.addEventListener('click', (e) => {
-      if (!e.target.closest('.bp-notif-wrap')) {
+      if (!e.target.closest('.bp-notif-wrap, #bpSidebarNotifWrap')) {
         document.getElementById('bpNotifDropdown')?.classList.add('hidden');
       }
     });
+  }
+
+  async function loadPortalSidebarFooter() {
+    const nameEl = document.getElementById('bpSidebarName');
+    if (!nameEl) return loadPortalHeader();
+
+    const unread = await fetchUnreadCounts();
+    const u = window.builderPortalUser || {};
+    const name = [u.first_name, u.last_name].filter(Boolean).join(' ') || 'Partner';
+
+    nameEl.textContent = name;
+    const roleEl = document.getElementById('bpSidebarRole');
+    if (roleEl) roleEl.textContent = u.company || 'Partner portal';
+    const av = document.getElementById('bpSidebarAvatar');
+    if (av) av.textContent = (u.first_name || 'B')[0].toUpperCase();
+
+    const notifWrap = document.getElementById('bpSidebarNotifWrap');
+    if (notifWrap) {
+      notifWrap.className = 'bp-notif-wrap';
+      notifWrap.innerHTML = notifBtnHtml(unread);
+    }
+
+    wirePortalLogout();
+    wireNotificationDropdown();
+  }
+
+  async function loadPortalHeader() {
+    const slot = document.getElementById('bpPortalHeader');
+    if (!slot) return;
+    const unread = await fetchUnreadCounts();
+
+    const u = window.builderPortalUser || {};
+    const name = [u.first_name, u.last_name].filter(Boolean).join(' ') || 'Partner';
+
+    slot.innerHTML = `
+      <div class="bp-header-bar">
+        <div class="bp-header-bar__user">
+          <a href="builder-profile.html" class="bp-header-avatar" title="Profile">${escapeHtml((u.first_name || 'B')[0])}</a>
+          <div>
+            <div class="bp-header-bar__name">${escapeHtml(name)}</div>
+            <div class="bp-header-bar__co">${escapeHtml(u.company || '')}</div>
+          </div>
+        </div>
+        <div class="bp-header-bar__actions">
+          <div class="bp-notif-wrap">
+            ${notifBtnHtml(unread)}
+          </div>
+          <button type="button" class="bp-btn-ghost" id="btnPortalLogout">Logout</button>
+        </div>
+      </div>`;
+
+    wirePortalLogout();
+    wireNotificationDropdown();
   }
 
   function pageHeaderHtml({ title, subtitle = '', actionsHtml = '', eyebrow = 'Senior Floors Partner' }) {
@@ -269,26 +310,31 @@
     </header>`;
   }
 
-  function ensureSidebarOverlay() {
-    let overlay = document.getElementById('bpSidebarOverlay');
-    if (!overlay) {
-      overlay = document.createElement('div');
-      overlay.id = 'bpSidebarOverlay';
-      overlay.className = 'bp-sidebar-overlay';
-      document.body.appendChild(overlay);
-      overlay.addEventListener('click', closeMobileSidebar);
+  function setMobileSidebarOpen(open) {
+    const sidebar =
+      document.getElementById('dashboardSidebar') || document.querySelector('.bp-portal-sidebar');
+    const overlay = document.getElementById('mobileOverlay');
+    const toggle =
+      document.getElementById('mobileMenuToggle') || document.getElementById('bpMenuToggle');
+    if (!sidebar) return;
+    if (sidebar.id === 'dashboardSidebar' && overlay) {
+      sidebar.classList.toggle('mobile-open', open);
+      overlay.classList.toggle('active', open);
+      overlay.setAttribute('aria-hidden', open ? 'false' : 'true');
+    } else {
+      sidebar.classList.toggle('bp-sidebar--open', open);
+      const legacy = document.getElementById('bpSidebarOverlay');
+      legacy?.classList.toggle('is-visible', open);
     }
-    return overlay;
+    if (toggle) toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
   }
 
   function closeMobileSidebar() {
-    document.querySelector('.bp-portal-sidebar')?.classList.remove('bp-sidebar--open');
-    document.getElementById('bpSidebarOverlay')?.classList.remove('is-visible');
+    setMobileSidebarOpen(false);
   }
 
   function openMobileSidebar() {
-    document.querySelector('.bp-portal-sidebar')?.classList.add('bp-sidebar--open');
-    ensureSidebarOverlay().classList.add('is-visible');
+    setMobileSidebarOpen(true);
   }
 
   function initPortalContentWrap() {
@@ -305,13 +351,20 @@
   }
 
   function wireMobileNav() {
-    const btn = document.getElementById('bpMenuToggle');
-    const sidebar = document.querySelector('.bp-portal-sidebar');
+    const btn =
+      document.getElementById('bpMenuToggle') || document.getElementById('mobileMenuToggle');
+    const sidebar =
+      document.getElementById('dashboardSidebar') || document.querySelector('.bp-portal-sidebar');
+    const overlay = document.getElementById('mobileOverlay');
     if (!btn || !sidebar) return;
     btn.addEventListener('click', () => {
-      if (sidebar.classList.contains('bp-sidebar--open')) closeMobileSidebar();
-      else openMobileSidebar();
+      const open =
+        sidebar.id === 'dashboardSidebar'
+          ? sidebar.classList.contains('mobile-open')
+          : sidebar.classList.contains('bp-sidebar--open');
+      setMobileSidebarOpen(!open);
     });
+    overlay?.addEventListener('click', closeMobileSidebar);
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') closeMobileSidebar();
     });
@@ -336,7 +389,7 @@
           window.builderPortalNav.renderNav(window.builderPortalNav.currentPage());
         }
         initPortalContentWrap();
-        await loadPortalHeader();
+        await loadPortalSidebarFooter();
         wireMobileNav();
         startBadgePolling();
         return true;
@@ -348,6 +401,7 @@
   window.builderPortalCommon = {
     guardPortalPage,
     loadPortalHeader,
+    loadPortalSidebarFooter,
     refreshUnreadBadges,
     startBadgePolling,
     wireMobileNav,
