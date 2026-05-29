@@ -1,6 +1,8 @@
 (function () {
   if (!window.builderAuth.requireAuth()) return;
 
+  const COMPLETED = new Set(['completed', 'closed', 'cancelled']);
+
   function escapeHtml(s) {
     return String(s)
       .replace(/&/g, '&amp;')
@@ -26,15 +28,27 @@
 
     const pr = await window.builderAuth.fetch('/api/builder-projects');
     const pj = await pr.json();
-    const projects = (pj.data || []).filter((p) => !['completed', 'cancelled'].includes(String(p.status).toLowerCase()));
-    document.getElementById('metricActive').textContent = String(projects.length);
-
     const el = document.getElementById('projectCards');
+
+    if (!pr.ok || !pj.success) {
+      el.innerHTML = `<p class="bp-card" style="border-color:#fecaca">${escapeHtml(pj.error || 'Could not load projects')}</p>`;
+      return;
+    }
+
+    const all = pj.data || [];
+    const projects = all.filter((p) => !COMPLETED.has(String(p.status || '').toLowerCase()));
+
+    document.getElementById('metricActive').textContent = String(projects.length);
+    const totalEl = document.getElementById('metricTotal');
+    if (totalEl) totalEl.textContent = String(all.length);
+
     if (!projects.length) {
-      el.innerHTML = '<p class="bp-card">No active projects yet.</p>';
+      el.innerHTML =
+        '<p class="bp-card">No active projects yet. <a href="builder-estimate-request.html">Request an estimate</a> or see <a href="builder-projects.html">all projects</a>.</p>';
       return;
     }
     el.innerHTML = projects
+      .slice(0, 6)
       .map(
         (p) => `<div class="bp-card" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
           <div>
@@ -50,5 +64,8 @@
       .join('');
   }
 
-  load();
+  load().catch((e) => {
+    const el = document.getElementById('projectCards');
+    if (el) el.innerHTML = `<p class="bp-card">${escapeHtml(e.message)}</p>`;
+  });
 })();

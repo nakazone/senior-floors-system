@@ -3,7 +3,6 @@
  */
 import { getDBConnection } from '../config/db.js';
 import { requireAuth, requirePermission } from '../middleware/auth.js';
-import { requireBuilderAuth } from '../middleware/builderAuth.js';
 import {
   buildProjectBuilderCorrelatedMatch,
   buildProjectBuilderMatch,
@@ -357,46 +356,7 @@ export async function deactivateBuilder(req, res) {
   }
 }
 
-/** Builder portal: projects for logged-in partner */
-export async function listBuilderPortalProjects(req, res) {
-  try {
-    const pool = await getDBConnection();
-    const auth = req.builderAuth;
-    const cid = await getBuilderCustomerId(pool, auth.builderId);
-    if (!cid) {
-      return res.json({ success: true, data: [] });
-    }
-    const linkMeta = await getProjectBuilderLinkMeta(pool);
-    const match = buildProjectBuilderMatch('p', auth.builderId, cid, linkMeta);
-    const selectSql = await buildProjectSelectSql(
-      pool,
-      [
-        'id',
-        'name',
-        'address',
-        'status',
-        'completion_percentage',
-        'start_date',
-        'end_date_estimated',
-        'flooring_type',
-        'total_sqft',
-        'project_number',
-      ],
-      'p'
-    );
-    const orderSql = await buildProjectOrderSql(pool, 'updated_at', 'p');
-    const [rows] = await pool.query(
-      `SELECT ${selectSql}
-       FROM projects p
-       WHERE ${match.sql}${projectNotDeletedClause('p', linkMeta)}
-       ORDER BY ${orderSql} DESC`,
-      match.params
-    );
-    res.json({ success: true, data: rows });
-  } catch (e) {
-    res.status(500).json({ success: false, error: e.message });
-  }
-}
+/** Builder portal: projects for logged-in partner (see routes/builderPortalProjects.js) */
 
 export async function postAdminResetPassword(req, res) {
   try {
@@ -432,5 +392,5 @@ export function registerBuilderRoutes(app) {
     postAdminResetPassword
   );
 
-  app.get('/api/builder-projects', requireBuilderAuth, listBuilderPortalProjects);
+  /* GET /api/builder-projects registered in builderPortalProjects.js */
 }

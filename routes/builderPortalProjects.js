@@ -7,8 +7,14 @@ import { requireBuilderAuth } from '../middleware/builderAuth.js';
 import { uploadProjectPhoto } from '../lib/projectPhotoUpload.js';
 import {
   assertBuilderOwnsProject,
+  buildProjectBuilderMatch,
+  buildProjectOrderSql,
+  buildProjectSelectSql,
+  getBuilderCustomerId,
+  getProjectBuilderLinkMeta,
   normalizeProjectRow,
   photoPublicUrl,
+  projectNotDeletedClause,
 } from '../lib/builderProjectAccess.js';
 import { refreshChecklistCompletedFlag } from '../modules/projects/projectHelpers.js';
 
@@ -205,7 +211,55 @@ export async function putBuilderProjectChecklist(req, res) {
   }
 }
 
+export async function listBuilderPortalProjects(req, res) {
+  try {
+    const pool = await getDBConnection();
+    if (!pool) return res.status(503).json({ success: false, error: 'Database not available' });
+    const auth = req.builderAuth;
+    const cid = await getBuilderCustomerId(pool, auth.builderId);
+    if (!cid) {
+      return res.json({
+        success: true,
+        data: [],
+        hint: 'Builder account is not linked to a CRM customer. Contact Senior Floors.',
+      });
+    }
+    const linkMeta = await getProjectBuilderLinkMeta(pool);
+    const match = buildProjectBuilderMatch('p', auth.builderId, cid, linkMeta);
+    const selectSql = await buildProjectSelectSql(
+      pool,
+      [
+        'id',
+        'name',
+        'address',
+        'status',
+        'completion_percentage',
+        'start_date',
+        'end_date_estimated',
+        'end_date_actual',
+        'flooring_type',
+        'total_sqft',
+        'project_number',
+      ],
+      'p'
+    );
+    const orderSql = await buildProjectOrderSql(pool, 'updated_at', 'p');
+    const [rows] = await pool.query(
+      `SELECT ${selectSql}
+       FROM projects p
+       WHERE ${match.sql}${projectNotDeletedClause('p', linkMeta)}
+       ORDER BY ${orderSql} DESC`,
+      match.params
+    );
+    res.json({ success: true, data: rows });
+  } catch (e) {
+    console.error('listBuilderPortalProjects:', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+}
+
 export function registerBuilderPortalProjectRoutes(app) {
+  app.get('/api/builder-projects', requireBuilderAuth, listBuilderPortalProjects);
   app.get('/api/builder-projects/:id', requireBuilderAuth, getBuilderPortalProject);
   app.post(
     '/api/builder-projects/:id/photos',

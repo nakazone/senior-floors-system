@@ -1,0 +1,45 @@
+/* global document */
+(function () {
+  const PAGES = [
+    { id: 'dashboard', href: 'builder-portal.html', label: 'Dashboard' },
+    { id: 'projects', href: 'builder-projects.html', label: 'My Projects' },
+    { id: 'calculator', href: 'builder-calculator.html', label: 'Calculator' },
+    { id: 'estimate', href: 'builder-estimate-request.html', label: 'Request estimate' },
+    { id: 'pricing', href: 'builder-pricing.html', label: 'Pricing' },
+    { id: 'gallery', href: 'builder-gallery.html', label: 'Gallery' },
+    { id: 'messages', href: 'builder-messages.html', label: 'Messages' },
+    { id: 'history', href: 'builder-history.html', label: 'History' },
+    { id: 'referrals', href: 'builder-referrals.html', label: 'Referrals' },
+  ];
+
+  function currentPage() {
+    const fromBody = document.body?.dataset?.bpPage;
+    if (fromBody) return fromBody;
+    const file = (location.pathname.split('/').pop() || '').replace(/\.html$/, '');
+    const map = {
+      'builder-portal': 'dashboard',
+      'builder-projects': 'projects',
+      'builder-project': 'projects',
+      'builder-calculator': 'calculator',
+      'builder-estimate-request': 'estimate',
+      'builder-pricing': 'pricing',
+      'builder-gallery': 'gallery',
+      'builder-messages': 'messages',
+      'builder-history': 'history',
+      'builder-referrals': 'referrals',
+    };
+    return map[file] || '';
+  }
+
+  function renderNav(active) {
+    const nav = document.getElementById('bpPortalNav');
+    if (!nav) return;
+    nav.innerHTML = PAGES.map(
+      (p) =>
+        `<a href="${p.href}"${p.id === active ? ' class="active"' : ''}>${p.label}</a>`
+    ).join('');
+  }
+
+  window.builderPortalNav = { renderNav, currentPage };
+  document.addEventListener('DOMContentLoaded', () => renderNav(currentPage()));
+})();

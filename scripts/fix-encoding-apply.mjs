@@ -3,7 +3,8 @@
  * One-time / maintenance: rewrite known corrupted strings as proper UTF-8.
  * Unicode via \u escapes so this script stays ASCII-safe in any editor.
  */
-import { readFileSync, writeFileSync, readdir } from 'fs';
+import { readFileSync, writeFileSync } from 'fs';
+import { readdir } from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
