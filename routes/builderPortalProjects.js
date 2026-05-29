@@ -40,6 +40,43 @@ async function columnExists(pool, table, col) {
   return Number(r[0]?.c) > 0;
 }
 
+async function fetchBuilderProjectPhotos(pool, projectId) {
+  const cols = ['id', 'phase', 'file_path', 'caption', 'created_at'];
+  if (await columnExists(pool, 'project_photos', 'file_url')) cols.push('file_url');
+  if (await columnExists(pool, 'project_photos', 'partner_upload')) cols.push('partner_upload');
+  if (await columnExists(pool, 'project_photos', 'uploaded_by_builder_id')) {
+    cols.push('uploaded_by_builder_id');
+  }
+  const [rows] = await pool.query(
+    `SELECT ${cols.join(', ')} FROM project_photos WHERE project_id = ? ORDER BY created_at DESC`,
+    [projectId]
+  );
+  return rows.map((ph) => ({
+    ...ph,
+    partner_upload: ph.partner_upload != null ? ph.partner_upload : 0,
+  }));
+}
+
+async function fetchBuilderProjectChecklist(pool, projectId) {
+  const hasChkVisible = await columnExists(pool, 'project_checklist', 'visible_to_builder');
+  const hasAssigned = await columnExists(pool, 'project_checklist', 'assigned_to');
+  const hasDue = await columnExists(pool, 'project_checklist', 'due_date');
+  const hasApprovalChk = await columnExists(pool, 'project_checklist', 'approval_status');
+  const hasSort = await columnExists(pool, 'project_checklist', 'sort_order');
+  const cols = ['id', 'category', 'item', 'checked', 'notes'];
+  if (hasAssigned) cols.push('assigned_to');
+  if (hasChkVisible) cols.push('visible_to_builder');
+  if (hasDue) cols.push('due_date');
+  if (hasApprovalChk) cols.push('approval_status');
+  const where = hasChkVisible ? 'project_id = ? AND visible_to_builder = 1' : 'project_id = ?';
+  const order = hasSort ? 'sort_order ASC, id ASC' : 'id ASC';
+  const [rows] = await pool.query(
+    `SELECT ${cols.join(', ')} FROM project_checklist WHERE ${where} ORDER BY ${order}`,
+    [projectId]
+  );
+  return rows;
+}
+
 const TIMELINE_STEPS = [
   { key: 'scheduled', label: 'Scheduled', minPct: 0 },
   { key: 'material', label: 'Material confirmed', minPct: 10 },
@@ -112,22 +149,8 @@ export async function getBuilderPortalProject(req, res) {
     );
     if (!project) return res.status(404).json({ success: false, error: 'Project not found' });
 
-    const hasDue = await columnExists(pool, 'project_checklist', 'due_date');
-    const hasApprovalChk = await columnExists(pool, 'project_checklist', 'approval_status');
-    const [checklist] = await pool.query(
-      `SELECT id, category, item, checked, notes, assigned_to, visible_to_builder${
-        hasDue ? ', due_date' : ''
-      }${hasApprovalChk ? ', approval_status' : ''}
-       FROM project_checklist WHERE project_id = ? AND visible_to_builder = 1
-       ORDER BY sort_order ASC, id ASC`,
-      [projectId]
-    );
-
-    const [photos] = await pool.query(
-      `SELECT id, phase, file_path, file_url, caption, created_at, partner_upload, uploaded_by_builder_id
-       FROM project_photos WHERE project_id = ? ORDER BY created_at DESC`,
-      [projectId]
-    );
+    const checklist = await fetchBuilderProjectChecklist(pool, projectId);
+    const photos = await fetchBuilderProjectPhotos(pool, projectId);
 
     let materials = [];
     const hasMatVisible = await columnExists(pool, 'project_materials', 'visible_to_builder');
@@ -308,10 +331,14 @@ export async function putBuilderProjectChecklist(req, res) {
     const project = await assertBuilderOwnsProject(pool, req.builderAuth.builderId, projectId);
     if (!project) return res.status(404).json({ success: false, error: 'Project not found' });
 
-    const [items] = await pool.query(
-      `SELECT * FROM project_checklist WHERE id = ? AND project_id = ? AND visible_to_builder = 1`,
-      [itemId, projectId]
-    );
+    const hasChkVisible = await columnExists(pool, 'project_checklist', 'visible_to_builder');
+    const chkWhere = hasChkVisible
+      ? 'id = ? AND project_id = ? AND visible_to_builder = 1'
+      : 'id = ? AND project_id = ?';
+    const [items] = await pool.query(`SELECT * FROM project_checklist WHERE ${chkWhere}`, [
+      itemId,
+      projectId,
+    ]);
     if (!items.length) return res.status(404).json({ success: false, error: 'Checklist item not found' });
     const item = items[0];
     if (String(item.assigned_to || 'sf').toLowerCase() !== 'builder') {

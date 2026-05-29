@@ -138,8 +138,9 @@
         <span class="bp-msg-time">${escapeHtml(String(m.created_at).slice(0, 16))}</span></div>`;
     });
     if (!(j.data.messages || []).length) html += '<p class="bp-muted">No messages for this project yet.</p>';
-    html += '</div><footer class="bp-msg-compose"><textarea id="projMsgInput" rows="2" placeholder="Message about this project..."></textarea>
-      <button type="button" class="bp-btn-tan" id="projMsgSend">Send</button></footer>';
+    html +=
+      '</div><footer class="bp-msg-compose"><textarea id="projMsgInput" rows="2" placeholder="Message about this project..."></textarea>' +
+      '<button type="button" class="bp-btn-tan" id="projMsgSend">Send</button></footer>';
     host.innerHTML = html;
     const scroll = document.getElementById('projMsgScroll');
     if (scroll) scroll.scrollTop = scroll.scrollHeight;
@@ -189,60 +190,45 @@
     });
   }
 
-  let lightboxUrls = [];
-  let lightboxIdx = 0;
-
-  function openLightbox(urls, start) {
-    lightboxUrls = urls;
-    lightboxIdx = start;
-    let lb = document.getElementById('bpPhotoLightbox');
-    if (!lb) {
-      lb = document.createElement('div');
-      lb.id = 'bpPhotoLightbox';
-      lb.className = 'bp-lightbox open';
-      lb.innerHTML = '<div class="bp-lightbox__inner" style="max-width:900px;background:#111;color:#fff;text-align:center;position:relative"><button type="button" class="bp-lightbox__close" id="lbClose">&times;</button><button type="button" id="lbPrev" style="position:absolute;left:8px;top:50%">&#' + '9664;</button><img id="lbImg" style="max-width:100%;max-height:70vh" alt="" /><button type="button" id="lbNext" style="position:absolute;right:8px;top:50%">&#' + '9654;</button></div>';
-      document.body.appendChild(lb);
-      lb.querySelector('#lbClose')?.addEventListener('click', () => lb.remove());
-      lb.querySelector('#lbPrev')?.addEventListener('click', () => { lightboxIdx = (lightboxIdx - 1 + lightboxUrls.length) % lightboxUrls.length; lb.querySelector('#lbImg').src = lightboxUrls[lightboxIdx]; });
-      lb.querySelector('#lbNext')?.addEventListener('click', () => { lightboxIdx = (lightboxIdx + 1) % lightboxUrls.length; lb.querySelector('#lbImg').src = lightboxUrls[lightboxIdx]; });
-      lb.addEventListener('click', (e) => { if (e.target === lb) lb.remove(); });
-    } else lb.classList.add('open');
-    lb.querySelector('#lbImg').src = lightboxUrls[lightboxIdx];
-  }
-
   function renderMaterials(materials) {
     const rows = materials || [];
-    if (!rows.length) return '<div class="bp-card"><p class="bp-muted">No materials shared for this project yet.</p></div>';
-    const supplyLabel = { pending: 'Not ordered', ordered: 'Ordered', received: 'Received', partial: 'Partial', returned: 'Returned' };
-    const apprLabel = { pending: 'Your review needed', approved: 'Approved', rejected: 'Change requested' };
-    const cards = rows.map((m) => {
-      const qty = (m.qty_received ?? 0) + ' / ' + (m.qty_ordered ?? 0) + ' ' + (m.unit || '');
-      const appr = m.builder_approval_status || 'pending';
-      return '<div class="bp-card bp-mat-card"><strong>' + m.product_name + '</strong> <span class="bp-badge">' + (apprLabel[appr]||appr) + '</span><p class="bp-muted">' + qty + '</p><textarea class="bp-mat-comment" data-mid="' + m.id + '" rows="2" style="width:100%"></textarea><button type="button" class="bp-btn-tan bp-mat-approve" data-mid="' + m.id + '">Approve</button> <button type="button" class="bp-btn-ghost bp-mat-reject" data-mid="' + m.id + '">Request change</button></div>';
-    }).join('');
-    return '<button type="button" class="bp-btn-tan" id="btnApproveAllMat">Approve all</button>' + cards;
-  }
-
-  function wireMaterials(panel) {
-    panel.querySelector('#btnApproveAllMat')?.addEventListener('click', async () => {
-      await window.builderAuth.fetch('/api/builder-projects/' + projectId + '/materials/approve-all', { method: 'POST' });
-      await load(); activeTab = 'materials'; render();
-    });
-    panel.querySelectorAll('.bp-mat-approve').forEach((btn) => btn.addEventListener('click', () => submitMaterial(btn.dataset.mid, 'approved', panel)));
-    panel.querySelectorAll('.bp-mat-reject').forEach((btn) => btn.addEventListener('click', () => submitMaterial(btn.dataset.mid, 'rejected', panel)));
-  }
-
-  async function submitMaterial(mid, status, panel) {
-    const comment = panel.querySelector('.bp-mat-comment[data-mid="' + mid + '"]')?.value || '';
-    await window.builderAuth.fetch('/api/builder-projects/' + projectId + '/materials/' + mid, {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ builder_approval_status: status, builder_comment: comment }),
-    });
-    await load(); activeTab = 'materials'; render();
+    if (!rows.length) {
+      return '<div class="bp-card"><p class="bp-muted">No materials shared for this project yet. Senior Floors will update when orders are placed.</p></div>';
+    }
+    const statusLabel = {
+      pending: 'Pending',
+      ordered: 'Ordered',
+      received: 'Received',
+      partial: 'Partial',
+      returned: 'Returned',
+    };
+    return `<div class="bp-table-wrap"><table class="bp-table bp-materials-table"><thead><tr>
+      <th>Product</th><th>SKU</th><th>Qty</th><th>Status</th><th>Dates</th>
+    </tr></thead><tbody>${rows
+      .map((m) => {
+        const qty = `${m.qty_received ?? 0} / ${m.qty_ordered ?? 0} ${escapeHtml(m.unit || '')}`.trim();
+        const dates = [
+          m.order_date ? `Ordered ${fmtDate(m.order_date)}` : null,
+          m.received_date ? `Received ${fmtDate(m.received_date)}` : null,
+        ]
+          .filter(Boolean)
+          .join(' · ');
+        return `<tr>
+          <td><strong>${escapeHtml(m.product_name)}</strong>
+            ${m.supplier ? `<span class="bp-muted" style="display:block;font-size:11px">${escapeHtml(m.supplier)}</span>` : ''}</td>
+          <td>${escapeHtml(m.sku || '—')}</td>
+          <td>${escapeHtml(qty)}</td>
+          <td><span class="bp-badge bp-badge--pending">${escapeHtml(statusLabel[m.status] || m.status || '—')}</span></td>
+          <td style="font-size:12px">${escapeHtml(dates || '—')}</td>
+        </tr>`;
+      })
+      .join('')}</tbody></table></div>`;
   }
 
   function render() {
-    const { project: p, timeline, checklist, checklist_groups, checklist_progress, photos, materials, manager } = state;
+    if (!state?.project) return;
+    const { project: p, timeline, checklist, checklist_groups, checklist_progress, photos, materials, manager } =
+      state;
     const pct = Math.min(100, Number(p.completion_percentage) || 0);
     app.innerHTML = `
       <a href="builder-projects.html" class="bp-back-link">\u2190 Back to projects</a>
@@ -384,20 +370,39 @@
   }
 
   async function load() {
-    const r = await window.builderAuth.fetch(`/api/builder-projects/${projectId}`);
-    const j = await r.json();
-    if (!j.success) {
-      app.innerHTML = `<p class="bp-card">${escapeHtml(j.error || 'Project not found')}</p>`;
-      return;
+    try {
+      const r = await window.builderAuth.fetch(`/api/builder-projects/${projectId}`);
+      let j;
+      try {
+        j = await r.json();
+      } catch (_) {
+        app.innerHTML = `<p class="bp-card">Could not load project (invalid server response).</p>`;
+        return;
+      }
+      if (!r.ok || !j.success) {
+        app.innerHTML = `<p class="bp-card">${escapeHtml(j.error || 'Project not found')}</p>
+          <p style="margin-top:12px"><a href="builder-projects.html">Back to projects</a></p>`;
+        return;
+      }
+      if (!j.data?.project) {
+        app.innerHTML = `<p class="bp-card">Project data is incomplete. Please try again or contact Senior Floors.</p>`;
+        return;
+      }
+      state = j.data;
+      if (!state.checklist_groups) {
+        state.checklist_groups = {
+          builder: (state.checklist || []).filter(
+            (it) => String(it.assigned_to || 'sf').toLowerCase() === 'builder'
+          ),
+          sf: (state.checklist || []).filter((it) => String(it.assigned_to || 'sf').toLowerCase() !== 'builder'),
+        };
+      }
+      render();
+    } catch (err) {
+      console.error('load project:', err);
+      app.innerHTML = `<p class="bp-card">Could not load project. ${escapeHtml(err.message || 'Network error')}</p>
+        <p style="margin-top:12px"><a href="builder-projects.html">Back to projects</a></p>`;
     }
-    state = j.data;
-    if (!state.checklist_groups) {
-      state.checklist_groups = {
-        builder: (state.checklist || []).filter((it) => String(it.assigned_to || 'sf').toLowerCase() === 'builder'),
-        sf: (state.checklist || []).filter((it) => String(it.assigned_to || 'sf').toLowerCase() !== 'builder'),
-      };
-    }
-    render();
   }
 
   async function uploadPhotos() {
