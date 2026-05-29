@@ -49,10 +49,19 @@
       if (inp) inp.value = sqft;
     }
     if (floor) {
+      const f = floor.toLowerCase();
+      const map = {
+        hardwood: ['hardwood', 'sanding'],
+        engineered: ['engineered', 'hardwood'],
+        lvp: ['lvp'],
+        tile: ['tile'],
+        custom: ['custom'],
+        stairs: ['custom', 'hardwood'],
+      };
+      const keys = map[f] || [f];
       document.querySelectorAll('input[name=svc]').forEach((cb) => {
-        const v = (cb.value || 'n/a').toLowerCase();
-        const f = floor.toLowerCase();
-        if (v.includes(f) || (f.includes('hardwood') && v.includes('hardwood'))) cb.checked = true;
+        const v = (cb.value || '').toLowerCase();
+        if (keys.some((k) => v.includes(k))) cb.checked = true;
       });
     }
   }
@@ -60,7 +69,7 @@
   function renderFilePreview() {
     const host = document.getElementById('estFilePreview');
     if (!host) return;
-    host.innerHTML = 'n/a';
+    host.innerHTML = '';
     selectedFiles.forEach((item, idx) => {
       const card = document.createElement('div');
       card.className = 'bp-est-file-card';
@@ -110,7 +119,7 @@
         alert(`Maximum ${MAX_FILES} files allowed.`);
         break;
       }
-      const ext = (file.name || 'n/a').toLowerCase();
+      const ext = (file.name || '').toLowerCase();
       const okType =
         file.type.startsWith('image/') ||
         file.type === 'application/pdf' ||
@@ -135,13 +144,13 @@
     return {
       project_type: form.project_type.value,
       project_type_label: PROJECT_TYPE_LABELS[form.project_type.value] || form.project_type.value,
-      address: (form.address?.value || document.getElementById('estAddress')?.value || 'n/a').trim(),
+      address: (form.address?.value || document.getElementById('estAddress')?.value || '').trim(),
       services: svcs,
       area_sqft: form.area_sqft.value,
-      desired_start: form.desired_start.value || 'n/a',
+      desired_start: form.desired_start.value || '',
       urgency: form.urgency.value,
       urgency_label: URGENCY_LABELS[form.urgency.value] || form.urgency.value,
-      notes: form.notes.value || 'n/a',
+      notes: form.notes.value || '',
       site_access: document.getElementById('estSiteAccess')?.checked || false,
       file_names: selectedFiles.map((f) => f.file.name),
     };
@@ -160,19 +169,19 @@
       <dl class="bp-est-summary__dl">
         <dt>Project type</dt><dd>${escapeHtml(snapshot.project_type_label)}</dd>
         <dt>Address</dt><dd>${escapeHtml(snapshot.address)}</dd>
-        <dt>Services</dt><dd>${snapshot.services.length ? escapeHtml(snapshot.services.join(', ')) : 'n/a'}</dd>
+        <dt>Services</dt><dd>${snapshot.services.length ? escapeHtml(snapshot.services.join(', ')) : 'ù'}</dd>
         <dt>Area</dt><dd>${escapeHtml(snapshot.area_sqft)} sq ft</dd>
-        <dt>Desired start</dt><dd>${snapshot.desired_start ? escapeHtml(snapshot.desired_start) : 'n/a'}</dd>
+        <dt>Desired start</dt><dd>${snapshot.desired_start ? escapeHtml(snapshot.desired_start) : 'ù'}</dd>
         <dt>Urgency</dt><dd>${escapeHtml(snapshot.urgency_label)}</dd>
         <dt>Site access</dt><dd>${snapshot.site_access ? 'Yes' : 'No'}</dd>
         <dt>Attachments</dt><dd>${files}</dd>
-        ${snapshot.notes ? `<dt>Notes</dt><dd>${escapeHtml(snapshot.notes)}</dd>` : 'n/a'}
+        ${snapshot.notes ? `<dt>Notes</dt><dd>${escapeHtml(snapshot.notes)}</dd>` : ''}
       </dl>`;
   }
 
   document.getElementById('estFiles')?.addEventListener('change', (e) => {
     onFilesSelected(e.target.files);
-    e.target.value = 'n/a';
+    e.target.value = '';
   });
 
   document.getElementById('estForm')?.addEventListener('submit', async (e) => {
@@ -198,7 +207,7 @@
     selectedFiles.forEach((item) => fd.append('attachments', item.file));
 
     btn.disabled = true;
-    btn.textContent = 'Submitting...';
+    btn.textContent = 'Submittingù';
     try {
       const r = await window.builderAuth.fetch('/api/estimate-requests', { method: 'POST', body: fd });
       const j = await r.json();

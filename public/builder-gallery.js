@@ -1,8 +1,7 @@
-/* global crmNotify */
+/**
+ * Builder portal � project gallery (read-only inspiration).
+ */
 (function () {
-  function isPortal() {
-    return !!window.builderAuth?.getToken?.();
-  }
   const $ = (id) => document.getElementById(id);
 
   const FLOOR_PILLS = [
@@ -11,12 +10,20 @@
     { key: 'engineered', label: 'Engineered' },
     { key: 'lvp', label: 'LVP' },
     { key: 'tile', label: 'Tile' },
-    { key: 'laminate', label: 'Laminate' },
     { key: 'custom', label: 'Custom' },
+    { key: 'stairs', label: 'Stairs' },
+  ];
+
+  const PHASE_PILLS = [
+    { key: '', label: 'All phases' },
+    { key: 'before', label: 'Before' },
+    { key: 'during', label: 'During' },
+    { key: 'after', label: 'After' },
   ];
 
   let portalItems = [];
-  let portalFilter = { floor: '', region: '', q: '' };
+  let portalFilter = { floor: '', region: '', phase: '', q: '' };
+  let lightboxState = { photos: [], index: 0, project: null };
 
   function escapeHtml(s) {
     return String(s)
@@ -26,13 +33,9 @@
       .replace(/"/g, '&quot;');
   }
 
-  async function fetchList(url) {
-    const r = isPortal()
-      ? await window.builderAuth.fetch(url)
-      : await fetch(url, { credentials: 'include' });
-    const j = await r.json();
-    if (!r.ok || !j.success) throw new Error(j.error || 'Error');
-    return j.data || [];
+  function floorLabel(key) {
+    const p = FLOOR_PILLS.find((x) => x.key === key);
+    return p ? p.label : key || '';
   }
 
   function estimateUrl(item) {
@@ -43,110 +46,80 @@
     return `builder-estimate-request.html?${params.toString()}`;
   }
 
-  function openLightbox(item) {
-    let lb = document.getElementById('bpGalleryLightbox');
-    if (!lb) {
-      lb = document.createElement('div');
-      lb.id = 'bpGalleryLightbox';
-      lb.className = 'bp-lightbox';
-      document.body.appendChild(lb);
-    }
-    lb.classList.add('open');
-    lb.innerHTML = '<p class="bp-muted" style="padding:24px">Loading...</p>';
+  function bindBaSlider(root) {
+    root.querySelectorAll('.bp-ba-slider__input').forEach((range) => {
+      const wrap = range.closest('.bp-ba-slider')?.querySelector('.bp-ba-slider__after-wrap');
+      if (!wrap) return;
+      const apply = () => {
+        wrap.style.width = `${range.value}%`;
+      };
+      apply();
+      range.addEventListener('input', apply);
+    });
+  }
 
-    const load = async () => {
-      const r = isPortal()
-        ? await window.builderAuth.fetch(`/api/gallery/partner/${item.id}`)
-        : await fetch(`/api/gallery/${item.id}`, { credentials: 'include' });
-      const j = await r.json();
-      if (!j.success) {
-        lb.innerHTML = '<p>Error loading gallery.</p>';
-        return;
-      }
-      const g = j.data.project;
-      const photos = j.data.photos || [];
-      const byPhase = { before: [], during: [], after: [] };
-      photos.forEach((p) => {
-        const ph = ['before', 'during', 'after'].includes(p.phase) ? p.phase : 'after';
-        byPhase[ph].push(p);
-      });
-      const before = byPhase.before[0]?.url;
-      const after = byPhase.after[0]?.url || byPhase.during[0]?.url;
-      const hasCompare = before && after;
-
-      let compareBlock = '';
-      if (hasCompare) {
-        compareBlock = `<div class="bp-ba-slider" id="baSlider">
-          <img src="${escapeHtml(before)}" alt="Before" class="bp-ba-slider__before" />
-          <div class="bp-ba-slider__after-wrap" style="width:50%">
-            <img src="${escapeHtml(after)}" alt="After" class="bp-ba-slider__after" />
+  function cardHtml(g) {
+    const imgAfter = g.cover_after || g.cover_url || '';
+    const imgBefore = g.cover_before || '';
+    const hasBa = imgBefore && (g.cover_after || g.cover_url);
+    const baBlock = hasBa
+      ? `<div class="bp-card-ba hidden" data-card-ba="${g.id}">
+          <div class="bp-ba-slider bp-ba-slider--card">
+            <img src="${escapeHtml(imgBefore)}" alt="Before" class="bp-ba-slider__before" loading="lazy" />
+            <div class="bp-ba-slider__after-wrap" style="width:50%">
+              <img src="${escapeHtml(imgAfter)}" alt="After" class="bp-ba-slider__after" loading="lazy" />
+            </div>
+            <input type="range" min="0" max="100" value="50" class="bp-ba-slider__input" aria-label="Compare before and after" />
           </div>
-          <input type="range" min="0" max="100" value="50" class="bp-ba-slider__input" id="baRange" />
-        </div>`;
-      }
-
-      const grid = photos.length
-        ? `<div class="bp-photo-grid" style="margin-top:12px">${photos
-            .map(
-              (p) =>
-                `<a href="${escapeHtml(p.url)}" target="_blank" rel="noopener"><img src="${escapeHtml(p.url)}" alt="" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px" /></a>`
-            )
-            .join('')}</div>`
-        : '';
-
-      lb.innerHTML = `
-        <div class="bp-lightbox__inner">
-          <button type="button" class="bp-lightbox__close" id="lbClose">&times;</button>
-          <h2 class="bp-title">${escapeHtml(g.title)}</h2>
-          <p class="bp-muted">${escapeHtml(g.floor_type || '')} — ${g.area_sqft ? g.area_sqft + ' sq ft' : ''} — ${escapeHtml(g.region || '')}</p>
-          <p style="font-size:14px;margin:12px 0">${escapeHtml(g.description || '')}</p>
-          ${compareBlock}
-          ${grid}
-          <a href="${estimateUrl(item)}" class="bp-btn-tan" style="display:inline-block;margin-top:16px;text-decoration:none">Request similar estimate</a>
-        </div>`;
-      document.getElementById('lbClose')?.addEventListener('click', () => lb.classList.remove('open'));
-      lb.addEventListener('click', (e) => {
-        if (e.target === lb) lb.classList.remove('open');
-      });
-      const range = document.getElementById('baRange');
-      const wrap = document.querySelector('.bp-ba-slider__after-wrap');
-      if (range && wrap) {
-        range.addEventListener('input', () => {
-          wrap.style.width = `${range.value}%`;
-        });
-      }
-    };
-    load();
+        </div>`
+      : '';
+    const baBtn = hasBa
+      ? `<button type="button" class="bp-card-ba-toggle" data-ba-toggle="${g.id}">Before/After</button>`
+      : '';
+    return `<article class="bp-gallery-card bp-gallery-card--click" data-id="${g.id}" tabindex="0">
+      <div class="bp-gallery-card__img-wrap">
+        <div class="bp-gallery-card__img" data-card-cover="${g.id}" style="background-image:url('${escapeHtml(imgAfter || imgBefore)}')"></div>
+        ${baBlock}
+        ${baBtn}
+        ${hasBa ? '<span class="bp-gallery-card__ba-tag">Before/After</span>' : ''}
+      </div>
+      <div class="bp-gallery-card__body">
+        <h3>${escapeHtml(g.title)}</h3>
+        <p class="bp-muted">${escapeHtml(floorLabel(g.floor_type) || g.floor_type || '')}${g.area_sqft ? ' - ' + g.area_sqft + ' sq ft' : ''}${g.region ? ' - ' + escapeHtml(g.region) : ''}</p>
+      </div>
+    </article>`;
   }
 
   function renderPortalGrid(items, host) {
     if (!items.length) {
-      host.innerHTML = '<p class="bp-card">No projects in the gallery yet. Check back soon for inspiration.</p>';
+      host.innerHTML =
+        '<p class="bp-card">No published projects yet. Our team is adding inspiration photos � check back soon.</p>';
       return;
     }
-    host.innerHTML = items
-      .map((g) => {
-        const img = g.cover_after || g.cover_url || g.cover_before || '';
-        const ba = g.cover_before && g.cover_after;
-        return `<article class="bp-gallery-card bp-gallery-card--click" data-id="${g.id}" tabindex="0">
-          <div class="bp-gallery-card__img" style="background-image:url('${escapeHtml(img)}')">
-            ${ba ? '<span class="bp-gallery-card__ba-tag">Before/After</span>' : ''}
-          </div>
-          <div class="bp-gallery-card__body">
-            <span class="bp-badge bp-badge--${g.status === 'featured' ? 'active' : 'pending'}">${escapeHtml(g.status)}</span>
-            <h3>${escapeHtml(g.title)}</h3>
-            <p class="bp-muted">${escapeHtml(g.floor_type || '')} — ${g.area_sqft ? g.area_sqft + ' sq ft' : ''} — ${escapeHtml(g.region || '')}</p>
-          </div>
-        </article>`;
-      })
-      .join('');
+    host.innerHTML = items.map(cardHtml).join('');
+    host.querySelectorAll('[data-ba-toggle]').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const id = btn.dataset.baToggle;
+        const cover = host.querySelector(`[data-card-cover="${id}"]`);
+        const ba = host.querySelector(`[data-card-ba="${id}"]`);
+        if (!cover || !ba) return;
+        const on = ba.classList.toggle('hidden');
+        btn.classList.toggle('active', !on);
+        cover.classList.toggle('hidden', !on);
+        if (!on) bindBaSlider(ba);
+      });
+    });
     host.querySelectorAll('.bp-gallery-card--click').forEach((card) => {
       const open = () => {
         const id = parseInt(card.dataset.id, 10);
         const item = portalItems.find((x) => x.id === id);
         if (item) openLightbox(item);
       };
-      card.addEventListener('click', open);
+      card.addEventListener('click', (e) => {
+        if (e.target.closest('.bp-card-ba-toggle') || e.target.closest('.bp-ba-slider')) return;
+        open();
+      });
       card.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') open();
       });
@@ -162,120 +135,175 @@
     if (portalFilter.region) {
       list = list.filter((g) => String(g.region || '') === portalFilter.region);
     }
+    if (portalFilter.phase === 'before') list = list.filter((g) => g.has_before);
+    if (portalFilter.phase === 'during') list = list.filter((g) => g.has_during);
+    if (portalFilter.phase === 'after') list = list.filter((g) => g.has_after);
     renderPortalGrid(list, $('pg'));
+  }
+
+  function materialsHtml(materials) {
+    const list = Array.isArray(materials) ? materials : [];
+    if (!list.length) return '';
+    return `<div class="bp-lightbox__materials"><h3 class="bp-lightbox__subtitle">Materials used</h3><ul>${list
+      .map((m) => `<li>${escapeHtml(m)}</li>`)
+      .join('')}</ul></div>`;
+  }
+
+  function renderLightboxContent() {
+    const lb = document.getElementById('bpGalleryLightbox');
+    if (!lb) return;
+    const g = lightboxState.project;
+    const photos = lightboxState.photos;
+    const idx = lightboxState.index;
+    const cur = photos[idx];
+    if (!g) return;
+
+    const before = photos.find((p) => p.phase === 'before')?.url;
+    const after = photos.find((p) => p.phase === 'after')?.url || photos.find((p) => p.phase === 'during')?.url;
+    const hasCompare = before && after;
+
+    let compareBlock = '';
+    if (hasCompare) {
+      compareBlock = `<div class="bp-ba-slider bp-ba-slider--lightbox" id="lbBaSlider">
+        <img src="${escapeHtml(before)}" alt="Before" class="bp-ba-slider__before" />
+        <div class="bp-ba-slider__after-wrap" style="width:50%">
+          <img src="${escapeHtml(after)}" alt="After" class="bp-ba-slider__after" />
+        </div>
+        <input type="range" min="0" max="100" value="50" class="bp-ba-slider__input" id="lbBaRange" />
+        <span class="bp-ba-slider__labels"><span>Before</span><span>After</span></span>
+      </div>`;
+    }
+
+    const mainImg = cur
+      ? `<div class="bp-lightbox__stage">
+          <button type="button" class="bp-lightbox__arrow bp-lightbox__arrow--prev" id="lbPrev" aria-label="Previous photo"${photos.length < 2 ? ' disabled' : ''}>&#8249;</button>
+          <img src="${escapeHtml(cur.url)}" alt="" class="bp-lightbox__hero" id="lbHero" />
+          <button type="button" class="bp-lightbox__arrow bp-lightbox__arrow--next" id="lbNext" aria-label="Next photo"${photos.length < 2 ? ' disabled' : ''}>&#8250;</button>
+          <p class="bp-lightbox__caption">${escapeHtml(cur.caption || '')} <span class="bp-muted">(${escapeHtml(cur.phase || '')}) ${idx + 1}/${photos.length}</span></p>
+        </div>`
+      : '<p class="bp-muted">No photos for this project.</p>';
+
+    const thumbs = photos.length
+      ? `<div class="bp-lightbox__thumbs">${photos
+          .map(
+            (p, i) =>
+              `<button type="button" class="bp-lightbox__thumb${i === idx ? ' active' : ''}" data-thumb="${i}"><img src="${escapeHtml(p.url)}" alt="" /></button>`
+          )
+          .join('')}</div>`
+      : '';
+
+    lb.innerHTML = `
+      <div class="bp-lightbox__inner">
+        <button type="button" class="bp-lightbox__close" id="lbClose" aria-label="Close">&times;</button>
+        <h2 class="bp-title">${escapeHtml(g.title)}</h2>
+        <p class="bp-muted">${escapeHtml(floorLabel(g.floor_type) || g.floor_type || '')}${g.area_sqft ? ' - ' + g.area_sqft + ' sq ft' : ''}${g.region ? ' - ' + escapeHtml(g.region) : ''}</p>
+        <p class="bp-lightbox__desc">${escapeHtml(g.description || '')}</p>
+        ${materialsHtml(g.materials)}
+        ${compareBlock}
+        ${mainImg}
+        ${thumbs}
+        <a href="${estimateUrl(g)}" class="bp-btn-tan bp-lightbox__cta">Want something similar - Request estimate</a>
+      </div>`;
+
+    document.getElementById('lbClose')?.addEventListener('click', () => lb.classList.remove('open'));
+    lb.onclick = (e) => {
+      if (e.target === lb) lb.classList.remove('open');
+    };
+    bindBaSlider(lb);
+    document.getElementById('lbPrev')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (photos.length < 2) return;
+      lightboxState.index = (idx - 1 + photos.length) % photos.length;
+      renderLightboxContent();
+    });
+    document.getElementById('lbNext')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (photos.length < 2) return;
+      lightboxState.index = (idx + 1) % photos.length;
+      renderLightboxContent();
+    });
+    lb.querySelectorAll('[data-thumb]').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        lightboxState.index = parseInt(btn.dataset.thumb, 10);
+        renderLightboxContent();
+      });
+    });
+  }
+
+  function openLightbox(item) {
+    let lb = document.getElementById('bpGalleryLightbox');
+    if (!lb) {
+      lb = document.createElement('div');
+      lb.id = 'bpGalleryLightbox';
+      lb.className = 'bp-lightbox';
+      document.body.appendChild(lb);
+    }
+    lb.classList.add('open');
+    lb.innerHTML = '<p class="bp-muted" style="padding:24px">Loading...</p>';
+
+    const onKey = (e) => {
+      if (!lb.classList.contains('open')) return;
+      if (e.key === 'Escape') lb.classList.remove('open');
+      if (e.key === 'ArrowLeft') document.getElementById('lbPrev')?.click();
+      if (e.key === 'ArrowRight') document.getElementById('lbNext')?.click();
+    };
+    document.removeEventListener('keydown', lb._bpKeyHandler);
+    lb._bpKeyHandler = onKey;
+    document.addEventListener('keydown', onKey);
+
+    window.builderAuth.fetch(`/api/gallery/partner/${item.id}`).then(async (r) => {
+      const j = await r.json();
+      if (!j.success) {
+        lb.innerHTML = '<p class="bp-card">Could not load project.</p>';
+        return;
+      }
+      lightboxState.project = j.data.project;
+      lightboxState.photos = j.data.photos || [];
+      lightboxState.index = 0;
+      renderLightboxContent();
+    });
   }
 
   async function loadPortalList() {
     const params = new URLSearchParams();
     if (portalFilter.q) params.set('q', portalFilter.q);
+    if (portalFilter.phase) params.set('phase', portalFilter.phase);
     const url = `/api/gallery/partner${params.toString() ? `?${params}` : ''}`;
-    portalItems = await fetchList(url);
+    const r = await window.builderAuth.fetch(url);
+    const j = await r.json();
+    if (!r.ok || !j.success) throw new Error(j.error || 'Error');
+    portalItems = j.data || [];
     const regions = [...new Set(portalItems.map((g) => g.region).filter(Boolean))].sort();
     const regSel = $('filterRegion');
-    if (regSel && regSel.options.length <= 1) {
-      regions.forEach((r) => {
+    if (regSel) {
+      const cur = regSel.value;
+      regSel.innerHTML = '<option value="">All regions</option>';
+      regions.forEach((rgn) => {
         const o = document.createElement('option');
-        o.value = r;
-        o.textContent = r;
+        o.value = rgn;
+        o.textContent = rgn;
         regSel.appendChild(o);
       });
+      regSel.value = cur;
     }
     applyPortalFilters();
   }
 
-  function renderGrid(items, host, admin) {
-    if (!items.length) {
-      host.innerHTML = '<p class="bp-card">No gallery projects.</p>';
-      return;
-    }
-    host.innerHTML = items
-      .map(
-        (g) => `<article class="bp-gallery-card" data-id="${g.id}">
-          <div class="bp-gallery-card__img" style="background-image:url('${escapeHtml(g.cover_url || '')}')"></div>
-          <div class="bp-gallery-card__body">
-            <span class="bp-badge bp-badge--${g.status === 'featured' ? 'active' : 'pending'}">${escapeHtml(g.status)}</span>
-            <h3>${escapeHtml(g.title)}</h3>
-            <p class="bp-muted">${escapeHtml(g.floor_type || '')} — ${g.area_sqft ? g.area_sqft + ' sq ft' : ''}</p>
-            ${admin ? `<button type="button" class="bp-btn-tan bp-btn-sm" data-edit="${g.id}">Edit</button>` : ''}
-          </div>
-        </article>`
-      )
-      .join('');
-  }
-
-  async function openEdit(id) {
-    const r = await fetch(`/api/gallery/${id}`, { credentials: 'include' });
-    const j = await r.json();
-    if (!j.success) return;
-    const g = j.data.project;
-    const photos = j.data.photos || [];
-    $('galleryModal').classList.add('open');
-    $('modalContent').innerHTML = `
-      <h2 class="bp-title">${escapeHtml(g.title)}</h2>
-      <form id="galleryForm" class="bp-form-grid">
-        <div class="bp-form-full"><label>Title</label><input name="title" value="${escapeHtml(g.title)}" /></div>
-        <div class="bp-form-full"><label>Description</label><textarea name="description" rows="3">${escapeHtml(g.description || '')}</textarea></div>
-        <div><label>Floor type</label><input name="floor_type" value="${escapeHtml(g.floor_type || '')}" /></div>
-        <div><label>Region</label><input name="region" value="${escapeHtml(g.region || '')}" /></div>
-        <div><label>Area sqft</label><input name="area_sqft" type="number" value="${g.area_sqft || ''}" /></div>
-        <div><label>Status</label><select name="status"><option value="draft">Draft</option><option value="published">Published</option><option value="featured">Featured</option></select></div>
-        <div class="bp-form-full"><label>Upload photo</label><input type="file" id="galleryPhotoFile" accept="image/*" /><select id="galleryPhotoPhase"><option value="before">Before</option><option value="during">During</option><option value="after" selected>After</option></select><button type="button" class="bp-btn-tan" id="btnUploadPhoto">Upload</button></div>
-        <div class="bp-form-full bp-photo-grid">${photos.map((p) => `<img src="${escapeHtml(p.url)}" alt="" style="width:80px;height:80px;object-fit:cover;border-radius:6px" />`).join('')}</div>
-        <div class="bp-form-full"><button type="submit" class="bp-btn-tan">Save</button></div>
-      </form>`;
-    $('galleryForm').querySelector('[name=status]').value = g.status || 'draft';
-    $('galleryForm').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const fd = new FormData(e.target);
-      const body = Object.fromEntries(fd.entries());
-      body.area_sqft = body.area_sqft ? Number(body.area_sqft) : null;
-      await fetch(`/api/gallery/${id}`, {
-        method: 'PUT',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      crmNotify('Saved.', 'success');
-      $('galleryModal').classList.remove('open');
-      loadAdmin();
-    });
-    $('btnUploadPhoto')?.addEventListener('click', async () => {
-      const file = $('galleryPhotoFile').files[0];
-      if (!file) return;
-      const fd = new FormData();
-      fd.append('file', file);
-      fd.append('phase', $('galleryPhotoPhase')?.value || 'after');
-      const ur = await fetch(`/api/gallery/${id}/photos`, { method: 'POST', credentials: 'include', body: fd });
-      if (ur.ok) {
-        crmNotify('Photo uploaded.', 'success');
-        openEdit(id);
-      }
-    });
-  }
-
-  async function loadAdmin() {
-    const st = $('filterStatus').value;
-    const url = st ? `/api/gallery?status=${encodeURIComponent(st)}` : '/api/gallery';
-    const items = await fetchList(url);
-    renderGrid(items, $('galleryGrid'), true);
-    $('galleryGrid').querySelectorAll('[data-edit]').forEach((b) => {
-      b.addEventListener('click', () => openEdit(b.dataset.edit));
-    });
-  }
-
-  async function loadPortal() {
-    $('adminShell')?.classList.add('hidden');
-    $('portalShell')?.classList.remove('hidden');
+  function renderShell() {
     const host = $('portalGalleryRoot');
     host.innerHTML = `
       <div id="bpPortalHeader"></div>
       <h1 class="bp-title">Project gallery</h1>
-      <p class="bp-muted">Inspiration from completed Senior Floors work.</p>
+      <p class="bp-muted">Completed Senior Floors work for inspiration. Read-only.</p>
       <div class="bp-gallery-toolbar">
-        <input type="search" id="gallerySearch" placeholder="Search projects..." class="bp-gallery-search" />
-        <select id="filterRegion"><option value="">All regions</option></select>
+        <input type="search" id="gallerySearch" placeholder="Search by keyword..." class="bp-gallery-search" />
+        <select id="filterRegion" class="bp-gallery-select"><option value="">All regions</option></select>
       </div>
+      <p class="bp-filter-label">Floor type</p>
       <div class="bp-pills" id="floorPills"></div>
+      <p class="bp-filter-label">Photo phase</p>
+      <div class="bp-pills" id="phasePills"></div>
       <div class="bp-gallery-grid" id="pg"></div>`;
 
     $('floorPills').innerHTML = FLOOR_PILLS.map(
@@ -287,6 +315,18 @@
         portalFilter.floor = btn.dataset.floor || '';
         $('floorPills').querySelectorAll('.bp-pill').forEach((b) => b.classList.toggle('active', b === btn));
         applyPortalFilters();
+      });
+    });
+
+    $('phasePills').innerHTML = PHASE_PILLS.map(
+      (p) =>
+        `<button type="button" class="bp-pill${portalFilter.phase === p.key ? ' active' : ''}" data-phase="${escapeHtml(p.key)}">${escapeHtml(p.label)}</button>`
+    ).join('');
+    $('phasePills').querySelectorAll('.bp-pill').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        portalFilter.phase = btn.dataset.phase || '';
+        $('phasePills').querySelectorAll('.bp-pill').forEach((b) => b.classList.toggle('active', b === btn));
+        loadPortalList();
       });
     });
 
@@ -302,36 +342,21 @@
       portalFilter.region = e.target.value;
       applyPortalFilters();
     });
-
-    await loadPortalList();
   }
 
   async function init() {
-    if (isPortal()) {
-      if (!window.builderAuth.requireAuth()) return;
-      await loadPortal();
-      return;
+    const boot = window.builderPortalCommon?.whenPortalReady;
+    const start = async () => {
+      renderShell();
+      await loadPortalList();
+    };
+    if (typeof boot === 'function') {
+      const ok = await boot();
+      if (ok) await start();
+    } else if (window.builderAuth?.requireAuth?.()) {
+      await start();
     }
-    const sess = await fetch('/api/auth/session', { credentials: 'include' }).then((r) => r.json());
-    if (!sess.authenticated) {
-      location.href = 'login.html';
-      return;
-    }
-    $('filterStatus')?.addEventListener('change', loadAdmin);
-    $('btnNewGallery')?.addEventListener('click', async () => {
-      const r = await fetch('/api/gallery', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: 'New gallery project', status: 'draft' }),
-      });
-      const j = await r.json();
-      if (j.success) openEdit(j.data.id);
-    });
-    await loadAdmin();
   }
 
-  document.addEventListener('DOMContentLoaded', () => {
-    setTimeout(init, isPortal() ? 120 : 0);
-  });
+  document.addEventListener('DOMContentLoaded', init);
 })();
