@@ -1,7 +1,6 @@
 /**
- * Builder Partner Portal ù admin CRUD + builder-scoped reads.
+ * Builder Partner Portal ó admin CRUD + builder-scoped reads.
  */
-import bcrypt from 'bcryptjs';
 import { getDBConnection } from '../config/db.js';
 import { requireAuth, requirePermission } from '../middleware/auth.js';
 import { requireBuilderAuth } from '../middleware/builderAuth.js';
@@ -14,6 +13,11 @@ import {
   getProjectBuilderLinkMeta,
   projectNotDeletedClause,
 } from '../lib/builderProjectAccess.js';
+import { randomTempPassword } from '../lib/builderJwt.js';
+import {
+  builderPortalAuthSummary,
+  setBuilderPortalPassword,
+} from '../lib/builderPortalPassword.js';
 
 function parseJsonField(val, fallback = []) {
   if (val == null) return fallback;
@@ -146,7 +150,9 @@ export async function getBuilder(req, res) {
     if (!rows.length) return res.status(404).json({ success: false, error: 'Builder not found' });
     const b = rows[0];
     b.regions = parseJsonField(b.regions);
+    const portalAuth = builderPortalAuthSummary(b);
     delete b.portal_password_hash;
+    delete b.portal_admin_password;
 
     const linkMeta = await getProjectBuilderLinkMeta(pool);
     const match = buildProjectBuilderMatch('p', id, b.customer_id, linkMeta);
@@ -200,6 +206,7 @@ export async function getBuilder(req, res) {
       success: true,
       data: {
         builder: b,
+        portal_auth: portalAuth,
         projects,
         documents: docs,
         messages,
@@ -229,11 +236,9 @@ export async function createBuilder(req, res) {
 
     const regions = body.regions ? JSON.stringify(body.regions) : null;
     const portalAccess = body.portal_access ? 1 : 0;
-    let passwordHash = null;
     let tempPassword = null;
     if (portalAccess) {
-      tempPassword = body.temp_password || randomTempPassword();
-      passwordHash = await bcrypt.hash(tempPassword, 10);
+      tempPassword = body.temp_password || body.portal_password || randomTempPassword();
     }
 
     const [ins] = await pool.execute(
@@ -258,13 +263,17 @@ export async function createBuilder(req, res) {
         body.referred_by || null,
         body.internal_note || null,
         portalAccess,
-        passwordHash,
+        null,
         body.discount_pct != null ? Number(body.discount_pct) : null,
       ]
     );
 
     const builderId = ins.insertId;
     const customerId = await syncCustomerForBuilder(pool, { ...body, email }, builderId, null);
+
+    if (portalAccess && tempPassword) {
+      await setBuilderPortalPassword(pool, builderId, tempPassword);
+    }
 
     res.status(201).json({
       success: true,
@@ -317,11 +326,7 @@ export async function updateBuilder(req, res) {
     );
 
     if (body.portal_password) {
-      const hash = await bcrypt.hash(String(body.portal_password), 10);
-      await pool.execute('UPDATE builders SET portal_password_hash = ?, portal_access = 1 WHERE id = ?', [
-        hash,
-        id,
-      ]);
+      await setBuilderPortalPassword(pool, id, String(body.portal_password));
     }
 
     await syncCustomerForBuilder(
@@ -397,15 +402,20 @@ export async function postAdminResetPassword(req, res) {
   try {
     const pool = await getDBConnection();
     const id = parseInt(req.params.id, 10);
-    const temp = randomTempPassword();
-    const hash = await bcrypt.hash(temp, 10);
-    await pool.execute(
-      'UPDATE builders SET portal_password_hash = ?, portal_access = 1, portal_blocked = 0 WHERE id = ?',
-      [hash, id]
-    );
-    res.json({ success: true, data: { temp_password: temp } });
+    const body = req.body || {};
+    const custom = body.password != null ? String(body.password).trim() : '';
+    const plain = custom || randomTempPassword();
+    const saved = await setBuilderPortalPassword(pool, id, plain);
+    res.json({
+      success: true,
+      data: {
+        temp_password: saved,
+        admin_password: saved,
+      },
+    });
   } catch (e) {
-    res.status(500).json({ success: false, error: e.message });
+    const status = e.status || 500;
+    res.status(status).json({ success: false, error: e.message });
   }
 }
 

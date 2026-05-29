@@ -5,6 +5,7 @@ import bcrypt from 'bcryptjs';
 import rateLimit from 'express-rate-limit';
 import { getDBConnection } from '../config/db.js';
 import { signBuilderToken } from '../lib/builderJwt.js';
+import { clearBuilderAdminPasswordCopy } from '../lib/builderPortalPassword.js';
 import { requireBuilderAuth } from '../middleware/builderAuth.js';
 import { getUiConfig } from './uiConfig.js';
 
@@ -147,6 +148,7 @@ export async function postChangePassword(req, res) {
       hash,
       req.builderAuth.builderId,
     ]);
+    await clearBuilderAdminPasswordCopy(pool, req.builderAuth.builderId);
     res.json({ success: true, message: 'Password updated' });
   } catch (e) {
     console.error('builder change password:', e);
