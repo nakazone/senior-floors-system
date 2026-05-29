@@ -159,7 +159,7 @@
         <p><strong>Parceiro há:</strong> ${months} meses</p>
         <p><strong>Último login:</strong> ${b.last_login ? escapeHtml(String(b.last_login).slice(0, 16)) : '—'}</p>
         <div style="margin-top:12px;display:flex;flex-direction:column;gap:8px">
-          <a class="bp-btn-tan" style="text-align:center;text-decoration:none" href="builder-messages.html?builder_id=${b.id}">Mensagens</a>
+          <a class="bp-btn-tan" style="text-align:center;text-decoration:none" href="builder-messages-admin.html?builder_id=${b.id}">Mensagens</a>
           <a class="btn btn-secondary" style="text-align:center" href="builder-login.html" target="_blank" rel="noopener">Ver portal (login)</a>
         </div>
       </aside>
