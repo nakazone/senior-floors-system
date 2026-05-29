@@ -13,6 +13,7 @@ import { notifyBuilder } from './builderNotifications.js';
 import { getBuilderCustomerId, getProjectBuilderLinkMeta, buildProjectBuilderMatch, buildProjectOrderSql, buildProjectSelectSql, projectNotDeletedClause } from '../lib/builderProjectAccess.js';
 import { getPartnerPricingForBuilder } from './builderPricing.js';
 import { calculateLine } from '../lib/builderPricingCalc.js';
+import { logEstimateEvent } from '../lib/builderActivityLog.js';
 
 async function tableExists(pool, name) {
   const [r] = await pool.query(
@@ -143,6 +144,7 @@ export async function postEstimateRequest(req, res) {
         'INSERT INTO estimate_request_events (estimate_request_id, status, note) VALUES (?, ?, ?)',
         [ins.insertId, 'pending', 'Request submitted']
       );
+      logEstimateEvent(pool, builderId, refNumber, 'pending', 'Request submitted').catch(() => {});
     }
 
     const [builder] = await pool.query(
@@ -271,6 +273,15 @@ export async function updateEstimateRequest(req, res) {
         'INSERT INTO estimate_request_events (estimate_request_id, status, note) VALUES (?, ?, ?)',
         [id, status, admin_notes ? String(admin_notes).slice(0, 500) : 'Status updated']
       );
+      if (prev[0]?.builder_id) {
+        logEstimateEvent(
+          pool,
+          prev[0].builder_id,
+          prev[0].ref_number,
+          status,
+          admin_notes ? String(admin_notes).slice(0, 500) : 'Status updated'
+        ).catch(() => {});
+      }
     }
     const [rows] = await pool.query('SELECT * FROM estimate_requests WHERE id = ?', [id]);
     const row = rows[0];

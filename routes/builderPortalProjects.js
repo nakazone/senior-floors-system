@@ -19,6 +19,8 @@ import {
 import { refreshChecklistCompletedFlag } from '../modules/projects/projectHelpers.js';
 import { fetchNextBuilderVisit } from '../lib/builderVisitScope.js';
 import { buildBuilderActivityFeed } from './builderPortalExtras.js';
+import { resolveBuilderAccountManager } from '../lib/builderAccountManager.js';
+import { logBuilderActivity } from '../lib/builderActivityLog.js';
 
 async function tableExists(pool, name) {
   const [r] = await pool.query(
@@ -280,6 +282,13 @@ export async function postBuilderProjectPhotos(req, res) {
     );
     const [rows] = await pool.query('SELECT * FROM project_photos WHERE id = ?', [ins.insertId]);
     const row = rows[0];
+    const [pn] = await pool.query('SELECT name FROM projects WHERE id = ?', [projectId]);
+    await logBuilderActivity(pool, {
+      builderId,
+      projectId,
+      type: 'photo',
+      text: `Photo added to ${pn[0]?.name || 'project'} (${phase})`,
+    });
     res.status(201).json({
       success: true,
       data: { ...row, url: photoPublicUrl(row), partner_label: 'Sent by partner' },
@@ -425,27 +434,20 @@ export async function getBuilderDashboard(req, res) {
     const cid = await getBuilderCustomerId(pool, bid);
 
     const [builder] = await pool.query(
-      `SELECT first_name, last_name, company, account_manager_user_id FROM builders WHERE id = ?`,
+      `SELECT first_name, last_name, company, account_manager_user_id, portal_last_seen_at, portal_welcome_dismissed_at
+       FROM builders WHERE id = ?`,
       [bid]
     );
-    let account_manager = null;
-    const amId = builder[0]?.account_manager_user_id;
-    if (amId) {
-      const hasPhone = await columnExists(pool, 'users', 'phone');
-      const [u] = await pool.query(
-        `SELECT id, name, email${hasPhone ? ', phone' : ''} FROM users WHERE id = ?`,
-        [amId]
-      );
-      if (u.length) {
-        account_manager = {
-          ...u[0],
-          avatar_url: null,
-        };
-      }
-    }
+    const bRow = builder[0] || {};
+    const account_manager = await resolveBuilderAccountManager(pool, bRow.account_manager_user_id);
+    const sinceActivity = bRow.portal_last_seen_at || null;
+    const is_first_visit = !bRow.portal_welcome_dismissed_at;
 
+    const hasExpires = await columnExists(pool, 'builder_documents', 'expires_at');
     const [docs] = await pool.query(
-      `SELECT COUNT(*) AS c FROM builder_documents WHERE builder_id = ? AND status != 'valid'`,
+      `SELECT COUNT(*) AS c FROM builder_documents WHERE builder_id = ? AND (
+        status != 'valid'${hasExpires ? ' OR (expires_at IS NOT NULL AND expires_at < CURDATE())' : ''}
+      )`,
       [bid]
     );
     const pending_documents = Number(docs[0]?.c) || 0;
@@ -505,11 +507,17 @@ export async function getBuilderDashboard(req, res) {
       }
     }
 
-    const activity = await buildBuilderActivityFeed(pool, bid, 12);
+    const activity = await buildBuilderActivityFeed(pool, bid, 10, sinceActivity);
+
+    if (await columnExists(pool, 'builders', 'portal_last_seen_at')) {
+      await pool.execute('UPDATE builders SET portal_last_seen_at = NOW() WHERE id = ?', [bid]);
+    }
 
     res.json({
       success: true,
       data: {
+        is_first_visit,
+        since_last_seen: sinceActivity,
         metrics: {
           active_projects: active.length,
           total_projects: projects.length,
@@ -530,8 +538,24 @@ export async function getBuilderDashboard(req, res) {
   }
 }
 
+export async function postBuilderDismissWelcome(req, res) {
+  try {
+    const pool = await getDBConnection();
+    if (!pool) return res.status(503).json({ success: false, error: 'Database not available' });
+    const bid = req.builderAuth.builderId;
+    if (await columnExists(pool, 'builders', 'portal_welcome_dismissed_at')) {
+      await pool.execute('UPDATE builders SET portal_welcome_dismissed_at = NOW() WHERE id = ?', [bid]);
+    }
+    res.json({ success: true });
+  } catch (e) {
+    console.error('postBuilderDismissWelcome:', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+}
+
 export function registerBuilderPortalProjectRoutes(app) {
   app.get('/api/builder-dashboard', requireBuilderAuth, getBuilderDashboard);
+  app.post('/api/builder-dashboard/dismiss-welcome', requireBuilderAuth, postBuilderDismissWelcome);
   app.get('/api/builder-projects', requireBuilderAuth, listBuilderPortalProjects);
   app.get('/api/builder-projects/:id', requireBuilderAuth, getBuilderPortalProject);
   app.post(

@@ -36,6 +36,7 @@ import {
   linkProjectToBuilderPartner,
   resolveBuilderPartnerForProject,
 } from '../lib/linkProjectToBuilder.js';
+import { logBuilderActivityForProject, recordProjectCrmUpdate } from '../lib/builderActivityLog.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const router = Router();
@@ -1705,6 +1706,10 @@ router.post(
         );
       }
       const [rows] = await pool.query('SELECT * FROM project_photos WHERE id = ?', [ins.insertId]);
+      logBuilderActivityForProject(pool, id, {
+        type: 'photo',
+        text: `Senior Floors added a ${phase} photo to the project`,
+      }).catch((err) => console.warn('[projects] photo activity:', err.message));
       res.status(201).json({ success: true, data: rows[0] });
     } catch (e) {
       console.error('photo upload', e);
@@ -2215,6 +2220,9 @@ router.put('/:id', ...allAuthed, requirePermission('projects.edit'), async (req,
     if (updates.length > 0) {
       vals.push(id);
       await pool.execute(`UPDATE projects SET ${updates.join(', ')} WHERE id = ?`, vals);
+      recordProjectCrmUpdate(pool, id, ex[0], b).catch((err) =>
+        console.warn('[projects] activity log:', err.message)
+      );
     }
 
     const [rows] = await pool.query(

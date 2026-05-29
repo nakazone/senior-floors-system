@@ -18,12 +18,17 @@
     <main class="bp-portal-main">
       <div id="bpPortalHeader"></div>
       <div id="docAlert" class="hidden"></div>
-      <div class="bp-card" style="background:var(--bp-navy);color:#fff;border:none">
-        <h1 class="bp-title" style="color:#fff;font-size:1.25rem" id="welcomeTitle">Welcome</h1>
-        <p style="opacity:0.9;margin:0 0 12px">Here is an overview of your projects with Senior Floors.</p>
-        <a href="builder-estimate-request.html" class="bp-btn-tan" style="text-decoration:none;display:inline-block">Request new project estimate</a>
+      <div class="bp-card bp-welcome" id="welcomeCard">
+        <div id="firstVisitBanner" class="bp-first-visit hidden"></div>
+        <div class="bp-welcome__main">
+          <div>
+            <h1 class="bp-welcome__title" id="welcomeTitle">Welcome</h1>
+            <p class="bp-welcome__sub" id="welcomeSub">Here is an overview of your projects with Senior Floors.</p>
+            <a href="builder-estimate-request.html" class="bp-btn-tan bp-welcome__cta">Request new project estimate</a>
+          </div>
+          <div id="welcomeManager" class="bp-welcome__manager hidden"></div>
+        </div>
       </div>
-      <div id="managerCard" class="hidden"></div>
       <div id="nextVisitCard" class="hidden"></div>
       <div class="bp-metrics" style="margin-top:1rem">
         <div class="bp-card bp-metric"><div class="bp-metric__val" id="metricActive">0</div><div class="bp-metric__lbl">Active projects</div></div>
@@ -32,6 +37,7 @@
         <div class="bp-card bp-metric"><div class="bp-metric__val" id="metricSqft">0</div><div class="bp-metric__lbl">Sq ft completed</div></div>
         <div class="bp-card bp-metric"><div class="bp-metric__val" id="metricValue">$0</div><div class="bp-metric__lbl">Completed value</div></div>
         <div class="bp-card bp-metric"><div class="bp-metric__val" id="metricYear">0</div><div class="bp-metric__lbl">Completed this year</div></div>
+        <div class="bp-card bp-metric"><div class="bp-metric__val" id="metricCompleted">0</div><div class="bp-metric__lbl">Total completed projects</div></div>
       </div>
       <div class="bp-dashboard-grid">
         <div>
@@ -42,7 +48,7 @@
           <div id="projectCards"></div>
         </div>
         <div>
-          <h2 class="bp-title" style="font-size:1rem;margin:1rem 0 0.5rem">Recent activity</h2>
+          <h2 class="bp-title" style="font-size:1rem;margin:1rem 0 0.5rem">Recent activity <span id="activitySinceHint" class="bp-muted" style="font-weight:400;font-size:12px"></span></h2>
           <div id="activityFeed" class="bp-card"></div>
         </div>
       </div>
@@ -51,6 +57,6 @@
   <script src="builder-auth.js?v=3"></script>
   <script src="builder-portal-nav.js?v=2"></script>
   <script src="builder-portal-common.js?v=1"></script>
-  <script src="builder-portal.js?v=4"></script>
+  <script src="builder-portal.js?v=6"></script>
 </body>
 </html>

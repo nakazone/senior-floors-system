@@ -5,6 +5,7 @@ import bcrypt from 'bcryptjs';
 import rateLimit from 'express-rate-limit';
 import { getDBConnection } from '../config/db.js';
 import { signBuilderToken } from '../lib/builderJwt.js';
+import { resolveBuilderAccountManager } from '../lib/builderAccountManager.js';
 import { clearBuilderAdminPasswordCopy } from '../lib/builderPortalPassword.js';
 import { createPasswordResetForEmail, consumePasswordResetToken } from '../lib/builderPasswordReset.js';
 import { sendBuilderNotification } from '../lib/builderNotify.js';
@@ -127,19 +128,7 @@ export async function getMe(req, res) {
     }
     delete b.portal_password_hash;
 
-    let account_manager = null;
-    if (b.account_manager_user_id) {
-      const [u] = await pool.query(
-        'SELECT id, name, email FROM users WHERE id = ? LIMIT 1',
-        [b.account_manager_user_id]
-      );
-      if (u.length) account_manager = u[0];
-    } else {
-      const [u] = await pool.query(
-        'SELECT id, name, email FROM users ORDER BY id ASC LIMIT 1'
-      );
-      if (u.length) account_manager = u[0];
-    }
+    const account_manager = await resolveBuilderAccountManager(pool, b.account_manager_user_id);
 
     const [docs] = await pool.query(
       `SELECT id, name, type, url, expires_at, status, created_at

@@ -9,6 +9,7 @@ import { sendBuilderNotification, adminNotifyEmail } from '../lib/builderNotify.
 import { builderWantsEmail } from '../lib/builderNotifyPrefs.js';
 import { uploadBuilderMessageAttachment } from '../lib/builderMessageUpload.js';
 import { notifyBuilder } from './builderNotifications.js';
+import { logBuilderActivity } from '../lib/builderActivityLog.js';
 
 function conversationIdForBuilder(builderId) {
   return Number(builderId);
@@ -154,6 +155,33 @@ export async function postMessage(req, res) {
 
     const [rows] = await pool.query('SELECT * FROM builder_messages WHERE id = ?', [ins.insertId]);
     const row = rows[0];
+
+    if (!isInternal) {
+      let projectName = null;
+      if (Number.isFinite(projectId)) {
+        const [pr] = await pool.query('SELECT name FROM projects WHERE id = ?', [projectId]);
+        projectName = pr[0]?.name || null;
+      }
+      const snippet = message.slice(0, 90);
+      const onProj = projectName ? ` on ${projectName}` : '';
+      if (senderType === 'admin') {
+        logBuilderActivity(pool, {
+          builderId,
+          projectId: Number.isFinite(projectId) ? projectId : null,
+          type: 'message_sf',
+          text: `Senior Floors sent a message${onProj}: ${snippet}`,
+          href: 'builder-messages.html',
+        }).catch(() => {});
+      } else {
+        logBuilderActivity(pool, {
+          builderId,
+          projectId: Number.isFinite(projectId) ? projectId : null,
+          type: 'message_builder',
+          text: `You sent a message${onProj}: ${snippet}`,
+          href: 'builder-messages.html',
+        }).catch(() => {});
+      }
+    }
 
     if (!isInternal) {
       const [b] = await pool.query(

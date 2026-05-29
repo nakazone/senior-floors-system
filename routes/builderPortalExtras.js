@@ -5,22 +5,30 @@ import path from 'path';
 import fs from 'fs';
 import { getDBConnection } from '../config/db.js';
 import { requireBuilderAuth } from '../middleware/builderAuth.js';
-import {
-  assertBuilderOwnsProject,
-  buildProjectBuilderMatch,
-  getBuilderCustomerId,
-  getProjectBuilderLinkMeta,
-  projectNotDeletedClause,
-} from '../lib/builderProjectAccess.js';
+import { assertBuilderOwnsProject } from '../lib/builderProjectAccess.js';
 import { refreshChecklistCompletedFlag } from '../modules/projects/projectHelpers.js';
 import { notifyBuilder } from './builderNotifications.js';
 import { adminNotifyEmail, sendBuilderNotification } from '../lib/builderNotify.js';
+import {
+  backfillBuilderActivityIfEmpty,
+  fetchBuilderActivityFeed,
+  logBuilderActivity,
+} from '../lib/builderActivityLog.js';
 
 async function columnExists(pool, table, col) {
   const [r] = await pool.query(
     `SELECT COUNT(*) AS c FROM information_schema.COLUMNS
      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?`,
     [table, col]
+  );
+  return Number(r[0]?.c) > 0;
+}
+
+async function tableExists(pool, name) {
+  const [r] = await pool.query(
+    `SELECT COUNT(*) AS c FROM information_schema.TABLES
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?`,
+    [name]
   );
   return Number(r[0]?.c) > 0;
 }
@@ -179,6 +187,13 @@ export async function postBuilderConfirmAccess(req, res) {
     }
     await refreshChecklistCompletedFlag(pool, projectId);
 
+    await logBuilderActivity(pool, {
+      builderId: bid,
+      projectId,
+      type: 'checklist',
+      text: `Property access confirmed for ${project.name || 'project'}`,
+    });
+
     const adminTo = adminNotifyEmail();
     if (adminTo) {
       await sendBuilderNotification({
@@ -195,59 +210,9 @@ export async function postBuilderConfirmAccess(req, res) {
   }
 }
 
-export async function buildBuilderActivityFeed(pool, builderId, limit = 12) {
-  const items = [];
-
-  const [messages] = await pool.query(
-    `SELECT m.message, m.created_at, m.project_id, m.sender_type, p.name AS project_name
-     FROM builder_messages m
-     LEFT JOIN projects p ON m.project_id = p.id
-     WHERE m.builder_id = ? AND m.is_internal_note = 0
-     ORDER BY m.created_at DESC LIMIT 6`,
-    [builderId]
-  );
-  messages.forEach((m) => {
-    items.push({
-      type: m.sender_type === 'admin' ? 'message_sf' : 'message_builder',
-      text:
-        m.sender_type === 'admin'
-          ? `Senior Floors: ${String(m.message || '').slice(0, 100)}`
-          : `You: ${String(m.message || '').slice(0, 100)}`,
-      project_id: m.project_id,
-      project_name: m.project_name,
-      created_at: m.created_at,
-    });
-  });
-
-  if (await columnExists(pool, 'project_photos', 'partner_upload')) {
-    const cid = await getBuilderCustomerId(pool, builderId);
-    const meta = await getProjectBuilderLinkMeta(pool);
-    const match = buildProjectBuilderMatch('p', builderId, cid, meta);
-    try {
-      const [photos] = await pool.query(
-        `SELECT ph.created_at, ph.project_id, p.name AS project_name, ph.phase
-         FROM project_photos ph
-         INNER JOIN projects p ON p.id = ph.project_id
-         WHERE ${match.sql}${projectNotDeletedClause('p', meta)}
-         ORDER BY ph.created_at DESC LIMIT 4`,
-        match.params
-      );
-      photos.forEach((ph) => {
-        items.push({
-          type: 'photo',
-          text: `Photo added (${ph.phase || 'site'})`,
-          project_id: ph.project_id,
-          project_name: ph.project_name,
-          created_at: ph.created_at,
-        });
-      });
-    } catch (_) {
-      /* ignore */
-    }
-  }
-
-  items.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-  return items.slice(0, limit);
+export async function buildBuilderActivityFeed(pool, builderId, limit = 10, since = null) {
+  await backfillBuilderActivityIfEmpty(pool, builderId);
+  return fetchBuilderActivityFeed(pool, builderId, { since, limit });
 }
 
 export function registerBuilderPortalExtraRoutes(app) {

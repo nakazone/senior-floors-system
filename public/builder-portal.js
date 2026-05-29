@@ -1,6 +1,18 @@
 (function () {
   const COMPLETED = new Set(['completed', 'closed', 'cancelled']);
 
+  const ACTIVITY_TAGS = {
+    project_step: 'Progress',
+    project_completed: 'Completed',
+    project_status: 'Status',
+    checklist: 'Checklist',
+    estimate: 'Estimate',
+    visit: 'Visit',
+    message_sf: 'Message',
+    message_builder: 'You',
+    photo: 'Photo',
+  };
+
   function escapeHtml(s) {
     return String(s)
       .replace(/&/g, '&amp;')
@@ -28,6 +40,69 @@
     }
   }
 
+  function managerInitials(name) {
+    const parts = String(name || '')
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean);
+    if (!parts.length) return 'SF';
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  }
+
+  function avatarSrc(url) {
+    if (!url) return null;
+    const u = String(url).trim();
+    if (/^https?:\/\//i.test(u)) return u;
+    if (u.startsWith('/')) return u;
+    return `/${u.replace(/^\//, '')}`;
+  }
+
+  function renderWelcomeManager(mgr) {
+    const wrap = document.getElementById('welcomeManager');
+    if (!wrap || !mgr) return;
+    wrap.classList.remove('hidden');
+    const src = avatarSrc(mgr.avatar_url);
+    const initials = escapeHtml(managerInitials(mgr.name));
+    const avatarHtml = src
+      ? `<img class="bp-welcome__avatar" src="${escapeHtml(src)}" alt="" onerror="this.classList.add('hidden');this.nextElementSibling?.classList.remove('hidden');" /><div class="bp-welcome__avatar bp-welcome__avatar--init hidden" aria-hidden="true">${initials}</div>`
+      : `<div class="bp-welcome__avatar bp-welcome__avatar--init" aria-hidden="true">${initials}</div>`;
+    wrap.innerHTML = `
+      <p class="bp-welcome__manager-head">Your Senior Floors manager</p>
+      <div class="bp-welcome__manager-row">
+        ${avatarHtml}
+        <div>
+          <p class="bp-welcome__mgr-name">${escapeHtml(mgr.name || '')}</p>
+          ${mgr.phone ? `<p class="bp-welcome__mgr-meta">Tel: <a href="tel:${escapeHtml(mgr.phone)}">${escapeHtml(mgr.phone)}</a></p>` : ''}
+          ${mgr.email ? `<p class="bp-welcome__mgr-meta"><a href="mailto:${escapeHtml(mgr.email)}">${escapeHtml(mgr.email)}</a></p>` : ''}
+        </div>
+      </div>
+      <div class="bp-welcome__mgr-actions">
+        <a href="builder-messages.html" class="bp-btn-tan" style="text-decoration:none">Send message</a>
+      </div>`;
+  }
+
+  function renderFirstVisitBanner(isFirst, mgr) {
+    const el = document.getElementById('firstVisitBanner');
+    if (!el || !isFirst) return;
+    el.classList.remove('hidden');
+    const mgrLine = mgr?.name
+      ? `<strong>${escapeHtml(mgr.name)}</strong> is your dedicated contact.`
+      : 'Your dedicated Senior Floors team is ready to help.';
+    el.innerHTML = `
+      <p><strong>Welcome to your Builder Portal.</strong> Track projects, confirm site access, upload documents, and message us in one place. ${mgrLine}</p>
+      <div class="bp-first-visit__actions">
+        <button type="button" class="bp-btn-tan" id="btnDismissWelcome">Got it</button>
+        <a href="builder-profile.html" class="bp-btn-ghost" style="text-decoration:none">Complete your profile</a>
+      </div>`;
+    document.getElementById('btnDismissWelcome')?.addEventListener('click', async () => {
+      try {
+        await window.builderAuth.fetch('/api/builder-dashboard/dismiss-welcome', { method: 'POST' });
+      } catch (_) {}
+      el.classList.add('hidden');
+    });
+  }
+
   async function load() {
     const [dashR, prR] = await Promise.all([
       window.builderAuth.fetch('/api/builder-dashboard'),
@@ -44,6 +119,8 @@
       document.getElementById('metricSqft').textContent = String(Math.round(m.total_sqft_completed || 0));
       document.getElementById('metricValue').textContent = fmt$(m.total_value_completed);
       document.getElementById('metricYear').textContent = String(m.completed_this_year ?? 0);
+      const mc = document.getElementById('metricCompleted');
+      if (mc) mc.textContent = String(m.completed_projects ?? 0);
 
       try {
         const ur = await window.builderAuth.fetch('/api/builder-notifications/unread-count');
@@ -53,13 +130,23 @@
 
       const u = window.builderPortalUser || {};
       const name = [u.first_name, u.last_name].filter(Boolean).join(' ');
-      document.getElementById('welcomeTitle').textContent = `Hello, ${u.first_name || name || 'Partner'}`;
+      const first = u.first_name || name || 'Partner';
+      document.getElementById('welcomeTitle').textContent = `Hello, ${first}`;
+      const sub = document.getElementById('welcomeSub');
+      if (sub) {
+        sub.textContent = u.company
+          ? `${u.company} — overview of your projects with Senior Floors.`
+          : 'Here is an overview of your projects with Senior Floors.';
+      }
+
+      if (d.account_manager) renderWelcomeManager(d.account_manager);
+      if (d.is_first_visit) renderFirstVisitBanner(true, d.account_manager);
 
       if (d.pending_documents > 0) {
         const al = document.getElementById('docAlert');
         al.classList.remove('hidden');
         al.className = 'bp-alert bp-alert--warn';
-        al.innerHTML = `<strong>${d.pending_documents} document(s) need attention.</strong> <a href="builder-profile.html#documents">Update documents</a>`;
+        al.innerHTML = `<strong>You have ${d.pending_documents} document(s) pending.</strong> <a href="builder-profile.html#documents">Update documents</a>`;
       }
 
       if (d.next_visit) {
@@ -89,36 +176,35 @@
             method: 'POST',
           });
           const j = await r.json();
-          alert(j.success ? j.message || 'Confirmed' : j.error || 'Error');
+          alert(j.success ? j.message || 'Property access confirmed' : j.error || 'Error');
         });
       }
 
-      const mgr = d.account_manager;
-      if (mgr) {
-        const mc = document.getElementById('managerCard');
-        mc.classList.remove('hidden');
-        mc.className = 'bp-card bp-manager-card';
-        mc.innerHTML = `
-          <strong>Your Senior Floors manager</strong>
-          <p style="margin:6px 0 0">${escapeHtml(mgr.name || '')}</p>
-          ${mgr.phone ? `<p class="bp-muted" style="margin:4px 0 0">Tel: <a href="tel:${escapeHtml(mgr.phone)}">${escapeHtml(mgr.phone)}</a></p>` : ''}
-          <p class="bp-muted" style="margin:4px 0 0"><a href="mailto:${escapeHtml(mgr.email || '')}">${escapeHtml(mgr.email || '')}</a></p>
-          <a href="builder-messages.html" class="bp-btn-tan" style="display:inline-block;margin-top:10px;text-decoration:none;font-size:13px">Send message</a>`;
+      const sinceHint = document.getElementById('activitySinceHint');
+      if (sinceHint) {
+        sinceHint.textContent = d.since_last_seen ? '(since your last visit)' : '';
       }
 
       const feed = document.getElementById('activityFeed');
       const acts = d.activity || [];
       feed.innerHTML = acts.length
         ? acts
-            .map(
-              (a) => `<div class="bp-activity-item">
+            .map((a) => {
+              const tag = ACTIVITY_TAGS[a.type] || 'Update';
+              const link = a.href
+                ? `<a href="${escapeHtml(a.href)}">${escapeHtml(a.project_name || 'View')}</a>`
+                : a.project_id
+                  ? `<a href="builder-project.html?id=${a.project_id}">${escapeHtml(a.project_name || 'Project')}</a>`
+                  : '';
+              return `<div class="bp-activity-item">
+            <span class="bp-activity-item__tag">${escapeHtml(tag)}</span>
             <span class="bp-activity-item__time">${fmtDate(a.created_at)}</span>
             <p>${escapeHtml(a.text)}</p>
-            ${a.project_id ? `<a href="builder-project.html?id=${a.project_id}">${escapeHtml(a.project_name || 'Project')}</a>` : ''}
-          </div>`
-            )
+            ${link}
+          </div>`;
+            })
             .join('')
-        : '<p class="bp-muted">No recent activity yet.</p>';
+        : `<p class="bp-muted">${d.since_last_seen ? 'No new activity since your last visit.' : 'No recent activity yet.'}</p>`;
     }
 
     const el = document.getElementById('projectCards');
@@ -145,7 +231,7 @@
             <p class="bp-muted" style="font-size:11px;margin:4px 0 0">Start: ${fmtDate(p.start_date)} — ${p.total_sqft ? p.total_sqft + ' sqft' : ''}</p>
             <div class="bp-progress-bar" style="margin-top:8px;max-width:220px"><div class="bp-progress-fill" style="width:${Math.min(100, p.completion_percentage || 0)}%"></div></div>
           </div>
-          <a href="builder-project.html?id=${p.id}" class="bp-btn-tan" style="text-decoration:none;align-self:center">Details</a>
+          <a href="builder-project.html?id=${p.id}" class="bp-btn-tan" style="text-decoration:none;align-self:center">View details</a>
         </div>`
       )
       .join('');

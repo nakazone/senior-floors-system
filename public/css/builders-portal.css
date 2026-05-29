@@ -88,6 +88,25 @@
 .bp-check-group label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
 .bp-muted { color: var(--bp-muted); font-size: 13px; }
 .bp-manager { margin-bottom: 1rem; }
+.bp-welcome { background: var(--bp-navy); color: #fff; border: none; }
+.bp-welcome__main { display: flex; flex-wrap: wrap; gap: 20px; justify-content: space-between; align-items: flex-start; }
+.bp-welcome__title { color: #fff; font-size: 1.35rem; margin: 0 0 6px; font-family: Poppins, sans-serif; }
+.bp-welcome__sub { opacity: 0.92; margin: 0 0 14px; font-size: 14px; max-width: 520px; }
+.bp-welcome__cta { text-decoration: none; display: inline-block; }
+.bp-welcome__manager { flex: 0 1 280px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); border-radius: 10px; padding: 14px; }
+.bp-welcome__manager-head { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; opacity: 0.85; margin: 0 0 10px; }
+.bp-welcome__manager-row { display: flex; gap: 12px; align-items: center; }
+.bp-welcome__avatar { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; flex-shrink: 0; border: 2px solid var(--bp-tan); }
+.bp-welcome__avatar--init { display: flex; align-items: center; justify-content: center; background: var(--bp-tan); color: var(--bp-navy); font-weight: 700; font-size: 1.1rem; }
+.bp-welcome__mgr-name { font-weight: 600; margin: 0 0 4px; }
+.bp-welcome__mgr-meta { font-size: 12px; opacity: 0.9; margin: 2px 0; }
+.bp-welcome__mgr-meta a { color: var(--bp-tan); }
+.bp-welcome__mgr-actions { margin-top: 10px; }
+.bp-welcome__mgr-actions .bp-btn-tan { font-size: 12px; padding: 6px 12px; }
+.bp-first-visit { background: rgba(212, 175, 116, 0.2); border: 1px solid var(--bp-tan); border-radius: 8px; padding: 14px; margin-bottom: 14px; font-size: 14px; }
+.bp-first-visit p { margin: 0 0 10px; line-height: 1.45; }
+.bp-first-visit__actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.bp-activity-item__tag { display: inline-block; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; padding: 2px 6px; border-radius: 4px; background: var(--bp-tan-pale); color: var(--bp-navy); margin-bottom: 4px; }
 .hidden { display: none !important; }
 .bp-inline { padding: 4px 6px; border: 1px solid var(--bp-border); border-radius: 6px; font-size: 12px; }
 .bp-btn-sm { padding: 4px 10px; font-size: 12px; }

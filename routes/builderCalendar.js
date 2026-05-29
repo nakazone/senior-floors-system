@@ -7,6 +7,7 @@ import { assertBuilderOwnsProject } from '../lib/builderProjectAccess.js';
 import { buildBuilderVisitScope } from '../lib/builderVisitScope.js';
 import { notifyBuilder } from './builderNotifications.js';
 import { adminNotifyEmail, sendBuilderNotification } from '../lib/builderNotify.js';
+import { logBuilderActivity } from '../lib/builderActivityLog.js';
 
 async function columnExists(pool, table, col) {
   const [r] = await pool.query(
@@ -199,6 +200,15 @@ export async function postBuilderVisitRequest(req, res) {
         notes,
       ]
     );
+
+    const when = String(scheduled_at).slice(0, 10);
+    logBuilderActivity(pool, {
+      builderId: bid,
+      projectId: Number.isFinite(projectId) ? projectId : null,
+      type: 'visit',
+      text: `Visit request submitted for ${when}`,
+      href: 'builder-calendar.html',
+    }).catch(() => {});
 
     await notifyBuilder(pool, bid, {
       type: 'visit',
