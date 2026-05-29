@@ -5,6 +5,7 @@ import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { sanitizePdfText } from '../../lib/pdfWinAnsi.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
