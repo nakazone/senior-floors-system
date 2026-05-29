@@ -14,6 +14,38 @@
 
   const SF_LOGO_URL = '/assets/SeniorFloors.png?v=20260529';
 
+  const NOTIF_ICONS = {
+    project: '\u{1F514}',
+    message: '\u{1F4AC}',
+    checklist: '\u2705',
+    visit: '\u{1F4C5}',
+    document_expiry: '\u{1F4C1}',
+    document: '\u{1F4C1}',
+    pricing: '\u{1F4B0}',
+    completed: '\u{1F389}',
+    estimate: '\u{1F4CB}',
+    info: '\u2139\uFE0F',
+  };
+
+  function notifIcon(type) {
+    const k = String(type || 'info').toLowerCase();
+    return NOTIF_ICONS[k] || NOTIF_ICONS.info;
+  }
+
+  function fmtNotifTime(iso) {
+    if (!iso) return '';
+    try {
+      return new Date(iso).toLocaleString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    } catch {
+      return String(iso).slice(0, 16).replace('T', ' ');
+    }
+  }
+
   function escapeHtml(s) {
     return String(s)
       .replace(/&/g, '&amp;')
@@ -165,7 +197,7 @@
       }
       dd.classList.remove('hidden');
       dd.innerHTML = '<p class="bp-muted" style="padding:12px">Loading...</p>';
-      const r = await window.builderAuth.fetch('/api/builder-notifications?limit=15');
+      const r = await window.builderAuth.fetch('/api/builder-notifications?limit=20');
       const j = await r.json();
       const rows = j.data || [];
       dd.innerHTML =
@@ -175,24 +207,46 @@
         </div>` +
         (rows.length
           ? rows
-              .map(
-                (n) =>
-                  `<a href="${escapeHtml(n.link_url || '#')}" class="bp-notif-item${n.is_read ? '' : ' bp-notif-item--unread'}">
-                    <span class="bp-notif-item__title">${escapeHtml(n.title)}</span>
-                    <span class="bp-notif-item__body">${escapeHtml(n.body || '')}</span>
-                    <span class="bp-notif-item__time">${escapeHtml(String(n.created_at || '').slice(0, 16))}</span>
-                  </a>`
-              )
+              .map((n) => {
+                const href = n.link_url || '#';
+                const icon = notifIcon(n.type);
+                const cleanBody = String(n.body || '')
+                  .replace(/\s*\[doc:\d+:d\d+\]\s*$/i, '')
+                  .trim();
+                return `<a href="${escapeHtml(href)}" class="bp-notif-item${n.is_read ? '' : ' bp-notif-item--unread'}" data-notif-id="${n.id}">
+                    <span class="bp-notif-item__icon" aria-hidden="true">${icon}</span>
+                    <span class="bp-notif-item__content">
+                      <span class="bp-notif-item__title">${escapeHtml(n.title)}</span>
+                      <span class="bp-notif-item__body">${escapeHtml(cleanBody)}</span>
+                      <span class="bp-notif-item__time">${escapeHtml(fmtNotifTime(n.created_at))}</span>
+                    </span>
+                  </a>`;
+              })
               .join('')
           : '<p class="bp-muted" style="padding:12px">No notifications yet.</p>') +
-        `<div class="bp-notif-foot"><a href="builder-profile.html#notifications">Manage preferences</a></div>`;
+        `<div class="bp-notif-foot"><a href="builder-profile.html#notifications">Manage notification preferences</a></div>`;
+
+      dd.querySelectorAll('.bp-notif-item[data-notif-id]').forEach((el) => {
+        el.addEventListener('click', async () => {
+          const nid = el.dataset.notifId;
+          if (!nid) return;
+          try {
+            await window.builderAuth.fetch(`/api/builder-notifications/${nid}/read`, {
+              method: 'POST',
+            });
+            void refreshUnreadBadges();
+          } catch (_) {}
+        });
+      });
+
       document.getElementById('bpMarkAllRead')?.addEventListener('click', async () => {
         await window.builderAuth.fetch('/api/builder-notifications/mark-read', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ all: true }),
         });
-        loadPortalHeader();
+        await loadPortalHeader();
+        void refreshUnreadBadges();
       });
     });
 

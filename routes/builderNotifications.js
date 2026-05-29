@@ -3,11 +3,14 @@
  */
 import { getDBConnection } from '../config/db.js';
 import { requireBuilderAuth } from '../middleware/builderAuth.js';
+import { ensureDocumentExpiryNotifications } from '../lib/builderPortalNotify.js';
 
 export async function listBuilderNotifications(req, res) {
   try {
     const pool = await getDBConnection();
     if (!pool) return res.status(503).json({ success: false, error: 'Database not available' });
+    const bid = req.builderAuth.builderId;
+    await ensureDocumentExpiryNotifications(pool, bid).catch(() => {});
     const limit = Math.min(50, Math.max(1, parseInt(req.query.limit, 10) || 20));
     const [rows] = await pool.query(
       `SELECT id, type, title, body, link_url, is_read, created_at
@@ -34,6 +37,7 @@ export async function getBuilderUnreadCount(req, res) {
     const pool = await getDBConnection();
     if (!pool) return res.status(503).json({ success: false, error: 'Database not available' });
     const bid = req.builderAuth.builderId;
+    await ensureDocumentExpiryNotifications(pool, bid).catch(() => {});
 
     const [[msgUnread]] = await pool.query(
       `SELECT COUNT(*) AS c FROM builder_messages
@@ -70,6 +74,11 @@ export async function markNotificationsRead(req, res) {
         'UPDATE builder_notifications SET is_read = 1 WHERE builder_id = ? AND is_read = 0',
         [bid]
       );
+      await pool.execute(
+        `UPDATE builder_messages SET is_read = 1
+         WHERE builder_id = ? AND sender_type = 'admin' AND is_read = 0 AND is_internal_note = 0`,
+        [bid]
+      );
     } else if (ids.length) {
       await pool.execute(
         `UPDATE builder_notifications SET is_read = 1 WHERE builder_id = ? AND id IN (${ids.map(() => '?').join(',')})`,
@@ -99,4 +108,21 @@ export function registerBuilderNotificationRoutes(app) {
   app.get('/api/builder-notifications', requireBuilderAuth, listBuilderNotifications);
   app.get('/api/builder-notifications/unread-count', requireBuilderAuth, getBuilderUnreadCount);
   app.post('/api/builder-notifications/mark-read', requireBuilderAuth, markNotificationsRead);
+  app.post('/api/builder-notifications/:id/read', requireBuilderAuth, async (req, res) => {
+    try {
+      const pool = await getDBConnection();
+      const bid = req.builderAuth.builderId;
+      const id = parseInt(req.params.id, 10);
+      if (!Number.isFinite(id)) {
+        return res.status(400).json({ success: false, error: 'Invalid id' });
+      }
+      await pool.execute(
+        'UPDATE builder_notifications SET is_read = 1 WHERE builder_id = ? AND id = ?',
+        [bid, id]
+      );
+      res.json({ success: true });
+    } catch (e) {
+      res.status(500).json({ success: false, error: e.message });
+    }
+  });
 }
