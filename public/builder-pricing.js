@@ -55,6 +55,16 @@
   let simulationResults = {};
   let activeSimulationId = null;
 
+  function closeSimulationDetail() {
+    activeSimulationId = null;
+    const host = document.getElementById('pricingSimDetail');
+    if (host) {
+      host.classList.add('hidden');
+      host.innerHTML = '';
+    }
+    renderSimulationCards();
+  }
+
   function money(n) {
     return '$' + (Number(n) || 0).toFixed(2);
   }
@@ -177,12 +187,16 @@
         <span class="bp-pricing-sim-card__title">${escapeHtml(sim.title)}</span>
         <p class="bp-pricing-sim-card__desc">${escapeHtml(sim.description)}</p>
         ${rangeHtml}
-        <span class="bp-pricing-sim-card__cta">View full breakdown</span>
+        <span class="bp-pricing-sim-card__cta">${activeSimulationId === sim.id ? 'Hide breakdown' : 'View full breakdown'}</span>
       </button>`;
     }).join('');
     grid.querySelectorAll('[data-sim-id]').forEach((btn) => {
       btn.addEventListener('click', () => {
         const id = btn.dataset.simId;
+        if (activeSimulationId === id) {
+          closeSimulationDetail();
+          return;
+        }
         activeSimulationId = id;
         renderSimulationCards();
         const sim = PROJECT_SIMULATIONS.find((s) => s.id === id);
@@ -203,13 +217,6 @@
       })
     );
     renderSimulationCards();
-    if (!activeSimulationId) {
-      activeSimulationId = PROJECT_SIMULATIONS[0]?.id;
-    }
-    const first = PROJECT_SIMULATIONS.find((s) => s.id === activeSimulationId);
-    if (first && simulationResults[first.id]?.ok) {
-      renderSimulationDetail(first, simulationResults[first.id]);
-    }
   }
 
   function escapeHtml(s) {
@@ -381,16 +388,16 @@
       }) || '<h1 class="bp-title">Partner pricing</h1>';
     root.innerHTML = `${hdr}
       <p class="bp-muted">${validLine}</p>
-      <section class="bp-pricing-sims" aria-labelledby="pricingSimsTitle">
-        <h2 id="pricingSimsTitle" class="bp-pricing-sims__title">Project simulations</h2>
-        <p class="bp-muted bp-pricing-sims__intro">Three example complete projects using your current partner rates. Select one to see line-by-line estimates.</p>
-        <div class="bp-pricing-sims__grid" id="pricingSimsGrid"></div>
-        <div id="pricingSimDetail" class="hidden" aria-live="polite"></div>
-      </section>
       <h2 class="bp-pricing-table-title">Rate sheet</h2>
       <div class="bp-table-wrap"><table class="bp-table"><thead><tr><th>Service</th><th>Category</th><th>Unit</th><th>Public range</th><th>Your price</th></tr></thead><tbody>${rows}</tbody></table></div>
       <h2 style="font-size:1rem;margin-top:1.5rem">Volume discounts</h2>
       <div class="bp-card" id="volPortal"></div>
+      <section class="bp-pricing-sims" aria-labelledby="pricingSimsTitle">
+        <h2 id="pricingSimsTitle" class="bp-pricing-sims__title">Project simulations</h2>
+        <p class="bp-muted bp-pricing-sims__intro">Three example complete projects using your current partner rates. Click one to open the full breakdown.</p>
+        <div class="bp-pricing-sims__grid" id="pricingSimsGrid"></div>
+        <div id="pricingSimDetail" class="hidden" aria-live="polite"></div>
+      </section>
       <p style="margin-top:1rem"><a href="builder-calculator.html" class="bp-btn-tan" style="text-decoration:none;display:inline-block;margin-right:8px">Open calculator</a>
       <a href="builder-estimate-request.html" class="bp-btn-ghost" style="text-decoration:none;display:inline-block">Request formal estimate</a></p>`;
     renderVolume($('volPortal'));
@@ -399,7 +406,6 @@
     root.querySelectorAll('[data-calc]').forEach((btn) => {
       btn.addEventListener('click', () => openInlineCalc(parseInt(btn.dataset.calc, 10)));
     });
-    void loadSimulations();
   }
 
   document.addEventListener('DOMContentLoaded', () => {
