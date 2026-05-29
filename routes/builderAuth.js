@@ -9,6 +9,7 @@ import { resolveBuilderAccountManager } from '../lib/builderAccountManager.js';
 import { clearBuilderAdminPasswordCopy } from '../lib/builderPortalPassword.js';
 import { createPasswordResetForEmail, consumePasswordResetToken } from '../lib/builderPasswordReset.js';
 import { sendBuilderNotification } from '../lib/builderNotify.js';
+import { validateBuilderPortalPassword } from '../lib/builderPasswordPolicy.js';
 import { requireBuilderAuth } from '../middleware/builderAuth.js';
 import { getUiConfig } from './uiConfig.js';
 
@@ -165,15 +166,16 @@ export async function postChangePassword(req, res) {
     const next = String(req.body?.new_password || '');
     const pool = await getDBConnection();
     const [rows] = await pool.query(
-      'SELECT portal_password_hash, portal_password_must_change FROM builders WHERE id = ?',
+      'SELECT portal_password_hash, portal_password_must_change, email, first_name FROM builders WHERE id = ?',
       [req.builderAuth.builderId]
     );
     const mustChange = !!rows[0]?.portal_password_must_change;
     if (!rows.length) {
       return res.status(404).json({ success: false, error: 'Builder not found' });
     }
-    if (next.length < 8) {
-      return res.status(400).json({ success: false, error: 'New password must be at least 8 characters' });
+    const pwErr = validateBuilderPortalPassword(next);
+    if (pwErr) {
+      return res.status(400).json({ success: false, error: pwErr });
     }
     if (!mustChange) {
       if (!current) {
@@ -192,7 +194,21 @@ export async function postChangePassword(req, res) {
     await pool.execute('UPDATE builders SET portal_password_must_change = 0 WHERE id = ?', [
       req.builderAuth.builderId,
     ]);
-    res.json({ success: true, message: 'Password updated' });
+
+    const builder = rows[0];
+    if (builder?.email) {
+      const pub = process.env.PUBLIC_CRM_URL || 'https://app.senior-floors.com';
+      sendBuilderNotification({
+        to: builder.email,
+        subject: 'Your Senior Floors portal password was changed',
+        html: `<p>Hi ${builder.first_name || 'there'},</p>
+<p>This confirms that your Builder Portal password was changed successfully.</p>
+<p>If you did not make this change, contact Senior Floors immediately at contact@seniorfloors.com.</p>
+<p><a href="${pub}/builder-login.html">Sign in to the portal</a></p>`,
+      }).catch((e) => console.warn('[builderAuth] password change email:', e.message));
+    }
+
+    res.json({ success: true, message: 'Password updated. A confirmation email was sent.' });
   } catch (e) {
     console.error('builder change password:', e);
     res.status(500).json({ success: false, error: e.message });

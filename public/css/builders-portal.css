@@ -472,6 +472,22 @@
 .bp-cal-event--request { border-left: 4px solid #f59e0b; }
 .bp-cal-event--visit { border-left: 4px solid var(--bp-tan); }
 .bp-doc-upload input[type="file"] { font-size: 12px; }
+.bp-profile-main { max-width: 720px; }
+.bp-profile-section__title { font-size: 1rem; margin: 0 0 12px; color: var(--bp-navy); }
+.bp-profile-section__subtitle { font-size: 13px; margin: 16px 0 10px; color: var(--bp-navy); }
+.bp-profile-hint { font-size: 13px; margin: 0 0 12px; }
+.bp-profile-manager__row { display: flex; gap: 14px; align-items: flex-start; }
+.bp-profile-manager__name { font-weight: 600; font-size: 15px; margin: 0 0 4px; color: var(--bp-navy); }
+.bp-pref-row { display: flex; gap: 8px; margin-bottom: 8px; font-size: 13px; align-items: center; cursor: pointer; }
+.bp-doc-required { margin-bottom: 14px; padding: 12px; background: var(--bp-tan-pale); border-radius: 8px; }
+.bp-doc-required__list { list-style: none; margin: 0; padding: 0; font-size: 13px; }
+.bp-doc-required__list li { padding: 4px 0; display: flex; align-items: center; gap: 8px; }
+.bp-doc-required--ok { color: var(--bp-navy); font-weight: 600; }
+.bp-doc-required--missing { color: var(--bp-muted); }
+.bp-doc-required__icon { width: 18px; text-align: center; }
+.bp-doc-table .bp-doc-actions { white-space: nowrap; }
+.bp-doc-table .bp-doc-actions .bp-link-btn { margin-right: 6px; font-size: 12px; }
+.bp-doc-upload { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--bp-border); }
 .bp-materials-table td { vertical-align: top; }
 
 @media (max-width: 768px) {
