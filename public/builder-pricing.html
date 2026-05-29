@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Tabela de Valores — Senior Floors</title>
+  <title>Tabela de Valores - Senior Floors</title>
   <link rel="icon" type="image/png" href="/assets/SeniorFloors.png" />
   <link rel="stylesheet" href="styles.css" />
   <link rel="stylesheet" href="design-system.css" />
   <link rel="stylesheet" href="crm-shared-nav.css?v=12" />
   <link rel="stylesheet" href="crm-toast.css" />
-  <link rel="stylesheet" href="css/builders-portal.css" />
+  <link rel="stylesheet" href="css/builders-portal.css?v=20260529-pricing" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700&display=swap" rel="stylesheet" />
 </head>
 <body class="dashboard-app-body bp-page-body payroll-sidebar-page" id="pricingBody">
@@ -18,12 +18,36 @@
     <main class="dashboard-main">
       <div class="bp-main">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;margin-bottom:1rem">
-          <div><p class="bp-eyebrow">Builders</p><h1 class="bp-title">Tabela de Valores</h1></div>
-          <button type="button" class="bp-btn-tan" id="btnAddService">+ Servi—o</button>
+          <div>
+            <p class="bp-eyebrow">Builders</p>
+            <h1 class="bp-title">Tabela de Valores</h1>
+            <p class="bp-muted" id="adminPricingHint">Edite servicos, precos publicos, precos parceiro e notas. Builders veem apenas itens visiveis.</p>
+          </div>
+          <button type="button" class="bp-btn-tan" id="btnAddService">+ Servico</button>
         </div>
-        <div class="bp-table-wrap"><table class="bp-table" id="pricingTable"><thead><tr>
-          <th>Servi—o</th><th>Categoria</th><th>Unidade</th><th>M—n</th><th>M—x</th><th>Parceiro</th><th>Vis—vel</th><th>Bloqueado</th><th></th>
-        </tr></thead><tbody id="pricingTbody"></tbody></table></div>
+        <p id="adminReadOnlyBanner" class="bp-card hidden" style="margin-bottom:12px;background:#fff8e6;border:1px solid #e8c96a">
+          Modo somente leitura. Solicite permissao <strong>builders.edit</strong> para alterar a tabela.
+        </p>
+        <div class="bp-table-wrap bp-pricing-admin-wrap">
+          <table class="bp-table bp-pricing-admin-table" id="pricingTable">
+            <thead>
+              <tr>
+                <th title="Ordem de exibicao">#</th>
+                <th>Servico</th>
+                <th>Categoria</th>
+                <th>Unidade</th>
+                <th>Min publico</th>
+                <th>Max publico</th>
+                <th>Preco parceiro</th>
+                <th>Notas (portal)</th>
+                <th>Visivel</th>
+                <th>Bloqueado</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="pricingTbody"></tbody>
+          </table>
+        </div>
         <h2 class="bp-title" style="font-size:1rem;margin-top:1.5rem">Desconto por volume</h2>
         <div class="bp-card" id="volumeDiscounts"></div>
       </div>
@@ -38,7 +62,7 @@
   <script src="crm-shared-nav.js?v=12"></script>
   <script src="builder-auth.js?v=3"></script>
   <script src="builder-portal-nav.js?v=2"></script>
-  <script src="builder-portal-common.js?v=1"></script>
-  <script src="builder-pricing.js?v=2"></script>
+  <script src="builder-portal-common.js?v=20260529-portal-dash"></script>
+  <script src="builder-pricing.js?v=20260529-pricing"></script>
 </body>
 </html>

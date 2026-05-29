@@ -516,3 +516,43 @@
 .bp-ref-status-pipeline span.is-done { background: var(--bp-tan-pale); color: var(--bp-navy); font-weight: 600; }
 .bp-ref-status-pipeline span.is-current { background: var(--bp-navy); color: var(--bp-tan); font-weight: 600; }
 .hidden { display: none !important; }
+
+/* Partner pricing — admin table + service notes tooltip */
+.bp-pricing-admin-wrap { overflow-x: auto; }
+.bp-pricing-admin-table .bp-inline { width: 100%; min-width: 0; font-size: 12px; padding: 6px 8px; }
+.bp-pricing-admin-table input[type="number"].bp-inline { width: 72px; }
+.bp-pricing-admin-table input[data-f="sort_order"] { width: 44px; }
+.bp-pricing-admin-table textarea.bp-inline-notes {
+  width: 100%;
+  min-width: 140px;
+  min-height: 44px;
+  resize: vertical;
+  font-size: 11px;
+  line-height: 1.35;
+}
+.bp-pricing-admin-table td { vertical-align: top; }
+.bp-tooltip-wrap { position: relative; display: inline-flex; vertical-align: middle; margin-left: 4px; }
+.bp-tooltip-wrap .bp-info-btn { margin: 0; }
+.bp-tooltip-wrap .bp-tooltip {
+  display: none;
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 8px);
+  transform: translateX(-50%);
+  z-index: 30;
+  width: max-content;
+  max-width: 240px;
+  padding: 8px 10px;
+  font-size: 11px;
+  line-height: 1.4;
+  font-weight: 400;
+  color: var(--bp-navy);
+  background: #fff;
+  border: 1px solid var(--bp-border);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(26, 32, 54, 0.12);
+  pointer-events: none;
+  text-align: left;
+}
+.bp-tooltip-wrap:hover .bp-tooltip,
+.bp-tooltip-wrap:focus-within .bp-tooltip { display: block; }

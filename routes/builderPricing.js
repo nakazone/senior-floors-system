@@ -1,9 +1,13 @@
 /**
- * Partner pricing table ‚Äî admin edit, builder read-only view.
+ * Partner pricing table ù admin edit, builder read-only view.
  */
 import { getDBConnection } from '../config/db.js';
 import { requireAuth, requirePermission } from '../middleware/auth.js';
 import { requireBuilderAuth } from '../middleware/builderAuth.js';
+import { buildPartnerPricingPdfBuffer } from '../modules/builder/partnerPricingPdf.js';
+import { sendBuilderNotification } from '../lib/builderNotify.js';
+import { builderWantsEmail } from '../lib/builderNotifyPrefs.js';
+import { notifyBuilder } from './builderNotifications.js';
 
 const CATEGORY_LABELS = {
   supply: 'Supply',
@@ -78,30 +82,12 @@ export async function listPricingBuilder(req, res) {
     const pool = await getDBConnection();
     const builderId = req.builderAuth.builderId;
     const data = await getPartnerPricingForBuilder(pool, builderId);
-    const [[metaRow]] = await pool.query(
-      'SELECT MAX(updated_at) AS last_updated FROM pricing_services WHERE is_visible = 1'
-    );
-    const lastUpdated = metaRow?.last_updated || null;
-    let validThrough = null;
-    if (lastUpdated) {
-      const d = new Date(lastUpdated);
-      d.setMonth(d.getMonth() + 3);
-      validThrough = d.toISOString().slice(0, 10);
-    }
-    const [b] = await pool.query(
-      'SELECT company, first_name, last_name FROM builders WHERE id = ?',
-      [builderId]
-    );
+    const meta = await buildPricingMeta(pool, builderId);
     res.json({
       success: true,
       data,
       volume_discounts: VOLUME_DISCOUNTS,
-      meta: {
-        last_updated: lastUpdated,
-        valid_through: validThrough,
-        builder_display_name:
-          b[0]?.company || [b[0]?.first_name, b[0]?.last_name].filter(Boolean).join(' ') || 'Partner',
-      },
+      meta,
     });
   } catch (e) {
     res.status(500).json({ success: false, error: e.message });
@@ -124,11 +110,67 @@ export async function listPricingForBuilderId(req, res) {
   }
 }
 
+async function buildPricingMeta(pool, builderId) {
+  const [[metaRow]] = await pool.query(
+    'SELECT MAX(updated_at) AS last_updated FROM pricing_services WHERE is_visible = 1'
+  );
+  const lastUpdated = metaRow?.last_updated || null;
+  let validThrough = null;
+  if (lastUpdated) {
+    const d = new Date(lastUpdated);
+    d.setMonth(d.getMonth() + 3);
+    validThrough = d.toISOString().slice(0, 10);
+  }
+  const [b] = await pool.query(
+    'SELECT company, first_name, last_name FROM builders WHERE id = ?',
+    [builderId]
+  );
+  return {
+    last_updated: lastUpdated,
+    valid_through: validThrough,
+    builder_display_name:
+      b[0]?.company || [b[0]?.first_name, b[0]?.last_name].filter(Boolean).join(' ') || 'Partner',
+  };
+}
+
+async function notifyBuildersPricingUpdated(pool, serviceName) {
+  const pub = process.env.PUBLIC_CRM_URL || '';
+  const [builders] = await pool.query(
+    `SELECT id, email, first_name, notification_prefs
+     FROM builders
+     WHERE portal_access = 1 AND email IS NOT NULL AND TRIM(email) != ''`
+  );
+  const title = 'Partner pricing updated';
+  const body = serviceName
+    ? `The pricing table was updated (${serviceName}). Review your rates in the portal.`
+    : 'The partner pricing table was updated. Review your rates in the portal.';
+  for (const b of builders) {
+    notifyBuilder(pool, b.id, {
+      type: 'pricing',
+      title,
+      body,
+      linkUrl: '/builder-pricing.html',
+    }).catch(() => {});
+    if (b.email && builderWantsEmail(b.notification_prefs, 'pricing')) {
+      sendBuilderNotification({
+        to: b.email,
+        subject: 'Senior Floors ù partner pricing updated',
+        html: `<p>Hi ${b.first_name || 'there'},</p>
+<p>${body}</p>
+<p><a href="${pub}/builder-pricing.html">View pricing table</a></p>`,
+      }).catch(() => {});
+    }
+  }
+}
+
 export async function updatePricingService(req, res) {
   try {
     const pool = await getDBConnection();
     const id = parseInt(req.params.id, 10);
     const b = req.body || {};
+    const [prev] = await pool.query('SELECT name, price_min, price_max, partner_price FROM pricing_services WHERE id = ?', [
+      id,
+    ]);
     await pool.execute(
       `UPDATE pricing_services SET
         name = COALESCE(?, name),
@@ -157,8 +199,60 @@ export async function updatePricingService(req, res) {
       ]
     );
     const [rows] = await pool.query('SELECT * FROM pricing_services WHERE id = ?', [id]);
-    res.json({ success: true, data: rows[0] });
+    const row = rows[0];
+    const priceChanged =
+      prev[0] &&
+      row &&
+      (Number(prev[0].price_min) !== Number(row.price_min) ||
+        Number(prev[0].price_max) !== Number(row.price_max) ||
+        Number(prev[0].partner_price) !== Number(row.partner_price));
+    if (priceChanged) {
+      notifyBuildersPricingUpdated(pool, row.name || prev[0].name).catch(() => {});
+    }
+    res.json({ success: true, data: row });
   } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+}
+
+export async function deletePricingService(req, res) {
+  try {
+    const pool = await getDBConnection();
+    const id = parseInt(req.params.id, 10);
+    await pool.execute('DELETE FROM builder_pricing_overrides WHERE service_id = ?', [id]);
+    await pool.execute('DELETE FROM pricing_services WHERE id = ?', [id]);
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+}
+
+export async function getPartnerPricingPdf(req, res) {
+  try {
+    const pool = await getDBConnection();
+    const builderId = req.builderAuth.builderId;
+    const data = await getPartnerPricingForBuilder(pool, builderId);
+    const meta = await buildPricingMeta(pool, builderId);
+    const pdfBuf = await buildPartnerPricingPdfBuffer({
+      services: data,
+      meta,
+      volumeDiscounts: VOLUME_DISCOUNTS.map((v) => ({
+        min_sqft: v.min_sqft,
+        max_sqft: v.max_sqft,
+        discount_pct: v.discount_pct,
+        range:
+          v.max_sqft != null
+            ? `${v.min_sqft.toLocaleString()} - ${v.max_sqft.toLocaleString()} sq ft`
+            : `${v.min_sqft.toLocaleString()}+ sq ft`,
+        pct: v.discount_pct,
+      })),
+    });
+    const stamp = new Date().toISOString().slice(0, 10);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="senior-floors-partner-pricing-${stamp}.pdf"`);
+    res.send(pdfBuf);
+  } catch (e) {
+    console.error('getPartnerPricingPdf:', e);
     res.status(500).json({ success: false, error: e.message });
   }
 }
@@ -200,6 +294,7 @@ const VOLUME_DISCOUNTS = [
 export function registerBuilderPricingRoutes(app) {
   app.get('/api/pricing', requireAuth, requirePermission('builders.view'), listPricingAdmin);
   app.get('/api/pricing/partner', requireBuilderAuth, listPricingBuilder);
+  app.get('/api/pricing/partner/pdf', requireBuilderAuth, getPartnerPricingPdf);
   app.get(
     '/api/pricing/builder/:builderId',
     requireAuth,
@@ -207,6 +302,7 @@ export function registerBuilderPricingRoutes(app) {
     listPricingForBuilderId
   );
   app.put('/api/pricing/:id', requireAuth, requirePermission('builders.edit'), updatePricingService);
+  app.delete('/api/pricing/:id', requireAuth, requirePermission('builders.edit'), deletePricingService);
   app.post('/api/pricing', requireAuth, requirePermission('builders.edit'), createPricingService);
   app.get('/api/pricing/volume-discounts', (req, res) => {
     res.json({ success: true, data: VOLUME_DISCOUNTS });

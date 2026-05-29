@@ -14,6 +14,7 @@
 
   let portalPricingData = [];
   let portalMeta = {};
+  let adminCanEdit = false;
 
   function money(n) {
     return '$' + (Number(n) || 0).toFixed(2);
@@ -27,6 +28,14 @@
       .replace(/"/g, '&quot;');
   }
 
+  function noteTooltipHtml(notes) {
+    if (!notes) return '';
+    return `<span class="bp-tooltip-wrap">
+      <button type="button" class="bp-info-btn" aria-label="Service notes">i</button>
+      <span class="bp-tooltip" role="tooltip">${escapeHtml(notes)}</span>
+    </span>`;
+  }
+
   async function adminApi(path, opts) {
     const r = await fetch(path, { credentials: 'include', ...opts });
     const j = await r.json().catch(() => ({}));
@@ -35,6 +44,7 @@
   }
 
   function renderVolume(el) {
+    if (!el) return;
     el.innerHTML = `<ul style="margin:0;padding-left:1.2rem">${VOLUME_DISCOUNTS.map(
       (v) => `<li>${v.range}: <strong>${v.pct}%</strong> off partner rate</li>`
     ).join('')}</ul>`;
@@ -83,61 +93,73 @@
       }
       const d = j.data;
       box.classList.remove('hidden');
-      box.innerHTML = `<p style="margin:0">${money(d.estimate_low_discounted)} — ${money(d.estimate_high_discounted)}</p>
+      box.innerHTML = `<p style="margin:0">${money(d.estimate_low_discounted)} - ${money(d.estimate_high_discounted)}</p>
         <p style="font-size:12px;margin:6px 0 0;opacity:0.85">${d.volume_discount_pct ? d.volume_discount_pct + '% volume discount' : 'Partner rate'}</p>`;
     });
   }
 
-  function printPricingPdf() {
-    const w = window.open('', '_blank');
-    if (!w) {
-      alert('Allow popups to print PDF.');
-      return;
+  async function downloadPricingPdf() {
+    const btn = document.getElementById('btnDownloadPricing');
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'Generating PDF...';
     }
-    const rows = portalPricingData
-      .filter((s) => !s.is_locked)
-      .map(
-        (s) =>
-          `<tr><td>${escapeHtml(s.name)}</td><td>${escapeHtml(s.category_label || '')}</td><td>${escapeHtml(s.unit || '')}</td><td>${money(s.price_min)} — ${money(s.price_max)}</td><td><strong>${money(s.partner_price)}</strong></td></tr>`
-      )
-      .join('');
-    w.document.write(`<!DOCTYPE html><html><head><title>Partner Pricing</title>
-      <style>body{font-family:Inter,sans-serif;padding:32px;color:#1a2036}table{width:100%;border-collapse:collapse;font-size:12px}
-      th,td{border:1px solid #ddd;padding:8px}th{background:#f5f5f5}</style></head><body>
-      <h1>Senior Floors — Partner Pricing</h1>
-      <p>${escapeHtml(portalMeta.builder_display_name || 'Partner')} — Valid through ${escapeHtml(portalMeta.valid_through || '—')}</p>
-      <table><thead><tr><th>Service</th><th>Category</th><th>Unit</th><th>Public</th><th>Your price</th></tr></thead><tbody>${rows}</tbody></table>
-      <p style="font-size:10px;margin-top:24px">Last updated: ${String(portalMeta.last_updated || '').slice(0, 10)}. Confidential partner rates.</p></body></html>`);
-    w.document.close();
-    w.print();
+    try {
+      const r = await window.builderAuth.fetch('/api/pricing/partner/pdf');
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({}));
+        throw new Error(j.error || 'Could not generate PDF');
+      }
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank', 'noopener');
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (e) {
+      alert(e.message || 'PDF error');
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = 'Download PDF';
+      }
+    }
   }
 
-  async function loadAdmin() {
-    const j = await adminApi('/api/pricing');
-    const tbody = $('pricingTbody');
-    tbody.innerHTML = (j.data || [])
-      .map(
-        (s) => `<tr data-id="${s.id}">
-          <td><input class="bp-inline" data-f="name" value="${escapeHtml(s.name)}" /></td>
-          <td><select data-f="category" class="bp-inline">
+  function adminRowHtml(s) {
+    const dis = adminCanEdit ? '' : ' disabled';
+    return `<tr data-id="${s.id}">
+          <td><input class="bp-inline" data-f="sort_order" type="number" value="${s.sort_order ?? 0}" style="width:44px"${dis} /></td>
+          <td><input class="bp-inline" data-f="name" value="${escapeHtml(s.name)}"${dis} /></td>
+          <td><select data-f="category" class="bp-inline"${dis}>
             <option value="installation" ${s.category === 'installation' ? 'selected' : ''}>Installation</option>
             <option value="sand_finish" ${s.category === 'sand_finish' ? 'selected' : ''}>Sand & Finish</option>
             <option value="supply" ${s.category === 'supply' ? 'selected' : ''}>Supply</option>
             <option value="custom" ${s.category === 'custom' ? 'selected' : ''}>Custom</option>
           </select></td>
-          <td><input class="bp-inline" data-f="unit" value="${escapeHtml(s.unit || '')}" style="width:70px" /></td>
-          <td><input class="bp-inline" data-f="price_min" type="number" step="0.01" value="${s.price_min}" style="width:72px" /></td>
-          <td><input class="bp-inline" data-f="price_max" type="number" step="0.01" value="${s.price_max}" style="width:72px" /></td>
-          <td><input class="bp-inline" data-f="partner_price" type="number" step="0.01" value="${s.partner_price}" style="width:72px" /></td>
-          <td><input type="checkbox" data-f="is_visible" ${s.is_visible ? 'checked' : ''} /></td>
-          <td><input type="checkbox" data-f="is_locked" ${s.is_locked ? 'checked' : ''} /></td>
-          <td><button type="button" class="bp-btn-tan bp-btn-sm" data-save="${s.id}">Save</button></td>
-        </tr>`
-      )
-      .join('');
+          <td><input class="bp-inline" data-f="unit" value="${escapeHtml(s.unit || '')}" style="width:70px"${dis} /></td>
+          <td><input class="bp-inline" data-f="price_min" type="number" step="0.01" value="${s.price_min}" style="width:72px"${dis} /></td>
+          <td><input class="bp-inline" data-f="price_max" type="number" step="0.01" value="${s.price_max}" style="width:72px"${dis} /></td>
+          <td><input class="bp-inline" data-f="partner_price" type="number" step="0.01" value="${s.partner_price}" style="width:72px"${dis} /></td>
+          <td><textarea class="bp-inline bp-inline-notes" data-f="notes" rows="2" placeholder="Nota para o builder..."${dis}>${escapeHtml(s.notes || '')}</textarea></td>
+          <td><input type="checkbox" data-f="is_visible" ${s.is_visible ? 'checked' : ''}${dis} /></td>
+          <td><input type="checkbox" data-f="is_locked" ${s.is_locked ? 'checked' : ''}${dis} /></td>
+          <td style="white-space:nowrap">
+            ${adminCanEdit ? `<button type="button" class="bp-btn-tan bp-btn-sm" data-save="${s.id}">Salvar</button>
+            <button type="button" class="bp-btn-ghost bp-btn-sm" data-del="${s.id}" style="margin-left:4px">Excluir</button>` : ''}
+          </td>
+        </tr>`;
+  }
+
+  async function loadAdmin() {
+    const j = await adminApi('/api/pricing');
+    const tbody = $('pricingTbody');
+    tbody.innerHTML = (j.data || []).map(adminRowHtml).join('');
     renderVolume($('volumeDiscounts'));
+    if (!adminCanEdit) return;
     tbody.querySelectorAll('[data-save]').forEach((btn) => {
       btn.addEventListener('click', () => saveRow(btn.dataset.save));
+    });
+    tbody.querySelectorAll('[data-del]').forEach((btn) => {
+      btn.addEventListener('click', () => deleteRow(btn.dataset.del));
     });
   }
 
@@ -147,6 +169,7 @@
     tr.querySelectorAll('[data-f]').forEach((el) => {
       const f = el.dataset.f;
       if (el.type === 'checkbox') body[f] = el.checked;
+      else if (f === 'notes') body[f] = el.value;
       else body[f] = el.type === 'number' ? parseFloat(el.value) : el.value;
     });
     try {
@@ -155,7 +178,18 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
-      crmNotify('Saved.', 'success');
+      crmNotify('Salvo.', 'success');
+    } catch (e) {
+      crmNotify(e.message, 'error');
+    }
+  }
+
+  async function deleteRow(id) {
+    if (!confirm('Excluir este servico da tabela?')) return;
+    try {
+      await adminApi(`/api/pricing/${id}`, { method: 'DELETE' });
+      crmNotify('Servico removido.', 'success');
+      await loadAdmin();
     } catch (e) {
       crmNotify(e.message, 'error');
     }
@@ -170,21 +204,18 @@
     portalMeta = j.meta || {};
     const root = $('portalPricingRoot');
     const validLine = portalMeta.valid_through
-      ? `Table valid through <strong>${escapeHtml(portalMeta.valid_through)}</strong> — Last updated ${escapeHtml(String(portalMeta.last_updated || '').slice(0, 10))}`
-      : 'Partner rates — contact Senior Floors for an updated table.';
+      ? `Table valid through <strong>${escapeHtml(portalMeta.valid_through)}</strong> - Last updated ${escapeHtml(String(portalMeta.last_updated || '').slice(0, 10))}`
+      : 'Partner rates - contact Senior Floors for an updated table.';
     const rows = portalPricingData
       .map((s) => {
         if (s.is_locked) {
           return `<tr><td>${escapeHtml(s.name)}</td><td>${escapeHtml(s.category_label || '')}</td><td colspan="3"><em>Contact your manager</em> <a href="builder-messages.html" class="bp-btn-tan bp-btn-sm" style="text-decoration:none;margin-left:8px">Request quote</a></td></tr>`;
         }
-        const noteIcon = s.notes
-          ? `<button type="button" class="bp-info-btn" title="${escapeHtml(s.notes)}">i</button>`
-          : '';
         return `<tr>
-          <td>${escapeHtml(s.name)} ${noteIcon}</td>
+          <td>${escapeHtml(s.name)} ${noteTooltipHtml(s.notes)}</td>
           <td>${escapeHtml(s.category_label || '')}</td>
           <td>${escapeHtml(s.unit || '')}</td>
-          <td>${money(s.price_min)} — ${money(s.price_max)}</td>
+          <td>${money(s.price_min)} - ${money(s.price_max)}</td>
           <td><span class="bp-badge bp-badge--active">${money(s.partner_price)}</span>
             <button type="button" class="bp-btn-ghost bp-btn-sm" data-calc="${s.id}" style="margin-left:6px">Calc</button></td>
         </tr>`;
@@ -203,18 +234,23 @@
       <p style="margin-top:1rem"><a href="builder-calculator.html" class="bp-btn-tan" style="text-decoration:none;display:inline-block;margin-right:8px">Open calculator</a>
       <a href="builder-estimate-request.html" class="bp-btn-ghost" style="text-decoration:none;display:inline-block">Request formal estimate</a></p>`;
     renderVolume($('volPortal'));
-    document.getElementById('btnDownloadPricing')?.addEventListener('click', printPricingPdf);
+    document.getElementById('btnDownloadPricing')?.addEventListener('click', downloadPricingPdf);
     root.querySelectorAll('[data-calc]').forEach((btn) => {
       btn.addEventListener('click', () => openInlineCalc(parseInt(btn.dataset.calc, 10)));
-    });
-    root.querySelectorAll('.bp-info-btn').forEach((btn) => {
-      btn.addEventListener('click', () => alert(btn.title || ''));
     });
   }
 
   async function init() {
     if (isPortal()) {
-      await loadPortal();
+      const boot = window.builderPortalCommon?.whenPortalReady;
+      const run = () => loadPortal();
+      if (typeof boot === 'function') {
+        boot().then((ok) => {
+          if (ok) run();
+        });
+      } else if (window.builderAuth?.getToken()) {
+        run();
+      }
       return;
     }
     const sess = await fetch('/api/auth/session', { credentials: 'include' }).then((r) => r.json());
@@ -222,7 +258,14 @@
       location.href = 'login.html';
       return;
     }
+    const perms = sess.permissions || sess.user?.permissions || [];
+    adminCanEdit = sess.role === 'admin' || perms.includes('builders.edit');
+    if (!adminCanEdit) {
+      $('adminReadOnlyBanner')?.classList.remove('hidden');
+      $('btnAddService')?.setAttribute('disabled', 'disabled');
+    }
     $('btnAddService')?.addEventListener('click', async () => {
+      if (!adminCanEdit) return;
       try {
         await adminApi('/api/pricing', {
           method: 'POST',
@@ -230,7 +273,7 @@
           body: JSON.stringify({ name: 'New service', category: 'installation' }),
         });
         await loadAdmin();
-        crmNotify('Service added.', 'success');
+        crmNotify('Servico adicionado.', 'success');
       } catch (e) {
         crmNotify(e.message, 'error');
       }
