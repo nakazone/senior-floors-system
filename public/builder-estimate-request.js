@@ -42,6 +42,17 @@
 
   function applyUrlPrefill() {
     const params = new URLSearchParams(location.search);
+    const projectType = params.get('project_type') || params.get('referral');
+    if (projectType) {
+      const sel = document.getElementById('estProjectType');
+      const normalized =
+        projectType === '1' || projectType === 'referral' || projectType === 'true'
+          ? 'sf_referral'
+          : projectType;
+      if (sel && sel.querySelector(`option[value="${normalized}"]`)) {
+        sel.value = normalized;
+      }
+    }
     const sqft = params.get('sqft');
     const floor = params.get('floor');
     if (sqft) {

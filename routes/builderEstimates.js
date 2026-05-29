@@ -493,6 +493,90 @@ export async function getBuilderHistoryPdf(req, res) {
  }
 }
 
+function parseEstimateServices(raw) {
+ if (!raw) return [];
+ try {
+  const j = typeof raw === 'string' ? JSON.parse(raw) : raw;
+  return Array.isArray(j) ? j.filter(Boolean) : [];
+ } catch {
+  return [];
+ }
+}
+
+function buildLeadReferralEvents(lead) {
+ const events = [
+  {
+   status: 'new_lead',
+   note: 'Referral received',
+   created_at: lead.created_at,
+  },
+ ];
+ const created = String(lead.created_at || '').slice(0, 19);
+ const updated = String(lead.updated_at || '').slice(0, 19);
+ if (updated && updated !== created && lead.status) {
+  events.push({
+   status: lead.status,
+   note: 'Status updated',
+   created_at: lead.updated_at,
+  });
+ }
+ return events;
+}
+
+async function loadReferralValueByLead(pool, leadIds) {
+ const out = { project: {}, quote: {}, estimated: {} };
+ if (!leadIds.length) return out;
+
+ if (await tableExists(pool, 'projects')) {
+  const hasCv = await columnExists(pool, 'projects', 'contract_value');
+  const hasLead = await columnExists(pool, 'projects', 'lead_id');
+  if (hasCv && hasLead) {
+   const del = (await columnExists(pool, 'projects', 'deleted_at'))
+    ? ' AND (deleted_at IS NULL)'
+    : '';
+   const [rows] = await pool.query(
+    `SELECT lead_id, SUM(COALESCE(contract_value, 0)) AS v
+     FROM projects WHERE lead_id IN (${leadIds.map(() => '?').join(',')})${del}
+     GROUP BY lead_id`,
+    leadIds
+   );
+   rows.forEach((r) => {
+    out.project[r.lead_id] = Number(r.v) || 0;
+   });
+  }
+ }
+
+ if (await tableExists(pool, 'quotes')) {
+  const hasAmt = await columnExists(pool, 'quotes', 'total_amount');
+  const hasLead = await columnExists(pool, 'quotes', 'lead_id');
+  if (hasAmt && hasLead) {
+   const [rows] = await pool.query(
+    `SELECT lead_id, MAX(COALESCE(total_amount, 0)) AS v
+     FROM quotes WHERE lead_id IN (${leadIds.map(() => '?').join(',')})
+     GROUP BY lead_id`,
+    leadIds
+   );
+   rows.forEach((r) => {
+    out.quote[r.lead_id] = Number(r.v) || 0;
+   });
+  }
+ }
+
+ return out;
+}
+
+function referralValueAmount(item, valueMaps) {
+ const lid = item.lead_id;
+ if (!lid) return 0;
+ const st = normalizeEstimateStatus(item.status);
+ const proj = valueMaps.project[lid] || 0;
+ const quote = valueMaps.quote[lid] || 0;
+ const est = Number(item.estimated_value) || 0;
+ if (st === 'won') return Math.max(proj, quote, est);
+ if (st === 'quoted') return Math.max(quote, est);
+ return 0;
+}
+
 export async function listBuilderReferrals(req, res) {
  try {
  const pool = await getDBConnection();
@@ -501,69 +585,124 @@ export async function listBuilderReferrals(req, res) {
 
  const hasReferring = await columnExists(pool, 'leads', 'referring_builder_id');
  if (hasReferring) {
- const [leads] = await pool.query(
- `SELECT id, name, email, status, created_at, notes
- FROM leads WHERE referring_builder_id = ?
- ORDER BY created_at DESC LIMIT 50`,
- [builderId]
- );
- leads.forEach((l) => {
- referrals.push({
- type: 'lead',
- id: l.id,
- title: l.name,
- status: l.status,
- created_at: l.created_at,
- value: null,
- });
- });
+  const leadCols = ['id', 'name', 'email', 'status', 'created_at', 'notes'];
+  if (await columnExists(pool, 'leads', 'address')) leadCols.push('address');
+  if (await columnExists(pool, 'leads', 'updated_at')) leadCols.push('updated_at');
+  if (await columnExists(pool, 'leads', 'estimated_value')) leadCols.push('estimated_value');
+  const [leads] = await pool.query(
+   `SELECT ${leadCols.join(', ')}
+    FROM leads WHERE referring_builder_id = ?
+    ORDER BY created_at DESC LIMIT 50`,
+   [builderId]
+  );
+  leads.forEach((l) => {
+   const services = [];
+   referrals.push({
+    type: 'lead',
+    id: l.id,
+    ref_number: null,
+    title: l.name,
+    status: l.status,
+    created_at: l.created_at,
+    updated_at: l.updated_at || l.created_at,
+    address: l.address || null,
+    services,
+    services_label: services.length ? services.join(', ') : null,
+    area_sqft: null,
+    lead_id: l.id,
+    estimated_value: l.estimated_value,
+    events: buildLeadReferralEvents(l),
+   });
+  });
  }
 
+ const estCols = [
+  'id',
+  'ref_number',
+  'status',
+  'address',
+  'services',
+  'area_sqft',
+  'created_at',
+  'updated_at',
+  'lead_id',
+ ];
  const [ests] = await pool.query(
- `SELECT id, ref_number, status, address, area_sqft, created_at, lead_id
- FROM estimate_requests WHERE builder_id = ?
- ORDER BY created_at DESC LIMIT 50`,
- [builderId]
+  `SELECT ${estCols.join(', ')}
+   FROM estimate_requests WHERE builder_id = ?
+   ORDER BY created_at DESC LIMIT 50`,
+  [builderId]
  );
  const estIds = ests.map((e) => e.id);
  const eventsByEst = {};
  if (estIds.length && (await tableExists(pool, 'estimate_request_events'))) {
- const [ev] = await pool.query(
- `SELECT * FROM estimate_request_events WHERE estimate_request_id IN (${estIds.map(() => '?').join(',')}) ORDER BY created_at ASC`,
- estIds
- );
- ev.forEach((row) => {
- if (!eventsByEst[row.estimate_request_id]) eventsByEst[row.estimate_request_id] = [];
- eventsByEst[row.estimate_request_id].push(row);
- });
+  const [ev] = await pool.query(
+   `SELECT * FROM estimate_request_events WHERE estimate_request_id IN (${estIds.map(() => '?').join(',')}) ORDER BY created_at ASC`,
+   estIds
+  );
+  ev.forEach((row) => {
+   if (!eventsByEst[row.estimate_request_id]) eventsByEst[row.estimate_request_id] = [];
+   eventsByEst[row.estimate_request_id].push(row);
+  });
  }
 
  ests.forEach((e) => {
- referrals.push({
- type: 'estimate',
- id: e.id,
- ref_number: e.ref_number,
- title: e.ref_number,
- status: e.status,
- created_at: e.created_at,
- address: e.address,
- area_sqft: e.area_sqft,
- lead_id: e.lead_id,
- events: eventsByEst[e.id] || [{ status: e.status, note: 'Submitted', created_at: e.created_at }],
- });
+  const services = parseEstimateServices(e.services);
+  referrals.push({
+   type: 'estimate',
+   id: e.id,
+   ref_number: e.ref_number,
+   title: e.ref_number,
+   status: e.status,
+   created_at: e.created_at,
+   updated_at: e.updated_at || e.created_at,
+   address: e.address,
+   services,
+   services_label: services.length ? services.join(', ') : null,
+   area_sqft: e.area_sqft,
+   lead_id: e.lead_id,
+   estimated_value: null,
+   events:
+    eventsByEst[e.id]?.length > 0
+     ? eventsByEst[e.id]
+     : [{ status: e.status || 'pending', note: 'Request submitted', created_at: e.created_at }],
+  });
  });
 
- referrals.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
- const won = referrals.filter((r) => ['won', 'quoted'].includes(String(r.status || '').toLowerCase()));
+ referrals.sort((a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at));
+
+ const leadIds = [...new Set(referrals.map((r) => r.lead_id).filter(Boolean))];
+ const valueMaps = await loadReferralValueByLead(pool, leadIds);
+ referrals.forEach((r) => {
+  r.value_amount = Math.round(referralValueAmount(r, valueMaps) * 100) / 100;
+ });
+
+ const converted = referrals.filter((r) => normalizeEstimateStatus(r.status) === 'won').length;
+ let valueGenerated = 0;
+ referrals.forEach((r) => {
+  valueGenerated += Number(r.value_amount) || 0;
+ });
+ valueGenerated = Math.round(valueGenerated * 100) / 100;
+
+ const commissionPct = parseFloat(process.env.BUILDER_REFERRAL_COMMISSION_PCT || '0', 10);
+ const commissionActive = Number.isFinite(commissionPct) && commissionPct > 0;
+ const commissionAccrued = commissionActive
+  ? Math.round(((valueGenerated * commissionPct) / 100) * 100) / 100
+  : 0;
+
  res.json({
- success: true,
- data: referrals,
- summary: {
- submitted: referrals.length,
- converted: won.length,
- commission_accrued: 0,
- note: 'Commission tracking will appear when your referral program is active.',
- },
+  success: true,
+  data: referrals,
+  summary: {
+   submitted: referrals.length,
+   converted,
+   value_generated: valueGenerated,
+   commission_accrued: commissionAccrued,
+   commission_pct: commissionActive ? commissionPct : null,
+   note: commissionActive
+    ? null
+    : 'Commission tracking will appear when your referral program is active.',
+  },
  });
  } catch (e) {
  res.status(500).json({ success: false, error: e.message });
