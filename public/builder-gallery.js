@@ -33,7 +33,7 @@
           <div class="bp-gallery-card__body">
             <span class="bp-badge bp-badge--${g.status === 'featured' ? 'active' : 'pending'}">${escapeHtml(g.status)}</span>
             <h3>${escapeHtml(g.title)}</h3>
-            <p class="bp-muted">${escapeHtml(g.floor_type || '')} ù ${g.area_sqft ? g.area_sqft + ' sqft' : ''} ù ${escapeHtml(g.region || '')}</p>
+            <p class="bp-muted">${escapeHtml(g.floor_type || '')} ¬∑ ${g.area_sqft ? g.area_sqft + ' sqft' : ''} ¬∑ ${escapeHtml(g.region || '')}</p>
             ${admin ? `<button type="button" class="bp-btn-tan bp-btn-sm" data-edit="${g.id}">Editar</button>` : `<a href="builder-messages.html?gallery_ref=${g.id}" class="bp-btn-tan bp-btn-sm" style="text-decoration:none;display:inline-block;margin-top:8px">Use as reference</a>`}
           </div>
         </article>`
@@ -51,11 +51,11 @@
     $('modalContent').innerHTML = `
       <h2 class="bp-title">${escapeHtml(g.title)}</h2>
       <form id="galleryForm" class="bp-form-grid">
-        <div class="bp-form-full"><label>Tùtulo</label><input name="title" value="${escapeHtml(g.title)}" /></div>
-        <div class="bp-form-full"><label>Descriùùo</label><textarea name="description" rows="3">${escapeHtml(g.description || '')}</textarea></div>
+        <div class="bp-form-full"><label>T√≠tulo</label><input name="title" value="${escapeHtml(g.title)}" /></div>
+        <div class="bp-form-full"><label>Descri√ß√£o</label><textarea name="description" rows="3">${escapeHtml(g.description || '')}</textarea></div>
         <div><label>Tipo piso</label><input name="floor_type" value="${escapeHtml(g.floor_type || '')}" /></div>
-        <div><label>Regiùo</label><input name="region" value="${escapeHtml(g.region || '')}" /></div>
-        <div><label>ùrea sqft</label><input name="area_sqft" type="number" value="${g.area_sqft || ''}" /></div>
+        <div><label>Regi√£o</label><input name="region" value="${escapeHtml(g.region || '')}" /></div>
+        <div><label>√Årea sqft</label><input name="area_sqft" type="number" value="${g.area_sqft || ''}" /></div>
         <div><label>Status</label><select name="status"><option value="draft">Rascunho</option><option value="published">Publicado</option><option value="featured">Destaque</option></select></div>
         <div class="bp-form-full"><label>Upload foto</label><input type="file" id="galleryPhotoFile" accept="image/*" /><button type="button" class="bp-btn-tan" id="btnUploadPhoto">Upload</button></div>
         <div class="bp-form-full bp-photo-grid">${photos.map((p) => `<img src="${escapeHtml(p.url)}" alt="" style="width:80px;height:80px;object-fit:cover;border-radius:6px" />`).join('')}</div>

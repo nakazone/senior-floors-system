@@ -3,7 +3,7 @@
   let rows = [];
 
   function money(n) {
-    return n != null ? '$' + Number(n).toLocaleString('en-US', { maximumFractionDigits: 0 }) : '—';
+    return n != null ? '$' + Number(n).toLocaleString('en-US', { maximumFractionDigits: 0 }) : 'â€”';
   }
 
   async function load() {
@@ -19,11 +19,11 @@
       .map(
         (p) => `<tr>
           <td>${p.project_number || p.name || '#' + p.id}</td>
-          <td>${p.address || '—'}</td>
-          <td>${p.flooring_type || '—'}</td>
-          <td>${p.total_sqft ? p.total_sqft + ' sqft' : '—'}</td>
+          <td>${p.address || 'â€”'}</td>
+          <td>${p.flooring_type || 'â€”'}</td>
+          <td>${p.total_sqft ? p.total_sqft + ' sqft' : 'â€”'}</td>
           <td>${money(p.contract_value)}</td>
-          <td>${(p.end_date_actual || '').toString().slice(0, 10) || '—'}</td>
+          <td>${(p.end_date_actual || '').toString().slice(0, 10) || 'â€”'}</td>
         </tr>`
       )
       .join('');

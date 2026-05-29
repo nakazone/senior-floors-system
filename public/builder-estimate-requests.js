@@ -16,9 +16,9 @@
           <td><strong>${e.ref_number}</strong></td>
           <td>${e.company || e.first_name + ' ' + e.last_name}</td>
           <td>${(e.address || '').slice(0, 40)}</td>
-          <td>${e.area_sqft || '—'}</td>
+          <td>${e.area_sqft || 'â€”'}</td>
           <td>${e.status}</td>
-          <td>${e.lead_id ? `<a href="dashboard.html?page=leads">#${e.lead_id}</a>` : '—'}</td>
+          <td>${e.lead_id ? `<a href="dashboard.html?page=leads">#${e.lead_id}</a>` : 'â€”'}</td>
           <td>${String(e.created_at).slice(0, 10)}</td>
           <td><select data-id="${e.id}" class="st-sel">
             <option value="pending" ${e.status === 'pending' ? 'selected' : ''}>pending</option>

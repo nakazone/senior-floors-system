@@ -1,5 +1,5 @@
 /**
- * Partner pricing table  admin edit, builder read-only view.
+ * Partner pricing table â€” admin edit, builder read-only view.
  */
 import { getDBConnection } from '../config/db.js';
 import { requireAuth, requirePermission } from '../middleware/auth.js';

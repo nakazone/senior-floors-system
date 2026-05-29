@@ -37,13 +37,13 @@
       if (internal && !showInternal) return;
       html += `<div class="bp-msg-bubble ${mine ? 'bp-msg-bubble--mine' : ''} ${internal ? 'bp-msg-bubble--note' : ''}">
         <p>${escapeHtml(m.message)}</p>
-        <span class="bp-msg-time">${fmtTime(m.created_at)}${internal ? '  nota interna' : ''}</span>
+        <span class="bp-msg-time">${fmtTime(m.created_at)}${internal ? ' â€” â€” nota interna' : ''}</span>
       </div>`;
     });
     html += '</div>';
     html += `<footer class="bp-msg-compose">
-      ${!isPortal() ? '<label style="font-size:11px;display:flex;align-items:center;gap:6px;margin-bottom:6px"><input type="checkbox" id="internalNote" /> Nota interna (s equipa)</label>' : ''}
-      <textarea id="msgInput" rows="2" placeholder="Escreva uma mensagem"></textarea>
+      ${!isPortal() ? '<label style="font-size:11px;display:flex;align-items:center;gap:6px;margin-bottom:6px"><input type="checkbox" id="internalNote" /> Nota interna (sâ€¦ equipa)</label>' : ''}
+      <textarea id="msgInput" rows="2" placeholder="Escreva uma mensagemâ€¦"></textarea>
       <button type="button" class="bp-btn-tan" id="btnSend">Enviar</button>
     </footer>`;
     host.innerHTML = html;

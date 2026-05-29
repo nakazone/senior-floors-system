@@ -23,12 +23,12 @@
       completed: ['completed', 'Completed'],
       cancelled: ['cancelled', 'Cancelled'],
     };
-    const m = map[s] || ['pending', s || 'ù'];
+    const m = map[s] || ['pending', s || '‚Äî'];
     return `<span class="bp-badge bp-badge--${m[0] === 'active' ? 'active' : m[0] === 'completed' ? 'inactive' : 'pending'}">${escapeHtml(m[1])}</span>`;
   }
 
   function fmtDate(d) {
-    if (!d) return 'ù';
+    if (!d) return '‚Äî';
     return String(d).slice(0, 10);
   }
 
@@ -84,7 +84,7 @@
             <input type="checkbox" data-chk-id="${it.id}" ${checked ? 'checked' : ''} ${canToggle ? '' : 'disabled'} />
             <span>
               <strong>${escapeHtml(it.item)}</strong>
-              <span class="bp-muted" style="display:block;font-size:11px">${escapeHtml(it.category || '')} ù ${isBuilder ? 'Your action' : 'Senior Floors'}</span>
+              <span class="bp-muted" style="display:block;font-size:11px">${escapeHtml(it.category || '')} ¬∑ ${isBuilder ? 'Your action' : 'Senior Floors'}</span>
             </span>
           </label>
         </div>`;
@@ -131,9 +131,9 @@
     if (activeTab === 'summary') {
       panel.innerHTML = `
         <div class="bp-card">
-          <p><strong>Floor type:</strong> ${escapeHtml(p.flooring_type || 'ù')}</p>
-          <p><strong>Area:</strong> ${p.total_sqft ? p.total_sqft + ' sq ft' : 'ù'}</p>
-          <p><strong>Service:</strong> ${escapeHtml(p.service_type || 'ù')}</p>
+          <p><strong>Floor type:</strong> ${escapeHtml(p.flooring_type || '‚Äî')}</p>
+          <p><strong>Area:</strong> ${p.total_sqft ? p.total_sqft + ' sq ft' : '‚Äî'}</p>
+          <p><strong>Service:</strong> ${escapeHtml(p.service_type || '‚Äî')}</p>
           ${
             p.client_notes
               ? `<p><strong>Notes:</strong><br>${escapeHtml(p.client_notes)}</p>`
@@ -160,7 +160,7 @@
       });
     } else {
       panel.innerHTML =
-        '<div class="bp-card"><p>Project messages ù coming in Sprint 3. Use general Messages for now.</p><a href="builder-messages.html" class="bp-btn-tan" style="display:inline-block;text-decoration:none;margin-top:8px">Open Messages</a></div>';
+        '<div class="bp-card"><p>Project messages ‚Äî coming in Sprint 3. Use general Messages for now.</p><a href="builder-messages.html" class="bp-btn-tan" style="display:inline-block;text-decoration:none;margin-top:8px">Open Messages</a></div>';
     }
 
     app.querySelectorAll('.bp-tabs button').forEach((btn) => {
@@ -190,7 +190,7 @@
       status.textContent = 'Select at least one image.';
       return;
     }
-    status.textContent = 'Uploadingù';
+    status.textContent = 'Uploading‚Ä¶';
     let ok = 0;
     for (const file of files) {
       const fd = new FormData();

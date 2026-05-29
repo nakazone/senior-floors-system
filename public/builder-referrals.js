@@ -27,7 +27,7 @@
           ${badge}
           <strong>${escapeHtml(it.title)}</strong>
           <span class="bp-badge bp-badge--${it.status === 'won' || it.status === 'quoted' ? 'active' : 'pending'}" style="margin-left:8px">${escapeHtml(it.status)}</span>
-          <p class="bp-muted" style="margin:6px 0 0">${escapeHtml(String(it.created_at).slice(0, 16))}${it.address ? ' · ' + escapeHtml(it.address) : ''}</p>
+          <p class="bp-muted" style="margin:6px 0 0">${escapeHtml(String(it.created_at).slice(0, 16))}${it.address ? ' â€” ' + escapeHtml(it.address) : ''}</p>
         </div>`;
       })
       .join('');

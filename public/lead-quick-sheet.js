@@ -20,7 +20,7 @@
   }
 
   function fmtDate(iso) {
-    if (!iso) return 'ù';
+    if (!iso) return '‚Äî';
     try {
       const d = new Date(iso);
       if (Number.isNaN(d.getTime())) return escapeHtml(String(iso));
@@ -31,7 +31,7 @@
   }
 
   function fmtMoney(n) {
-    if (n == null || n === '') return 'ù';
+    if (n == null || n === '') return '‚Äî';
     const x = parseFloat(n);
     if (Number.isNaN(x)) return escapeHtml(String(n));
     return escapeHtml(
@@ -108,7 +108,7 @@
     if (typeof global.pipelineStageDisplayName === 'function') {
       return global.pipelineStageDisplayName(slug, name);
     }
-    return name || slug || 'ù';
+    return name || slug || '‚Äî';
   }
 
   function formatFieldValue(key, val) {
@@ -535,11 +535,11 @@
     if (typeof global.sfOpenLeadVisitInDeviceCalendar === 'function') {
       const ok = global.sfOpenLeadVisitInDeviceCalendar(sheetLead);
       if (ok) {
-        notifySheet('A abrir o calendùrio do dispositivoù', 'info');
+        notifySheet('A abrir o calend√°rio do dispositivo‚Ä¶', 'info');
         return;
       }
     }
-    notifySheet('Nùo foi possùvel abrir o calendùrio. Tente outro browser.', 'error');
+    notifySheet('N√£o foi poss√≠vel abrir o calend√°rio. Tente outro browser.', 'error');
   }
 
   function openLqsScheduleVisitModal() {
@@ -655,7 +655,7 @@
     } catch (_) {}
   }
 
-  /** Payload PUT com slug + pipeline_stage_id quando o estùgio estù na lista (Kanban usa o id). */
+  /** Payload PUT com slug + pipeline_stage_id quando o est√°gio est‚Ä¶ na lista (Kanban usa o id). */
   function payloadForStatusSlug(slug) {
     const raw = String(slug || '').trim();
     if (!raw) return {};
@@ -861,7 +861,7 @@
 
   function onStatusMenuDocClick(e) {
     if (e.target.closest('#lqsStatusPicker')) return;
-    /* Menu pode estar em document.body (dropdown fixo); clique na lista nùo fecha antes de aplicar */
+    /* Menu pode estar em document.body (dropdown fixo); clique na lista n√£o fecha antes de aplicar */
     if (e.target.closest('#lqsStatusMenu')) return;
     closeStatusMenu();
   }
@@ -979,7 +979,7 @@
           row.kind === 'quote'
             ? '<span class="lead-quick-sheet__qbadge lead-quick-sheet__qbadge--quote">Quote</span>'
             : '<span class="lead-quick-sheet__qbadge lead-quick-sheet__qbadge--proposal">Proposta</span>';
-        const when = row.created_at ? new Date(row.created_at).toLocaleDateString('pt-BR') : 'ù';
+        const when = row.created_at ? new Date(row.created_at).toLocaleDateString('pt-BR') : '‚Äî';
         const exp =
           row.expires && row.kind === 'quote'
             ? `<p class="lead-quick-sheet__qmeta"><strong>Expira:</strong> ${escapeHtml(
@@ -1386,7 +1386,7 @@
     root.classList.add('is-open');
     root.setAttribute('aria-hidden', 'false');
     document.body.classList.add('lead-quick-sheet-open');
-    body.innerHTML = '<div class="lead-quick-sheet__loading">A carregarù</div>';
+    body.innerHTML = '<div class="lead-quick-sheet__loading">A carregar‚Ä¶</div>';
 
     const [leadRes, stagesRes, quotesRes, proposalsRes] = await Promise.all([
       fetchJson('/api/leads/' + sid),

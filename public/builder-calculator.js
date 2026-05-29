@@ -23,7 +23,7 @@
       .forEach((s) => {
         const o = document.createElement('option');
         o.value = s.id;
-        o.textContent = `${s.name} (${s.unit}) — $${s.partner_price}`;
+        o.textContent = `${s.name} (${s.unit}) â€“ $${s.partner_price}`;
         sel.appendChild(o);
       });
   }
@@ -46,7 +46,7 @@
     const fmt = (n) =>
       '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
     document.getElementById('calcResult').classList.remove('hidden');
-    document.getElementById('calcRange').textContent = `${fmt(d.estimate_low_discounted)} – ${fmt(d.estimate_high_discounted)}`;
+    document.getElementById('calcRange').textContent = `${fmt(d.estimate_low_discounted)} â€“ ${fmt(d.estimate_high_discounted)}`;
     document.getElementById('calcVol').textContent =
       d.volume_discount_pct > 0
         ? `Includes ${d.volume_discount_pct}% volume discount on partner rate`

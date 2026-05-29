@@ -1,5 +1,5 @@
 /**
- * Icones de estado do orcamento (e-mail, link, PDF) — Kanban e quick sheet.
+ * Ãcones de estado do orÃ§amento (e-mail, link, PDF) â€” Kanban e quick sheet.
  */
 (function (global) {
   const SVG = {
@@ -44,7 +44,7 @@
   /**
    * @param {object|null} e
    * @param {function} [escapeHtml]
-   * @param {object} [opts] — { compact: boolean }
+   * @param {object} [opts] â€” { compact: boolean }
    */
   function renderLeadQuoteEngagementIconsHtml(e, escapeHtml, opts) {
     if (!e) return '';
@@ -81,7 +81,7 @@
     const icons = items
       .map((it) => {
         const when = it.on ? formatWhen(it.at) : '';
-        const tip = (it.on ? it.labelOn : it.labelOff) + (when ? ` · ${when}` : '');
+        const tip = (it.on ? it.labelOn : it.labelOff) + (when ? ` â€” ${when}` : '');
         const stateCls = it.on ? 'is-on' : 'is-pending';
         const badge = it.on ? BADGE_OK : BADGE_PENDING;
         return `<span class="lead-quote-icon lead-quote-icon--${it.kind} ${stateCls}" title="${esc(tip, escapeHtml)}" aria-label="${esc(tip, escapeHtml)}">${SVG[it.kind]}${badge}</span>`;

@@ -29,8 +29,8 @@
   }
 
   function regionsLabel(regions) {
-    if (!regions || !regions.length) return '—';
-    return escapeHtml(regions.slice(0, 2).join(', ') + (regions.length > 2 ? '…' : ''));
+    if (!regions || !regions.length) return 'â€”';
+    return escapeHtml(regions.slice(0, 2).join(', ') + (regions.length > 2 ? 'â€¦' : ''));
   }
 
   async function api(path, opts) {
@@ -44,8 +44,8 @@
     $('metricsRow').innerHTML = `
       <div class="bp-card bp-metric"><div class="bp-metric__val">${stats.active || 0}</div><div class="bp-metric__lbl">Builders ativos</div></div>
       <div class="bp-card bp-metric"><div class="bp-metric__val">${stats.open_projects || 0}</div><div class="bp-metric__lbl">Projetos em andamento</div></div>
-      <div class="bp-card bp-metric"><div class="bp-metric__val">${stats.pending || 0}</div><div class="bp-metric__lbl">Pendentes aprovação</div></div>
-      <div class="bp-card bp-metric"><div class="bp-metric__val">—</div><div class="bp-metric__lbl">Receita MTD (em breve)</div></div>`;
+      <div class="bp-card bp-metric"><div class="bp-metric__val">${stats.pending || 0}</div><div class="bp-metric__lbl">Pendentes aprovaÃ§Ã£o</div></div>
+      <div class="bp-card bp-metric"><div class="bp-metric__val">â€”</div><div class="bp-metric__lbl">Receita MTD (em breve)</div></div>`;
   }
 
   async function loadList() {
@@ -67,18 +67,18 @@
       $('buildersTbody').innerHTML = rows
         .map((b, i) => {
           const name = escapeHtml(b.full_name || `${b.first_name} ${b.last_name}`);
-          const login = b.last_login ? String(b.last_login).slice(0, 16).replace('T', ' ') : '—';
+          const login = b.last_login ? String(b.last_login).slice(0, 16).replace('T', ' ') : 'â€”';
           return `<tr>
             <td>${i + 1}</td>
             <td><strong>${name}</strong><br><span style="font-size:11px;color:#6b7280">${escapeHtml(b.email)}</span></td>
             <td>${badgeType(b.type)}</td>
-            <td>${escapeHtml(b.company || '—')}</td>
+            <td>${escapeHtml(b.company || 'â€”')}</td>
             <td>${regionsLabel(b.regions)}</td>
             <td>${b.project_count || 0}</td>
             <td>${badgeStatus(b.status)}</td>
             <td>${login}</td>
             <td style="white-space:nowrap">
-              <a href="builder-detail.html?id=${b.id}">Perfil</a> ·
+              <a href="builder-detail.html?id=${b.id}">Perfil</a> Â·
               <a href="builder-portal.html" target="_blank" rel="noopener" title="Abrir portal (login do parceiro)">Portal</a>
             </td>
           </tr>`;
@@ -131,7 +131,7 @@
       });
       closeModal();
       if (j.data?.temp_password) {
-        crmNotify(`Builder criado. Senha temporária: ${j.data.temp_password}`, 'success', 12000);
+        crmNotify(`Builder criado. Senha temporÃ¡ria: ${j.data.temp_password}`, 'success', 12000);
       } else {
         crmNotify('Builder criado.', 'success');
       }
@@ -152,7 +152,7 @@
       location.href = 'login.html';
     });
     const u = sess.user || {};
-    if ($('sidebarUserName')) $('sidebarUserName').textContent = u.name || u.email || '—';
+    if ($('sidebarUserName')) $('sidebarUserName').textContent = u.name || u.email || 'â€”';
     if ($('sidebarUserAvatar')) $('sidebarUserAvatar').textContent = (u.name || u.email || '?').charAt(0).toUpperCase();
     await loadList();
   }

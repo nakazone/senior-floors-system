@@ -36,9 +36,9 @@
       .map(
         (p) => `<tr>
           <td><a href="project-detail.html?id=${p.id}">${escapeHtml(p.name || p.project_number || '#' + p.id)}</a></td>
-          <td>${escapeHtml(p.address || '—')}</td>
+          <td>${escapeHtml(p.address || 'â€”')}</td>
           <td>${escapeHtml(p.status || '')}</td>
-          <td>${p.contract_value != null ? '$' + Number(p.contract_value).toLocaleString() : '—'}</td>
+          <td>${p.contract_value != null ? '$' + Number(p.contract_value).toLocaleString() : 'â€”'}</td>
         </tr>`
       )
       .join('');
@@ -49,9 +49,9 @@
         <h2 class="bp-title" style="font-size:1.1rem">${escapeHtml(b.first_name)} ${escapeHtml(b.last_name)}</h2>
         <p style="color:var(--bp-muted);margin:0 0 12px">${escapeHtml(b.company || '')}</p>
         <p><strong>Email:</strong> ${escapeHtml(b.email)}</p>
-        <p><strong>Phone:</strong> ${escapeHtml(b.phone || '—')}</p>
-        <p><strong>Parceiro há:</strong> ${months} meses</p>
-        <p><strong>Último login:</strong> ${b.last_login ? escapeHtml(String(b.last_login).slice(0, 16)) : '—'}</p>
+        <p><strong>Phone:</strong> ${escapeHtml(b.phone || 'â€”')}</p>
+        <p><strong>Parceiro hÃ¡:</strong> ${months} meses</p>
+        <p><strong>Ãšltimo login:</strong> ${b.last_login ? escapeHtml(String(b.last_login).slice(0, 16)) : 'â€”'}</p>
         <div style="margin-top:12px;display:flex;flex-direction:column;gap:8px">
           <a class="bp-btn-tan" style="text-align:center;text-decoration:none" href="builder-messages.html?builder_id=${b.id}">Mensagens</a>
           <a class="btn btn-secondary" style="text-align:center" href="builder-login.html" target="_blank" rel="noopener">Ver portal (login)</a>
@@ -60,29 +60,29 @@
       </aside>
       <div>
         <div class="bd-tabs" role="tablist">
-          <button type="button" class="active" data-tab="overview">Visão Geral</button>
+          <button type="button" class="active" data-tab="overview">VisÃ£o Geral</button>
           <button type="button" data-tab="projects">Projetos (${(projects || []).length})</button>
           <button type="button" data-tab="access">Acesso ao Portal</button>
         </div>
         <div class="bd-panel active" id="tab-overview">
           <div class="bp-card">
-            <p><strong>Status:</strong> ${escapeHtml(b.status)} · <strong>Tipo:</strong> ${escapeHtml(b.type || '')}</p>
+            <p><strong>Status:</strong> ${escapeHtml(b.status)} Â· <strong>Tipo:</strong> ${escapeHtml(b.type || '')}</p>
             <p><strong>Nota interna:</strong></p>
             <textarea id="internalNote" rows="4" style="width:100%">${escapeHtml(b.internal_note || '')}</textarea>
             <button type="button" class="bp-btn-tan" id="btnSaveNote" style="margin-top:8px">Guardar nota</button>
           </div>
         </div>
         <div class="bd-panel" id="tab-projects">
-          <div class="bp-table-wrap"><table class="bp-table"><thead><tr><th>Projeto</th><th>Endereço</th><th>Status</th><th>Valor</th></tr></thead><tbody>${projRows || '<tr><td colspan="4">Sem projetos</td></tr>'}</tbody></table></div>
+          <div class="bp-table-wrap"><table class="bp-table"><thead><tr><th>Projeto</th><th>EndereÃ§o</th><th>Status</th><th>Valor</th></tr></thead><tbody>${projRows || '<tr><td colspan="4">Sem projetos</td></tr>'}</tbody></table></div>
         </div>
         <div class="bd-panel" id="tab-access">
           <div class="bp-card">
             <p>Portal: ${b.portal_access ? 'Ativo' : 'Sem acesso'} ${b.portal_blocked ? '(bloqueado)' : ''}</p>
-            <table class="bp-table"><thead><tr><th>Data</th><th>Ação</th><th>IP</th></tr></thead><tbody>
+            <table class="bp-table"><thead><tr><th>Data</th><th>AÃ§Ã£o</th><th>IP</th></tr></thead><tbody>
               ${(accessLog || [])
                 .map(
                   (l) =>
-                    `<tr><td>${escapeHtml(String(l.created_at).slice(0, 19))}</td><td>${escapeHtml(l.action)}</td><td>${escapeHtml(l.ip_address || '—')}</td></tr>`
+                    `<tr><td>${escapeHtml(String(l.created_at).slice(0, 19))}</td><td>${escapeHtml(l.action)}</td><td>${escapeHtml(l.ip_address || 'â€”')}</td></tr>`
                 )
                 .join('') || '<tr><td colspan="3">Sem registos</td></tr>'}
             </tbody></table>
@@ -129,7 +129,7 @@
       return;
     }
     if (!Number.isFinite(id)) {
-      root.textContent = 'ID inválido';
+      root.textContent = 'ID invÃ¡lido';
       return;
     }
     try {

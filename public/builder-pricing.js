@@ -6,9 +6,9 @@
   const $ = (id) => document.getElementById(id);
 
   const VOLUME_DISCOUNTS = [
-    { range: '500 ù 999 sq ft', pct: 5 },
-    { range: '1,000 ù 2,499 sq ft', pct: 8 },
-    { range: '2,500 ù 4,999 sq ft', pct: 12 },
+    { range: '500 ‚Äì 999 sq ft', pct: 5 },
+    { range: '1,000 ‚Äì 2,499 sq ft', pct: 8 },
+    { range: '2,500 ‚Äì 4,999 sq ft', pct: 12 },
     { range: '5,000+ sq ft', pct: 15 },
   ];
 
@@ -100,7 +100,7 @@
           <td>${escapeHtml(s.name)}</td>
           <td>${escapeHtml(s.category_label || '')}</td>
           <td>${escapeHtml(s.unit || '')}</td>
-          <td>${money(s.price_min)} ù ${money(s.price_max)}</td>
+          <td>${money(s.price_min)} ‚Äì ${money(s.price_max)}</td>
           <td><span class="bp-badge bp-badge--active">Your price ${money(s.partner_price)}</span></td>
         </tr>`;
       })
@@ -134,7 +134,7 @@
           body: JSON.stringify({ name: 'New service', category: 'installation' }),
         });
         await loadAdmin();
-        crmNotify('Serviùo adicionado.', 'success');
+        crmNotify('Servi√ßo adicionado.', 'success');
       } catch (e) {
         crmNotify(e.message, 'error');
       }

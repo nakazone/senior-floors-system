@@ -1,5 +1,5 @@
 /**
- * Builder Partner Portal ù admin CRUD + builder-scoped reads.
+ * Builder Partner Portal ‚Äî admin CRUD + builder-scoped reads.
  */
 import bcrypt from 'bcryptjs';
 import { getDBConnection } from '../config/db.js';
