@@ -1,5 +1,5 @@
 /**
- * Builder Partner Portal ‚Äî admin CRUD + builder-scoped reads.
+ * Builder Partner Portal ù admin CRUD + builder-scoped reads.
  */
 import bcrypt from 'bcryptjs';
 import { getDBConnection } from '../config/db.js';
@@ -8,6 +8,8 @@ import { requireBuilderAuth } from '../middleware/builderAuth.js';
 import {
   buildProjectBuilderCorrelatedMatch,
   buildProjectBuilderMatch,
+  buildProjectOrderSql,
+  buildProjectSelectSql,
   getBuilderCustomerId,
   getProjectBuilderLinkMeta,
   projectNotDeletedClause,
@@ -148,12 +150,27 @@ export async function getBuilder(req, res) {
 
     const linkMeta = await getProjectBuilderLinkMeta(pool);
     const match = buildProjectBuilderMatch('p', id, b.customer_id, linkMeta);
+    const selectSql = await buildProjectSelectSql(
+      pool,
+      [
+        'id',
+        'name',
+        'address',
+        'status',
+        'contract_value',
+        'start_date',
+        'end_date_estimated',
+        'completion_percentage',
+        'project_number',
+      ],
+      'p'
+    );
+    const orderSql = await buildProjectOrderSql(pool, 'updated_at', 'p');
     const [projects] = await pool.query(
-      `SELECT p.id, p.name, p.address, p.status, p.contract_value, p.start_date, p.end_date_estimated,
-              p.completion_percentage, p.project_number
+      `SELECT ${selectSql}
        FROM projects p
        WHERE ${match.sql}${projectNotDeletedClause('p', linkMeta)}
-       ORDER BY p.updated_at DESC`,
+       ORDER BY ${orderSql} DESC`,
       match.params
     );
 
@@ -346,12 +363,28 @@ export async function listBuilderPortalProjects(req, res) {
     }
     const linkMeta = await getProjectBuilderLinkMeta(pool);
     const match = buildProjectBuilderMatch('p', auth.builderId, cid, linkMeta);
+    const selectSql = await buildProjectSelectSql(
+      pool,
+      [
+        'id',
+        'name',
+        'address',
+        'status',
+        'completion_percentage',
+        'start_date',
+        'end_date_estimated',
+        'flooring_type',
+        'total_sqft',
+        'project_number',
+      ],
+      'p'
+    );
+    const orderSql = await buildProjectOrderSql(pool, 'updated_at', 'p');
     const [rows] = await pool.query(
-      `SELECT id, name, address, status, completion_percentage, start_date, end_date_estimated,
-              flooring_type, total_sqft, project_number
+      `SELECT ${selectSql}
        FROM projects p
        WHERE ${match.sql}${projectNotDeletedClause('p', linkMeta)}
-       ORDER BY updated_at DESC`,
+       ORDER BY ${orderSql} DESC`,
       match.params
     );
     res.json({ success: true, data: rows });

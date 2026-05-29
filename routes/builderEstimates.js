@@ -8,7 +8,7 @@ import { requireBuilderAuth } from '../middleware/builderAuth.js';
 import { generateEstimateRefNumber } from '../lib/estimateRefNumber.js';
 import { uploadEstimateAttachment } from '../lib/estimateUpload.js';
 import { sendBuilderNotification, adminNotifyEmail } from '../lib/builderNotify.js';
-import { getBuilderCustomerId, getProjectBuilderLinkMeta, buildProjectBuilderMatch, projectNotDeletedClause } from '../lib/builderProjectAccess.js';
+import { getBuilderCustomerId, getProjectBuilderLinkMeta, buildProjectBuilderMatch, buildProjectOrderSql, buildProjectSelectSql, projectNotDeletedClause } from '../lib/builderProjectAccess.js';
 import { getPartnerPricingForBuilder } from './builderPricing.js';
 
 async function columnExists(pool, table, col) {
@@ -44,7 +44,7 @@ async function createLeadFromEstimate(pool, builder, est, refNumber) {
   const email = builderRow.email || `builder+${builder.builderId}@portal.local`;
   const phone = builderRow.phone || '0000000000';
   const zip = '80202';
-  const message = `Builder estimate ${refNumber} ‚Äî ${est.address || 'see notes'}`.slice(0, 65535);
+  const message = `Builder estimate ${refNumber} ù ${est.address || 'see notes'}`.slice(0, 65535);
 
   const hasReferring = await columnExists(pool, 'leads', 'referring_builder_id');
   const cols = ['name', 'email', 'phone', 'zipcode', 'message', 'source', 'form_type', 'status', 'notes'];
@@ -123,7 +123,7 @@ export async function postEstimateRequest(req, res) {
     if (builder[0]?.email) {
       sendBuilderNotification({
         to: builder[0].email,
-        subject: `Estimate request received ‚Äî ${refNumber}`,
+        subject: `Estimate request received ù ${refNumber}`,
         html: `<p>Hi ${builder[0].first_name || 'there'},</p><p>We received your estimate request <strong>${refNumber}</strong>. Our team will review it shortly.</p><p><a href="${pub}/builder-portal.html">Open portal</a></p>`,
       }).catch(() => {});
     }
@@ -131,8 +131,8 @@ export async function postEstimateRequest(req, res) {
     if (adminTo) {
       sendBuilderNotification({
         to: adminTo,
-        subject: `New builder estimate ‚Äî ${refNumber}`,
-        html: `<p>New estimate request from builder portal.</p><p>Ref: <strong>${refNumber}</strong></p><p>Address: ${estRow.address || '‚Äî'}</p><p><a href="${pub}/dashboard.html?page=leads">View leads</a></p>`,
+        subject: `New builder estimate ù ${refNumber}`,
+        html: `<p>New estimate request from builder portal.</p><p>Ref: <strong>${refNumber}</strong></p><p>Address: ${estRow.address || 'ù'}</p><p><a href="${pub}/dashboard.html?page=leads">View leads</a></p>`,
       }).catch(() => {});
     }
 
@@ -241,13 +241,30 @@ export async function listBuilderHistory(req, res) {
     if (!cid) return res.json({ success: true, data: [] });
     const linkMeta = await getProjectBuilderLinkMeta(pool);
     const match = buildProjectBuilderMatch('p', builderId, cid, linkMeta);
+    const selectSql = await buildProjectSelectSql(
+      pool,
+      [
+        'id',
+        'name',
+        'address',
+        'status',
+        'contract_value',
+        'completion_percentage',
+        'flooring_type',
+        'total_sqft',
+        'project_number',
+        'end_date_actual',
+        'start_date',
+      ],
+      'p'
+    );
+    const orderSql = await buildProjectOrderSql(pool, 'end_date_actual', 'p');
     const [rows] = await pool.query(
-      `SELECT id, name, address, status, contract_value, completion_percentage,
-              flooring_type, total_sqft, project_number, end_date_actual, start_date
+      `SELECT ${selectSql}
        FROM projects p
        WHERE ${match.sql}${projectNotDeletedClause('p', linkMeta)}
          AND status IN ('completed','closed')
-       ORDER BY COALESCE(end_date_actual, updated_at) DESC`,
+       ORDER BY ${orderSql} DESC`,
       match.params
     );
     res.json({ success: true, data: rows });

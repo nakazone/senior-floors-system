@@ -1,5 +1,5 @@
 /**
- * Builder portal â€” project tracking, photos, checklist (scoped to logged-in partner).
+ * Builder portal — project tracking, photos, checklist (scoped to logged-in partner).
  */
 import path from 'path';
 import { getDBConnection } from '../config/db.js';
@@ -7,6 +7,7 @@ import { requireBuilderAuth } from '../middleware/builderAuth.js';
 import { uploadProjectPhoto } from '../lib/projectPhotoUpload.js';
 import {
   assertBuilderOwnsProject,
+  normalizeProjectRow,
   photoPublicUrl,
 } from '../lib/builderProjectAccess.js';
 import { refreshChecklistCompletedFlag } from '../modules/projects/projectHelpers.js';
