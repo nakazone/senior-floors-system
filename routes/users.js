@@ -4,6 +4,7 @@
 import bcrypt from 'bcryptjs';
 import { getDBConnection } from '../config/db.js';
 import { ROLE_DEFAULT_PERMISSION_KEYS, normalizeRoleForPermissions } from '../lib/userPermissions.js';
+import { ensureUserModuleColumns } from '../lib/ensureUserModuleColumns.js';
 
 /** Colunas seguras para listagem (sem password) — só as que existem na tabela */
 function buildUserSelectColumns(columnNames) {
@@ -201,6 +202,7 @@ export async function createUser(req, res) {
     if (!pool) {
       return res.status(503).json({ success: false, error: 'Database not available' });
     }
+    await ensureUserModuleColumns(pool);
 
     const {
       name,
@@ -241,8 +243,15 @@ export async function createUser(req, res) {
       is_active !== undefined ? (is_active ? 1 : 0) : 1,
     ];
     if (columnNames.includes('phone')) {
+      const phoneVal =
+        phone == null || String(phone).trim() === '' ? null : String(phone).trim().slice(0, 50);
       insertCols.splice(2, 0, 'phone');
-      insertVals.splice(2, 0, phone || null);
+      insertVals.splice(2, 0, phoneVal);
+    } else if (phone != null && String(phone).trim() !== '') {
+      return res.status(503).json({
+        success: false,
+        error: 'Coluna phone em users ainda não existe. Reinicie o servidor para aplicar a migração automática.',
+      });
     }
     if (columnNames.includes('must_change_password')) {
       insertCols.push('must_change_password');
@@ -286,6 +295,7 @@ export async function updateUser(req, res) {
     if (!pool) {
       return res.status(503).json({ success: false, error: 'Database not available' });
     }
+    await ensureUserModuleColumns(pool);
 
     const { name, email, phone, role, password, is_active, force_password_change } = req.body;
 
@@ -305,9 +315,17 @@ export async function updateUser(req, res) {
       updates.push('email = ?');
       values.push(String(email).toLowerCase().trim());
     }
-    if (phone !== undefined && columnNames.includes('phone')) {
+    if (phone !== undefined) {
+      if (!columnNames.includes('phone')) {
+        return res.status(503).json({
+          success: false,
+          error: 'Coluna phone em users ainda não existe. Reinicie o servidor para aplicar a migração automática.',
+        });
+      }
+      const phoneVal =
+        phone == null || String(phone).trim() === '' ? null : String(phone).trim().slice(0, 50);
       updates.push('phone = ?');
-      values.push(phone);
+      values.push(phoneVal);
     }
     if (role !== undefined) {
       updates.push('role = ?');
@@ -334,7 +352,15 @@ export async function updateUser(req, res) {
     values.push(req.params.id);
     await pool.execute(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`, values);
 
-    res.json({ success: true, message: 'User updated' });
+    const selectList = buildUserSelectColumns(columnNames);
+    const [rows] = await pool.query(`SELECT ${selectList} FROM users WHERE id = ?`, [req.params.id]);
+    const user = rows[0] || null;
+    if (user) {
+      delete user.password;
+      delete user.password_hash;
+    }
+
+    res.json({ success: true, message: 'User updated', data: user });
   } catch (error) {
     console.error('Update user error:', error);
     res.status(500).json({ success: false, error: error.message });
