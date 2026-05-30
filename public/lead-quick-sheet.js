@@ -20,7 +20,7 @@
   }
 
   function fmtDate(iso) {
-    if (!iso) return '—';
+    if (!iso) return '�';
     try {
       const d = new Date(iso);
       if (Number.isNaN(d.getTime())) return escapeHtml(String(iso));
@@ -31,7 +31,7 @@
   }
 
   function fmtMoney(n) {
-    if (n == null || n === '') return '—';
+    if (n == null || n === '') return '�';
     const x = parseFloat(n);
     if (Number.isNaN(x)) return escapeHtml(String(n));
     return escapeHtml(
@@ -108,7 +108,7 @@
     if (typeof global.pipelineStageDisplayName === 'function') {
       return global.pipelineStageDisplayName(slug, name);
     }
-    return name || slug || '—';
+    return name || slug || '�';
   }
 
   function formatFieldValue(key, val) {
@@ -535,11 +535,11 @@
     if (typeof global.sfOpenLeadVisitInDeviceCalendar === 'function') {
       const ok = global.sfOpenLeadVisitInDeviceCalendar(sheetLead);
       if (ok) {
-        notifySheet('A abrir o calendário do dispositivo…', 'info');
+        notifySheet('A abrir o calend�rio do dispositivo�', 'info');
         return;
       }
     }
-    notifySheet('Não foi possível abrir o calendário. Tente outro browser.', 'error');
+    notifySheet('N�o foi poss�vel abrir o calend�rio. Tente outro browser.', 'error');
   }
 
   function openLqsScheduleVisitModal() {
@@ -655,7 +655,7 @@
     } catch (_) {}
   }
 
-  /** Payload PUT com slug + pipeline_stage_id quando o estágio est… na lista (Kanban usa o id). */
+  /** Payload PUT com slug + pipeline_stage_id quando o est�gio est� na lista (Kanban usa o id). */
   function payloadForStatusSlug(slug) {
     const raw = String(slug || '').trim();
     if (!raw) return {};
@@ -861,7 +861,7 @@
 
   function onStatusMenuDocClick(e) {
     if (e.target.closest('#lqsStatusPicker')) return;
-    /* Menu pode estar em document.body (dropdown fixo); clique na lista não fecha antes de aplicar */
+    /* Menu pode estar em document.body (dropdown fixo); clique na lista n�o fecha antes de aplicar */
     if (e.target.closest('#lqsStatusMenu')) return;
     closeStatusMenu();
   }
@@ -979,7 +979,7 @@
           row.kind === 'quote'
             ? '<span class="lead-quick-sheet__qbadge lead-quick-sheet__qbadge--quote">Quote</span>'
             : '<span class="lead-quick-sheet__qbadge lead-quick-sheet__qbadge--proposal">Proposta</span>';
-        const when = row.created_at ? new Date(row.created_at).toLocaleDateString('pt-BR') : '—';
+        const when = row.created_at ? new Date(row.created_at).toLocaleDateString('pt-BR') : '�';
         const exp =
           row.expires && row.kind === 'quote'
             ? `<p class="lead-quick-sheet__qmeta"><strong>Expira:</strong> ${escapeHtml(
@@ -991,7 +991,7 @@
             ? `quote-builder.html?id=${encodeURIComponent(String(row.id))}&lead_id=${encodeURIComponent(String(sid))}`
             : '#';
         const pdfBtn = row.pdfUrl
-          ? `<a class="lead-quick-sheet__btn-sm" href="${row.pdfUrl}" target="_blank" rel="noopener">PDF</a>`
+          ? `<button type="button" class="lead-quick-sheet__btn-sm" data-lqs-pdf="${row.id}" data-lqs-pdf-label="${escapeHtml(row.label || 'Orçamento')}">PDF</button>`
           : '';
         const editBtn =
           row.kind === 'quote'
@@ -1228,6 +1228,19 @@
       window.location.href = 'dashboard.html?page=quotes';
       return;
     }
+    const pdfBtn = e.target.closest('[data-lqs-pdf]');
+    if (pdfBtn) {
+      e.preventDefault();
+      e.stopPropagation();
+      const qid = pdfBtn.getAttribute('data-lqs-pdf');
+      const label = pdfBtn.getAttribute('data-lqs-pdf-label') || 'Orçamento';
+      if (qid && typeof global.openQuoteInvoicePdf === 'function') {
+        void global.openQuoteInvoicePdf(qid, label);
+      } else if (qid && global.crmPdfViewer?.openFromUrl) {
+        void global.crmPdfViewer.openFromUrl(`/api/quotes/${qid}/invoice-pdf`, { title: label });
+      }
+      return;
+    }
     const delBtn = e.target.closest('[data-lqs-delete-quote]');
     if (delBtn && sheetLeadId) {
       const qid = delBtn.getAttribute('data-lqs-delete-quote');
@@ -1386,7 +1399,7 @@
     root.classList.add('is-open');
     root.setAttribute('aria-hidden', 'false');
     document.body.classList.add('lead-quick-sheet-open');
-    body.innerHTML = '<div class="lead-quick-sheet__loading">A carregar…</div>';
+    body.innerHTML = '<div class="lead-quick-sheet__loading">A carregar�</div>';
 
     const [leadRes, stagesRes, quotesRes, proposalsRes] = await Promise.all([
       fetchJson('/api/leads/' + sid),

@@ -2909,6 +2909,22 @@ async function duplicateQuoteFromList(id) {
 }
 window.duplicateQuoteFromList = duplicateQuoteFromList;
 
+async function openQuoteInvoicePdf(id, title, filename) {
+    const qid = parseInt(String(id), 10);
+    if (!Number.isFinite(qid) || qid <= 0) return;
+    const pdfTitle = title || `Orçamento #${qid}`;
+    const pdfName = filename || `orcamento-${qid}.pdf`;
+    if (window.crmPdfViewer?.openFromUrl) {
+        await window.crmPdfViewer.openFromUrl(`/api/quotes/${qid}/invoice-pdf`, {
+            title: pdfTitle,
+            filename: pdfName,
+        });
+        return;
+    }
+    window.open(`/api/quotes/${qid}/invoice-pdf`, '_blank', 'noopener');
+}
+window.openQuoteInvoicePdf = openQuoteInvoicePdf;
+
 async function generateQuotePdfFromList(id) {
     const qid = parseInt(String(id), 10);
     if (!Number.isFinite(qid) || qid <= 0) return;
@@ -2924,7 +2940,8 @@ async function generateQuotePdfFromList(id) {
             crmToastSafe(d.error || 'Não foi possível gerar o PDF.', { type: 'error' });
             return;
         }
-        window.open(`/api/quotes/${qid}/invoice-pdf`, '_blank', 'noopener');
+        const qnum = d.data?.quote_number || d.quote_number;
+        await openQuoteInvoicePdf(qid, qnum ? `Orçamento ${qnum}` : `Orçamento #${qid}`);
         if (typeof loadQuotes === 'function') loadQuotes();
     } catch (e) {
         crmToastSafe(e.message || 'Erro de rede ao gerar PDF.', { type: 'error' });
@@ -2992,7 +3009,7 @@ const canGenPdf = crmUserRole === 'admin' || (Array.isArray(crmUserPermissions) 
                     .map((q) => {
                         const hasPdf = !!(q.pdf_path || q.has_invoice_pdf);
                         const pdfCell = hasPdf
-                            ? `<a class="btn btn-sm" href="/api/quotes/${q.id}/invoice-pdf" target="_blank" rel="noopener">Ver PDF</a>`
+                            ? `<button type="button" class="btn btn-sm" onclick="event.stopPropagation(); openQuoteInvoicePdf(${q.id}, 'Orçamento ${escapeHtmlCrm(q.quote_number != null ? String(q.quote_number) : String(q.id))}')">Ver PDF</button>`
                             : canGenPdf
                               ? `<button type="button" class="btn btn-sm btn-secondary" onclick="generateQuotePdfFromList(${q.id})">Gerar PDF</button>`
                               : '<span class="quotes-cell-muted">—</span>';

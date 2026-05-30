@@ -2311,8 +2311,31 @@
     $('btnSave').addEventListener('click', saveQuote);
     $('btnPdf').addEventListener('click', async () => {
       if (!quoteId) return;
-      await api(`/api/quotes/${quoteId}/generate-pdf`, { method: 'POST', body: '{}' });
-      window.open(`/api/quotes/${quoteId}/invoice-pdf`, '_blank');
+      const btn = $('btnPdf');
+      const prevLabel = btn?.textContent || 'Gerar PDF';
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'A gerar…';
+      }
+      try {
+        await api(`/api/quotes/${quoteId}/generate-pdf`, { method: 'POST', body: '{}' });
+        const title = loadedQuoteNumber ? `Orçamento ${loadedQuoteNumber}` : 'Orçamento';
+        const filename = loadedQuoteNumber
+          ? `orcamento-${String(loadedQuoteNumber).replace(/[^\w-]+/g, '-')}.pdf`
+          : `orcamento-${quoteId}.pdf`;
+        if (window.crmPdfViewer?.openFromUrl) {
+          await window.crmPdfViewer.openFromUrl(`/api/quotes/${quoteId}/invoice-pdf`, { title, filename });
+        } else {
+          window.open(`/api/quotes/${quoteId}/invoice-pdf`, '_blank', 'noopener');
+        }
+      } catch (e) {
+        window.crmToast?.error?.(e.message || 'Erro ao gerar PDF');
+      } finally {
+        if (btn) {
+          btn.disabled = !quoteId;
+          btn.textContent = prevLabel;
+        }
+      }
     });
     wireQuoteNotify();
 
