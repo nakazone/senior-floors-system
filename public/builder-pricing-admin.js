@@ -1,5 +1,5 @@
 /**
- * CRM admin ó edit partner pricing table (builders portal reads via API).
+ * CRM admin ù edit partner pricing table (builders portal reads via API).
  */
 /* global crmNotify */
 (function () {
@@ -113,8 +113,14 @@
       location.href = 'login.html?return=' + encodeURIComponent(location.pathname);
       return;
     }
-    const perms = sess.permissions || sess.user?.permissions || [];
-    adminCanEdit = sess.role === 'admin' || perms.includes('builders.edit');
+    const user = sess.user || {};
+    const perms = Array.isArray(sess.permissions)
+      ? sess.permissions
+      : Array.isArray(user.permissions)
+        ? user.permissions
+        : [];
+    const role = String(sess.role || user.role || '').toLowerCase();
+    adminCanEdit = role === 'admin' || perms.includes('builders.edit');
     if (!adminCanEdit) {
       $('adminReadOnlyBanner')?.classList.remove('hidden');
       $('btnAddService')?.setAttribute('disabled', 'disabled');
