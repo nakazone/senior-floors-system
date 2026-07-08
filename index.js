@@ -393,7 +393,7 @@ app.get('/api/health/db', async (req, res) => {
   }
 });
 
-// Public quote (no auth) — número legível Q-2026-001 ou token legado
+// Public quote (no auth) — número legível SF-2026-001 (Q- legado) ou token
 app.get('/api/public/quotes/by-number/:quoteNumber/owner-signature', publicQuote.getPublicQuoteOwnerSignatureByNumber);
 app.get('/api/public/quotes/by-number/:quoteNumber/client-signature', publicQuote.getPublicQuoteClientSignatureByNumber);
 app.get('/api/public/quotes/by-number/:quoteNumber', publicQuote.getPublicQuoteByNumber);
@@ -706,7 +706,7 @@ app.all('/system.php', (req, res) => {
   res.status(404).json({ error: 'Not found' });
 });
 
-// Orçamento público — https://app.senior-floors.com/Q-2026-001
+// Orçamento público — https://app.senior-floors.com/SF-2026-001
 app.get('/:quoteSlug', (req, res, next) => {
   if (!isPublicQuoteNumberPath(req.params.quoteSlug)) return next();
   return res.sendFile(path.join(__dirname, 'public', 'quote-public.html'));

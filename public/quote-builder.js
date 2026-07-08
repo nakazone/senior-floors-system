@@ -2,7 +2,7 @@
 (function () {
   const $ = (id) => document.getElementById(id);
   let quoteId = null;
-  /** Número legível do orçamento (ex. Q-2026-001). */
+  /** Número legível do orçamento (ex. SF-2026-001). */
   let loadedQuoteNumber = null;
   /** Base URL pública do CRM (ex. https://app.senior-floors.com). */
   let clientPublicCrmUrl = null;
@@ -1954,7 +1954,15 @@
   }
 
   function isQuoteNumberForPublicUrl(quoteNumber) {
-    return /^Q-\d{4}-\d+$/i.test(String(quoteNumber || '').trim());
+    return /^(?:SF|Q)-\d{4}-\d+$/i.test(String(quoteNumber || '').trim());
+  }
+
+  function canonicalPublicQuoteNumber(quoteNumber) {
+    const m = String(quoteNumber || '')
+      .trim()
+      .match(/^(?:SF|Q)-(\d{4})-(\d+)$/i);
+    if (!m) return '';
+    return `SF-${m[1]}-${String(parseInt(m[2], 10)).padStart(4, '0')}`;
   }
 
   function publicLinkBaseUrl() {
@@ -1963,8 +1971,8 @@
   }
 
   function buildClientPublicQuoteUrl(quoteNumber) {
-    const qn = String(quoteNumber || '').trim();
-    if (!isQuoteNumberForPublicUrl(qn)) return '';
+    const qn = canonicalPublicQuoteNumber(quoteNumber);
+    if (!qn) return '';
     return `${publicLinkBaseUrl()}/${encodeURIComponent(qn)}`;
   }
 

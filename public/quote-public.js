@@ -9,7 +9,7 @@
   const errorEl = document.getElementById('quoteError');
   const loadingEl = document.getElementById('quoteLoading');
 
-  const QUOTE_NUMBER_PATH_RE = /^\/(Q-\d{4}-\d+)\/?$/i;
+  const QUOTE_NUMBER_PATH_RE = /^\/((?:SF|Q)-\d{4}-\d+)\/?$/i;
 
   const COMPANY = {
     name: 'Senior Floors',

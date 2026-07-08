@@ -2,7 +2,7 @@ import * as calc from './calculations.js';
 import * as repo from './quoteRepository.js';
 import { buildQuotePdfBuffer } from './quotePdf.js';
 import { sendQuoteEmail } from './quoteMail.js';
-import { buildPublicQuoteUrl, getPublicCrmBaseUrl } from '../../lib/publicQuoteUrl.js';
+import { buildPublicQuoteUrl, getPublicCrmBaseUrl, normalizeQuoteNumberForUrl } from '../../lib/publicQuoteUrl.js';
 import { generateNextQuoteNumber } from '../../lib/quoteNumber.js';
 import { summarizeQuoteProfit } from '../pricing/marginPricing.js';
 import { ensureProjectForApprovedQuote } from './quoteProjectFromApproval.js';
@@ -573,7 +573,7 @@ export async function getByPublicToken(pool, token) {
 }
 
 export async function getByQuoteNumber(pool, quoteNumber) {
-  const qn = String(quoteNumber || '').trim();
+  const qn = normalizeQuoteNumberForUrl(quoteNumber) || String(quoteNumber || '').trim();
   if (!qn) return null;
   const [quotes] = await pool.query(
     `SELECT q.*, c.name AS customer_name, c.email AS customer_email, c.phone AS customer_phone
