@@ -44,6 +44,7 @@ import {
   streamQuoteInvoicePdf,
 } from './routes/quotes.js';
 import * as quoteExt from './routes/quoteExtended.js';
+import { registerQuoteInvoiceRoutes } from './routes/quoteInvoices.js';
 import { getEmailTransportStatus } from './modules/quotes/quoteMail.js';
 import * as erpMaterials from './routes/erpMaterials.js';
 import * as publicQuote from './routes/publicQuote.js';
@@ -117,6 +118,7 @@ import {
 } from './config/db.js';
 import { getHealth } from './routes/health.js';
 import { ensureQuoteInvoicePdfColumn } from './lib/ensureQuoteInvoicePdfColumn.js';
+import { ensureQuoteInvoicesSchema } from './lib/ensureQuoteInvoicesSchema.js';
 import { ensureQuotePdfViewedColumn } from './lib/ensureQuotePdfViewedColumn.js';
 import { ensureQuoteNumberOffset } from './lib/ensureQuoteNumberOffset.js';
 import { ensureUserModuleColumns } from './lib/ensureUserModuleColumns.js';
@@ -478,6 +480,7 @@ app.post('/api/quotes/:id/generate-pdf', requireAuth, requirePermission('quotes.
 app.post('/api/quotes/:id/send-email', requireAuth, requirePermission('quotes.edit'), quoteExt.postQuoteSendEmail);
 app.get('/api/quotes/:id/engagement', requireAuth, requirePermission('quotes.view'), quoteExt.getQuoteEngagement);
 app.get('/api/quotes/:id/snapshots', requireAuth, requirePermission('quotes.view'), quoteExt.getQuoteSnapshots);
+registerQuoteInvoiceRoutes(app);
 app.get('/api/quotes/:id', requireAuth, getQuote);
 app.post('/api/quotes', requireAuth, createQuote);
 app.put('/api/quotes/:id', requireAuth, updateQuote);
@@ -509,8 +512,6 @@ registerBuilderPricingRoutes(app);
 registerBuilderGalleryRoutes(app);
 registerBuilderMessagesRoutes(app);
 registerBuilderEstimateRoutes(app);
-registerBuilderClientReportRoutes(app);
-registerBuilderEvaluationRoutes(app);
 registerBuilderRoutes(app);
 
 // Visits/Schedule
@@ -826,6 +827,7 @@ async function start() {
         }
       }
       await ensureQuoteInvoicePdfColumn(pool);
+      await ensureQuoteInvoicesSchema(pool);
       await ensureQuotePdfViewedColumn(pool);
       await ensureQuoteNumberOffset(pool);
       await ensureUserModuleColumns(pool);

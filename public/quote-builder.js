@@ -1984,11 +1984,198 @@
     w.classList.add('hidden');
   }
 
+  let quoteInvoices = [];
+
+  function isQuoteApprovedStatus(status) {
+    return ['approved', 'accepted'].includes(String(status || '').toLowerCase());
+  }
+
+  function defaultInvoiceDueDate() {
+    const d = new Date();
+    d.setDate(d.getDate() + 14);
+    return d.toISOString().slice(0, 10);
+  }
+
+  function syncInvoiceUiVisibility() {
+    const approved = isQuoteApprovedStatus($('status')?.value);
+    const panel = $('quoteInvoicesPanel');
+    const btnInv = $('btnInvoice');
+    if (panel) panel.classList.toggle('hidden', !approved || !quoteId);
+    if (btnInv) {
+      btnInv.classList.toggle('hidden', !approved);
+      btnInv.disabled = !quoteId || !approved;
+    }
+  }
+
+  async function openInvoicePdf(invoiceId, title) {
+    const url = `/api/quote-invoices/${invoiceId}/pdf`;
+    const filename = `invoice-${invoiceId}.pdf`;
+    if (window.crmPdfViewer?.openFromUrl) {
+      await window.crmPdfViewer.openFromUrl(url, { title: title || 'Invoice', filename });
+    } else {
+      window.open(url, '_blank', 'noopener');
+    }
+  }
+
+  function renderQuoteInvoicesList() {
+    const host = $('quoteInvoicesList');
+    if (!host) return;
+    if (!quoteInvoices.length) {
+      host.innerHTML = '<p class="text-xs text-slate-500">Nenhum invoice emitido ainda.</p>';
+      return;
+    }
+    host.innerHTML = quoteInvoices
+      .map((inv) => {
+        const due = inv.due_date ? String(inv.due_date).slice(0, 10) : '—';
+        const status = inv.status || 'issued';
+        return `<article class="qb-invoice-card" data-invoice-id="${inv.id}">
+          <div class="qb-invoice-card__head">
+            <span>${escapeHtmlText(inv.invoice_number || `INV-${inv.id}`)}</span>
+            <span>${money(inv.amount)}</span>
+          </div>
+          <div class="qb-invoice-card__meta">${escapeHtmlText(inv.invoice_type || 'payment')} · vence ${escapeHtmlText(due)} · ${escapeHtmlText(status)}</div>
+          <div class="qb-invoice-card__actions">
+            <button type="button" class="btn btn-sm btn-secondary" data-inv-pdf="${inv.id}">Ver PDF</button>
+            <button type="button" class="btn btn-sm btn-ghost" data-inv-email="${inv.id}">Enviar</button>
+            ${status !== 'paid' ? `<button type="button" class="btn btn-sm btn-ghost" data-inv-paid="${inv.id}">Marcar pago</button>` : ''}
+          </div>
+        </article>`;
+      })
+      .join('');
+    host.querySelectorAll('[data-inv-pdf]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const inv = quoteInvoices.find((i) => String(i.id) === btn.dataset.invPdf);
+        void openInvoicePdf(btn.dataset.invPdf, inv?.invoice_number ? `Invoice ${inv.invoice_number}` : 'Invoice');
+      });
+    });
+    host.querySelectorAll('[data-inv-email]').forEach((btn) => {
+      btn.addEventListener('click', () => void sendQuoteInvoiceEmail(btn.dataset.invEmail));
+    });
+    host.querySelectorAll('[data-inv-paid]').forEach((btn) => {
+      btn.addEventListener('click', () => void markQuoteInvoicePaid(btn.dataset.invPaid));
+    });
+  }
+
+  async function loadQuoteInvoices() {
+    if (!quoteId) {
+      quoteInvoices = [];
+      renderQuoteInvoicesList();
+      syncInvoiceUiVisibility();
+      return;
+    }
+    try {
+      const r = await api(`/api/quotes/${quoteId}/invoices`);
+      quoteInvoices = r.data || [];
+    } catch {
+      quoteInvoices = [];
+    }
+    renderQuoteInvoicesList();
+    syncInvoiceUiVisibility();
+  }
+
+  function openInvoiceModal() {
+    const modal = $('qbInvoiceModal');
+    if (!modal) return;
+    const due = $('invDueDate');
+    if (due && !due.value) due.value = defaultInvoiceDueDate();
+    syncInvoiceTypeFields();
+    modal.classList.remove('hidden');
+  }
+
+  function closeInvoiceModal() {
+    $('qbInvoiceModal')?.classList.add('hidden');
+  }
+
+  function syncInvoiceTypeFields() {
+    const type = $('invType')?.value || 'deposit';
+    $('invDepositWrap')?.classList.toggle('hidden', type !== 'deposit');
+    $('invCustomWrap')?.classList.toggle('hidden', type !== 'progress' && type !== 'custom');
+  }
+
+  async function submitInvoiceForm(e) {
+    e?.preventDefault();
+    if (!quoteId) return;
+    const type = $('invType')?.value || 'deposit';
+    const body = {
+      invoice_type: type,
+      due_date: $('invDueDate')?.value || null,
+      payment_instructions: $('invPaymentInstructions')?.value || null,
+      notes: $('invNotes')?.value || null,
+    };
+    if (type === 'deposit') body.deposit_pct = parseInt($('invDepositPct')?.value, 10) || 50;
+    if (type === 'progress' || type === 'custom') {
+      body.custom_amount = parseFloat($('invCustomAmount')?.value) || 0;
+    }
+    const btn = $('btnInvoiceModalSubmit');
+    const prev = btn?.textContent;
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'A emitir…';
+    }
+    try {
+      const r = await api(`/api/quotes/${quoteId}/invoices`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      });
+      closeInvoiceModal();
+      await loadQuoteInvoices();
+      const inv = r.data;
+      window.crmToast?.success?.(`Invoice ${inv?.invoice_number || ''} emitido.`);
+      if (inv?.id) {
+        await openInvoicePdf(inv.id, inv.invoice_number ? `Invoice ${inv.invoice_number}` : 'Invoice');
+      }
+    } catch (err) {
+      window.crmToast?.error?.(err.message || 'Erro ao emitir invoice');
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = prev || 'Emitir invoice';
+      }
+    }
+  }
+
+  async function sendQuoteInvoiceEmail(invoiceId) {
+    if (!invoiceId) return;
+    try {
+      await api(`/api/quote-invoices/${invoiceId}/send-email`, { method: 'POST', body: '{}' });
+      window.crmToast?.success?.('Invoice enviado por e-mail ao cliente.');
+      await loadQuoteInvoices();
+    } catch (err) {
+      window.crmToast?.error?.(err.message || 'Erro ao enviar invoice');
+    }
+  }
+
+  async function markQuoteInvoicePaid(invoiceId) {
+    if (!invoiceId || !confirm('Marcar este invoice como pago?')) return;
+    try {
+      await api(`/api/quote-invoices/${invoiceId}/mark-paid`, { method: 'POST', body: '{}' });
+      window.crmToast?.success?.('Invoice marcado como pago.');
+      await loadQuoteInvoices();
+    } catch (err) {
+      window.crmToast?.error?.(err.message || 'Erro ao atualizar invoice');
+    }
+  }
+
+  function wireInvoiceUi() {
+    $('btnInvoice')?.addEventListener('click', openInvoiceModal);
+    $('btnOpenInvoiceModal')?.addEventListener('click', openInvoiceModal);
+    $('btnInvoiceModalCancel')?.addEventListener('click', closeInvoiceModal);
+    $('qbInvoiceForm')?.addEventListener('submit', submitInvoiceForm);
+    $('invType')?.addEventListener('change', syncInvoiceTypeFields);
+    $('qbInvoiceModal')?.addEventListener('click', (e) => {
+      if (e.target === $('qbInvoiceModal')) closeInvoiceModal();
+    });
+    $('status')?.addEventListener('change', () => {
+      syncInvoiceUiVisibility();
+    });
+  }
+
   function enableActions() {
     $('btnPdf').disabled = !quoteId;
     const btnSend = $('btnSend');
     if (btnSend) btnSend.disabled = !quoteId;
     $('btnDup').disabled = !quoteId;
+    syncInvoiceUiVisibility();
     if (!quoteId) {
       updateEmailSentBadge(null);
       updateQuoteViewedBadge(null);
@@ -2044,6 +2231,7 @@
     enableActions();
     applyPricingFromCustomerId($('customerId').value);
     renderItems();
+    await loadQuoteInvoices();
   }
 
   function payload() {
@@ -2117,6 +2305,7 @@
       }
       qbToast('Guardado.', 'success');
       enableActions();
+      await loadQuoteInvoices();
     } catch (e) {
       qbToast(e.message || 'Erro ao guardar', 'error');
     }
@@ -2338,6 +2527,7 @@
       }
     });
     wireQuoteNotify();
+    wireInvoiceUi();
 
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') void pollQuoteViewed();

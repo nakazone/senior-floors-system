@@ -1341,6 +1341,50 @@
       color: #64748b;
       margin-top: 0.15rem;
     }
+    .qb-invoices-panel.hidden { display: none; }
+    .qb-invoices-list { display: flex; flex-direction: column; gap: 8px; }
+    .qb-invoice-card {
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 10px;
+      background: #fff;
+      font-size: 12px;
+    }
+    .qb-invoice-card__head { display: flex; justify-content: space-between; gap: 8px; font-weight: 600; color: #1a2036; }
+    .qb-invoice-card__meta { color: #64748b; margin: 4px 0 8px; font-size: 11px; }
+    .qb-invoice-card__actions { display: flex; flex-wrap: wrap; gap: 6px; }
+    .qb-invoice-card__actions .btn { font-size: 11px; padding: 4px 8px; }
+    .qb-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 11000;
+      background: rgba(26, 32, 54, 0.45);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    .qb-modal.hidden { display: none; }
+    .qb-modal__panel {
+      background: #fff;
+      border-radius: 12px;
+      max-width: 440px;
+      width: 100%;
+      padding: 1.25rem;
+      box-shadow: 0 12px 40px rgba(26, 32, 54, 0.18);
+    }
+    .qb-modal__title { margin: 0 0 6px; font-size: 1.1rem; color: #1a2036; }
+    .qb-modal__sub { margin: 0 0 14px; }
+    .qb-modal__actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+    .qb-invoice-form { display: flex; flex-direction: column; gap: 10px; }
+    .qb-invoice-form__label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 600; color: #334155; }
+    .qb-invoice-form__input {
+      font-weight: 400;
+      padding: 8px 10px;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      font-size: 13px;
+    }
     @media (max-width: 520px) {
       .qb-action-bar__inner {
         flex-wrap: wrap;
@@ -1813,6 +1857,15 @@
               <textarea id="terms" rows="3" class="w-full text-sm border border-slate-200 rounded-lg p-2" placeholder="Termos e condições"></textarea>
             </div>
 
+            <div id="quoteInvoicesPanel" class="qb-invoices-panel hidden pt-2 border-t border-slate-100">
+              <div class="flex items-center justify-between gap-2 mb-2">
+                <h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Invoices</h3>
+                <button type="button" id="btnOpenInvoiceModal" class="btn btn-sm btn-secondary">Emitir</button>
+              </div>
+              <p class="text-xs text-slate-500 mb-2">Cobrança ao cliente após aprovação do orçamento.</p>
+              <div id="quoteInvoicesList" class="qb-invoices-list"></div>
+            </div>
+
             <div class="qb-sidebar-footer pt-2 border-t border-slate-100">
               <p class="text-xs text-slate-500 hidden" id="quoteMeta">Novo orçamento</p>
               <p class="text-xs break-all hidden" id="publicLinkWrap"><span class="font-semibold">Link:</span> <a id="publicLink" class="text-blue-600 underline" target="_blank" rel="noopener"></a></p>
@@ -1828,6 +1881,7 @@
     <div class="qb-action-bar__inner">
       <button type="button" id="btnSave" class="btn btn-primary">Guardar rascunho</button>
       <button type="button" id="btnPdf" class="btn btn-secondary" disabled>Gerar PDF</button>
+      <button type="button" id="btnInvoice" class="btn btn-secondary hidden" disabled>Emitir invoice</button>
       <button type="button" id="btnSend" class="btn btn-secondary" disabled aria-haspopup="menu" aria-expanded="false" aria-controls="quoteSendMenu">Enviar</button>
       <button type="button" id="btnDup" class="btn btn-secondary" disabled>Duplicar</button>
       <button type="button" id="btnSaveTpl" class="btn btn-secondary">Guardar template</button>
@@ -1845,6 +1899,42 @@
     </button>
   </div>
 
+  <div id="qbInvoiceModal" class="qb-modal hidden" role="dialog" aria-modal="true" aria-labelledby="qbInvoiceModalTitle">
+    <div class="qb-modal__panel">
+      <h2 id="qbInvoiceModalTitle" class="qb-modal__title">Emitir invoice</h2>
+      <p class="qb-modal__sub text-sm text-slate-500">Fatura de pagamento ao cliente com base no orçamento aprovado.</p>
+      <form id="qbInvoiceForm" class="qb-invoice-form">
+        <label class="qb-invoice-form__label">Tipo de cobrança
+          <select id="invType" class="qb-invoice-form__input">
+            <option value="deposit" selected>Depósito (%)</option>
+            <option value="full">Valor total</option>
+            <option value="progress">Parcela / progresso</option>
+            <option value="custom">Valor personalizado</option>
+          </select>
+        </label>
+        <label class="qb-invoice-form__label" id="invDepositWrap">Percentagem do depósito
+          <input type="number" id="invDepositPct" class="qb-invoice-form__input" min="1" max="100" value="50" />
+        </label>
+        <label class="qb-invoice-form__label hidden" id="invCustomWrap">Valor ($)
+          <input type="number" id="invCustomAmount" class="qb-invoice-form__input" min="0" step="0.01" />
+        </label>
+        <label class="qb-invoice-form__label">Data de vencimento
+          <input type="date" id="invDueDate" class="qb-invoice-form__input" />
+        </label>
+        <label class="qb-invoice-form__label">Instruções de pagamento
+          <textarea id="invPaymentInstructions" class="qb-invoice-form__input" rows="2" placeholder="Zelle, cheque, transferência…"></textarea>
+        </label>
+        <label class="qb-invoice-form__label">Nota no invoice (opcional)
+          <textarea id="invNotes" class="qb-invoice-form__input" rows="2"></textarea>
+        </label>
+        <div class="qb-modal__actions">
+          <button type="button" class="btn btn-ghost" id="btnInvoiceModalCancel">Cancelar</button>
+          <button type="submit" class="btn btn-primary" id="btnInvoiceModalSubmit">Emitir invoice</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <div id="qbNotify" class="qb-notify hidden" role="alertdialog" aria-modal="true" aria-labelledby="qbNotifyTitle" aria-hidden="true">
     <div class="qb-notify__panel" role="document">
       <button type="button" class="qb-notify__close" id="qbNotifyClose" aria-label="Fechar">×</button>
@@ -1860,7 +1950,7 @@
   <script src="crm-toast.js"></script>
   <script src="crm-pdf-viewer.js?v=20260531"></script>
   <script src="lead-contact-links.js?v=20260526-utf8"></script>
-  <script src="quote-builder.js?v=20260531-pdf-close"></script>
+  <script src="quote-builder.js?v=20260708-invoices"></script>
   <script>
     (function () {
       var t = document.getElementById('mobileMenuToggle');
