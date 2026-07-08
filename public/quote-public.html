@@ -19,7 +19,27 @@
     <div id="quoteError" class="qp-error hidden"></div>
     <p id="quoteLoading" class="qp-error" style="color: var(--qp-muted);">Loading…</p>
   </div>
+
+  <div id="qpSignModal" class="qp-sign-modal hidden" role="dialog" aria-modal="true" aria-labelledby="qpSignTitle">
+    <div class="qp-sign-modal__backdrop" id="qpSignBackdrop"></div>
+    <div class="qp-sign-modal__panel">
+      <h2 id="qpSignTitle" class="qp-sign-modal__title">Approve &amp; sign</h2>
+      <p class="qp-sign-modal__sub">By signing below, you approve this quote and agree to the terms shown.</p>
+      <label class="qp-sign-field" for="qpSignerName">Your full name</label>
+      <input type="text" id="qpSignerName" class="qp-sign-input" autocomplete="name" placeholder="Full name" />
+      <label class="qp-sign-field" for="qpSignCanvas">Your signature</label>
+      <div class="qp-sign-canvas-wrap">
+        <canvas id="qpSignCanvas" width="520" height="140" aria-label="Draw your signature"></canvas>
+      </div>
+      <div class="qp-sign-modal__actions">
+        <button type="button" class="qp-btn qp-btn--outline" id="qpSignClear">Clear</button>
+        <button type="button" class="qp-btn qp-btn--outline" id="qpSignCancel">Cancel</button>
+        <button type="button" class="qp-btn qp-btn--primary" id="qpSignSubmit">Approve quote</button>
+      </div>
+    </div>
+  </div>
+
   <script src="crm-toast.js"></script>
-  <script src="quote-public.js?v=20260528-public-url"></script>
+  <script src="quote-public.js?v=20260708-signatures"></script>
 </body>
 </html>

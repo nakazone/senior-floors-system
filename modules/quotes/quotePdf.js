@@ -95,9 +95,10 @@ export function groupItemsForPdf(items) {
  * @param {object} opts
  * @param {object} opts.quote - quote row + customer fields
  * @param {Array} opts.items - line items
+ * @param {object} [opts.ownerSignature] - { png: Buffer, name: string }
  */
 export async function buildQuotePdfBuffer(opts) {
-  const { quote, items = [], customer = {} } = opts;
+  const { quote, items = [], customer = {}, ownerSignature = null } = opts;
   const pdf = await PDFDocument.create();
   const font = await pdf.embedFont(StandardFonts.Helvetica);
   const fontBold = await pdf.embedFont(StandardFonts.HelveticaBold);
@@ -506,6 +507,85 @@ export async function buildQuotePdfBuffer(opts) {
       y -= lineH - 1;
     }
   }
+
+  const embedSigPng = async (buf) => {
+    if (!buf || !buf.length) return null;
+    try {
+      return await pdf.embedPng(buf);
+    } catch {
+      try {
+        return await pdf.embedJpg(buf);
+      } catch {
+        return null;
+      }
+    }
+  };
+
+  const drawSigColumn = async (x, title, imgBuf, caption, signedAt) => {
+    ensureSpace(130);
+    const colW = (contentW - 24) / 2;
+    const boxH = 56;
+    const boxBottom = y - boxH;
+    page.drawRectangle({
+      x,
+      y: boxBottom,
+      width: colW,
+      height: boxH,
+      borderColor: PAL.rule,
+      borderWidth: 0.75,
+      color: PAL.white,
+    });
+    page.drawText(title, { x, y: y + 4, size: 8, font: fontBold, color: PAL.secondaryDark });
+    const embedded = await embedSigPng(imgBuf);
+    if (embedded) {
+      const maxW = colW - 16;
+      const maxH = boxH - 12;
+      const scale = Math.min(maxW / embedded.width, maxH / embedded.height, 1);
+      const iw = embedded.width * scale;
+      const ih = embedded.height * scale;
+      page.drawImage(embedded, {
+        x: x + (colW - iw) / 2,
+        y: boxBottom + (boxH - ih) / 2,
+        width: iw,
+        height: ih,
+      });
+    }
+    y = boxBottom - 10;
+    if (caption) {
+      for (const line of wrap(caption, colW, 8, fontBold)) {
+        ensureSpace(40);
+        page.drawText(line, { x, y, size: 8, font: fontBold, color: PAL.primary });
+        y -= lineH - 1;
+      }
+    }
+    if (signedAt) {
+      const when = String(signedAt).slice(0, 10);
+      page.drawText(`Date: ${when}`, { x, y, size: 7.5, font, color: PAL.lineMuted });
+      y -= lineH;
+    }
+  };
+
+  y -= 16;
+  ensureSpace(150);
+  const ownerBuf = ownerSignature?.png || null;
+  const clientBuf =
+    quote.client_signature_png && quote.client_signature_png.length
+      ? Buffer.isBuffer(quote.client_signature_png)
+        ? quote.client_signature_png
+        : Buffer.from(quote.client_signature_png)
+      : null;
+  const ownerName = ownerSignature?.name || COMPANY.name;
+  const clientSignerName = quote.client_signed_name || customer.name || quote.customer_name || '';
+  const approvedAt = quote.approved_at || null;
+
+  const sigLeftX = margin;
+  const sigRightX = margin + (contentW - 24) / 2 + 24;
+  const sigStartY = y;
+  await drawSigColumn(sigLeftX, 'Authorized by', ownerBuf, ownerName, null);
+  const leftEndY = y;
+  y = sigStartY;
+  await drawSigColumn(sigRightX, 'Client approval', clientBuf, clientSignerName, approvedAt);
+  y = Math.min(leftEndY, y) - 8;
 
   return Buffer.from(await pdf.save());
 }

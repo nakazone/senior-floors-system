@@ -45,6 +45,7 @@ import {
 } from './routes/quotes.js';
 import * as quoteExt from './routes/quoteExtended.js';
 import { registerQuoteInvoiceRoutes } from './routes/quoteInvoices.js';
+import { registerQuoteSignatureRoutes } from './routes/quoteSignatures.js';
 import { getEmailTransportStatus } from './modules/quotes/quoteMail.js';
 import * as erpMaterials from './routes/erpMaterials.js';
 import * as publicQuote from './routes/publicQuote.js';
@@ -121,6 +122,7 @@ import { ensureQuoteInvoicePdfColumn } from './lib/ensureQuoteInvoicePdfColumn.j
 import { ensureQuoteInvoicesSchema } from './lib/ensureQuoteInvoicesSchema.js';
 import { ensureQuotePdfViewedColumn } from './lib/ensureQuotePdfViewedColumn.js';
 import { ensureQuoteNumberOffset } from './lib/ensureQuoteNumberOffset.js';
+import { ensureQuoteSignatureSchema } from './lib/ensureQuoteSignatureSchema.js';
 import { ensureUserModuleColumns } from './lib/ensureUserModuleColumns.js';
 import { ensureCustomersResponsibleNameColumn } from './lib/ensureCustomersResponsibleNameColumn.js';
 import { ensureLeadPipelineStageEnteredAt } from './lib/ensureLeadPipelineStageEnteredAt.js';
@@ -392,9 +394,11 @@ app.get('/api/health/db', async (req, res) => {
 });
 
 // Public quote (no auth) — número legível Q-2026-001 ou token legado
+app.get('/api/public/quotes/by-number/:quoteNumber/client-signature', publicQuote.getPublicQuoteClientSignatureByNumber);
 app.get('/api/public/quotes/by-number/:quoteNumber', publicQuote.getPublicQuoteByNumber);
 app.get('/api/public/quotes/by-number/:quoteNumber/pdf', publicQuote.getPublicQuotePdfByNumber);
 app.post('/api/public/quotes/by-number/:quoteNumber/approve', publicQuote.postApproveQuoteByNumber);
+app.get('/api/public/quotes/:token/client-signature', publicQuote.getPublicQuoteClientSignatureByToken);
 app.get('/api/public/quotes/:token', publicQuote.getPublicQuote);
 app.get('/api/public/quotes/:token/pdf', publicQuote.getPublicQuotePdf);
 app.post('/api/public/quotes/:token/approve', publicQuote.postApproveQuote);
@@ -481,6 +485,7 @@ app.post('/api/quotes/:id/send-email', requireAuth, requirePermission('quotes.ed
 app.get('/api/quotes/:id/engagement', requireAuth, requirePermission('quotes.view'), quoteExt.getQuoteEngagement);
 app.get('/api/quotes/:id/snapshots', requireAuth, requirePermission('quotes.view'), quoteExt.getQuoteSnapshots);
 registerQuoteInvoiceRoutes(app);
+registerQuoteSignatureRoutes(app);
 app.get('/api/quotes/:id', requireAuth, getQuote);
 app.post('/api/quotes', requireAuth, createQuote);
 app.put('/api/quotes/:id', requireAuth, updateQuote);
@@ -830,6 +835,7 @@ async function start() {
       await ensureQuoteInvoicesSchema(pool);
       await ensureQuotePdfViewedColumn(pool);
       await ensureQuoteNumberOffset(pool);
+      await ensureQuoteSignatureSchema(pool);
       await ensureUserModuleColumns(pool);
       await ensureCustomersResponsibleNameColumn(pool);
       await ensureLeadPipelineStageEnteredAt(pool);

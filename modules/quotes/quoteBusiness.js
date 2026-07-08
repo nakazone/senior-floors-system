@@ -7,6 +7,7 @@ import { generateNextQuoteNumber } from '../../lib/quoteNumber.js';
 import { summarizeQuoteProfit } from '../pricing/marginPricing.js';
 import { ensureProjectForApprovedQuote } from './quoteProjectFromApproval.js';
 import { applyQuoteLineRevenueToProject } from '../../lib/syncProjectRevenueFromQuote.js';
+import { getOwnerSignature, parseSignaturePngBase64 } from './quoteSignatureSettings.js';
 
 /** Resumo no quote (PDF / listagem): tipos únicos por linha, ex. "Installation · Sand & Finishing". */
 export function deriveQuoteServiceSummary(items) {
@@ -445,6 +446,7 @@ export async function duplicateQuote(pool, quoteId, userId) {
 export async function generatePdfAndStore(pool, quoteId) {
   const ctx = await loadQuoteContext(pool, quoteId);
   if (!ctx) return { ok: false, error: 'Quote not found' };
+  const ownerSignature = await getOwnerSignature(pool);
   const pdfBuf = await buildQuotePdfBuffer({
     quote: ctx.quote,
     items: ctx.items,
@@ -453,6 +455,7 @@ export async function generatePdfAndStore(pool, quoteId) {
       email: ctx.quote.customer_email,
       phone: ctx.quote.customer_phone,
     },
+    ownerSignature,
   });
 
   const [colRows] = await pool.query(
@@ -620,18 +623,14 @@ export async function markQuotePdfDownloadedByNumber(pool, quoteNumber) {
   return getByQuoteNumber(pool, quoteNumber);
 }
 
-export async function approvePublicQuoteByNumber(pool, quoteNumber) {
+export async function approvePublicQuoteByNumber(pool, quoteNumber, signatureOpts = {}) {
   const ctx = await getByQuoteNumber(pool, quoteNumber);
   if (!ctx) return null;
-  const id = ctx.quote.id;
-  await pool.execute(
-    'UPDATE quotes SET status = ?, approved_at = COALESCE(approved_at, NOW()) WHERE id = ?',
-    ['approved', id]
-  );
-  try {
-    await ensureProjectForApprovedQuote(pool, id);
-  } catch (e) {
-    console.error('ensureProjectForApprovedQuote:', e);
+  const r = await approveQuoteWithClientSignature(pool, ctx.quote.id, signatureOpts);
+  if (!r.ok) {
+    const err = new Error(r.error || 'Could not approve quote');
+    err.statusCode = 400;
+    throw err;
   }
   return getByQuoteNumber(pool, quoteNumber);
 }
@@ -683,18 +682,61 @@ export async function getQuotePdfBufferForPublic(pool, quoteId) {
   return gen.buffer;
 }
 
-export async function approvePublicQuote(pool, token) {
+export async function approvePublicQuote(pool, token, signatureOpts = {}) {
   const ctx = await getByPublicToken(pool, token);
   if (!ctx) return null;
-  const id = ctx.quote.id;
-  await pool.execute(
-    'UPDATE quotes SET status = ?, approved_at = COALESCE(approved_at, NOW()) WHERE id = ?',
-    ['approved', id]
-  );
-  try {
-    await ensureProjectForApprovedQuote(pool, id);
-  } catch (e) {
-    console.error('[quotes] approvePublicQuote: project auto-create failed', e);
+  const r = await approveQuoteWithClientSignature(pool, ctx.quote.id, signatureOpts);
+  if (!r.ok) {
+    const err = new Error(r.error || 'Could not approve quote');
+    err.statusCode = 400;
+    throw err;
   }
   return getByPublicToken(pool, token);
+}
+
+async function approveQuoteWithClientSignature(pool, quoteId, signatureOpts = {}) {
+  const ctx = await loadQuoteContext(pool, quoteId);
+  if (!ctx) return { ok: false, error: 'Quote not found' };
+  const st = String(ctx.quote.status || '').toLowerCase();
+  if (['approved', 'accepted'].includes(st)) {
+    return { ok: false, error: 'This quote is already approved.' };
+  }
+  if (['rejected', 'declined'].includes(st)) {
+    return { ok: false, error: 'This quote cannot be approved.' };
+  }
+
+  const signerName = signatureOpts.signer_name ? String(signatureOpts.signer_name).trim().slice(0, 255) : '';
+  const sigBuf = parseSignaturePngBase64(signatureOpts.signature_png);
+  if (!signerName || signerName.length < 2) {
+    return { ok: false, error: 'Please enter your full name to sign.' };
+  }
+  if (!sigBuf) {
+    return { ok: false, error: 'Please draw your signature before approving.' };
+  }
+
+  const cols = await repo.quoteColumns(pool);
+  const sets = ['status = ?', 'approved_at = NOW()'];
+  const vals = ['approved'];
+  if (cols.has('client_signed_name')) {
+    sets.push('client_signed_name = ?');
+    vals.push(signerName);
+  }
+  if (cols.has('client_signature_png')) {
+    sets.push('client_signature_png = ?');
+    vals.push(sigBuf);
+  }
+  vals.push(quoteId);
+  await pool.execute(`UPDATE quotes SET ${sets.join(', ')} WHERE id = ?`, vals);
+
+  try {
+    await ensureProjectForApprovedQuote(pool, quoteId);
+  } catch (e) {
+    console.error('[quotes] approveQuoteWithClientSignature: project auto-create failed', e);
+  }
+  try {
+    await generatePdfAndStore(pool, quoteId);
+  } catch (e) {
+    console.error('[quotes] generatePdfAndStore after approve failed', e);
+  }
+  return { ok: true };
 }

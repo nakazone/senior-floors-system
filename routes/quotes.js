@@ -221,6 +221,13 @@ export async function getQuote(req, res) {
     const hasStoredPdf = pdfBufferNonEmpty(blob);
     const quote = { ...quoteRow };
     delete quote.invoice_pdf;
+    const hasClientSignature = !!(
+      quote.client_signature_png &&
+      (Buffer.isBuffer(quote.client_signature_png)
+        ? quote.client_signature_png.length
+        : quote.client_signature_png.length)
+    );
+    delete quote.client_signature_png;
 
     // Buscar items do quote
     const [items] = await pool.query('SELECT * FROM quote_items WHERE quote_id = ? ORDER BY id', [
@@ -235,6 +242,10 @@ export async function getQuote(req, res) {
     };
     if (quote.pdf_path || hasStoredPdf) {
       data.invoice_pdf_url = `/api/quotes/${quote.id}/invoice-pdf`;
+    }
+    data.has_client_signature = hasClientSignature;
+    if (hasClientSignature) {
+      data.client_signature_url = `/api/quotes/${quote.id}/client-signature`;
     }
     res.json({ success: true, data });
   } catch (error) {

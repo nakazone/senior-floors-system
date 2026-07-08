@@ -1858,6 +1858,27 @@
               <textarea id="terms" rows="3" class="w-full text-sm border border-slate-200 rounded-lg p-2" placeholder="Termos e condições"></textarea>
             </div>
 
+            <div id="qbOwnerSignaturePanel" class="qb-owner-sig space-y-2 pt-2 border-t border-slate-100">
+              <h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Assinatura do responsável</h3>
+              <p class="text-xs text-slate-500">Incluída no PDF do orçamento (lado esquerdo).</p>
+              <label class="block text-xs font-medium text-slate-600" for="ownerSignName">Nome / cargo</label>
+              <input type="text" id="ownerSignName" class="w-full text-sm border border-slate-200 rounded-lg px-2 py-1.5" placeholder="Ex.: John Smith, Owner" />
+              <div class="qb-sign-canvas-wrap border border-slate-200 rounded-lg bg-slate-50 overflow-hidden">
+                <canvas id="ownerSignCanvas" width="280" height="90" class="w-full block touch-none" aria-label="Desenhar assinatura"></canvas>
+              </div>
+              <div class="flex flex-wrap gap-2">
+                <button type="button" id="btnOwnerSignClear" class="btn btn-sm btn-ghost">Limpar</button>
+                <button type="button" id="btnOwnerSignSave" class="btn btn-sm btn-secondary">Guardar assinatura</button>
+              </div>
+              <img id="ownerSignPreview" class="hidden max-h-16 border border-slate-200 rounded p-1 bg-white" alt="Assinatura guardada" />
+            </div>
+
+            <div id="qbClientSignaturePanel" class="hidden space-y-2 pt-2 border-t border-slate-100">
+              <h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Assinatura do cliente</h3>
+              <img id="clientSignPreview" class="max-h-20 border border-slate-200 rounded p-1 bg-white" alt="Assinatura do cliente" />
+              <p id="clientSignMeta" class="text-xs text-slate-500"></p>
+            </div>
+
             <div id="quoteInvoicesPanel" class="qb-invoices-panel hidden pt-2 border-t border-slate-100">
               <div class="flex items-center justify-between gap-2 mb-2">
                 <h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Invoices</h3>
@@ -1951,7 +1972,7 @@
   <script src="crm-toast.js"></script>
   <script src="crm-pdf-viewer.js?v=20260531"></script>
   <script src="lead-contact-links.js?v=20260526-utf8"></script>
-  <script src="quote-builder.js?v=20260708-invoice-delete"></script>
+  <script src="quote-builder.js?v=20260708-signatures"></script>
   <script>
     (function () {
       var t = document.getElementById('mobileMenuToggle');

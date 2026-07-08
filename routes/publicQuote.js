@@ -11,6 +11,12 @@ function sanitizeQuote(q) {
   delete out.invoice_pdf;
   delete out.internal_notes;
   delete out.created_by;
+  delete out.client_signature_png;
+  const st = String(out.status || '').toLowerCase();
+  out.has_client_signature = !!(q.client_signed_name || q.approved_at);
+  if (['approved', 'accepted'].includes(st) && q.client_signed_name) {
+    out.client_signature_url = 'client-signature';
+  }
   return out;
 }
 
@@ -87,7 +93,7 @@ export async function postApproveQuoteByNumber(req, res) {
     }
     const pool = await getDBConnection();
     if (!pool) return res.status(503).json({ success: false, error: 'Database not available' });
-    const ctx = await business.approvePublicQuoteByNumber(pool, quoteNumber);
+    const ctx = await business.approvePublicQuoteByNumber(pool, quoteNumber, req.body || {});
     if (!ctx) return res.status(404).json({ success: false, error: 'Quote not found' });
     res.json({
       success: true,
@@ -98,7 +104,8 @@ export async function postApproveQuoteByNumber(req, res) {
     });
   } catch (e) {
     console.error('postApproveQuoteByNumber:', e);
-    res.status(500).json({ success: false, error: e.message });
+    const status = e.statusCode || 500;
+    res.status(status).json({ success: false, error: e.message || 'Could not approve quote' });
   }
 }
 
@@ -165,7 +172,7 @@ export async function postApproveQuote(req, res) {
     }
     const pool = await getDBConnection();
     if (!pool) return res.status(503).json({ success: false, error: 'Database not available' });
-    const ctx = await business.approvePublicQuote(pool, token);
+    const ctx = await business.approvePublicQuote(pool, token, req.body || {});
     if (!ctx) return res.status(404).json({ success: false, error: 'Quote not found' });
     res.json({
       success: true,
@@ -176,6 +183,52 @@ export async function postApproveQuote(req, res) {
     });
   } catch (e) {
     console.error('postApproveQuote:', e);
+    const status = e.statusCode || 500;
+    res.status(status).json({ success: false, error: e.message || 'Could not approve quote' });
+  }
+}
+
+export async function getPublicQuoteClientSignatureByNumber(req, res) {
+  try {
+    const quoteNumber = normalizeQuoteNumberForUrl(req.params.quoteNumber);
+    if (!quoteNumber) return res.status(400).json({ success: false, error: 'Invalid quote number' });
+    const pool = await getDBConnection();
+    if (!pool) return res.status(503).json({ success: false, error: 'Database not available' });
+    const ctx = await business.getByQuoteNumber(pool, quoteNumber);
+    if (!ctx) return res.status(404).json({ success: false, error: 'Quote not found' });
+    return streamPublicClientSignature(res, ctx.quote);
+  } catch (e) {
+    console.error('getPublicQuoteClientSignatureByNumber:', e);
     res.status(500).json({ success: false, error: e.message });
   }
+}
+
+export async function getPublicQuoteClientSignatureByToken(req, res) {
+  try {
+    const token = String(req.params.token || '').trim();
+    if (!token || token.length < 16) {
+      return res.status(400).json({ success: false, error: 'Invalid token' });
+    }
+    const pool = await getDBConnection();
+    if (!pool) return res.status(503).json({ success: false, error: 'Database not available' });
+    const ctx = await business.getByPublicToken(pool, token);
+    if (!ctx) return res.status(404).json({ success: false, error: 'Quote not found' });
+    return streamPublicClientSignature(res, ctx.quote);
+  } catch (e) {
+    console.error('getPublicQuoteClientSignatureByToken:', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+}
+
+function streamPublicClientSignature(res, quote) {
+  const st = String(quote.status || '').toLowerCase();
+  if (!['approved', 'accepted'].includes(st)) {
+    return res.status(404).json({ success: false, error: 'No signature' });
+  }
+  const buf = quote.client_signature_png;
+  if (!buf || !buf.length) return res.status(404).json({ success: false, error: 'No signature' });
+  const png = Buffer.isBuffer(buf) ? buf : Buffer.from(buf);
+  res.setHeader('Content-Type', 'image/png');
+  res.setHeader('Cache-Control', 'private, max-age=300');
+  return res.send(png);
 }

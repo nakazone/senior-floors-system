@@ -2200,6 +2200,148 @@
     }
   }
 
+  let ownerSignaturePad = null;
+
+  function createOwnerSignaturePad() {
+    const canvas = $('ownerSignCanvas');
+    if (!canvas) return null;
+    const ctx = canvas.getContext('2d');
+    let drawing = false;
+    let hasStroke = false;
+    ctx.strokeStyle = '#1a2036';
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+
+    const pointerPos = (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
+      const pt = e.touches ? e.touches[0] : e;
+      return { x: (pt.clientX - rect.left) * scaleX, y: (pt.clientY - rect.top) * scaleY };
+    };
+
+    const start = (e) => {
+      drawing = true;
+      hasStroke = true;
+      const p = pointerPos(e);
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y);
+      e.preventDefault();
+    };
+    const move = (e) => {
+      if (!drawing) return;
+      const p = pointerPos(e);
+      ctx.lineTo(p.x, p.y);
+      ctx.stroke();
+      e.preventDefault();
+    };
+    const end = () => {
+      drawing = false;
+    };
+
+    canvas.addEventListener('mousedown', start);
+    canvas.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', end);
+    canvas.addEventListener('touchstart', start, { passive: false });
+    canvas.addEventListener('touchmove', move, { passive: false });
+    canvas.addEventListener('touchend', end);
+
+    return {
+      clear() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        hasStroke = false;
+      },
+      isEmpty() {
+        return !hasStroke;
+      },
+      toDataURL() {
+        return canvas.toDataURL('image/png');
+      },
+    };
+  }
+
+  async function loadOwnerSignatureSettings() {
+    try {
+      const r = await api('/api/quotes/settings/owner-signature');
+      const d = r.data || {};
+      const nameEl = $('ownerSignName');
+      if (nameEl && d.name) nameEl.value = d.name;
+      const preview = $('ownerSignPreview');
+      if (preview && d.has_signature && d.image_url) {
+        preview.src = `${d.image_url}?t=${Date.now()}`;
+        preview.classList.remove('hidden');
+      } else if (preview) {
+        preview.classList.add('hidden');
+        preview.removeAttribute('src');
+      }
+    } catch {
+      /* optional */
+    }
+  }
+
+  async function saveOwnerSignature() {
+    const name = $('ownerSignName')?.value?.trim() || '';
+    if (!ownerSignaturePad) ownerSignaturePad = createOwnerSignaturePad();
+    if (!ownerSignaturePad || ownerSignaturePad.isEmpty()) {
+      qbToast('Desenhe a assinatura antes de guardar.', 'error');
+      return;
+    }
+    const btn = $('btnOwnerSignSave');
+    const prev = btn?.textContent;
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'A guardar…';
+    }
+    try {
+      await api('/api/quotes/settings/owner-signature', {
+        method: 'PUT',
+        body: JSON.stringify({
+          name,
+          signature_png: ownerSignaturePad.toDataURL(),
+        }),
+      });
+      qbToast('Assinatura do responsável guardada.', 'success');
+      ownerSignaturePad.clear();
+      await loadOwnerSignatureSettings();
+    } catch (err) {
+      qbToast(err.message || 'Erro ao guardar assinatura', 'error');
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = prev || 'Guardar assinatura';
+      }
+    }
+  }
+
+  function renderClientSignaturePanel(q) {
+    const panel = $('qbClientSignaturePanel');
+    if (!panel) return;
+    const approved = isQuoteApprovedStatus(q?.status);
+    const hasSig = !!(q?.has_client_signature || q?.client_signed_name);
+    if (!approved || !hasSig) {
+      panel.classList.add('hidden');
+      return;
+    }
+    panel.classList.remove('hidden');
+    const img = $('clientSignPreview');
+    if (img && q.client_signature_url) {
+      img.src = `${q.client_signature_url}?t=${Date.now()}`;
+      img.classList.remove('hidden');
+    }
+    const meta = $('clientSignMeta');
+    if (meta) {
+      const who = q.client_signed_name || 'Cliente';
+      const when = q.approved_at ? String(q.approved_at).slice(0, 10) : '—';
+      meta.textContent = `${who} · ${when}`;
+    }
+  }
+
+  function wireOwnerSignatureUi() {
+    ownerSignaturePad = createOwnerSignaturePad();
+    $('btnOwnerSignClear')?.addEventListener('click', () => ownerSignaturePad?.clear());
+    $('btnOwnerSignSave')?.addEventListener('click', () => void saveOwnerSignature());
+  }
+
   function wireInvoiceUi() {
     $('btnInvoice')?.addEventListener('click', openInvoiceModal);
     $('btnOpenInvoiceModal')?.addEventListener('click', openInvoiceModal);
@@ -2277,6 +2419,7 @@
     enableActions();
     applyPricingFromCustomerId($('customerId').value);
     renderItems();
+    renderClientSignaturePanel(q);
     await loadQuoteInvoices();
   }
 
@@ -2575,6 +2718,8 @@
     });
     wireQuoteNotify();
     wireInvoiceUi();
+    wireOwnerSignatureUi();
+    void loadOwnerSignatureSettings();
 
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') void pollQuoteViewed();
