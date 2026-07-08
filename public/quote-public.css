@@ -462,6 +462,12 @@ body.qp-page {
   font-weight: 700;
 }
 
+.qp-signatures__title {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--qp-muted);
+}
+
 .qp-signatures__date {
   margin: 2px 0 0;
   font-size: 11px;

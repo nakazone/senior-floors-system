@@ -2274,6 +2274,7 @@
   }
 
   function syncOwnerSignatureFromName() {
+    if (!$('ownerSignAutoDefault')?.checked) return;
     const name = $('ownerSignName')?.value?.trim() || '';
     if (!ownerSignaturePad) ownerSignaturePad = createOwnerSignaturePad();
     if (!ownerSignaturePad) return;
@@ -2286,9 +2287,13 @@
       const r = await api('/api/quotes/settings/owner-signature');
       const d = r.data || {};
       const nameEl = $('ownerSignName');
-      if (nameEl && d.name) {
-        nameEl.value = d.name;
-        if (!d.has_signature) syncOwnerSignatureFromName();
+      const titleEl = $('ownerSignTitle');
+      const autoEl = $('ownerSignAutoDefault');
+      if (nameEl && d.name) nameEl.value = d.name;
+      if (titleEl && d.title) titleEl.value = d.title;
+      if (autoEl) autoEl.checked = d.use_auto_signature !== false;
+      if (nameEl?.value && (d.use_auto_signature !== false) && !d.has_signature) {
+        syncOwnerSignatureFromName();
       }
       const preview = $('ownerSignPreview');
       if (preview && d.has_signature && d.image_url) {
@@ -2298,6 +2303,19 @@
         preview.classList.add('hidden');
         preview.removeAttribute('src');
       }
+      const meta = $('ownerSignSavedMeta');
+      if (meta) {
+        if (d.has_signature) {
+          const parts = [d.name, d.title].filter(Boolean);
+          meta.textContent = parts.length
+            ? `Padrão ativo: ${parts.join(' · ')}`
+            : 'Assinatura padrão guardada para todos os orçamentos.';
+          meta.classList.remove('hidden');
+        } else {
+          meta.classList.add('hidden');
+          meta.textContent = '';
+        }
+      }
     } catch {
       /* optional */
     }
@@ -2305,12 +2323,14 @@
 
   async function saveOwnerSignature() {
     const name = $('ownerSignName')?.value?.trim() || '';
+    const title = $('ownerSignTitle')?.value?.trim() || '';
+    const useAuto = !!$('ownerSignAutoDefault')?.checked;
     if (!name || name.length < 2) {
       qbToast('Indique o nome antes de guardar.', 'error');
       return;
     }
     if (!ownerSignaturePad) ownerSignaturePad = createOwnerSignaturePad();
-    if (ownerSignaturePad.isEmpty()) ownerSignaturePad.renderFromName(name);
+    if (useAuto && ownerSignaturePad.isEmpty()) ownerSignaturePad.renderFromName(name);
     if (!ownerSignaturePad || ownerSignaturePad.isEmpty()) {
       qbToast('Não foi possível gerar a assinatura.', 'error');
       return;
@@ -2326,10 +2346,12 @@
         method: 'PUT',
         body: JSON.stringify({
           name,
+          title,
+          use_auto_signature: useAuto,
           signature_png: ownerSignaturePad.toDataURL(),
         }),
       });
-      qbToast('Assinatura do responsável guardada.', 'success');
+      qbToast('Assinatura padrão guardada para todos os orçamentos.', 'success');
       ownerSignaturePad.clear();
       await loadOwnerSignatureSettings();
     } catch (err) {
@@ -2337,7 +2359,7 @@
     } finally {
       if (btn) {
         btn.disabled = false;
-        btn.textContent = prev || 'Guardar assinatura';
+        btn.textContent = prev || 'Guardar assinatura padrão';
       }
     }
   }
@@ -2370,6 +2392,9 @@
     $('btnOwnerSignClear')?.addEventListener('click', () => ownerSignaturePad?.clear());
     $('btnOwnerSignSave')?.addEventListener('click', () => void saveOwnerSignature());
     $('ownerSignName')?.addEventListener('input', debounceOwnerSig(syncOwnerSignatureFromName, 250));
+    $('ownerSignAutoDefault')?.addEventListener('change', () => {
+      if ($('ownerSignAutoDefault')?.checked) syncOwnerSignatureFromName();
+    });
   }
 
   function wireInvoiceUi() {

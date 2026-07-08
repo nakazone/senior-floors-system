@@ -61,31 +61,108 @@
   function defaultTerms() {
     return (
       'This quote is valid until the expiration date shown. Pricing assumes access to the job site and ' +
-      'standard subfloor conditions unless otherwise noted. Payment terms and schedule will be confirmed upon approval.'
+      'accurate measurements; changes in scope may require a revised quote. A signed approval or deposit ' +
+      'may be required to schedule work.'
     );
   }
 
-  function lineSection(item) {
-    if (item.item_type === 'product') return 'products';
-    const st = String(item.service_type || '').toLowerCase();
-    if (st.includes('supply')) return 'supply';
-    if (st.includes('sand')) return 'sand_finish';
+  /** Same section logic as quotePdf.js */
+  function lineSection(it) {
+    if (String(it.item_type || '').toLowerCase() === 'product') return 'products';
+    const st = String(it.service_type || '').trim();
+    if (!st) return 'installation';
+    const lower = st.toLowerCase();
+    if (lower === 'supply') return 'supply';
+    if (lower.includes('sand') || lower.includes('finishing')) return 'sand_finish';
     return 'installation';
   }
 
   function groupItems(items) {
     const buckets = { installation: [], sand_finish: [], supply: [], products: [] };
-    (items || []).forEach((it) => {
-      const key = lineSection(it);
-      if (buckets[key]) buckets[key].push(it);
-    });
-    return SECTION_DEFS.map((def) => ({ ...def, items: buckets[def.key] || [] })).filter(
-      (s) => s.items.length
-    );
+    for (const it of items || []) {
+      const k = lineSection(it);
+      if (buckets[k]) buckets[k].push(it);
+      else buckets.installation.push(it);
+    }
+    return SECTION_DEFS.filter((d) => buckets[d.key].length > 0).map((d) => ({
+      label: d.label,
+      items: buckets[d.key],
+    }));
   }
 
-  function isApprovedStatus(status) {
-    return ['approved', 'accepted'].includes(String(status || '').toLowerCase());
+  function isClientSigned(q) {
+    return !!(q.client_signed_name || q.has_client_signature || q.client_signature_url);
+  }
+
+  function renderLineRow(it) {
+    const nameStr = String(it.name || '').trim();
+    const descStr = String(it.description || '').trim();
+    const headline =
+      nameStr || (descStr ? descStr.split(/\n/)[0] : '') || String(it.floor_type || '') || 'Line item';
+    let bodyStr = '';
+    if (nameStr && descStr && descStr !== nameStr) {
+      bodyStr = descStr;
+    } else if (!nameStr && descStr && descStr.includes('\n')) {
+      bodyStr = descStr.split(/\n/).slice(1).join('\n').trim();
+    }
+    const qty = Number(it.quantity) || 0;
+    const rate = Number(it.rate ?? it.unit_price) || 0;
+    const amt = Number(it.amount ?? it.total_price) || qty * rate;
+    const ut = it.unit_type ? String(it.unit_type).replace(/_/g, ' ') : 'sq ft';
+    const catalogNotes = String(it.catalog_customer_notes || '').trim();
+    const lineComment = String(it.notes || '').trim();
+    const detailParts = [];
+    if (catalogNotes) detailParts.push(catalogNotes);
+    if (lineComment) detailParts.push(`Comment: ${lineComment}`);
+    const detailHtml = detailParts.length
+      ? `<span class="qp-line__detail">${escapeHtml(detailParts.join(' — '))}</span>`
+      : '';
+    const bodyHtml = bodyStr ? `<span class="qp-line__body">${escapeHtml(bodyStr)}</span>` : '';
+
+    return `<tr>
+      <td>
+        <span class="qp-line__title">${escapeHtml(headline)}</span>
+        ${bodyHtml}
+        ${detailHtml}
+      </td>
+      <td class="qp-num">${escapeHtml(`${qty} ${ut}`)}</td>
+      <td class="qp-num">${escapeHtml(money(rate))}</td>
+      <td class="qp-num qp-line__amt">${escapeHtml(money(amt))}</td>
+    </tr>`;
+  }
+
+  function renderTableHeader() {
+    return `<thead><tr>
+      <th>Description</th>
+      <th class="qp-num">Qty</th>
+      <th class="qp-num">Rate</th>
+      <th class="qp-num">Amount</th>
+    </tr></thead>`;
+  }
+
+  function renderSections(items) {
+    const sections = groupItems(items);
+    if (!sections.length) {
+      return '<p class="qp-empty">No line items.</p>';
+    }
+    return sections
+      .map(
+        (sec) => `
+      <div class="qp-section">
+        <h2 class="qp-section-title">${escapeHtml(sec.label)}</h2>
+        <table class="qp-table">
+          <colgroup>
+            <col class="col-desc" />
+            <col class="col-qty" />
+            <col class="col-rate" />
+            <col class="col-amt" />
+          </colgroup>
+          ${renderTableHeader()}
+          <tbody>${sec.items.map(renderLineRow).join('')}</tbody>
+        </table>
+      </div>`
+      )
+      .join('');
   }
 
   function createSignaturePad(canvas) {
@@ -165,18 +242,30 @@
 
   let signaturePad = null;
 
-  function renderSignaturesBlock(q) {
-    if (!isApprovedStatus(q.status)) return '';
+  function renderSignaturesBlock(q, ownerSig) {
+    if (!isClientSigned(q)) return '';
     const clientName = escapeHtml(q.client_signed_name || q.customer_name || 'Client');
     const when = q.approved_at ? escapeHtml(String(q.approved_at).slice(0, 10)) : '—';
     const clientImg = q.client_signature_url
       ? `<img src="${access.apiBase}/client-signature" alt="Client signature" />`
       : '<span class="qp-muted-text">Signed</span>';
+
+    const owner = ownerSig || {};
+    const ownerName = escapeHtml(owner.name || COMPANY.name);
+    const ownerTitleHtml = owner.title
+      ? `<p class="qp-signatures__title">${escapeHtml(owner.title)}</p>`
+      : '';
+    const ownerImg = owner.image_url
+      ? `<img src="${owner.image_url}" alt="Authorized signature" />`
+      : '<span class="qp-muted-text">Senior Floors</span>';
+
     return `
       <section class="qp-signatures">
         <div class="qp-signatures__col">
           <h3>Authorized by</h3>
-          <div class="qp-signatures__box"><span class="qp-muted-text">Senior Floors</span></div>
+          <div class="qp-signatures__box">${ownerImg}</div>
+          <p class="qp-signatures__name">${ownerName}</p>
+          ${ownerTitleHtml}
         </div>
         <div class="qp-signatures__col">
           <h3>Client approval</h3>
@@ -187,67 +276,66 @@
       </section>`;
   }
 
-  function renderDocument(q, items) {
-    const sections = groupItems(items);
-    const subtotal = Number(q.subtotal) || 0;
-    const discount =
-      q.discount_type === 'percentage'
-        ? (subtotal * (Number(q.discount_value) || 0)) / 100
-        : Number(q.discount_value) || 0;
+  function renderDocument(q, items, ownerSig) {
+    const clientName = escapeHtml(q.customer_name || 'Client');
+    const email = q.customer_email ? escapeHtml(String(q.customer_email)) : '';
+    const phone = q.customer_phone ? escapeHtml(String(q.customer_phone)) : '';
+    const issue = q.issue_date ? String(q.issue_date).slice(0, 10) : '';
+    const exp = q.expiration_date ? String(q.expiration_date).slice(0, 10) : '';
+    const sub = Number(q.subtotal) || 0;
     const tax = Number(q.tax_total) || 0;
     const total = Number(q.total_amount) || 0;
-    const terms = escapeHtml(q.terms_conditions || defaultTerms());
-    const notes = q.notes ? escapeHtml(q.notes) : '';
+    const discType = q.discount_type === 'fixed' ? '$' : '%';
+    const discVal = Number(q.discount_value) || 0;
+    const discDisplay = discType === '$' ? money(discVal) : `${discVal}%`;
+    const terms = escapeHtml((q.terms_conditions && String(q.terms_conditions).trim()) || defaultTerms());
+    const notes = q.notes ? escapeHtml(String(q.notes)) : '';
 
-    const sectionHtml = sections
-      .map((sec) => {
-        const rows = sec.items
-          .map((it) => {
-            const qty = Number(it.quantity) || 0;
-            const rate = Number(it.rate) || 0;
-            const amt = Math.round(qty * rate * 100) / 100;
-            const desc = it.description ? `<div class="qp-line-desc">${escapeHtml(it.description)}</div>` : '';
-            const note = it.notes ? `<div class="qp-line-note">${escapeHtml(it.notes)}</div>` : '';
-            return `<tr>
-              <td class="qp-line-name">${escapeHtml(it.name || '—')}${desc}${note}</td>
-              <td class="qp-line-qty">${qty}</td>
-              <td class="qp-line-rate">${money(rate)}</td>
-              <td class="qp-line-amt">${money(amt)}</td>
-            </tr>`;
-          })
-          .join('');
-        return `<section class="qp-section">
-          <h3 class="qp-section-title">${escapeHtml(sec.label)}</h3>
-          <table class="qp-table"><tbody>${rows}</tbody></table>
-        </section>`;
-      })
-      .join('');
-
-    const exp = q.expiration_date ? String(q.expiration_date).slice(0, 10) : '—';
-    const clientName = escapeHtml(q.customer_name || 'Client');
+    const panelMeta = [
+      issue ? `<p>Issue: ${escapeHtml(issue)}</p>` : '',
+      exp ? `<p>Expires: ${escapeHtml(exp)}</p>` : '',
+      `<p>Status: ${escapeHtml(q.status || 'draft')}</p>`,
+    ].join('');
 
     return `
       <header class="qp-header">
-        <div class="qp-brand">
-          <h1 class="qp-brand__name">${escapeHtml(COMPANY.name)}</h1>
-          <p class="qp-brand__tag">${escapeHtml(COMPANY.tagline)}</p>
-          <p class="qp-brand__contact">${escapeHtml(COMPANY.phone)} · ${escapeHtml(COMPANY.email)}</p>
+        <div class="qp-header__brand">
+          <img class="qp-logo" src="/assets/SeniorFloors.png" alt="" width="68" height="68" onerror="this.style.display='none'" />
+          <div class="qp-company">
+            <h1 class="qp-company__name">${escapeHtml(COMPANY.name)}</h1>
+            <p class="qp-company__tagline">${escapeHtml(COMPANY.tagline)}</p>
+            <p class="qp-company__contact">${escapeHtml(COMPANY.phone)} · ${escapeHtml(COMPANY.email)}</p>
+          </div>
         </div>
-        <div class="qp-quote-panel">
-          <p class="qp-quote-panel__label">Quote</p>
+        <aside class="qp-quote-panel">
+          <p class="qp-quote-panel__label">QUOTE</p>
           <p class="qp-quote-panel__number">${escapeHtml(q.quote_number || `Quote #${q.id}`)}</p>
-          <p class="qp-quote-panel__client">${clientName}</p>
-          <p class="qp-quote-panel__exp">Valid until ${escapeHtml(exp)}</p>
-        </div>
+          ${panelMeta}
+        </aside>
       </header>
 
-      ${sectionHtml}
+      <section class="qp-billto">
+        <p class="qp-billto__label">Bill to</p>
+        <p class="qp-billto__name">${clientName}</p>
+        ${email ? `<p class="qp-billto__meta">${email}</p>` : ''}
+        ${phone ? `<p class="qp-billto__meta">${phone}</p>` : ''}
+      </section>
 
-      <div class="qp-totals">
-        <div class="qp-totals__row"><span>Subtotal</span><span>${money(subtotal)}</span></div>
-        ${discount > 0 ? `<div class="qp-totals__row"><span>Discount</span><span>-${money(discount)}</span></div>` : ''}
-        ${tax > 0 ? `<div class="qp-totals__row"><span>Tax</span><span>${money(tax)}</span></div>` : ''}
-        <div class="qp-totals__row qp-totals__row--total"><span>Total</span><span>${money(total)}</span></div>
+      ${renderSections(items)}
+
+      <div class="qp-totals-wrap">
+        <table class="qp-totals">
+          <tbody>
+            <tr><td>Subtotal</td><td>${money(sub)}</td></tr>
+            <tr><td>Tax</td><td>${money(tax)}</td></tr>
+            <tr><td>Discount (${escapeHtml(discType)})</td><td>${escapeHtml(discDisplay)}</td></tr>
+          </tbody>
+        </table>
+        <p class="qp-totals-label">Quote total</p>
+        <div class="qp-grand-total">
+          <span class="qp-grand-total__label">TOTAL</span>
+          <span class="qp-grand-total__value">${money(total)}</span>
+        </div>
       </div>
 
       <section class="qp-terms">
@@ -264,7 +352,7 @@
           : ''
       }
 
-      ${renderSignaturesBlock(q)}
+      ${renderSignaturesBlock(q, ownerSig)}
     `;
   }
 
@@ -349,9 +437,9 @@
     });
   }
 
-  function renderActions(approved) {
+  function renderActions(clientSigned) {
     if (!access) return;
-    if (approved) {
+    if (clientSigned) {
       actionsEl.innerHTML = '';
       actionsEl.hidden = true;
       const who = access?.lastQuote?.client_signed_name;
@@ -399,16 +487,17 @@
       }
       const q = j.data.quote;
       const items = j.data.items || [];
+      const ownerSig = j.data.owner_signature || null;
       if (access) access.lastQuote = q;
-      const approved = isApprovedStatus(q.status);
+      const clientSigned = isClientSigned(q);
 
       loadingEl.hidden = true;
       errorEl.hidden = true;
       errorEl.classList.add('hidden');
 
-      innerEl.innerHTML = renderDocument(q, items);
+      innerEl.innerHTML = renderDocument(q, items, ownerSig);
       docEl.hidden = false;
-      renderActions(approved);
+      renderActions(clientSigned);
       document.title = `Quote ${q.quote_number || q.id} — Senior Floors`;
     } catch {
       showError('Could not load quote.');

@@ -95,7 +95,7 @@ export function groupItemsForPdf(items) {
  * @param {object} opts
  * @param {object} opts.quote - quote row + customer fields
  * @param {Array} opts.items - line items
- * @param {object} [opts.ownerSignature] - { png: Buffer, name: string }
+ * @param {object} [opts.ownerSignature] - { png: Buffer, name: string, title?: string }
  */
 export async function buildQuotePdfBuffer(opts) {
   const { quote, items = [], customer = {}, ownerSignature = null } = opts;
@@ -521,7 +521,7 @@ export async function buildQuotePdfBuffer(opts) {
     }
   };
 
-  const drawSigColumn = async (x, title, imgBuf, caption, signedAt) => {
+  const drawSigColumn = async (x, title, imgBuf, signerName, signerTitle, signedAt) => {
     ensureSpace(130);
     const colW = (contentW - 24) / 2;
     const boxH = 56;
@@ -551,10 +551,17 @@ export async function buildQuotePdfBuffer(opts) {
       });
     }
     y = boxBottom - 10;
-    if (caption) {
-      for (const line of wrap(caption, colW, 8, fontBold)) {
+    if (signerName) {
+      for (const line of wrap(signerName, colW, 8, fontBold)) {
         ensureSpace(40);
         page.drawText(line, { x, y, size: 8, font: fontBold, color: PAL.primary });
+        y -= lineH - 1;
+      }
+    }
+    if (signerTitle) {
+      for (const line of wrap(signerTitle, colW, 7.5, font)) {
+        ensureSpace(40);
+        page.drawText(line, { x, y, size: 7.5, font, color: PAL.lineMuted });
         y -= lineH - 1;
       }
     }
@@ -575,16 +582,17 @@ export async function buildQuotePdfBuffer(opts) {
         : Buffer.from(quote.client_signature_png)
       : null;
   const ownerName = ownerSignature?.name || COMPANY.name;
+  const ownerTitle = ownerSignature?.title || '';
   const clientSignerName = quote.client_signed_name || customer.name || quote.customer_name || '';
   const approvedAt = quote.approved_at || null;
 
   const sigLeftX = margin;
   const sigRightX = margin + (contentW - 24) / 2 + 24;
   const sigStartY = y;
-  await drawSigColumn(sigLeftX, 'Authorized by', ownerBuf, ownerName, null);
+  await drawSigColumn(sigLeftX, 'Authorized by', ownerBuf, ownerName, ownerTitle, null);
   const leftEndY = y;
   y = sigStartY;
-  await drawSigColumn(sigRightX, 'Client approval', clientBuf, clientSignerName, approvedAt);
+  await drawSigColumn(sigRightX, 'Client approval', clientBuf, clientSignerName, null, approvedAt);
   y = Math.min(leftEndY, y) - 8;
 
   return Buffer.from(await pdf.save());

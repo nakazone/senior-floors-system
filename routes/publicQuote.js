@@ -4,6 +4,7 @@
 import { getDBConnection } from '../config/db.js';
 import * as business from '../modules/quotes/quoteBusiness.js';
 import { normalizeQuoteNumberForUrl } from '../lib/publicQuoteUrl.js';
+import { getOwnerSignature, ownerSignaturePublicMeta } from '../modules/quotes/quoteSignatureSettings.js';
 
 function sanitizeQuote(q) {
   if (!q) return q;
@@ -13,11 +14,25 @@ function sanitizeQuote(q) {
   delete out.created_by;
   delete out.client_signature_png;
   const st = String(out.status || '').toLowerCase();
-  out.has_client_signature = !!(q.client_signed_name || q.approved_at);
-  if (['approved', 'accepted'].includes(st) && q.client_signed_name) {
+  const signedName = String(q.client_signed_name || '').trim();
+  const png = q.client_signature_png;
+  const hasPng =
+    !!png &&
+    (Buffer.isBuffer(png) ? png.length > 0 : typeof png === 'string' ? png.length > 0 : png?.length > 0);
+  out.has_client_signature = !!(signedName || hasPng);
+  if (['approved', 'accepted'].includes(st) && out.has_client_signature) {
     out.client_signature_url = 'client-signature';
   }
   return out;
+}
+
+async function buildPublicQuotePayload(pool, ctx, apiBase) {
+  const owner = await getOwnerSignature(pool);
+  return {
+    quote: sanitizeQuote(ctx.quote),
+    items: sanitizePublicItems(ctx.items),
+    owner_signature: ownerSignaturePublicMeta(owner, apiBase),
+  };
 }
 
 function sanitizePublicItems(items) {
@@ -42,12 +57,10 @@ export async function getPublicQuoteByNumber(req, res) {
     const ctx = await business.markQuoteViewedByNumber(pool, quoteNumber);
     if (!ctx) return res.status(404).json({ success: false, error: 'Quote not found' });
 
+    const apiBase = `/api/public/quotes/by-number/${encodeURIComponent(quoteNumber)}`;
     res.json({
       success: true,
-      data: {
-        quote: sanitizeQuote(ctx.quote),
-        items: sanitizePublicItems(ctx.items),
-      },
+      data: await buildPublicQuotePayload(pool, ctx, apiBase),
     });
   } catch (e) {
     console.error('getPublicQuoteByNumber:', e);
@@ -95,12 +108,10 @@ export async function postApproveQuoteByNumber(req, res) {
     if (!pool) return res.status(503).json({ success: false, error: 'Database not available' });
     const ctx = await business.approvePublicQuoteByNumber(pool, quoteNumber, req.body || {});
     if (!ctx) return res.status(404).json({ success: false, error: 'Quote not found' });
+    const apiBase = `/api/public/quotes/by-number/${encodeURIComponent(quoteNumber)}`;
     res.json({
       success: true,
-      data: {
-        quote: sanitizeQuote(ctx.quote),
-        items: sanitizePublicItems(ctx.items),
-      },
+      data: await buildPublicQuotePayload(pool, ctx, apiBase),
     });
   } catch (e) {
     console.error('postApproveQuoteByNumber:', e);
@@ -121,12 +132,10 @@ export async function getPublicQuote(req, res) {
     const ctx = await business.markQuoteViewed(pool, token);
     if (!ctx) return res.status(404).json({ success: false, error: 'Quote not found' });
 
+    const apiBase = `/api/public/quotes/${encodeURIComponent(token)}`;
     res.json({
       success: true,
-      data: {
-        quote: sanitizeQuote(ctx.quote),
-        items: sanitizePublicItems(ctx.items),
-      },
+      data: await buildPublicQuotePayload(pool, ctx, apiBase),
     });
   } catch (e) {
     console.error('getPublicQuote:', e);
@@ -174,17 +183,59 @@ export async function postApproveQuote(req, res) {
     if (!pool) return res.status(503).json({ success: false, error: 'Database not available' });
     const ctx = await business.approvePublicQuote(pool, token, req.body || {});
     if (!ctx) return res.status(404).json({ success: false, error: 'Quote not found' });
+    const apiBase = `/api/public/quotes/${encodeURIComponent(token)}`;
     res.json({
       success: true,
-      data: {
-        quote: sanitizeQuote(ctx.quote),
-        items: sanitizePublicItems(ctx.items),
-      },
+      data: await buildPublicQuotePayload(pool, ctx, apiBase),
     });
   } catch (e) {
     console.error('postApproveQuote:', e);
     const status = e.statusCode || 500;
     res.status(status).json({ success: false, error: e.message || 'Could not approve quote' });
+  }
+}
+
+function streamPublicOwnerSignature(res, owner) {
+  if (!owner?.png || !owner.png.length) {
+    return res.status(404).json({ success: false, error: 'No signature' });
+  }
+  const png = Buffer.isBuffer(owner.png) ? owner.png : Buffer.from(owner.png);
+  res.setHeader('Content-Type', 'image/png');
+  res.setHeader('Cache-Control', 'private, max-age=300');
+  return res.send(png);
+}
+
+export async function getPublicQuoteOwnerSignatureByNumber(req, res) {
+  try {
+    const quoteNumber = normalizeQuoteNumberForUrl(req.params.quoteNumber);
+    if (!quoteNumber) return res.status(400).json({ success: false, error: 'Invalid quote number' });
+    const pool = await getDBConnection();
+    if (!pool) return res.status(503).json({ success: false, error: 'Database not available' });
+    const ctx = await business.getByQuoteNumber(pool, quoteNumber);
+    if (!ctx) return res.status(404).json({ success: false, error: 'Quote not found' });
+    const owner = await getOwnerSignature(pool);
+    return streamPublicOwnerSignature(res, owner);
+  } catch (e) {
+    console.error('getPublicQuoteOwnerSignatureByNumber:', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+}
+
+export async function getPublicQuoteOwnerSignatureByToken(req, res) {
+  try {
+    const token = String(req.params.token || '').trim();
+    if (!token || token.length < 16) {
+      return res.status(400).json({ success: false, error: 'Invalid token' });
+    }
+    const pool = await getDBConnection();
+    if (!pool) return res.status(503).json({ success: false, error: 'Database not available' });
+    const ctx = await business.getByPublicToken(pool, token);
+    if (!ctx) return res.status(404).json({ success: false, error: 'Quote not found' });
+    const owner = await getOwnerSignature(pool);
+    return streamPublicOwnerSignature(res, owner);
+  } catch (e) {
+    console.error('getPublicQuoteOwnerSignatureByToken:', e);
+    res.status(500).json({ success: false, error: e.message });
   }
 }
 

@@ -394,10 +394,12 @@ app.get('/api/health/db', async (req, res) => {
 });
 
 // Public quote (no auth) — número legível Q-2026-001 ou token legado
+app.get('/api/public/quotes/by-number/:quoteNumber/owner-signature', publicQuote.getPublicQuoteOwnerSignatureByNumber);
 app.get('/api/public/quotes/by-number/:quoteNumber/client-signature', publicQuote.getPublicQuoteClientSignatureByNumber);
 app.get('/api/public/quotes/by-number/:quoteNumber', publicQuote.getPublicQuoteByNumber);
 app.get('/api/public/quotes/by-number/:quoteNumber/pdf', publicQuote.getPublicQuotePdfByNumber);
 app.post('/api/public/quotes/by-number/:quoteNumber/approve', publicQuote.postApproveQuoteByNumber);
+app.get('/api/public/quotes/:token/owner-signature', publicQuote.getPublicQuoteOwnerSignatureByToken);
 app.get('/api/public/quotes/:token/client-signature', publicQuote.getPublicQuoteClientSignatureByToken);
 app.get('/api/public/quotes/:token', publicQuote.getPublicQuote);
 app.get('/api/public/quotes/:token/pdf', publicQuote.getPublicQuotePdf);

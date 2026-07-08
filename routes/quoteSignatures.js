@@ -11,6 +11,8 @@ export async function getOwnerSignatureSettings(req, res) {
       success: true,
       data: {
         name: owner.name || '',
+        title: owner.title || '',
+        use_auto_signature: !!owner.use_auto_signature,
         has_signature: !!(owner.png && owner.png.length),
         image_url: owner.png && owner.png.length ? '/api/quotes/settings/owner-signature/image' : null,
       },
@@ -45,10 +47,20 @@ export async function putOwnerSignatureSettings(req, res) {
     const body = req.body || {};
     const r = await sig.setOwnerSignature(pool, {
       name: body.name,
+      title: body.title,
+      useAutoSignature: body.use_auto_signature ?? body.useAutoSignature,
       signaturePngBase64: body.signature_png || body.signaturePngBase64,
     });
     if (!r.ok) return res.status(400).json({ success: false, error: r.error });
-    res.json({ success: true, data: { name: r.name, has_signature: true } });
+    res.json({
+      success: true,
+      data: {
+        name: r.name,
+        title: r.title || '',
+        use_auto_signature: !!r.use_auto_signature,
+        has_signature: true,
+      },
+    });
   } catch (e) {
     console.error('putOwnerSignatureSettings:', e);
     res.status(500).json({ success: false, error: e.message });

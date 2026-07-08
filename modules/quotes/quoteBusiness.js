@@ -698,8 +698,16 @@ async function approveQuoteWithClientSignature(pool, quoteId, signatureOpts = {}
   const ctx = await loadQuoteContext(pool, quoteId);
   if (!ctx) return { ok: false, error: 'Quote not found' };
   const st = String(ctx.quote.status || '').toLowerCase();
-  if (['approved', 'accepted'].includes(st)) {
-    return { ok: false, error: 'This quote is already approved.' };
+  const cols = await repo.quoteColumns(pool);
+  const hasClientSig =
+    !!(ctx.quote.client_signed_name && String(ctx.quote.client_signed_name).trim()) ||
+  (cols.has('client_signature_png') &&
+    ctx.quote.client_signature_png &&
+    (Buffer.isBuffer(ctx.quote.client_signature_png)
+      ? ctx.quote.client_signature_png.length > 0
+      : ctx.quote.client_signature_png?.length > 0));
+  if (['approved', 'accepted'].includes(st) && hasClientSig) {
+    return { ok: false, error: 'This quote is already approved and signed.' };
   }
   if (['rejected', 'declined'].includes(st)) {
     return { ok: false, error: 'This quote cannot be approved.' };
@@ -714,7 +722,6 @@ async function approveQuoteWithClientSignature(pool, quoteId, signatureOpts = {}
     return { ok: false, error: 'Please draw your signature before approving.' };
   }
 
-  const cols = await repo.quoteColumns(pool);
   const sets = ['status = ?', 'approved_at = NOW()'];
   const vals = ['approved'];
   if (cols.has('client_signed_name')) {
