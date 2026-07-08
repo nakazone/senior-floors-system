@@ -1112,6 +1112,8 @@
   let loadedQuoteEmailSentAt = null;
   let loadedQuoteViewedAt = null;
   let loadedQuotePdfViewedAt = null;
+  /** Status persistido no servidor (pode diferir do dropdown até guardar). */
+  let loadedQuoteStatus = null;
   let quoteViewPollTimer = null;
   let quoteViewPollQuickTimer = null;
   let quoteViewNotifyShown = false;
@@ -1191,8 +1193,11 @@
       if (d.pdf_viewed_at) updatePdfViewedBadge(d.pdf_viewed_at, { notify: true });
       if (d.status) {
         const statusEl = $('status');
-        if (statusEl && ['viewed', 'approved'].includes(String(d.status).toLowerCase())) {
+        const st = String(d.status).toLowerCase();
+        if (statusEl && ['viewed', 'approved', 'accepted'].includes(st)) {
           statusEl.value = d.status;
+          loadedQuoteStatus = d.status;
+          syncInvoiceUiVisibility();
         }
       }
       maybeStopQuoteViewPolling();
@@ -2092,6 +2097,26 @@
     $('invCustomWrap')?.classList.toggle('hidden', type !== 'progress' && type !== 'custom');
   }
 
+  async function ensureApprovedQuoteSaved() {
+    const desired = $('status')?.value;
+    if (!isQuoteApprovedStatus(desired)) {
+      throw new Error('Só é possível emitir invoice quando o orçamento está aprovado.');
+    }
+    if (isQuoteApprovedStatus(loadedQuoteStatus)) return;
+    await ensureCustomerForQuote();
+    const body = payload();
+    body.status = desired;
+    const r = await api(`/api/quotes/${quoteId}/full`, { method: 'PUT', body: JSON.stringify(body) });
+    loadedQuoteStatus = r.data?.quote?.status || desired;
+    if (r.data?.quote) {
+      loadedQuoteNumber =
+        r.data.quote.quote_number != null ? String(r.data.quote.quote_number).trim() : loadedQuoteNumber;
+      $('quoteMeta').textContent = `Orçamento ${r.data.quote.quote_number || '#' + r.data.quote.id} · total ${money(r.data.quote.total_amount)}`;
+      updatePreviewHeader();
+      setPublicLink(r.data.quote.public_token, r.data.quote.quote_number);
+    }
+  }
+
   async function submitInvoiceForm(e) {
     e?.preventDefault();
     if (!quoteId) return;
@@ -2113,6 +2138,7 @@
       btn.textContent = 'A emitir…';
     }
     try {
+      await ensureApprovedQuoteSaved();
       const r = await api(`/api/quotes/${quoteId}/invoices`, {
         method: 'POST',
         body: JSON.stringify(body),
@@ -2193,7 +2219,9 @@
     if (!Number.isFinite(loadedQuoteLeadId)) loadedQuoteLeadId = null;
     $('customerId').value = q.customer_id || '';
     await setClientSearchFromLoadedQuote(q);
-    $('status').value = q.status || 'draft';
+    const qStatus = q.status || 'draft';
+    $('status').value = qStatus;
+    loadedQuoteStatus = qStatus;
     $('expirationDate').value = q.expiration_date ? String(q.expiration_date).slice(0, 10) : '';
     $('notes').value = q.notes || '';
     $('terms').value = q.terms_conditions || '';
@@ -2286,6 +2314,7 @@
       if (quoteId) {
         const r = await api(`/api/quotes/${quoteId}/full`, { method: 'PUT', body: JSON.stringify(body) });
         if (r.data && r.data.quote) {
+          loadedQuoteStatus = r.data.quote.status || body.status || loadedQuoteStatus;
           loadedQuoteNumber =
             r.data.quote.quote_number != null ? String(r.data.quote.quote_number).trim() : null;
           $('quoteMeta').textContent = `Orçamento ${r.data.quote.quote_number || '#' + r.data.quote.id} · total ${money(r.data.quote.total_amount)}`;

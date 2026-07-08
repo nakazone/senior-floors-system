@@ -5,12 +5,13 @@ import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { sanitizePdfText } from '../../lib/pdfWinAnsi.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const COMPANY = {
   name: 'Senior Floors',
-  tagline: 'Hardwood · LVP · Refinishing · Denver Metro',
+  tagline: 'Hardwood - LVP - Refinishing - Denver Metro',
   phone: '(720) 751-9813',
   email: 'contact@senior-floors.com',
 };
@@ -33,6 +34,12 @@ const TYPE_LABELS = {
   full: 'Full payment',
   other: 'Payment',
 };
+
+const winAnsiSafe = sanitizePdfText;
+
+function drawTxt(page, text, opts) {
+  page.drawText(winAnsiSafe(text), opts);
+}
 
 function money(n) {
   const x = Number(n) || 0;
@@ -83,14 +90,14 @@ export async function buildInvoicePdfBuffer(opts) {
 
   const pageW = 612;
   const pageH = 792;
-  let page = pdf.addPage([pageW, pageH]);
+  const page = pdf.addPage([pageW, pageH]);
   let y = pageH - 48;
   const margin = 48;
   const contentW = pageW - 2 * margin;
   const lineH = 13;
 
   const wrap = (text, maxW, size, f = font) => {
-    const words = String(text || '').split(/\s+/);
+    const words = winAnsiSafe(text).split(/\s+/).filter(Boolean);
     const lines = [];
     let line = '';
     for (const w of words) {
@@ -116,9 +123,9 @@ export async function buildInvoicePdfBuffer(opts) {
   if (logo) page.drawImage(logo, { x: margin, y: logoTopY - lh, width: lw, height: lh });
 
   const textX = margin + (logo ? lw + 18 : 0);
-  page.drawText(COMPANY.name, { x: textX, y: logoTopY - 12, size: 17, font: fontBold, color: PAL.primary });
-  page.drawText(COMPANY.tagline, { x: textX, y: logoTopY - 28, size: 8.5, font, color: PAL.primaryMuted });
-  page.drawText(`${COMPANY.phone} · ${COMPANY.email}`, {
+  drawTxt(page, COMPANY.name, { x: textX, y: logoTopY - 12, size: 17, font: fontBold, color: PAL.primary });
+  drawTxt(page, COMPANY.tagline, { x: textX, y: logoTopY - 28, size: 8.5, font, color: PAL.primaryMuted });
+  drawTxt(page, `${COMPANY.phone} - ${COMPANY.email}`, {
     x: textX,
     y: logoTopY - 40,
     size: 8.5,
@@ -134,9 +141,9 @@ export async function buildInvoicePdfBuffer(opts) {
   page.drawRectangle({ x: rightX - 6, y: panelBottomY, width: 3, height: panelH, color: PAL.secondaryDark });
 
   let ry = panelTopY - 16;
-  page.drawText('INVOICE', { x: rightX, y: ry, size: 11, font: fontBold, color: PAL.primary });
+  drawTxt(page, 'INVOICE', { x: rightX, y: ry, size: 11, font: fontBold, color: PAL.primary });
   ry -= lineH;
-  page.drawText(invoice.invoice_number || `INV-${invoice.id}`, {
+  drawTxt(page, invoice.invoice_number || `INV-${invoice.id}`, {
     x: rightX,
     y: ry,
     size: 10,
@@ -145,34 +152,34 @@ export async function buildInvoicePdfBuffer(opts) {
   });
   ry -= lineH;
   const issueDate = invoice.created_at ? String(invoice.created_at).slice(0, 10) : new Date().toISOString().slice(0, 10);
-  page.drawText(`Issue: ${issueDate}`, { x: rightX, y: ry, size: 8, font, color: PAL.lineMuted });
+  drawTxt(page, `Issue: ${issueDate}`, { x: rightX, y: ry, size: 8, font, color: PAL.lineMuted });
   ry -= lineH;
   if (invoice.due_date) {
-    page.drawText(`Due: ${String(invoice.due_date).slice(0, 10)}`, { x: rightX, y: ry, size: 8, font, color: PAL.lineMuted });
+    drawTxt(page, `Due: ${String(invoice.due_date).slice(0, 10)}`, { x: rightX, y: ry, size: 8, font, color: PAL.lineMuted });
     ry -= lineH;
   }
-  page.drawText(`Status: ${invoice.status || 'issued'}`, { x: rightX, y: ry, size: 8, font, color: PAL.lineMuted });
+  drawTxt(page, `Status: ${invoice.status || 'issued'}`, { x: rightX, y: ry, size: 8, font, color: PAL.lineMuted });
 
   y = Math.min(panelBottomY - 12, logoTopY - lh - 20) - 16;
 
-  page.drawText('Bill to', { x: margin, y, size: 9, font: fontBold, color: PAL.secondaryDark });
+  drawTxt(page, 'Bill to', { x: margin, y, size: 9, font: fontBold, color: PAL.secondaryDark });
   y -= lineH;
   const clientName = customer.name || quote.customer_name || 'Client';
-  page.drawText(clientName, { x: margin, y, size: 11, font: fontBold, color: PAL.primary });
+  drawTxt(page, clientName, { x: margin, y, size: 11, font: fontBold, color: PAL.primary });
   y -= lineH;
   if (customer.email || quote.customer_email) {
-    page.drawText(String(customer.email || quote.customer_email), { x: margin, y, size: 8.5, font, color: PAL.lineMuted });
+    drawTxt(page, String(customer.email || quote.customer_email), { x: margin, y, size: 8.5, font, color: PAL.lineMuted });
     y -= lineH;
   }
   if (customer.phone || quote.customer_phone) {
-    page.drawText(String(customer.phone || quote.customer_phone), { x: margin, y, size: 8.5, font, color: PAL.lineMuted });
+    drawTxt(page, String(customer.phone || quote.customer_phone), { x: margin, y, size: 8.5, font, color: PAL.lineMuted });
     y -= lineH;
   }
 
   y -= 20;
-  page.drawText('Reference', { x: margin, y, size: 9, font: fontBold, color: PAL.secondaryDark });
+  drawTxt(page, 'Reference', { x: margin, y, size: 9, font: fontBold, color: PAL.secondaryDark });
   y -= lineH;
-  page.drawText(`Approved quote: ${quote.quote_number || `#${quote.id}`}`, {
+  drawTxt(page, `Approved quote: ${quote.quote_number || `#${quote.id}`}`, {
     x: margin,
     y,
     size: 9,
@@ -181,7 +188,7 @@ export async function buildInvoicePdfBuffer(opts) {
   });
   y -= lineH;
   if (quote.total_amount != null) {
-    page.drawText(`Quote total: ${money(quote.total_amount)}`, { x: margin, y, size: 9, font, color: PAL.lineMuted });
+    drawTxt(page, `Quote total: ${money(quote.total_amount)}`, { x: margin, y, size: 9, font, color: PAL.lineMuted });
     y -= lineH;
   }
 
@@ -190,10 +197,10 @@ export async function buildInvoicePdfBuffer(opts) {
   y -= 18;
 
   const typeLabel = TYPE_LABELS[invoice.invoice_type] || 'Payment';
-  page.drawText('Description', { x: margin, y, size: 8, font: fontBold, color: PAL.lineMuted });
-  page.drawText('Amount', { x: pageW - margin - 80, y, size: 8, font: fontBold, color: PAL.lineMuted });
+  drawTxt(page, 'Description', { x: margin, y, size: 8, font: fontBold, color: PAL.lineMuted });
+  drawTxt(page, 'Amount', { x: pageW - margin - 80, y, size: 8, font: fontBold, color: PAL.lineMuted });
   y -= lineH + 4;
-  page.drawText(`${typeLabel} — flooring project per approved quote`, {
+  drawTxt(page, `${typeLabel} - flooring project per approved quote`, {
     x: margin,
     y,
     size: 9,
@@ -201,12 +208,18 @@ export async function buildInvoicePdfBuffer(opts) {
     color: PAL.primary,
   });
   const amtStr = money(invoice.amount);
-  page.drawText(amtStr, { x: pageW - margin - fontBold.widthOfTextAtSize(amtStr, 9), y, size: 9, font: fontBold, color: PAL.primary });
+  drawTxt(page, amtStr, {
+    x: pageW - margin - fontBold.widthOfTextAtSize(winAnsiSafe(amtStr), 9),
+    y,
+    size: 9,
+    font: fontBold,
+    color: PAL.primary,
+  });
   y -= lineH + 8;
 
   if (invoice.notes) {
     for (const line of wrap(invoice.notes, contentW - 20, 8)) {
-      page.drawText(line, { x: margin + 8, y, size: 8, font, color: PAL.lineMuted });
+      drawTxt(page, line, { x: margin + 8, y, size: 8, font, color: PAL.lineMuted });
       y -= lineH - 1;
     }
     y -= 8;
@@ -217,9 +230,9 @@ export async function buildInvoicePdfBuffer(opts) {
   const barBottom = y - barH;
   page.drawRectangle({ x: margin, y: barBottom, width: contentW, height: barH, color: PAL.primary });
   page.drawRectangle({ x: margin, y: barBottom, width: 5, height: barH, color: PAL.secondary });
-  page.drawText('AMOUNT DUE', { x: margin + 14, y: barBottom + 28, size: 11, font: fontBold, color: PAL.white });
-  const dueW = fontBold.widthOfTextAtSize(amtStr, 20);
-  page.drawText(amtStr, {
+  drawTxt(page, 'AMOUNT DUE', { x: margin + 14, y: barBottom + 28, size: 11, font: fontBold, color: PAL.white });
+  const dueW = fontBold.widthOfTextAtSize(winAnsiSafe(amtStr), 20);
+  drawTxt(page, amtStr, {
     x: pageW - margin - dueW,
     y: barBottom + 22,
     size: 20,
@@ -228,19 +241,22 @@ export async function buildInvoicePdfBuffer(opts) {
   });
   y = barBottom - 20;
 
-  page.drawText('Payment instructions', { x: margin, y, size: 9, font: fontBold, color: PAL.secondaryDark });
+  drawTxt(page, 'Payment instructions', { x: margin, y, size: 9, font: fontBold, color: PAL.secondaryDark });
   y -= lineH + 2;
   const payText = invoice.payment_instructions || DEFAULT_PAYMENT_INSTRUCTIONS;
   for (const line of wrap(payText, contentW, 8)) {
-    page.drawText(line, { x: margin, y, size: 8, font, color: PAL.lineMuted });
+    drawTxt(page, line, { x: margin, y, size: 8, font, color: PAL.lineMuted });
     y -= lineH - 1;
   }
 
   y -= 14;
-  page.drawText(
-    'Thank you for choosing Senior Floors. Please contact us with any questions about this invoice.',
-    { x: margin, y, size: 7.5, font, color: PAL.lineMuted }
-  );
+  drawTxt(page, 'Thank you for choosing Senior Floors. Please contact us with any questions about this invoice.', {
+    x: margin,
+    y,
+    size: 7.5,
+    font,
+    color: PAL.lineMuted,
+  });
 
   return Buffer.from(await pdf.save());
 }

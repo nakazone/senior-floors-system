@@ -6,7 +6,7 @@ import { loadQuoteContext } from './quoteBusiness.js';
 import { sendQuoteEmail } from './quoteMail.js';
 
 function isQuoteApproved(status) {
-  return ['approved', 'accepted'].includes(String(status || '').toLowerCase());
+  return ['approved', 'accepted'].includes(String(status || '').trim().toLowerCase());
 }
 
 function roundMoney(n) {
@@ -92,11 +92,14 @@ export async function createQuoteInvoice(pool, quoteId, body, userId) {
   const ctx = await loadQuoteContext(pool, quoteId);
   if (!ctx) return { ok: false, error: 'Quote not found' };
   if (!isQuoteApproved(ctx.quote.status)) {
-    return { ok: false, error: 'Sù ù possùvel emitir invoice quando o orùamento estù aprovado.' };
+    return {
+      ok: false,
+      error: 'S√≥ √© poss√≠vel emitir invoice quando o or√ßamento est√° aprovado. Guarde o or√ßamento com status Aprovado.',
+    };
   }
 
   const quoteTotal = Number(ctx.quote.total_amount) || 0;
-  if (quoteTotal <= 0) return { ok: false, error: 'O orùamento nùo tem valor total.' };
+  if (quoteTotal <= 0) return { ok: false, error: 'O or√ßamento n√£o tem valor total.' };
 
   let resolved;
   try {
@@ -104,7 +107,7 @@ export async function createQuoteInvoice(pool, quoteId, body, userId) {
   } catch (e) {
     return { ok: false, error: e.message };
   }
-  if (resolved.amount <= 0) return { ok: false, error: 'Valor do invoice invùlido.' };
+  if (resolved.amount <= 0) return { ok: false, error: 'Valor do invoice inv√°lido.' };
 
   const invoiceNumber = await nextInvoiceNumber(pool);
   const dueDate = body.due_date ? String(body.due_date).slice(0, 10) : defaultDueDate(14);
@@ -201,7 +204,7 @@ export async function mailQuoteInvoice(pool, invoiceId, emailOpts = {}) {
   const inv = rows[0];
   const email = String(emailOpts.to || inv.customer_email || '').trim();
   if (!email) {
-    return { ok: false, error: 'E-mail do cliente em falta. Associe um cliente com e-mail ou indique o destinatùrio.' };
+    return { ok: false, error: 'E-mail do cliente em falta. Associe um cliente com e-mail ou indique o destinat√°rio.' };
   }
 
   const pdf = await getInvoicePdfBuffer(pool, invoiceId);
@@ -215,11 +218,11 @@ export async function mailQuoteInvoice(pool, invoiceId, emailOpts = {}) {
     `<p>Hello${inv.customer_name ? ` ${inv.customer_name}` : ''},</p>
 <p>Please find attached invoice <strong>${invNum}</strong> for <strong>$${amount.toFixed(2)}</strong>${due ? ` due by ${due}` : ''}.</p>
 <p>This invoice relates to your approved quote <strong>${inv.quote_number || ''}</strong>.</p>
-<p>ù Senior Floors</p>`;
+<p>‚Äî Senior Floors</p>`;
 
   const sent = await sendQuoteEmail({
     to: email,
-    subject: emailOpts.subject || `Invoice ${invNum} ù Senior Floors`,
+    subject: emailOpts.subject || `Invoice ${invNum} ‚Äî Senior Floors`,
     html,
     pdfBuffer: pdf.buffer,
     filename: `Senior-Floors-${invNum}.pdf`,
