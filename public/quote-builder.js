@@ -2254,10 +2254,31 @@
       isEmpty() {
         return !hasStroke;
       },
+      renderFromName(name) {
+        const ok = window.QuoteSignatureAuto?.renderAutoSignatureOnCanvas(canvas, name);
+        hasStroke = !!ok;
+        return ok;
+      },
       toDataURL() {
         return canvas.toDataURL('image/png');
       },
     };
+  }
+
+  function debounceOwnerSig(fn, wait) {
+    let timer;
+    return (...args) => {
+      clearTimeout(timer);
+      timer = setTimeout(() => fn(...args), wait);
+    };
+  }
+
+  function syncOwnerSignatureFromName() {
+    const name = $('ownerSignName')?.value?.trim() || '';
+    if (!ownerSignaturePad) ownerSignaturePad = createOwnerSignaturePad();
+    if (!ownerSignaturePad) return;
+    if (name.length >= 2) ownerSignaturePad.renderFromName(name);
+    else ownerSignaturePad.clear();
   }
 
   async function loadOwnerSignatureSettings() {
@@ -2265,7 +2286,10 @@
       const r = await api('/api/quotes/settings/owner-signature');
       const d = r.data || {};
       const nameEl = $('ownerSignName');
-      if (nameEl && d.name) nameEl.value = d.name;
+      if (nameEl && d.name) {
+        nameEl.value = d.name;
+        if (!d.has_signature) syncOwnerSignatureFromName();
+      }
       const preview = $('ownerSignPreview');
       if (preview && d.has_signature && d.image_url) {
         preview.src = `${d.image_url}?t=${Date.now()}`;
@@ -2281,9 +2305,14 @@
 
   async function saveOwnerSignature() {
     const name = $('ownerSignName')?.value?.trim() || '';
+    if (!name || name.length < 2) {
+      qbToast('Indique o nome antes de guardar.', 'error');
+      return;
+    }
     if (!ownerSignaturePad) ownerSignaturePad = createOwnerSignaturePad();
+    if (ownerSignaturePad.isEmpty()) ownerSignaturePad.renderFromName(name);
     if (!ownerSignaturePad || ownerSignaturePad.isEmpty()) {
-      qbToast('Desenhe a assinatura antes de guardar.', 'error');
+      qbToast('Não foi possível gerar a assinatura.', 'error');
       return;
     }
     const btn = $('btnOwnerSignSave');
@@ -2340,6 +2369,7 @@
     ownerSignaturePad = createOwnerSignaturePad();
     $('btnOwnerSignClear')?.addEventListener('click', () => ownerSignaturePad?.clear());
     $('btnOwnerSignSave')?.addEventListener('click', () => void saveOwnerSignature());
+    $('ownerSignName')?.addEventListener('input', debounceOwnerSig(syncOwnerSignatureFromName, 250));
   }
 
   function wireInvoiceUi() {
@@ -2719,7 +2749,12 @@
     wireQuoteNotify();
     wireInvoiceUi();
     wireOwnerSignatureUi();
-    void loadOwnerSignatureSettings();
+    await loadOwnerSignatureSettings();
+    const ownerNameEl = $('ownerSignName');
+    if (ownerNameEl && !ownerNameEl.value.trim() && sess.user?.name) {
+      ownerNameEl.value = String(sess.user.name).trim();
+      syncOwnerSignatureFromName();
+    }
 
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') void pollQuoteViewed();

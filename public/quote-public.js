@@ -144,9 +144,22 @@
       isEmpty() {
         return !hasStroke;
       },
+      renderFromName(name) {
+        const ok = window.QuoteSignatureAuto?.renderAutoSignatureOnCanvas(canvas, name);
+        hasStroke = !!ok;
+        return ok;
+      },
       toDataURL() {
         return canvas.toDataURL('image/png');
       },
+    };
+  }
+
+  function debounce(fn, wait) {
+    let timer;
+    return (...args) => {
+      clearTimeout(timer);
+      timer = setTimeout(() => fn(...args), wait);
     };
   }
 
@@ -262,7 +275,11 @@
     if (!signaturePad) signaturePad = createSignaturePad(canvas);
     signaturePad.clear();
     const nameInput = document.getElementById('qpSignerName');
-    if (nameInput) nameInput.value = '';
+    const defaultName = access?.lastQuote?.customer_name ? String(access.lastQuote.customer_name).trim() : '';
+    if (nameInput) {
+      nameInput.value = defaultName;
+      if (defaultName.length >= 2) signaturePad.renderFromName(defaultName);
+    }
     modal.classList.remove('hidden');
     nameInput?.focus();
   }
@@ -275,6 +292,18 @@
     document.getElementById('qpSignBackdrop')?.addEventListener('click', closeSignModal);
     document.getElementById('qpSignCancel')?.addEventListener('click', closeSignModal);
     document.getElementById('qpSignClear')?.addEventListener('click', () => signaturePad?.clear());
+    const nameInput = document.getElementById('qpSignerName');
+    if (nameInput) {
+      nameInput.addEventListener(
+        'input',
+        debounce(() => {
+          const n = nameInput.value.trim();
+          if (!signaturePad) return;
+          if (n.length >= 2) signaturePad.renderFromName(n);
+          else signaturePad.clear();
+        }, 250)
+      );
+    }
     document.getElementById('qpSignSubmit')?.addEventListener('click', async () => {
       const btn = document.getElementById('qpSignSubmit');
       const name = document.getElementById('qpSignerName')?.value?.trim() || '';
@@ -284,6 +313,8 @@
         else alert(msg);
         return;
       }
+      if (!signaturePad) signaturePad = createSignaturePad(document.getElementById('qpSignCanvas'));
+      if (signaturePad.isEmpty()) signaturePad.renderFromName(name);
       if (!signaturePad || signaturePad.isEmpty()) {
         const msg = 'Please draw your signature.';
         if (typeof crmNotify === 'function') crmNotify(msg, 'error');
