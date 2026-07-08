@@ -89,6 +89,24 @@ export async function postQuoteInvoiceMarkPaid(req, res) {
   }
 }
 
+export async function deleteQuoteInvoiceHandler(req, res) {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (!id) return res.status(400).json({ success: false, error: 'Invalid id' });
+    const pool = await getDBConnection();
+    if (!pool) return res.status(503).json({ success: false, error: 'Database not available' });
+    const r = await inv.deleteQuoteInvoice(pool, id);
+    if (!r.ok) {
+      const status = r.error === 'Invoice not found' ? 404 : 400;
+      return res.status(status).json({ success: false, error: r.error });
+    }
+    res.json({ success: true, invoice_number: r.invoice_number });
+  } catch (e) {
+    console.error('deleteQuoteInvoice:', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+}
+
 export function registerQuoteInvoiceRoutes(app) {
   app.get('/api/quotes/:id/invoices', requireAuth, requirePermission('quotes.view'), listQuoteInvoices);
   app.post('/api/quotes/:id/invoices', requireAuth, requirePermission('quotes.edit'), postQuoteInvoice);
@@ -104,5 +122,11 @@ export function registerQuoteInvoiceRoutes(app) {
     requireAuth,
     requirePermission('quotes.edit'),
     postQuoteInvoiceMarkPaid
+  );
+  app.delete(
+    '/api/quote-invoices/:id',
+    requireAuth,
+    requirePermission('quotes.edit'),
+    deleteQuoteInvoiceHandler
   );
 }

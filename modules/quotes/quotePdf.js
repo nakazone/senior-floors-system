@@ -77,7 +77,7 @@ const SECTION_DEFS = [
   { key: 'products', label: 'Materials & products' },
 ];
 
-function groupItemsForPdf(items) {
+export function groupItemsForPdf(items) {
   const list = Array.isArray(items) ? items : [];
   const buckets = { installation: [], sand_finish: [], supply: [], products: [] };
   for (const it of list) {

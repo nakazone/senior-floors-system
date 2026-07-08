@@ -2043,6 +2043,7 @@
             <button type="button" class="btn btn-sm btn-secondary" data-inv-pdf="${inv.id}">Ver PDF</button>
             <button type="button" class="btn btn-sm btn-ghost" data-inv-email="${inv.id}">Enviar</button>
             ${status !== 'paid' ? `<button type="button" class="btn btn-sm btn-ghost" data-inv-paid="${inv.id}">Marcar pago</button>` : ''}
+            ${status !== 'paid' ? `<button type="button" class="btn btn-sm btn-ghost text-red-600" data-inv-delete="${inv.id}">Apagar</button>` : ''}
           </div>
         </article>`;
       })
@@ -2058,6 +2059,9 @@
     });
     host.querySelectorAll('[data-inv-paid]').forEach((btn) => {
       btn.addEventListener('click', () => void markQuoteInvoicePaid(btn.dataset.invPaid));
+    });
+    host.querySelectorAll('[data-inv-delete]').forEach((btn) => {
+      btn.addEventListener('click', () => void deleteQuoteInvoice(btn.dataset.invDelete));
     });
   }
 
@@ -2179,6 +2183,20 @@
       await loadQuoteInvoices();
     } catch (err) {
       window.crmToast?.error?.(err.message || 'Erro ao atualizar invoice');
+    }
+  }
+
+  async function deleteQuoteInvoice(invoiceId) {
+    if (!invoiceId) return;
+    const inv = quoteInvoices.find((i) => String(i.id) === String(invoiceId));
+    const label = inv?.invoice_number || `INV-${invoiceId}`;
+    if (!confirm(`Apagar o invoice ${label}? Esta ação não pode ser desfeita.`)) return;
+    try {
+      await api(`/api/quote-invoices/${invoiceId}`, { method: 'DELETE' });
+      window.crmToast?.success?.(`Invoice ${label} apagado.`);
+      await loadQuoteInvoices();
+    } catch (err) {
+      window.crmToast?.error?.(err.message || 'Erro ao apagar invoice');
     }
   }
 

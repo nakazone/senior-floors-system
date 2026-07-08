@@ -94,7 +94,7 @@ export async function createQuoteInvoice(pool, quoteId, body, userId) {
   if (!isQuoteApproved(ctx.quote.status)) {
     return {
       ok: false,
-      error: 'Só é possível emitir invoice quando o orçamento está aprovado. Guarde o orçamento com status Aprovado.',
+      error: 'S� � poss�vel emitir invoice quando o or�amento est� aprovado. Guarde o or�amento com status Aprovado.',
     };
   }
 
@@ -157,20 +157,17 @@ export async function generateAndStoreInvoicePdf(pool, invoiceId) {
   );
   if (!rows.length) return { ok: false, error: 'Invoice not found' };
   const inv = rows[0];
+  const ctx = await loadQuoteContext(pool, inv.quote_id);
+  if (!ctx) return { ok: false, error: 'Quote not found' };
+
   const pdfBuf = await buildInvoicePdfBuffer({
     invoice: inv,
-    quote: {
-      id: inv.quote_id,
-      quote_number: inv.quote_number,
-      total_amount: inv.quote_total ?? inv.total_amount,
-      customer_name: inv.customer_name,
-      customer_email: inv.customer_email,
-      customer_phone: inv.customer_phone,
-    },
+    quote: ctx.quote,
+    items: ctx.items,
     customer: {
-      name: inv.customer_name,
-      email: inv.customer_email,
-      phone: inv.customer_phone,
+      name: inv.customer_name || ctx.quote.customer_name,
+      email: inv.customer_email || ctx.quote.customer_email,
+      phone: inv.customer_phone || ctx.quote.customer_phone,
     },
   });
   await pool.execute('UPDATE quote_invoices SET pdf_blob = ? WHERE id = ?', [pdfBuf, invoiceId]);
@@ -178,17 +175,11 @@ export async function generateAndStoreInvoicePdf(pool, invoiceId) {
 }
 
 export async function getInvoicePdfBuffer(pool, invoiceId) {
-  const [rows] = await pool.query('SELECT id, pdf_blob, invoice_number FROM quote_invoices WHERE id = ?', [
-    invoiceId,
-  ]);
+  const [rows] = await pool.query('SELECT id, invoice_number FROM quote_invoices WHERE id = ?', [invoiceId]);
   if (!rows.length) return { ok: false, error: 'Invoice not found' };
-  const row = rows[0];
-  if (row.pdf_blob && row.pdf_blob.length > 0) {
-    return { ok: true, buffer: Buffer.from(row.pdf_blob), invoice_number: row.invoice_number };
-  }
   const gen = await generateAndStoreInvoicePdf(pool, invoiceId);
   if (!gen.ok) return gen;
-  return { ok: true, buffer: gen.buffer, invoice_number: row.invoice_number };
+  return { ok: true, buffer: gen.buffer, invoice_number: rows[0].invoice_number };
 }
 
 export async function mailQuoteInvoice(pool, invoiceId, emailOpts = {}) {
@@ -242,4 +233,50 @@ export async function markInvoicePaid(pool, invoiceId) {
     [invoiceId]
   );
   return r.affectedRows > 0;
+}
+
+async function tableExists(pool, name) {
+  const [rows] = await pool.query(
+    `SELECT COUNT(*) AS c FROM information_schema.TABLES
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?`,
+    [name]
+  );
+  return Number(rows[0]?.c) > 0;
+}
+
+async function columnExists(pool, table, col) {
+  const [rows] = await pool.query(
+    `SELECT COUNT(*) AS c FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?`,
+    [table, col]
+  );
+  return Number(rows[0]?.c) > 0;
+}
+
+export async function deleteQuoteInvoice(pool, invoiceId) {
+  const id = parseInt(invoiceId, 10);
+  if (!id) return { ok: false, error: 'Invalid invoice id' };
+
+  const [rows] = await pool.query(
+    'SELECT id, invoice_number, status FROM quote_invoices WHERE id = ? LIMIT 1',
+    [id]
+  );
+  if (!rows.length) return { ok: false, error: 'Invoice not found' };
+
+  const inv = rows[0];
+  if (String(inv.status || '').toLowerCase() === 'paid') {
+    return { ok: false, error: 'Não é possível apagar um invoice marcado como pago.' };
+  }
+
+  if (
+    (await tableExists(pool, 'payment_receipts')) &&
+    (await columnExists(pool, 'payment_receipts', 'invoice_id'))
+  ) {
+    await pool.execute('UPDATE payment_receipts SET invoice_id = NULL WHERE invoice_id = ?', [id]);
+  }
+
+  const [del] = await pool.execute('DELETE FROM quote_invoices WHERE id = ?', [id]);
+  if (!del.affectedRows) return { ok: false, error: 'Invoice not found' };
+
+  return { ok: true, invoice_number: inv.invoice_number };
 }
