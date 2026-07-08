@@ -456,6 +456,11 @@ body.qp-page {
   object-fit: contain;
 }
 
+.qp-signatures--single {
+  grid-template-columns: 1fr;
+  max-width: 320px;
+}
+
 .qp-signatures__name {
   margin: 8px 0 0;
   font-size: 13px;

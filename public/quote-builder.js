@@ -2329,6 +2329,10 @@
       qbToast('Indique o nome antes de guardar.', 'error');
       return;
     }
+    if (!title || title.length < 2) {
+      qbToast('Indique o cargo antes de guardar.', 'error');
+      return;
+    }
     if (!ownerSignaturePad) ownerSignaturePad = createOwnerSignaturePad();
     if (useAuto && ownerSignaturePad.isEmpty()) ownerSignaturePad.renderFromName(name);
     if (!ownerSignaturePad || ownerSignaturePad.isEmpty()) {

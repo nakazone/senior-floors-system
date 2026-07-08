@@ -242,7 +242,34 @@
 
   let signaturePad = null;
 
-  function renderSignaturesBlock(q, ownerSig) {
+  function hasOwnerSignature(ownerSig) {
+    const o = ownerSig || {};
+    return !!(o.has_image || o.image_url || o.name || o.title);
+  }
+
+  function renderOwnerSignatureCol(ownerSig) {
+    if (!hasOwnerSignature(ownerSig)) return '';
+    const owner = ownerSig || {};
+    const ownerImg = owner.image_url
+      ? `<img src="${owner.image_url}" alt="Authorized signature" />`
+      : '<span class="qp-muted-text">Senior Floors</span>';
+    const ownerName = owner.name
+      ? `<p class="qp-signatures__name">${escapeHtml(owner.name)}</p>`
+      : '';
+    const ownerTitleHtml = owner.title
+      ? `<p class="qp-signatures__title">${escapeHtml(owner.title)}</p>`
+      : '';
+
+    return `
+        <div class="qp-signatures__col">
+          <h3>Authorized by</h3>
+          <div class="qp-signatures__box">${ownerImg}</div>
+          ${ownerName}
+          ${ownerTitleHtml}
+        </div>`;
+  }
+
+  function renderClientSignatureCol(q) {
     if (!isClientSigned(q)) return '';
     const clientName = escapeHtml(q.client_signed_name || q.customer_name || 'Client');
     const when = q.approved_at ? escapeHtml(String(q.approved_at).slice(0, 10)) : '—';
@@ -250,30 +277,21 @@
       ? `<img src="${access.apiBase}/client-signature" alt="Client signature" />`
       : '<span class="qp-muted-text">Signed</span>';
 
-    const owner = ownerSig || {};
-    const ownerName = escapeHtml(owner.name || COMPANY.name);
-    const ownerTitleHtml = owner.title
-      ? `<p class="qp-signatures__title">${escapeHtml(owner.title)}</p>`
-      : '';
-    const ownerImg = owner.image_url
-      ? `<img src="${owner.image_url}" alt="Authorized signature" />`
-      : '<span class="qp-muted-text">Senior Floors</span>';
-
     return `
-      <section class="qp-signatures">
-        <div class="qp-signatures__col">
-          <h3>Authorized by</h3>
-          <div class="qp-signatures__box">${ownerImg}</div>
-          <p class="qp-signatures__name">${ownerName}</p>
-          ${ownerTitleHtml}
-        </div>
         <div class="qp-signatures__col">
           <h3>Client approval</h3>
           <div class="qp-signatures__box">${clientImg}</div>
           <p class="qp-signatures__name">${clientName}</p>
           <p class="qp-signatures__date">Date: ${when}</p>
-        </div>
-      </section>`;
+        </div>`;
+  }
+
+  function renderSignaturesBlock(q, ownerSig) {
+    const ownerCol = renderOwnerSignatureCol(ownerSig);
+    const clientCol = renderClientSignatureCol(q);
+    if (!ownerCol && !clientCol) return '';
+    const single = ownerCol && !clientCol;
+    return `<section class="qp-signatures${single ? ' qp-signatures--single' : ''}">${ownerCol}${clientCol}</section>`;
   }
 
   function renderDocument(q, items, ownerSig) {

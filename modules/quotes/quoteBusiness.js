@@ -667,16 +667,6 @@ export async function markQuotePdfDownloaded(pool, token) {
 }
 
 export async function getQuotePdfBufferForPublic(pool, quoteId) {
-  const [colRows] = await pool.query(
-    `SELECT COLUMN_NAME AS n FROM information_schema.COLUMNS
-     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'quotes' AND COLUMN_NAME = 'invoice_pdf'`
-  );
-  if (colRows.length) {
-    const [rows] = await pool.query('SELECT invoice_pdf FROM quotes WHERE id = ? LIMIT 1', [quoteId]);
-    const blob = rows[0]?.invoice_pdf;
-    if (blob && Buffer.isBuffer(blob) && blob.length > 0) return blob;
-    if (blob && typeof blob === 'object' && blob.length > 0) return Buffer.from(blob);
-  }
   const gen = await generatePdfAndStore(pool, quoteId);
   if (!gen.ok || !gen.buffer) return null;
   return gen.buffer;

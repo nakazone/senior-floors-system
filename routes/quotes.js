@@ -3,7 +3,7 @@
  */
 import fs from 'fs';
 import { getDBConnection, resetDbPool, isTransientMysqlError } from '../config/db.js';
-import { mapItemRow } from '../modules/quotes/quoteBusiness.js';
+import { mapItemRow, generatePdfAndStore } from '../modules/quotes/quoteBusiness.js';
 import { summarizeQuoteProfit } from '../modules/pricing/marginPricing.js';
 import { setLeadPipelineBySlug } from '../lib/pipelineAutomation.js';
 import { QUOTE_PDF_SUBDIR, resolvedPdfAbsolutePath } from '../lib/quotePdfUpload.js';
@@ -532,6 +532,12 @@ export async function streamQuoteInvoicePdf(req, res) {
     const pool = await getDBConnection();
     if (!pool) {
       return res.status(503).json({ success: false, error: 'Database not available' });
+    }
+    const gen = await generatePdfAndStore(pool, id);
+    if (gen.ok && gen.buffer && gen.buffer.length) {
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', 'inline; filename="orcamento.pdf"');
+      return res.send(gen.buffer);
     }
     const hasBlob = await quotesTableHasInvoicePdf(pool);
     let rows;
