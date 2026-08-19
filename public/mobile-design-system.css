@@ -109,7 +109,8 @@
   display: none !important;
 }
 
-@media (max-width: 768px) {
+/* Mobile and tablet (includes iPads up to 1024px) */
+@media (max-width: 1024px) {
   .sf-mobile-only {
     display: block !important;
   }

@@ -663,7 +663,8 @@
 .bp-star--on { color: #e6a817; }
 .bp-eval-modal .bp-modal__box { max-width: 420px; }
 
-@media (max-width: 768px) {
+/* Mobile and tablet - includes iPads up to 1024px */
+@media (max-width: 1024px) {
   .bp-portal-layout { grid-template-columns: 1fr; }
   .bp-portal-sidebar { position: fixed; left: -260px; top: 0; bottom: 0; width: 240px; z-index: 90; transition: left 0.2s; }
   .bp-portal-sidebar.bp-sidebar--open { left: 0; }

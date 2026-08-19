@@ -162,8 +162,8 @@ body {
     transition: transform 0.3s ease;
 }
 
-/* Mobile sidebar behavior */
-@media (max-width: 768px) {
+/* Mobile sidebar behavior - includes tablets/iPads */
+@media (max-width: 1024px) {
     .dashboard-sidebar {
         transform: translateX(-100%);
         width: 240px;
@@ -778,8 +778,8 @@ input.score-auto {
     display: block;
 }
 
-/* Mobile Styles */
-@media (max-width: 768px) {
+/* Mobile Styles - includes tablets/iPads up to 1024px */
+@media (max-width: 1024px) {
     html {
         font-size: 14px;
     }
@@ -986,6 +986,11 @@ input.score-auto {
         margin-left: 0 !important;
         width: 100%;
         padding-top: calc(52px + env(safe-area-inset-top, 0px) + 12px) !important;
+    }
+    
+    /* Show mobile menu toggle on tablets/iPads */
+    .mobile-menu-toggle {
+        display: block !important;
     }
 
     .mobile-overlay {
@@ -2684,7 +2689,8 @@ input.score-auto {
     animation: mobilePageFlash 0.24s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-@media (max-width: 768px) {
+/* Mobile and tablet - includes iPads up to 1024px */
+@media (max-width: 1024px) {
     .dashboard-app-body {
         min-height: 100dvh;
         min-height: 100vh;
