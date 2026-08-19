@@ -161,6 +161,7 @@
         <div style="margin-top:12px;display:flex;flex-direction:column;gap:8px">
           <a class="bp-btn-tan" style="text-align:center;text-decoration:none" href="builder-messages-admin.html?builder_id=${b.id}">Mensagens</a>
           <a class="btn btn-secondary" style="text-align:center" href="builder-login.html" target="_blank" rel="noopener">Ver portal (login)</a>
+          <button type="button" class="btn btn-danger" id="btnDeleteBuilder">Excluir cadastro</button>
         </div>
       </aside>
       <div>
@@ -219,6 +220,17 @@
     });
 
     wirePasswordPanel(portalAuth);
+
+    document.getElementById('btnDeleteBuilder')?.addEventListener('click', async () => {
+      if (!confirm('Excluir este cadastro de builder? Esta ação não pode ser desfeita.')) return;
+      try {
+        await api(`/api/builders/${id}`, { method: 'DELETE' });
+        crmNotify('Cadastro excluído.', 'success');
+        location.href = 'builders.html';
+      } catch (e) {
+        crmNotify(e.message || 'Não foi possível excluir.', 'error');
+      }
+    });
   }
 
   async function reload() {

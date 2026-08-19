@@ -79,7 +79,8 @@
             <td>${login}</td>
             <td style="white-space:nowrap">
               <a href="builder-detail.html?id=${b.id}">Perfil</a> ·
-              <a href="builder-portal.html" target="_blank" rel="noopener" title="Abrir portal (login do parceiro)">Portal</a>
+              <a href="builder-portal.html" target="_blank" rel="noopener" title="Abrir portal (login do parceiro)">Portal</a> ·
+              <button type="button" class="btn btn-sm btn-danger" data-del-builder="${b.id}">Excluir</button>
             </td>
           </tr>`;
         })
@@ -88,6 +89,26 @@
       $('buildersTbody').innerHTML = `<tr><td colspan="9">${escapeHtml(e.message)}</td></tr>`;
     }
   }
+
+  async function deleteBuilderCadastro(builderId) {
+    const id = parseInt(builderId, 10);
+    if (!id) return;
+    if (!confirm('Excluir este cadastro de builder? Esta ação não pode ser desfeita.')) return;
+    try {
+      await api(`/api/builders/${id}`, { method: 'DELETE' });
+      crmNotify('Cadastro excluído.', 'success');
+      await loadList();
+    } catch (e) {
+      crmNotify(e.message || 'Não foi possível excluir.', 'error');
+    }
+  }
+
+  $('buildersTbody')?.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-del-builder]');
+    if (!btn) return;
+    e.preventDefault();
+    void deleteBuilderCadastro(btn.getAttribute('data-del-builder'));
+  });
 
   function openModal() {
     $('builderForm').reset();

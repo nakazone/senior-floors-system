@@ -342,16 +342,65 @@ export async function updateBuilder(req, res) {
   }
 }
 
-export async function deactivateBuilder(req, res) {
+export async function deleteBuilder(req, res) {
   try {
     const pool = await getDBConnection();
+    if (!pool) return res.status(503).json({ success: false, error: 'Database not available' });
     const id = parseInt(req.params.id, 10);
-    await pool.execute(
-      "UPDATE builders SET status = 'inactive', portal_blocked = 1 WHERE id = ?",
-      [id]
-    );
-    res.json({ success: true, message: 'Builder deactivated' });
+    if (!id) return res.status(400).json({ success: false, error: 'Invalid id' });
+
+    const [existing] = await pool.query('SELECT id, customer_id FROM builders WHERE id = ? LIMIT 1', [id]);
+    if (!existing.length) return res.status(404).json({ success: false, error: 'Builder not found' });
+
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+      const runConn = async (sql, params) => {
+        try {
+          await conn.execute(sql, params);
+        } catch (e) {
+          if (e.code !== 'ER_NO_SUCH_TABLE' && e.code !== 'ER_BAD_FIELD_ERROR') throw e;
+        }
+      };
+
+      await runConn('UPDATE quotes SET builder_id = NULL WHERE builder_id = ?', [id]);
+      await runConn('UPDATE leads SET referring_builder_id = NULL WHERE referring_builder_id = ?', [id]);
+      await runConn('UPDATE projects SET partner_builder_id = NULL WHERE partner_builder_id = ?', [id]);
+      await runConn('UPDATE project_photos SET uploaded_by_builder_id = NULL WHERE uploaded_by_builder_id = ?', [id]);
+
+      await runConn(
+        `DELETE FROM estimate_request_files WHERE request_id IN (SELECT id FROM estimate_requests WHERE builder_id = ?)`,
+        [id]
+      );
+      await runConn(
+        `DELETE FROM estimate_request_events WHERE request_id IN (SELECT id FROM estimate_requests WHERE builder_id = ?)`,
+        [id]
+      );
+      await runConn('DELETE FROM estimate_requests WHERE builder_id = ?', [id]);
+      await runConn('DELETE FROM builder_messages WHERE builder_id = ?', [id]);
+      await runConn('DELETE FROM builder_documents WHERE builder_id = ?', [id]);
+      await runConn('DELETE FROM builder_notifications WHERE builder_id = ?', [id]);
+      await runConn('DELETE FROM builder_activity_log WHERE builder_id = ?', [id]);
+      await runConn('DELETE FROM builder_access_log WHERE builder_id = ?', [id]);
+      await runConn('DELETE FROM builder_password_resets WHERE builder_id = ?', [id]);
+      await runConn('DELETE FROM builder_calculations WHERE builder_id = ?', [id]);
+      await runConn('DELETE FROM builder_pricing_overrides WHERE builder_id = ?', [id]);
+      await runConn('DELETE FROM builder_projects WHERE builder_id = ?', [id]);
+      await runConn('DELETE FROM builder_visit_requests WHERE builder_id = ?', [id]);
+      await runConn('DELETE FROM builder_project_evaluations WHERE builder_id = ?', [id]);
+      await runConn('DELETE FROM builders WHERE id = ?', [id]);
+
+      await conn.commit();
+    } catch (e) {
+      await conn.rollback();
+      throw e;
+    } finally {
+      conn.release();
+    }
+
+    res.json({ success: true, message: 'Cadastro excluído' });
   } catch (e) {
+    console.error('deleteBuilder:', e);
     res.status(500).json({ success: false, error: e.message });
   }
 }
@@ -411,7 +460,7 @@ export function registerBuilderRoutes(app) {
   app.post('/api/builders', requireAuth, requirePermission('builders.edit'), createBuilder);
   app.get('/api/builders/:id', requireAuth, requirePermission('builders.view'), getBuilder);
   app.put('/api/builders/:id', requireAuth, requirePermission('builders.edit'), updateBuilder);
-  app.delete('/api/builders/:id', requireAuth, requirePermission('builders.edit'), deactivateBuilder);
+  app.delete('/api/builders/:id', requireAuth, requirePermission('builders.edit'), deleteBuilder);
   app.post(
     '/api/builders/:id/reset-portal-password',
     requireAuth,
