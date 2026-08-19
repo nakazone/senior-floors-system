@@ -2026,9 +2026,9 @@ function initPayrollMobileNav() {
   const toggle = document.getElementById('mobileMenuToggle');
   if (!sidebar || !overlay || !toggle) return;
 
-  /** Mesmo breakpoint que o CSS (#payrollShellLayoutLock): gaveta até 1024px */
+  /** Mesmo breakpoint que o CSS (#payrollShellLayoutLock): gaveta até 1366px (iPad) */
   function isDrawerMode() {
-    return window.innerWidth <= 1024;
+    return window.innerWidth <= 1366;
   }
 
   function setOpen(open) {

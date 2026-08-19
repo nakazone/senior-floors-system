@@ -267,6 +267,11 @@ function isMobile() {
     return window.innerWidth <= 768;
 }
 
+/** Telemóvel e iPad: menu em gaveta + barra hamburger (sem tab bar no tablet). */
+function isCompactNav() {
+    return window.innerWidth <= 1366;
+}
+
 /** Quotes: cards + cliente visivel em telemovel e iPad (incl. landscape). */
 function isQuotesCompactLayout() {
     return window.innerWidth <= 1366;
@@ -514,15 +519,16 @@ function openMobileMoreSheet() {
 function updateMobileChromeVisibility() {
     const header = document.getElementById('mobileAppHeader');
     const tabBar = document.getElementById('mobileTabBar');
-    const m = isMobile();
-    if (header) header.setAttribute('aria-hidden', m ? 'false' : 'true');
-    if (tabBar) tabBar.setAttribute('aria-hidden', m ? 'false' : 'true');
-    if (!m) closeMobileMoreSheet();
+    const phone = isMobile();
+    const compact = isCompactNav();
+    if (header) header.setAttribute('aria-hidden', compact ? 'false' : 'true');
+    if (tabBar) tabBar.setAttribute('aria-hidden', phone ? 'false' : 'true');
+    if (!phone) closeMobileMoreSheet();
 }
 
 function updateMobileMenuVisibility() {
     if (mobileMenuToggle && dashboardSidebar) {
-        if (isMobile()) {
+        if (isCompactNav()) {
             mobileMenuToggle.style.display = 'flex';
         } else {
             mobileMenuToggle.style.display = 'none';
@@ -545,7 +551,7 @@ sfMobileMq.addEventListener('change', () => applySfMobileShell());
 
 window.addEventListener('resize', () => {
     applySfMobileShell();
-    if (!isMobile()) {
+    if (!isCompactNav()) {
         setMobileMenuOpen(false);
     }
 });
@@ -563,7 +569,7 @@ if (mobileMenuToggle && dashboardSidebar && mobileOverlay) {
     dashboardSidebar.querySelectorAll('.nav-item').forEach((item) => {
         item.addEventListener('click', () => {
             if (item.tagName === 'SUMMARY') return;
-            if (isMobile()) {
+            if (isCompactNav()) {
                 dashboardSidebar.classList.remove('mobile-open');
                 mobileOverlay.classList.remove('active');
             }
@@ -785,7 +791,7 @@ function showPage(pageName) {
         else if (pageName === 'users') { currentPage = 1; loadUsers(); }
 
         syncMobileAppChrome(pageName);
-        if (isMobile()) setMobileMenuOpen(false);
+        if (isCompactNav()) setMobileMenuOpen(false);
     }
 }
 
@@ -2533,7 +2539,7 @@ const QUOTES_FILTER_LABELS = {
 function getQuotesListSearchQuery() {
     const desktop = document.getElementById('quotesDesktopSearch');
     const mobile = document.getElementById('quotesMobileSearch');
-    const raw = isMobile() ? mobile?.value : desktop?.value ?? mobile?.value;
+    const raw = isQuotesCompactLayout() ? mobile?.value : desktop?.value ?? mobile?.value;
     return String(raw || '').trim();
 }
 

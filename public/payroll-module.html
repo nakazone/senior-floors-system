@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Folha de pagamento | Senior Floors CRM</title>
   <link rel="icon" type="image/png" href="/assets/SeniorFloors.png" />
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="styles.css?v=20260819-ipad-layout" />
   <link rel="stylesheet" href="design-system.css" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="crm-shared-nav.css?v=11" />
@@ -45,7 +45,7 @@
       .payroll-grid-scroll-hint { display: block; }
     }
     .payroll-hub-section { scroll-margin-top: 1rem; }
-    @media (max-width: 1024px) {
+    @media (max-width: 1366px) {
       .payroll-hub-section {
         scroll-margin-top: calc(52px + env(safe-area-inset-top, 0px) + 16px);
       }
@@ -87,13 +87,13 @@
       border-color: var(--color-accent, #c8a96e);
     }
     /* Crítico cedo: barra com hamburger visível em gaveta antes do JS / Tailwind */
-    @media (max-width: 1024px) {
+    @media (max-width: 1366px) {
       body.payroll-sidebar-page #mobileAppHeader.mobile-app-header {
         display: flex !important;
         z-index: 1040 !important;
       }
     }
-    @media (min-width: 1025px) {
+    @media (min-width: 1367px) {
       body.payroll-sidebar-page #mobileAppHeader.mobile-app-header {
         display: none !important;
       }
@@ -101,7 +101,7 @@
   </style>
 </head>
 <body class="dashboard-app-body payroll-sidebar-page bg-slate-100 text-slate-900 min-h-screen">
-  <header class="mobile-app-header" id="mobileAppHeader" aria-hidden="true" aria-label="Barra superior">
+  <header class="mobile-app-header" id="mobileAppHeader" aria-label="Barra superior">
     <button type="button" class="mobile-app-header__menu" id="mobileMenuToggle" aria-label="Abrir menu" aria-expanded="false" aria-controls="payrollSidebar">
       <span class="mobile-app-header__menu-icon" aria-hidden="true"></span>
     </button>
@@ -552,7 +552,7 @@
   </script>
   <style id="payrollShellLayoutLock">
     /* Largura alinhada a design-system.css (--crm-sidebar-width, hoje 264px) */
-    @media (min-width: 1025px) {
+    @media (min-width: 1367px) {
       body.payroll-sidebar-page #payrollSidebar.dashboard-sidebar {
         position: fixed !important;
         left: 0 !important;
@@ -575,7 +575,7 @@
         pointer-events: none !important;
       }
     }
-    @media (max-width: 1024px) {
+    @media (max-width: 1366px) {
       body.payroll-sidebar-page #payrollSidebar.dashboard-sidebar {
         transform: translateX(-100%) !important;
         transition: transform 0.3s ease !important;
@@ -626,6 +626,6 @@
   </script>
   <script src="crm-toast.js?v=2"></script>
   <script src="crm-shared-nav.js?v=12"></script>
-  <script src="payroll-module.js?v=36"></script>
+  <script src="payroll-module.js?v=20260819-ipad-layout"></script>
 </body>
 </html>
