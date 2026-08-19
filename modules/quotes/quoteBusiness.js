@@ -214,6 +214,72 @@ function defaultQuoteEmailSubject(quote, quoteId) {
   return `Quote ${num} — Senior Floors`;
 }
 
+function parseClientSnapshot(raw) {
+  if (raw == null || raw === '') return null;
+  try {
+    const s = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    if (!s || typeof s !== 'object' || !s.quote) return null;
+    return s;
+  } catch {
+    return null;
+  }
+}
+
+function stripQuoteForClientSnapshot(quote) {
+  if (!quote) return quote;
+  const q = { ...quote };
+  delete q.invoice_pdf;
+  delete q.client_snapshot_json;
+  delete q.client_signature_png;
+  return q;
+}
+
+/** Vista pública: conteúdo enviado ao cliente, com estado/assinatura atuais. */
+export function applyClientPublishedView(ctx) {
+  if (!ctx?.quote) return ctx;
+  const snap = parseClientSnapshot(ctx.quote.client_snapshot_json);
+  if (!snap?.quote) return ctx;
+  const live = ctx.quote;
+  const published = { ...snap.quote };
+  delete published.invoice_pdf;
+  delete published.client_snapshot_json;
+  delete published.client_signature_png;
+  return {
+    ...ctx,
+    quote: {
+      ...published,
+      id: live.id,
+      public_token: live.public_token,
+      quote_number: live.quote_number || published.quote_number,
+      status: live.status,
+      viewed_at: live.viewed_at,
+      pdf_viewed_at: live.pdf_viewed_at,
+      email_sent_at: live.email_sent_at,
+      approved_at: live.approved_at,
+      client_signed_name: live.client_signed_name,
+      client_signature_png: live.client_signature_png,
+    },
+    items: Array.isArray(snap.items) ? snap.items : ctx.items,
+  };
+}
+
+export async function publishQuoteForClient(pool, quoteId) {
+  const cols = await repo.quoteColumns(pool);
+  if (!cols.has('client_snapshot_json')) return { ok: false, error: 'schema' };
+  const ctx = await loadQuoteContext(pool, quoteId);
+  if (!ctx) return { ok: false, error: 'Quote not found' };
+  const payload = {
+    quote: stripQuoteForClientSnapshot(ctx.quote),
+    items: ctx.items || [],
+    published_at: new Date().toISOString(),
+  };
+  await pool.execute('UPDATE quotes SET client_snapshot_json = ? WHERE id = ?', [
+    JSON.stringify(payload),
+    quoteId,
+  ]);
+  return { ok: true };
+}
+
 export async function loadQuoteContext(pool, quoteId) {
   const quotes = await selectQuoteRows(pool, 'WHERE q.id = ?', [quoteId]);
   if (!quotes.length) return null;
@@ -564,6 +630,11 @@ export async function mailQuote(pool, quoteId, EmailOpts = {}) {
   if (!gen.ok) {
     return { ok: false, error: gen.error || 'Não foi possível gerar o PDF do orçamento.' };
   }
+  try {
+    await publishQuoteForClient(pool, quoteId);
+  } catch (e) {
+    console.warn('[quotes] publishQuoteForClient:', e.message);
+  }
   const base = getPublicCrmBaseUrl();
   const token = ctx.quote.public_token;
   const publicUrl =
@@ -628,7 +699,7 @@ export async function getByPublicToken(pool, token) {
     `SELECT * FROM quote_items WHERE quote_id = ? ORDER BY ${ob}`,
     [q.id]
   );
-  return { quote: q, items: items.map(mapItemRow) };
+  return applyClientPublishedView({ quote: q, items: items.map(mapItemRow) });
 }
 
 export async function getByQuoteNumber(pool, quoteNumber) {
@@ -643,7 +714,7 @@ export async function getByQuoteNumber(pool, quoteNumber) {
     `SELECT * FROM quote_items WHERE quote_id = ? ORDER BY ${ob}`,
     [q.id]
   );
-  return { quote: q, items: items.map(mapItemRow) };
+  return applyClientPublishedView({ quote: q, items: items.map(mapItemRow) });
 }
 
 export async function markQuoteViewedByNumber(pool, quoteNumber) {
@@ -720,9 +791,22 @@ export async function markQuotePdfDownloaded(pool, token) {
 }
 
 export async function getQuotePdfBufferForPublic(pool, quoteId) {
-  const gen = await generatePdfAndStore(pool, quoteId);
-  if (!gen.ok || !gen.buffer) return null;
-  return gen.buffer;
+  const live = await loadQuoteContext(pool, quoteId);
+  if (!live) return null;
+  const ctx = applyClientPublishedView(live);
+  const ownerSignature = await getOwnerSignature(pool);
+  const party = quotePartyContact(ctx.quote);
+  const pdfBuf = await buildQuotePdfBuffer({
+    quote: ctx.quote,
+    items: ctx.items,
+    customer: {
+      name: party.name,
+      email: party.email || ctx.quote.customer_email,
+      phone: party.phone || ctx.quote.customer_phone,
+    },
+    ownerSignature,
+  });
+  return pdfBuf || null;
 }
 
 export async function approvePublicQuote(pool, token, signatureOpts = {}) {

@@ -280,8 +280,22 @@ export async function generateAndStoreInvoicePdf(pool, invoiceId) {
 }
 
 export async function getInvoicePdfBuffer(pool, invoiceId) {
-  const [rows] = await pool.query('SELECT id, invoice_number FROM quote_invoices WHERE id = ?', [invoiceId]);
+  const [rows] = await pool.query(
+    'SELECT id, invoice_number, pdf_blob FROM quote_invoices WHERE id = ?',
+    [invoiceId]
+  );
   if (!rows.length) return { ok: false, error: 'Invoice not found' };
+  const blob = rows[0].pdf_blob;
+  const hasBlob =
+    blob &&
+    (Buffer.isBuffer(blob) ? blob.length > 0 : typeof blob === 'string' ? blob.length > 0 : blob.length > 0);
+  if (hasBlob) {
+    return {
+      ok: true,
+      buffer: Buffer.isBuffer(blob) ? blob : Buffer.from(blob),
+      invoice_number: rows[0].invoice_number,
+    };
+  }
   const gen = await generateAndStoreInvoicePdf(pool, invoiceId);
   if (!gen.ok) return gen;
   return { ok: true, buffer: gen.buffer, invoice_number: rows[0].invoice_number };

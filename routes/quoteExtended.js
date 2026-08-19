@@ -127,6 +127,27 @@ export async function postQuoteSendEmail(req, res) {
   }
 }
 
+export async function postQuotePublishClient(req, res) {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (!id) return res.status(400).json({ success: false, error: 'Invalid id' });
+    const pool = await getDBConnection();
+    if (!pool) return res.status(503).json({ success: false, error: 'Database not available' });
+    await business.ensureQuotePublicToken(pool, id);
+    const r = await business.publishQuoteForClient(pool, id);
+    if (!r.ok) {
+      return res.status(r.error === 'Quote not found' ? 404 : 400).json({
+        success: false,
+        error: r.error === 'schema' ? 'Não foi possível gravar a cópia do cliente.' : r.error,
+      });
+    }
+    res.json({ success: true });
+  } catch (e) {
+    console.error('postQuotePublishClient:', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+}
+
 export async function getQuoteSnapshots(req, res) {
   try {
     const id = parseInt(req.params.id, 10);

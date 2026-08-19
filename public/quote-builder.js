@@ -1564,6 +1564,11 @@
       });
       return;
     }
+    try {
+      await api(`/api/quotes/${quoteId}/publish-client`, { method: 'POST', body: '{}' });
+    } catch (_) {
+      /* envio SMS segue; a cópia pública pode ficar na versão anterior */
+    }
     const lead = selectedQuoteLead || {
       name: $('qbClientName')?.textContent || '',
       phone,

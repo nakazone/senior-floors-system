@@ -125,6 +125,7 @@ import { ensureQuotePdfViewedColumn } from './lib/ensureQuotePdfViewedColumn.js'
 import { ensureQuoteNumberOffset } from './lib/ensureQuoteNumberOffset.js';
 import { ensureQuoteSignatureSchema } from './lib/ensureQuoteSignatureSchema.js';
 import { ensureQuotePartySchema } from './lib/ensureQuotePartySchema.js';
+import { ensureQuoteClientPublishSchema } from './lib/ensureQuoteClientPublishSchema.js';
 import { ensureUserModuleColumns } from './lib/ensureUserModuleColumns.js';
 import { ensureCustomersResponsibleNameColumn } from './lib/ensureCustomersResponsibleNameColumn.js';
 import { ensureLeadPipelineStageEnteredAt } from './lib/ensureLeadPipelineStageEnteredAt.js';
@@ -487,6 +488,7 @@ app.put('/api/quotes/:id/full', requireAuth, requirePermission('quotes.edit'), q
 app.post('/api/quotes/:id/duplicate', requireAuth, requirePermission('quotes.create'), quoteExt.postQuoteDuplicate);
 app.post('/api/quotes/:id/generate-pdf', requireAuth, requirePermission('quotes.edit'), quoteExt.postQuoteGeneratePdf);
 app.post('/api/quotes/:id/send-email', requireAuth, requirePermission('quotes.edit'), quoteExt.postQuoteSendEmail);
+app.post('/api/quotes/:id/publish-client', requireAuth, requirePermission('quotes.edit'), quoteExt.postQuotePublishClient);
 app.get('/api/quotes/:id/engagement', requireAuth, requirePermission('quotes.view'), quoteExt.getQuoteEngagement);
 app.get('/api/quotes/:id/snapshots', requireAuth, requirePermission('quotes.view'), quoteExt.getQuoteSnapshots);
 registerQuoteInvoiceRoutes(app);
@@ -842,6 +844,7 @@ async function start() {
       await ensureQuoteNumberOffset(pool);
       await ensureQuoteSignatureSchema(pool);
       await ensureQuotePartySchema(pool);
+      await ensureQuoteClientPublishSchema(pool);
       await ensureUserModuleColumns(pool);
       await ensureCustomersResponsibleNameColumn(pool);
       await ensureLeadPipelineStageEnteredAt(pool);

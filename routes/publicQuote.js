@@ -10,6 +10,7 @@ function sanitizeQuote(q) {
   if (!q) return q;
   const out = { ...q };
   delete out.invoice_pdf;
+  delete out.client_snapshot_json;
   delete out.internal_notes;
   delete out.created_by;
   delete out.client_signature_png;
