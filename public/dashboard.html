@@ -13,7 +13,7 @@
     <link rel="icon" type="image/png" sizes="16x16" href="/assets/SeniorFloors.png">
     <link rel="apple-touch-icon" sizes="180x180" href="/assets/SeniorFloors.png">
     <link rel="icon" type="image/png" href="/assets/SeniorFloors.png">
-    <link rel="stylesheet" href="styles.css?v=20260819-quote-name-wrap">
+    <link rel="stylesheet" href="styles.css?v=20260819-ipad-quotes-actions">
     <link rel="stylesheet" href="design-system.css?v=20260819-quote-name-wrap">
     <link rel="stylesheet" href="mobile-design-system.css">
     <link rel="stylesheet" href="crm-toast.css">
@@ -920,6 +920,12 @@
                     <div id="quotesMobileShell" class="sf-mobile-only">
                         <p class="sf-title" style="margin-bottom:4px;">Orçamentos</p>
                         <p class="sf-caption" id="quotesMobileSubtitle" style="margin:0 0 10px;"> </p>
+                        <div class="quotes-mobile-actions" role="toolbar" aria-label="Ações de orçamentos">
+                            <button type="button" class="btn btn-primary btn-cta-primary" onclick="location.href='quote-builder.html'" data-crm-permission="quotes.edit">+ Novo orçamento</button>
+                            <button type="button" class="btn btn-secondary" onclick="location.href='onsite-quote.html'" data-crm-permission="quotes.create">Quick quote</button>
+                            <button type="button" class="btn btn-secondary" onclick="location.href='quote-catalog.html'" data-crm-permission="quotes.edit">Catálogo</button>
+                            <button type="button" class="btn btn-secondary" onclick="openImportInvoicePdfModal()">Importar PDF</button>
+                        </div>
                         <div class="sf-ptr-indicator" id="quotesPtrIndicator" aria-hidden="true">↓ Largar para atualizar</div>
                         <div class="sf-quotes-toolbar quotes-list-toolbar quotes-list-toolbar--mobile">
                             <input type="search" id="quotesMobileSearch" class="sf-quotes-search quotes-list-toolbar__search" placeholder="Buscar cliente, nº quote ou e-mail…" autocomplete="off" aria-label="Buscar orçamentos" />
@@ -939,6 +945,9 @@
                             <button type="button" class="quotes-filter-chip" data-quotes-filter="expiring7" onclick="setQuotesFilter('expiring7')">Expira ≤7d</button>
                         </div>
                         <div id="quotesMobileList" class="sf-quotes-card-list"></div>
+                        <div class="quotes-mobile-load-more" style="text-align:center;padding:12px;">
+                            <button type="button" class="btn btn-secondary" id="quotesMobileLoadMore">Carregar mais</button>
+                        </div>
                     </div>
                     <header class="crm-page-header sf-desktop-quotes-toolbar">
                         <div class="crm-page-header__titles">
@@ -998,9 +1007,6 @@
                         <button id="prevPageQuotes" class="btn btn-secondary" onclick="changePageQuotes(-1)">Previous</button>
                         <span id="pageInfoQuotes">Page 1</span>
                         <button id="nextPageQuotes" class="btn btn-secondary" onclick="changePageQuotes(1)">Next</button>
-                    </div>
-                    <div class="sf-mobile-only" style="text-align:center;padding:12px;">
-                        <button type="button" class="btn btn-secondary" id="quotesMobileLoadMore">Carregar mais</button>
                     </div>
                 </div>
                 
@@ -1593,14 +1599,14 @@
     <script src="crm-command-palette.js"></script>
     <script src="notification-center.js"></script>
     <script src="marketing-dashboard.js"></script>
-    <script src="dashboard.js?v=20260819-quote-name-wrap"></script>
+    <script src="dashboard.js?v=20260819-ipad-quotes-actions"></script>
     <script src="pipeline-stage-labels.js?v=20260510-follow-up-status"></script>
-    <script src="lead-contact-links.js?v=20260526-utf8"></script>
+    <script src="lead-contact-links.js?v=20260819-lead-email-msgs"></script>
     <script src="crm-address-autocomplete.js?v=20260528-pac-dismiss"></script>
     <script src="lead-visit-calendar-format.js?v=20260528-cal-address"></script>
     <script src="crm-device-calendar.js?v=20260819-ipad-ics"></script>
     <script src="lead-quote-engagement-icons.js?v=20260528-badge-check-x"></script>
-    <script src="lead-quick-sheet.js?v=20260819-ipad-ics"></script>
+    <script src="lead-quick-sheet.js?v=20260819-lead-email-msgs"></script>
     <script src="leads-kanban.js?v=20260528-quote-icons"></script>
     <script src="schedule-engine.js"></script>
     <script src="financial-engine.js"></script>

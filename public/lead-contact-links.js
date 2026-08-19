@@ -1,8 +1,23 @@
 /**
- * Native tel:/sms: links and stage-based SMS templates for leads.
+ * Native tel:/sms:/mailto links and stage-based message templates for leads.
  */
 (function (global) {
   const SMS_COMPANY = 'Senior Floors';
+
+  const FOLLOW_UP_TEMPLATES = [
+    {
+      id: 'follow_up_quote_reminder',
+      label: 'Follow up — quote reminder',
+      template:
+        "Hello [name], I hope all is well. Just following up on the quote I sent a few days ago. If everything looks good, I'd be happy to help get your project scheduled and reserve a spot for you.",
+    },
+    {
+      id: 'follow_up_last_check',
+      label: 'Follow up — last check-in',
+      template:
+        "Hello [name], just wanted to check in one last time regarding your flooring project. If timing is better later, no problem at all — I'd still be happy to help whenever you're ready.",
+    },
+  ];
 
   /** @type {Record<string, Array<{ id: string, label: string, template: string }>>} */
   const STAGE_SMS_TEMPLATES = {
@@ -13,6 +28,7 @@
         template:
           "Hi [name], thanks for reaching out to Senior Floors. I'd be happy to help. Can you tell me a little about the project?",
       },
+      ...FOLLOW_UP_TEMPLATES,
     ],
     quote_sent: [
       {
@@ -22,20 +38,7 @@
           "Hello [name], thank you for your time today. I've sent email and attached the quote PDF with the options we discussed. Thank you!\n\nFor know more about us\nhttps://senior-floors.com/",
       },
     ],
-    follow_up_1: [
-      {
-        id: 'follow_up_quote_reminder',
-        label: 'Follow up — quote reminder',
-        template:
-          "Hello [name], I hope all is well. Just following up on the quote I sent a few days ago. If everything looks good, I'd be happy to help get your project scheduled and reserve a spot for you.",
-      },
-      {
-        id: 'follow_up_last_check',
-        label: 'Follow up — last check-in',
-        template:
-          "Hello [name], just wanted to check in one last time regarding your flooring project. If timing is better later, no problem at all — I'd still be happy to help whenever you're ready.",
-      },
-    ],
+    follow_up_1: FOLLOW_UP_TEMPLATES.slice(),
   };
 
   function escapeHtml(s) {
@@ -95,6 +98,30 @@
     return STAGE_SMS_TEMPLATES[slug] || null;
   }
 
+  function leadMessageDefs(lead) {
+    const slug = resolveLeadStageSlug(lead);
+    const defs = getStageSmsDefinitions(slug);
+    if (defs && defs.length) return { defs, filled: false };
+    return {
+      defs: [{ id: 'default', label: 'Message', template: defaultLeadSmsBody(lead) }],
+      filled: true,
+    };
+  }
+
+  /**
+   * @param {object} lead
+   * @returns {Array<{ id: string, label: string, body: string }>}
+   */
+  function getLeadMessageBodies(lead) {
+    if (!lead) return [];
+    const { defs, filled } = leadMessageDefs(lead);
+    return defs.map((def) => ({
+      id: def.id,
+      label: def.label,
+      body: filled ? defaultLeadSmsBody(lead) : fillSmsTemplate(def.template, lead),
+    }));
+  }
+
   /**
    * @param {object} lead
    * @returns {Array<{ id: string, label: string, body: string, href: string }>}
@@ -102,22 +129,46 @@
   function getLeadSmsOptions(lead) {
     if (!lead || !lead.phone) return [];
     const phone = lead.phone;
-    const slug = resolveLeadStageSlug(lead);
-    const defs = getStageSmsDefinitions(slug);
-    const list =
-      defs && defs.length
-        ? defs
-        : [{ id: 'default', label: 'Message', template: defaultLeadSmsBody(lead) }];
-    return list
-      .map((def) => {
-        const body = defs ? fillSmsTemplate(def.template, lead) : defaultLeadSmsBody(lead);
-        return {
-          id: def.id,
-          label: def.label,
-          body,
-          href: buildSmsHref(phone, body),
-        };
-      })
+    return getLeadMessageBodies(lead)
+      .map((o) => ({
+        ...o,
+        href: buildSmsHref(phone, o.body),
+      }))
+      .filter((o) => o.href);
+  }
+
+  function defaultLeadEmailSubject(lead) {
+    const first = leadFirstName(lead);
+    return first && first !== 'there' ? `${SMS_COMPANY} — ${first}` : SMS_COMPANY;
+  }
+
+  function buildMailtoHref(email, subject, body) {
+    const addr = String(email || '').trim();
+    if (!addr || !addr.includes('@')) return '';
+    const q = [];
+    if (subject != null && String(subject).trim()) {
+      q.push('subject=' + encodeURIComponent(String(subject)));
+    }
+    if (body != null && String(body) !== '') {
+      q.push('body=' + encodeURIComponent(String(body)));
+    }
+    return q.length ? `mailto:${addr}?${q.join('&')}` : `mailto:${addr}`;
+  }
+
+  /**
+   * @param {object} lead
+   * @returns {Array<{ id: string, label: string, body: string, href: string, subject: string }>}
+   */
+  function getLeadEmailOptions(lead) {
+    const email = lead && lead.email != null ? String(lead.email).trim() : '';
+    if (!email || !email.includes('@')) return [];
+    const subject = defaultLeadEmailSubject(lead);
+    return getLeadMessageBodies(lead)
+      .map((o) => ({
+        ...o,
+        subject,
+        href: buildMailtoHref(email, subject, o.body),
+      }))
       .filter((o) => o.href);
   }
 
@@ -143,52 +194,68 @@
     return buildSmsHref(phone, defaultLeadSmsBody(lead));
   }
 
-  let smsMenuEl = null;
-
-  function closeSmsChoiceMenu() {
-    if (smsMenuEl && smsMenuEl.parentNode) {
-      smsMenuEl.parentNode.removeChild(smsMenuEl);
-    }
-    smsMenuEl = null;
-    document.removeEventListener('click', onSmsMenuOutside, true);
-    window.removeEventListener('resize', positionSmsMenu);
+  function buildLeadMailtoHref(lead, body) {
+    const email = lead && lead.email != null ? String(lead.email).trim() : '';
+    if (!email) return '';
+    const subject = defaultLeadEmailSubject(lead);
+    if (body != null) return buildMailtoHref(email, subject, body);
+    const opts = getLeadEmailOptions(lead);
+    if (opts.length) return opts[0].href;
+    return buildMailtoHref(email, subject, defaultLeadSmsBody(lead));
   }
 
-  function positionSmsMenu() {
-    if (!smsMenuEl || !smsMenuEl._anchor) return;
-    const anchor = smsMenuEl._anchor;
+  let choiceMenuEl = null;
+
+  function closeMessageChoiceMenu() {
+    if (choiceMenuEl && choiceMenuEl.parentNode) {
+      choiceMenuEl.parentNode.removeChild(choiceMenuEl);
+    }
+    choiceMenuEl = null;
+    document.removeEventListener('click', onChoiceMenuOutside, true);
+    window.removeEventListener('resize', positionChoiceMenu);
+  }
+
+  function positionChoiceMenu() {
+    if (!choiceMenuEl || !choiceMenuEl._anchor) return;
+    const anchor = choiceMenuEl._anchor;
     const r = anchor.getBoundingClientRect();
     const margin = 8;
     const belowTop = r.bottom + 4;
     const maxH = Math.min(320, window.innerHeight - belowTop - margin);
-    smsMenuEl.style.position = 'fixed';
-    smsMenuEl.style.left =
+    choiceMenuEl.style.position = 'fixed';
+    choiceMenuEl.style.left =
       Math.max(margin, Math.min(r.left, window.innerWidth - margin - Math.max(r.width, 260))) + 'px';
-    smsMenuEl.style.top = belowTop + 'px';
-    smsMenuEl.style.width = Math.max(r.width, 260) + 'px';
-    smsMenuEl.style.maxHeight = Math.max(120, maxH) + 'px';
-    smsMenuEl.style.overflowY = 'auto';
-    smsMenuEl.style.zIndex = '25000';
+    choiceMenuEl.style.top = belowTop + 'px';
+    choiceMenuEl.style.width = Math.max(r.width, 260) + 'px';
+    choiceMenuEl.style.maxHeight = Math.max(120, maxH) + 'px';
+    choiceMenuEl.style.overflowY = 'auto';
+    choiceMenuEl.style.zIndex = '25000';
   }
 
-  function onSmsMenuOutside(e) {
-    if (smsMenuEl && (e.target.closest('#sfSmsChoiceMenu') || e.target.closest('[data-lqs-sms-menu]') || e.target.closest('[data-sf-sms-picker-btn]'))) {
+  function onChoiceMenuOutside(e) {
+    if (
+      choiceMenuEl &&
+      (e.target.closest('#sfSmsChoiceMenu') ||
+        e.target.closest('#sfEmailChoiceMenu') ||
+        e.target.closest('[data-lqs-sms-menu]') ||
+        e.target.closest('[data-lqs-email-menu]') ||
+        e.target.closest('[data-sf-sms-picker-btn]') ||
+        e.target.closest('[data-sf-email-picker-btn]'))
+    ) {
       return;
     }
-    closeSmsChoiceMenu();
+    closeMessageChoiceMenu();
   }
 
-  function openSmsChoiceMenu(anchorEl, lead) {
-    if (!anchorEl || !lead) return;
-    const options = getLeadSmsOptions(lead);
-    if (!options.length) return;
+  function openMessageChoiceMenu(anchorEl, options, menuId) {
+    if (!anchorEl || !options || !options.length) return;
     if (options.length === 1) {
       global.location.href = options[0].href;
       return;
     }
-    closeSmsChoiceMenu();
+    closeMessageChoiceMenu();
     const menu = document.createElement('div');
-    menu.id = 'sfSmsChoiceMenu';
+    menu.id = menuId || 'sfSmsChoiceMenu';
     menu.className = 'lead-quick-sheet__status-menu lead-quick-sheet__sms-menu';
     menu.setAttribute('role', 'menu');
     menu.innerHTML = options
@@ -201,12 +268,22 @@
       .join('');
     menu._anchor = anchorEl;
     document.body.appendChild(menu);
-    smsMenuEl = menu;
-    positionSmsMenu();
-    window.addEventListener('resize', positionSmsMenu);
+    choiceMenuEl = menu;
+    positionChoiceMenu();
+    window.addEventListener('resize', positionChoiceMenu);
     requestAnimationFrame(() => {
-      document.addEventListener('click', onSmsMenuOutside, true);
+      document.addEventListener('click', onChoiceMenuOutside, true);
     });
+  }
+
+  function openSmsChoiceMenu(anchorEl, lead) {
+    if (!anchorEl || !lead) return;
+    openMessageChoiceMenu(anchorEl, getLeadSmsOptions(lead), 'sfSmsChoiceMenu');
+  }
+
+  function openEmailChoiceMenu(anchorEl, lead) {
+    if (!anchorEl || !lead) return;
+    openMessageChoiceMenu(anchorEl, getLeadEmailOptions(lead), 'sfEmailChoiceMenu');
   }
 
   /**
@@ -229,17 +306,38 @@
     return `<button type="button" class="${cls}"${dataAttrs}>SMS <span class="lead-quick-sheet__sms-chevron" aria-hidden="true">&#9662;</span></button>`;
   }
 
+  function renderLeadEmailActionHtml(lead, buttonClass, attrs) {
+    const opts = getLeadEmailOptions(lead);
+    if (!opts.length) return '';
+    const cls = buttonClass || 'lead-quick-sheet__action';
+    if (opts.length === 1) {
+      return `<a class="${cls}" href="${escapeAttr(opts[0].href)}">Email</a>`;
+    }
+    const extra = attrs && typeof attrs === 'object' ? attrs : {};
+    let dataAttrs = ' data-lqs-email-menu data-sf-email-picker-btn aria-haspopup="menu"';
+    Object.keys(extra).forEach((k) => {
+      dataAttrs += ` ${k}="${escapeAttr(extra[k])}"`;
+    });
+    return `<button type="button" class="${cls}"${dataAttrs}>Email <span class="lead-quick-sheet__sms-chevron" aria-hidden="true">&#9662;</span></button>`;
+  }
+
   global.sfNormalizePhoneDigits = normalizePhoneDigits;
   global.sfDefaultLeadSmsBody = defaultLeadSmsBody;
   global.sfResolveLeadStageSlug = resolveLeadStageSlug;
+  global.sfGetLeadMessageBodies = getLeadMessageBodies;
   global.sfGetLeadSmsOptions = getLeadSmsOptions;
+  global.sfGetLeadEmailOptions = getLeadEmailOptions;
   global.sfGetStageSmsDefinitions = getStageSmsDefinitions;
   global.sfFillSmsTemplate = fillSmsTemplate;
   global.sfBuildTelHref = buildTelHref;
   global.sfBuildSmsHref = buildSmsHref;
+  global.sfBuildMailtoHref = buildMailtoHref;
   global.sfBuildLeadSmsHref = buildLeadSmsHref;
+  global.sfBuildLeadMailtoHref = buildLeadMailtoHref;
   global.sfRenderLeadSmsActionHtml = renderLeadSmsActionHtml;
+  global.sfRenderLeadEmailActionHtml = renderLeadEmailActionHtml;
   global.sfOpenSmsChoiceMenu = openSmsChoiceMenu;
-  global.sfCloseSmsChoiceMenu = closeSmsChoiceMenu;
+  global.sfOpenEmailChoiceMenu = openEmailChoiceMenu;
+  global.sfCloseSmsChoiceMenu = closeMessageChoiceMenu;
   global.STAGE_SMS_TEMPLATES = STAGE_SMS_TEMPLATES;
 })(typeof window !== 'undefined' ? window : globalThis);

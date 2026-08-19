@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Quote — Senior Floors CRM</title>
   <link rel="icon" type="image/png" href="/assets/SeniorFloors.png" />
-  <link rel="stylesheet" href="styles.css?v=20260819-quote-name-wrap" />
+  <link rel="stylesheet" href="styles.css?v=20260819-ipad-quotes-actions" />
   <link rel="stylesheet" href="design-system.css?v=20260819-quote-name-wrap" />
   <link rel="stylesheet" href="crm-shared-nav.css?v=12" />
   <script src="https://cdn.tailwindcss.com"></script>
@@ -1370,6 +1370,33 @@
         left: 0;
       }
     }
+    @media (max-width: 1100px) {
+      .qb-topbar {
+        flex-wrap: wrap;
+        align-items: flex-start;
+      }
+      .qb-topbar__actions {
+        width: 100%;
+        justify-content: flex-start;
+      }
+      .qb-action-bar__inner {
+        flex-wrap: wrap;
+      }
+      .qb-action-bar .btn {
+        flex: 1 1 33.33%;
+        min-width: 33.33%;
+        font-size: 0.75rem;
+        padding: 0.85rem 0.4rem;
+        border-bottom: 1px solid #e2e8f0;
+      }
+      .qb-action-bar .btn:nth-child(3n) {
+        border-right: none;
+      }
+      body.qb-dashboard-inner,
+      body.qb-dashboard-inner .qb-page {
+        padding-bottom: calc(6.5rem + env(safe-area-inset-bottom, 0px));
+      }
+    }
     @media (max-width: 900px) {
       body.qb-dashboard-inner .dashboard-main {
         min-height: calc(100vh - 52px);
@@ -2119,9 +2146,9 @@
   <script src="crm-shared-nav.js?v=12"></script>
   <script src="crm-toast.js"></script>
   <script src="crm-pdf-viewer.js?v=20260531"></script>
-  <script src="lead-contact-links.js?v=20260526-utf8"></script>
+  <script src="lead-contact-links.js?v=20260819-lead-email-msgs"></script>
   <script src="quote-signature-auto.js?v=20260708"></script>
-  <script src="quote-builder.js?v=20260819-quote-job-builder"></script>
+  <script src="quote-builder.js?v=20260819-ipad-quotes-actions"></script>
   <script>
     (function () {
       var t = document.getElementById('mobileMenuToggle');

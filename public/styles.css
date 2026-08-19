@@ -2984,6 +2984,19 @@ input.score-auto {
     width: 100%;
 }
 
+.quotes-mobile-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 0 0 12px;
+}
+
+.quotes-mobile-actions .btn {
+    flex: 1 1 auto;
+    min-height: 44px;
+    white-space: nowrap;
+}
+
 .quotes-list-toolbar__total-label {
     font-size: 0.8rem;
     font-weight: 600;
@@ -3097,7 +3110,7 @@ body.lead-quick-sheet-open .pac-container {
     -webkit-overflow-scrolling: touch;
 }
 
-/* iPad / tablet (incl. landscape ~1366): lista em cards */
+/* iPad / tablet (incl. landscape ~1366): lista em cards + ações visíveis */
 @media (min-width: 769px) and (max-width: 1366px) {
     #quotesPage #quotesMobileShell.sf-mobile-only {
         display: block !important;
@@ -3107,7 +3120,7 @@ body.lead-quick-sheet-open .pac-container {
         display: none !important;
     }
 
-    #quotesPage .quotes-list-toolbar.sf-desktop-quotes-toolbar {
+    #quotesPage .sf-quotes-chips-scroll.sf-mobile-only--flex {
         display: flex !important;
     }
 

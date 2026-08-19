@@ -1115,9 +1115,12 @@
       typeof global.sfRenderLeadSmsActionHtml === 'function'
         ? global.sfRenderLeadSmsActionHtml(lead, 'lead-quick-sheet__action')
         : '';
-    const mail = lead.email
-      ? `<a class="lead-quick-sheet__action" href="mailto:${escapeHtml(lead.email)}">Email</a>`
-      : '';
+    const mail =
+      typeof global.sfRenderLeadEmailActionHtml === 'function'
+        ? global.sfRenderLeadEmailActionHtml(lead, 'lead-quick-sheet__action')
+        : lead.email
+          ? `<a class="lead-quick-sheet__action" href="mailto:${escapeHtml(lead.email)}">Email</a>`
+          : '';
     const quoteNew = `<a class="lead-quick-sheet__action" href="quote-builder.html?lead_id=${sid}" target="_blank" rel="noopener">Novo orcamento</a>`;
     const scheduleVisit = `<button type="button" class="lead-quick-sheet__action" data-lqs-open-schedule>Agendar visita</button>`;
 
@@ -1167,6 +1170,14 @@
       e.preventDefault();
       if (typeof global.sfOpenSmsChoiceMenu === 'function') {
         global.sfOpenSmsChoiceMenu(smsPickerBtn, sheetLead);
+      }
+      return;
+    }
+    const emailPickerBtn = e.target.closest('[data-lqs-email-menu]');
+    if (emailPickerBtn && sheetLead) {
+      e.preventDefault();
+      if (typeof global.sfOpenEmailChoiceMenu === 'function') {
+        global.sfOpenEmailChoiceMenu(emailPickerBtn, sheetLead);
       }
       return;
     }
