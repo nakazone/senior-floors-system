@@ -295,9 +295,17 @@
   }
 
   function renderDocument(q, items, ownerSig) {
-    const clientName = escapeHtml(q.customer_name || 'Client');
-    const email = q.customer_email ? escapeHtml(String(q.customer_email)) : '';
-    const phone = q.customer_phone ? escapeHtml(String(q.customer_phone)) : '';
+    const isBuilder = String(q.quote_party || '') === 'builder' || q.builder_id;
+    const builderPerson = [q.builder_first_name, q.builder_last_name].filter(Boolean).join(' ').trim();
+    const clientName = escapeHtml(
+      isBuilder
+        ? q.builder_company || builderPerson || q.customer_name || 'Builder'
+        : q.customer_name || 'Client'
+    );
+    const email = escapeHtml(q.customer_email || q.builder_email || '');
+    const phone = escapeHtml(q.customer_phone || q.builder_phone || '');
+    const jobName = q.job_name ? escapeHtml(String(q.job_name)) : '';
+    const jobAddr = q.job_address ? escapeHtml(String(q.job_address)) : '';
     const issue = q.issue_date ? String(q.issue_date).slice(0, 10) : '';
     const exp = q.expiration_date ? String(q.expiration_date).slice(0, 10) : '';
     const sub = Number(q.subtotal) || 0;
@@ -338,6 +346,15 @@
         ${email ? `<p class="qp-billto__meta">${email}</p>` : ''}
         ${phone ? `<p class="qp-billto__meta">${phone}</p>` : ''}
       </section>
+      ${
+        jobName || jobAddr
+          ? `<section class="qp-billto">
+        <p class="qp-billto__label">Project</p>
+        ${jobName ? `<p class="qp-billto__name">${jobName}</p>` : ''}
+        ${jobAddr ? `<p class="qp-billto__meta">${jobAddr}</p>` : ''}
+      </section>`
+          : ''
+      }
 
       ${renderSections(items)}
 

@@ -12,6 +12,12 @@
   let loadedQuoteLeadId = null;
   /** Lista de clientes CRM (`/api/customers` — builders e clientes finais convertidos). */
   let clients = [];
+  /** Builders do portal (`/api/quotes/lookup/builders`). */
+  let quoteBuilders = [];
+  /** @type {'lead'|'builder'} */
+  let quotePartyMode = 'lead';
+  /** Builder selecionado no quote. */
+  let selectedQuoteBuilder = null;
   /** Lead escolhido na pesquisa de cliente. */
   let selectedQuoteLead = null;
   let clientSearchTimer = null;
@@ -633,10 +639,114 @@
     return r && r.value === 'builder' ? 'builder' : 'customer';
   }
 
+  function updatePricingActiveLabel() {
+    const el = $('qbPricingActiveLabel');
+    if (!el) return;
+    el.textContent =
+      catalogPricingSource() === 'builder'
+        ? 'Taxa builder (tabela de parceiro)'
+        : 'Taxa cliente final (leads)';
+  }
+
   function setCatalogPricingMode(mode) {
     const m = mode === 'builder' ? 'builder' : 'customer';
     const el = document.querySelector(`input[name="pricingCatalog"][value="${m}"]`);
     if (el) el.checked = true;
+    updatePricingActiveLabel();
+  }
+
+  function getQuoteParty() {
+    return quotePartyMode === 'builder' ? 'builder' : 'lead';
+  }
+
+  function syncQuotePartyUi() {
+    const party = getQuoteParty();
+    document.querySelectorAll('.qb-party-tab').forEach((btn) => {
+      btn.classList.toggle('is-active', btn.getAttribute('data-party') === party);
+    });
+    $('qbLeadPanel')?.classList.toggle('hidden', party !== 'lead');
+    $('qbBuilderPanel')?.classList.toggle('hidden', party !== 'builder');
+  }
+
+  function setQuoteParty(party, { applyPrices = true } = {}) {
+    quotePartyMode = party === 'builder' ? 'builder' : 'lead';
+    syncQuotePartyUi();
+    if (quotePartyMode === 'builder') renderBuilderDetails();
+    if (applyPrices) {
+      setCatalogPricingMode(quotePartyMode === 'builder' ? 'builder' : 'customer');
+      refreshRatesForCatalogLines();
+      renderItems();
+    } else {
+      updatePricingActiveLabel();
+    }
+  }
+
+  async function loadQuoteBuilders() {
+    const sel = $('quoteBuilderSelect');
+    if (!sel) return;
+    const current = sel.value;
+    try {
+      const r = await api('/api/quotes/lookup/builders');
+      quoteBuilders = Array.isArray(r.data) ? r.data : [];
+    } catch {
+      quoteBuilders = [];
+    }
+    const opts = ['<option value="">Selecionar builder…</option>']
+      .concat(
+        quoteBuilders.map((b) => {
+          const id = Number(b.id);
+          const label = escapeHtmlText(b.label || b.company || `Builder #${id}`);
+          return `<option value="${id}">${label}</option>`;
+        })
+      )
+      .join('');
+    sel.innerHTML = opts;
+    if (current && quoteBuilders.some((b) => String(b.id) === String(current))) {
+      sel.value = current;
+    }
+  }
+
+  function renderBuilderDetails() {
+    const box = $('qbBuilderDetails');
+    if (!box) return;
+    const b = selectedQuoteBuilder;
+    if (!b) {
+      box.classList.add('hidden');
+      return;
+    }
+    const set = (id, val) => setWrappingField(id, val);
+    set('qbBuilderCompany', b.company || b.label);
+    set('qbBuilderContact', b.name);
+    set('qbBuilderEmail', b.email);
+    set('qbBuilderPhone', b.phone);
+    box.classList.remove('hidden');
+  }
+
+  function applySelectedBuilder(builder, { applyPrices = true } = {}) {
+    selectedQuoteBuilder = builder || null;
+    const sel = $('quoteBuilderSelect');
+    if (sel && builder && builder.id != null) sel.value = String(builder.id);
+    if (builder && builder.customer_id) {
+      $('customerId').value = String(builder.customer_id);
+    } else if (getQuoteParty() === 'builder') {
+      $('customerId').value = '';
+    }
+    renderBuilderDetails();
+    if (applyPrices) {
+      setCatalogPricingMode('builder');
+      refreshRatesForCatalogLines();
+      renderItems();
+    }
+  }
+
+  function onQuoteBuilderChange() {
+    const id = parseInt($('quoteBuilderSelect')?.value, 10);
+    if (!Number.isFinite(id) || id <= 0) {
+      applySelectedBuilder(null, { applyPrices: true });
+      return;
+    }
+    const b = quoteBuilders.find((x) => Number(x.id) === id) || { id };
+    applySelectedBuilder(b, { applyPrices: true });
   }
 
   /** Alinha rádios Builder / Cliente final ao tipo do cliente CRM. */
@@ -995,6 +1105,7 @@
 
   async function selectLeadAsClient(lead) {
     if (!lead || lead.id == null) return;
+    setQuoteParty('lead', { applyPrices: true });
     selectedQuoteLead = lead;
     pendingLeadId = Number(lead.id);
     loadedQuoteLeadId = null;
@@ -1028,6 +1139,24 @@
   }
 
   async function ensureCustomerForQuote() {
+    if (getQuoteParty() === 'builder') {
+      const bid = parseInt($('quoteBuilderSelect')?.value, 10);
+      if (!Number.isFinite(bid) || bid <= 0) {
+        throw new Error('Selecione um builder.');
+      }
+      const b =
+        selectedQuoteBuilder && Number(selectedQuoteBuilder.id) === bid
+          ? selectedQuoteBuilder
+          : quoteBuilders.find((x) => Number(x.id) === bid);
+      if (b && b.customer_id) {
+        $('customerId').value = String(b.customer_id);
+        return Number(b.customer_id);
+      }
+      const cid = parseInt(String($('customerId')?.value), 10);
+      if (Number.isFinite(cid) && cid > 0) return cid;
+      return null;
+    }
+
     let cid = parseInt(String($('customerId') && $('customerId').value), 10);
     if (Number.isFinite(cid) && cid > 0) return cid;
 
@@ -1046,6 +1175,9 @@
   }
 
   function getClientEmailForQuote() {
+    if (getQuoteParty() === 'builder' && selectedQuoteBuilder && selectedQuoteBuilder.email) {
+      return String(selectedQuoteBuilder.email).trim();
+    }
     const cid = parseInt(String($('customerId') && $('customerId').value), 10);
     if (Number.isFinite(cid) && cid > 0) {
       const c = clients.find((x) => Number(x.id) === cid);
@@ -1056,6 +1188,9 @@
   }
 
   function getClientPhoneForQuote() {
+    if (getQuoteParty() === 'builder' && selectedQuoteBuilder && selectedQuoteBuilder.phone) {
+      return String(selectedQuoteBuilder.phone).trim();
+    }
     if (selectedQuoteLead && selectedQuoteLead.phone) return String(selectedQuoteLead.phone).trim();
     const cid = parseInt(String($('customerId') && $('customerId').value), 10);
     if (Number.isFinite(cid) && cid > 0) {
@@ -2512,7 +2647,23 @@
     loadedQuoteLeadId = q.lead_id != null && q.lead_id !== '' ? Number(q.lead_id) : null;
     if (!Number.isFinite(loadedQuoteLeadId)) loadedQuoteLeadId = null;
     $('customerId').value = q.customer_id || '';
-    await setClientSearchFromLoadedQuote(q);
+    if ($('quoteJobName')) $('quoteJobName').value = q.job_name || '';
+    if ($('quoteJobAddress')) $('quoteJobAddress').value = q.job_address || '';
+    await loadQuoteBuilders();
+    const isBuilderQuote =
+      String(q.quote_party || '') === 'builder' || (q.builder_id != null && Number(q.builder_id) > 0);
+    if (isBuilderQuote) {
+      setQuoteParty('builder', { applyPrices: false });
+      const bid = Number(q.builder_id);
+      const b = quoteBuilders.find((x) => Number(x.id) === bid) || (bid ? { id: bid, customer_id: q.customer_id } : null);
+      if (b) applySelectedBuilder(b, { applyPrices: false });
+      setCatalogPricingMode('builder');
+    } else {
+      setQuoteParty('lead', { applyPrices: false });
+      applySelectedBuilder(null, { applyPrices: false });
+      await setClientSearchFromLoadedQuote(q);
+      setCatalogPricingMode('customer');
+    }
     const qStatus = q.status || 'draft';
     $('status').value = qStatus;
     loadedQuoteStatus = qStatus;
@@ -2551,7 +2702,12 @@
     renderClientDetails();
     setPublicLink(q.public_token, q.quote_number);
     enableActions();
-    applyPricingFromCustomerId($('customerId').value);
+    if (getQuoteParty() === 'builder') {
+      setCatalogPricingMode('builder');
+      refreshRatesForCatalogLines();
+    } else {
+      applyPricingFromCustomerId($('customerId').value);
+    }
     renderItems();
     renderClientSignaturePanel(q);
     await loadQuoteInvoices();
@@ -2561,12 +2717,23 @@
     const { sub, tax } = recalc();
     const dt = $('discountType').value;
     const dv = parseFloat($('discountValue').value) || 0;
+    const party = getQuoteParty();
     let lead_id = null;
-    if (selectedQuoteLead && selectedQuoteLead.id != null) lead_id = Number(selectedQuoteLead.id);
-    else if (loadedQuoteLeadId != null && Number.isFinite(loadedQuoteLeadId)) lead_id = loadedQuoteLeadId;
-    else if (pendingLeadId != null && Number.isFinite(pendingLeadId)) lead_id = pendingLeadId;
+    if (party === 'lead') {
+      if (selectedQuoteLead && selectedQuoteLead.id != null) lead_id = Number(selectedQuoteLead.id);
+      else if (loadedQuoteLeadId != null && Number.isFinite(loadedQuoteLeadId)) lead_id = loadedQuoteLeadId;
+      else if (pendingLeadId != null && Number.isFinite(pendingLeadId)) lead_id = pendingLeadId;
+    }
+    const builder_id =
+      party === 'builder' ? parseInt($('quoteBuilderSelect')?.value, 10) || null : null;
+    const jobName = String($('quoteJobName')?.value || '').trim();
+    const jobAddr = String($('quoteJobAddress')?.value || '').trim();
     const base = {
       customer_id: parseInt($('customerId').value, 10) || null,
+      quote_party: party,
+      builder_id: Number.isFinite(builder_id) && builder_id > 0 ? builder_id : null,
+      job_name: jobName || null,
+      job_address: jobAddr || null,
       status: $('status').value,
       expiration_date: $('expirationDate').value || null,
       notes: $('notes').value || null,
@@ -2593,6 +2760,7 @@
       })),
     };
     if (lead_id != null) base.lead_id = lead_id;
+    else base.lead_id = null;
     return base;
   }
 
@@ -2601,7 +2769,11 @@
     try {
       cid = await ensureCustomerForQuote();
     } catch (e) {
-      qbToast(e.message || 'Selecione um cliente (lead).', 'error');
+      qbToast(e.message || 'Selecione um lead ou um builder.', 'error');
+      return;
+    }
+    if (getQuoteParty() === 'lead' && !cid) {
+      qbToast('Selecione um cliente (lead).', 'error');
       return;
     }
     const body = payload();
@@ -2662,6 +2834,15 @@
     attachItemsListHandlers();
     wireMarginPricingFields();
     bootQuoteAddressAutocomplete();
+    await loadQuoteBuilders();
+    $('qbPartyLead')?.addEventListener('click', () => setQuoteParty('lead'));
+    $('qbPartyBuilder')?.addEventListener('click', () => {
+      setQuoteParty('builder');
+      void loadQuoteBuilders();
+    });
+    $('quoteBuilderSelect')?.addEventListener('change', onQuoteBuilderChange);
+    syncQuotePartyUi();
+    updatePricingActiveLabel();
 
     const ts = $('templateSelect');
     ts.innerHTML = '<option value="">— Template —</option>';

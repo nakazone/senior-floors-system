@@ -337,6 +337,11 @@
       map: { combined: '#pd-edit-address' },
     },
     {
+      input: '#quoteJobAddress',
+      country: 'us',
+      map: { combined: '#quoteJobAddress' },
+    },
+    {
       input: '#estAddress',
       country: 'us',
       map: { combined: '#estAddress' },

@@ -259,9 +259,15 @@ export async function generateAndStoreInvoicePdf(pool, invoiceId) {
     quote: ctx.quote,
     items: ctx.items,
     customer: {
-      name: inv.customer_name || ctx.quote.customer_name,
-      email: inv.customer_email || ctx.quote.customer_email,
-      phone: inv.customer_phone || ctx.quote.customer_phone,
+      name:
+        String(ctx.quote.quote_party || '') === 'builder' || ctx.quote.builder_id
+          ? ctx.quote.builder_company ||
+            [ctx.quote.builder_first_name, ctx.quote.builder_last_name].filter(Boolean).join(' ').trim() ||
+            inv.customer_name ||
+            ctx.quote.customer_name
+          : inv.customer_name || ctx.quote.customer_name,
+      email: inv.customer_email || ctx.quote.customer_email || ctx.quote.builder_email,
+      phone: inv.customer_phone || ctx.quote.customer_phone || ctx.quote.builder_phone,
     },
     balance: {
       previously_invoiced,
@@ -292,7 +298,14 @@ export async function mailQuoteInvoice(pool, invoiceId, emailOpts = {}) {
   );
   if (!rows.length) return { ok: false, error: 'Invoice not found' };
   const inv = rows[0];
-  const email = String(emailOpts.to || inv.customer_email || '').trim();
+  let builderEmail = '';
+  try {
+    const ctx = await loadQuoteContext(pool, inv.quote_id);
+    builderEmail = ctx?.quote?.builder_email ? String(ctx.quote.builder_email).trim() : '';
+  } catch {
+    builderEmail = '';
+  }
+  const email = String(emailOpts.to || inv.customer_email || builderEmail || '').trim();
   if (!email) {
     return {
       ok: false,

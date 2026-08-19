@@ -274,16 +274,37 @@ export async function buildInvoicePdfBuffer(opts) {
 
   drawTxt('Bill to', { x: margin, y, size: 9, font: fontBold, color: PAL.secondaryDark });
   y -= lineH;
-  const clientName = customer.name || quote.customer_name || 'Client';
+  const isBuilderQuote = String(quote.quote_party || '') === 'builder' || quote.builder_id;
+  const builderPerson = [quote.builder_first_name, quote.builder_last_name].filter(Boolean).join(' ').trim();
+  const clientName = isBuilderQuote
+    ? quote.builder_company || builderPerson || customer.name || quote.customer_name || 'Builder'
+    : customer.name || quote.customer_name || 'Client';
   drawTxt(clientName, { x: margin, y, size: 11, font: fontBold, color: PAL.primary });
   y -= lineH;
-  if (customer.email || quote.customer_email) {
-    drawTxt(String(customer.email || quote.customer_email), { x: margin, y, size: 8.5, font, color: PAL.lineMuted });
+  if (isBuilderQuote && builderPerson && quote.builder_company) {
+    drawTxt(builderPerson, { x: margin, y, size: 8.5, font, color: PAL.lineMuted });
     y -= lineH;
   }
-  if (customer.phone || quote.customer_phone) {
-    drawTxt(String(customer.phone || quote.customer_phone), { x: margin, y, size: 8.5, font, color: PAL.lineMuted });
+  if (customer.email || quote.customer_email || quote.builder_email) {
+    drawTxt(String(customer.email || quote.customer_email || quote.builder_email), { x: margin, y, size: 8.5, font, color: PAL.lineMuted });
     y -= lineH;
+  }
+  if (customer.phone || quote.customer_phone || quote.builder_phone) {
+    drawTxt(String(customer.phone || quote.customer_phone || quote.builder_phone), { x: margin, y, size: 8.5, font, color: PAL.lineMuted });
+    y -= lineH;
+  }
+  if (quote.job_name || quote.job_address) {
+    y -= 8;
+    drawTxt('Project', { x: margin, y, size: 9, font: fontBold, color: PAL.secondaryDark });
+    y -= lineH;
+    if (quote.job_name) {
+      drawTxt(String(quote.job_name), { x: margin, y, size: 9, font: fontBold, color: PAL.primary });
+      y -= lineH;
+    }
+    if (quote.job_address) {
+      drawTxt(String(quote.job_address), { x: margin, y, size: 8.5, font, color: PAL.lineMuted });
+      y -= lineH;
+    }
   }
 
   y -= 16;

@@ -486,7 +486,73 @@
     .qb-notify--error .qb-notify__panel {
       border-top-color: #b91c1c;
     }
-    .qb-client-search {
+    .qb-party-tabs {
+      display: flex;
+      gap: 0.4rem;
+      margin-bottom: 0.85rem;
+    }
+    .qb-party-tab {
+      flex: 1;
+      border: 1px solid #cbd5e1;
+      background: #f8fafc;
+      color: #334155;
+      font-size: 0.875rem;
+      font-weight: 600;
+      font-family: inherit;
+      padding: 0.55rem 0.75rem;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    .qb-party-tab.is-active {
+      background: #1a2036;
+      border-color: #1a2036;
+      color: #fff;
+    }
+    .qb-builder-select {
+      width: 100%;
+      border: 1px solid #cbd5e1;
+      border-radius: 0.5rem;
+      padding: 0.5rem 0.75rem;
+      font-size: 0.875rem;
+      background: #fff;
+      box-sizing: border-box;
+    }
+    .qb-job-fields {
+      margin-top: 1.25rem;
+      padding-top: 1.25rem;
+      border-top: 1px solid #e2e8f0;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+    .qb-job-fields__title {
+      margin: 0;
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: #64748b;
+    }
+    .qb-job-fields label {
+      display: block;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #64748b;
+      margin-bottom: 0.25rem;
+    }
+    .qb-job-fields input {
+      width: 100%;
+      border: 1px solid #cbd5e1;
+      border-radius: 0.5rem;
+      padding: 0.5rem 0.75rem;
+      font-size: 0.875rem;
+      box-sizing: border-box;
+    }
+    .qb-pricing-active {
+      font-size: 0.8125rem;
+      color: #0f172a;
+      margin: 0.25rem 0 0;
+    }
       position: relative;
     }
     .qb-client-search__input {
@@ -1549,6 +1615,11 @@
             <section class="qb-sheet__section" id="qbClientSection">
               <h2 class="qb-sheet__title">Cliente</h2>
               <div class="qb-sheet__body">
+                <div class="qb-party-tabs" role="tablist" aria-label="Tipo de cliente">
+                  <button type="button" class="qb-party-tab is-active" id="qbPartyLead" data-party="lead">Leads</button>
+                  <button type="button" class="qb-party-tab" id="qbPartyBuilder" data-party="builder">Builders</button>
+                </div>
+                <div id="qbLeadPanel">
                 <div class="qb-client-search" id="qbClientSearchWrap">
                   <input
                     type="search"
@@ -1616,6 +1687,45 @@
                     </div>
                   </dl>
                 </div>
+                </div>
+                <div id="qbBuilderPanel" class="hidden">
+                  <label class="block text-xs font-semibold text-slate-500 mb-1" for="quoteBuilderSelect">Builder cadastrado</label>
+                  <select id="quoteBuilderSelect" class="qb-builder-select" aria-label="Selecionar builder">
+                    <option value="">Selecionar builder…</option>
+                  </select>
+                  <p class="text-xs text-slate-500 mt-2">Ao escolher um builder, o catálogo passa automaticamente para a taxa builder.</p>
+                  <div id="qbBuilderDetails" class="qb-client-details hidden" aria-live="polite">
+                    <dl class="qb-client-details__list">
+                      <div class="qb-client-details__row">
+                        <dt>Empresa</dt>
+                        <dd id="qbBuilderCompany">—</dd>
+                      </div>
+                      <div class="qb-client-details__row">
+                        <dt>Contato</dt>
+                        <dd id="qbBuilderContact">—</dd>
+                      </div>
+                      <div class="qb-client-details__row">
+                        <dt>Email</dt>
+                        <dd id="qbBuilderEmail">—</dd>
+                      </div>
+                      <div class="qb-client-details__row">
+                        <dt>Phone</dt>
+                        <dd id="qbBuilderPhone">—</dd>
+                      </div>
+                    </dl>
+                  </div>
+                </div>
+                <div class="qb-job-fields">
+                  <p class="qb-job-fields__title">Projeto deste quote</p>
+                  <div>
+                    <label for="quoteJobName">Nome do projeto</label>
+                    <input type="text" id="quoteJobName" autocomplete="off" placeholder="Ex.: Residência Smith — living room" />
+                  </div>
+                  <div>
+                    <label for="quoteJobAddress">Endereço do projeto</label>
+                    <input type="text" id="quoteJobAddress" autocomplete="off" placeholder="Digite a morada (Google Maps)..." />
+                  </div>
+                </div>
                 <div class="qb-client-meta">
                   <div class="qb-client-meta__grid">
                     <div>
@@ -1635,8 +1745,9 @@
                     </div>
                   </div>
                   <div class="qb-client-meta__pricing">
-                    <span class="block text-xs font-semibold text-slate-500 mb-1">Preço do catálogo</span>
-                    <div class="flex flex-wrap gap-4 text-sm">
+                    <span class="block text-xs font-semibold text-slate-500 mb-1">Tabela de preços</span>
+                    <p id="qbPricingActiveLabel" class="qb-pricing-active">Taxa cliente final (leads)</p>
+                    <div class="flex flex-wrap gap-4 text-sm hidden" id="qbPricingRadios">
                       <label class="inline-flex items-center gap-2 cursor-pointer"><input type="radio" name="pricingCatalog" value="customer" checked class="rounded border-slate-300" /> Taxa cliente final</label>
                       <label class="inline-flex items-center gap-2 cursor-pointer"><input type="radio" name="pricingCatalog" value="builder" class="rounded border-slate-300" /> Taxa builder</label>
                     </div>
@@ -2004,13 +2115,13 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
-  <script src="crm-address-autocomplete.js?v=20260528-pac-dismiss"></script>
+  <script src="crm-address-autocomplete.js?v=20260819-quote-job"></script>
   <script src="crm-shared-nav.js?v=12"></script>
   <script src="crm-toast.js"></script>
   <script src="crm-pdf-viewer.js?v=20260531"></script>
   <script src="lead-contact-links.js?v=20260526-utf8"></script>
   <script src="quote-signature-auto.js?v=20260708"></script>
-  <script src="quote-builder.js?v=20260819-quote-name-wrap"></script>
+  <script src="quote-builder.js?v=20260819-quote-party"></script>
   <script>
     (function () {
       var t = document.getElementById('mobileMenuToggle');

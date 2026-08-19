@@ -42,6 +42,7 @@ import {
   deleteQuote,
   createQuoteFromInvoicePdf,
   streamQuoteInvoicePdf,
+  listQuoteBuildersLookup,
 } from './routes/quotes.js';
 import * as quoteExt from './routes/quoteExtended.js';
 import { registerQuoteInvoiceRoutes } from './routes/quoteInvoices.js';
@@ -123,6 +124,7 @@ import { ensureQuoteInvoicesSchema } from './lib/ensureQuoteInvoicesSchema.js';
 import { ensureQuotePdfViewedColumn } from './lib/ensureQuotePdfViewedColumn.js';
 import { ensureQuoteNumberOffset } from './lib/ensureQuoteNumberOffset.js';
 import { ensureQuoteSignatureSchema } from './lib/ensureQuoteSignatureSchema.js';
+import { ensureQuotePartySchema } from './lib/ensureQuotePartySchema.js';
 import { ensureUserModuleColumns } from './lib/ensureUserModuleColumns.js';
 import { ensureCustomersResponsibleNameColumn } from './lib/ensureCustomersResponsibleNameColumn.js';
 import { ensureLeadPipelineStageEnteredAt } from './lib/ensureLeadPipelineStageEnteredAt.js';
@@ -455,6 +457,7 @@ app.put('/api/customers/:id', requireAuth, requirePermission('customers.edit'), 
 
 // Quotes (rotas específicas antes de :id)
 app.get('/api/quotes', requireAuth, listQuotes);
+app.get('/api/quotes/lookup/builders', requireAuth, requirePermission('quotes.view'), listQuoteBuildersLookup);
 app.post('/api/quotes/import-invoice-pdf', requireAuth, quotePdfUploadMiddleware, createQuoteFromInvoicePdf);
 app.post('/api/quotes/full', requireAuth, requirePermission('quotes.create'), quoteExt.postQuoteCreateFull);
 app.post('/api/quotes/from-template', requireAuth, requirePermission('quotes.create'), quoteExt.postQuoteFromTemplate);
@@ -838,6 +841,7 @@ async function start() {
       await ensureQuotePdfViewedColumn(pool);
       await ensureQuoteNumberOffset(pool);
       await ensureQuoteSignatureSchema(pool);
+      await ensureQuotePartySchema(pool);
       await ensureUserModuleColumns(pool);
       await ensureCustomersResponsibleNameColumn(pool);
       await ensureLeadPipelineStageEnteredAt(pool);

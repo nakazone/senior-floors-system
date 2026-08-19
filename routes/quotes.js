@@ -204,6 +204,45 @@ export async function listQuotes(req, res) {
   }
 }
 
+export async function listQuoteBuildersLookup(req, res) {
+  try {
+    const pool = await getDBConnection();
+    if (!pool) return res.status(503).json({ success: false, error: 'Database not available' });
+    const [exists] = await pool.query(
+      `SELECT COUNT(*) AS c FROM information_schema.TABLES
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'builders'`
+    );
+    if (!Number(exists[0]?.c)) return res.json({ success: true, data: [] });
+    const [rows] = await pool.query(
+      `SELECT id, customer_id, first_name, last_name, company, email, phone, status
+       FROM builders
+       WHERE status IN ('active', 'pending')
+       ORDER BY company ASC, first_name ASC, last_name ASC
+       LIMIT 500`
+    );
+    res.json({
+      success: true,
+      data: rows.map((b) => {
+        const person = [b.first_name, b.last_name].filter(Boolean).join(' ').trim();
+        const label = [b.company, person].filter(Boolean).join(' · ') || b.email || `Builder #${b.id}`;
+        return {
+          id: b.id,
+          customer_id: b.customer_id,
+          company: b.company || '',
+          name: person,
+          email: b.email || '',
+          phone: b.phone || '',
+          label,
+          status: b.status,
+        };
+      }),
+    });
+  } catch (e) {
+    console.error('listQuoteBuildersLookup:', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+}
+
 export async function getQuote(req, res) {
   try {
     const pool = await getDBConnection();
