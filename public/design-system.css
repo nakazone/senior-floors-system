@@ -114,7 +114,8 @@ body.dashboard-app-body {
   margin-left: var(--crm-sidebar-width);
 }
 
-@media (max-width: 768px) {
+/* Tablets and iPads */
+@media (max-width: 1024px) {
   .dashboard-sidebar {
     width: min(288px, 92vw);
   }
