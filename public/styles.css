@@ -39,7 +39,8 @@
     display: inline-block;
 }
 
-@media (max-width: 768px) {
+/* Mobile and tablet - includes iPads */
+@media (max-width: 1024px) {
     .mobile-only {
         display: inline-block;
     }
@@ -988,9 +989,17 @@ input.score-auto {
         padding-top: calc(52px + env(safe-area-inset-top, 0px) + 12px) !important;
     }
     
-    /* Show mobile menu toggle on tablets/iPads */
+    /* Show mobile menu and header on tablets/iPads */
+    .mobile-app-header {
+        display: flex !important;
+    }
+    
     .mobile-menu-toggle {
         display: block !important;
+    }
+    
+    .mobile-app-header__menu {
+        display: flex !important;
     }
 
     .mobile-overlay {
