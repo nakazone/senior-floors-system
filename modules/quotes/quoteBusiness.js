@@ -204,6 +204,16 @@ function quotePartyContact(quote) {
   };
 }
 
+function defaultQuoteEmailSubject(quote, quoteId) {
+  const num = quote?.quote_number || quoteId;
+  const isBuilder = String(quote?.quote_party || '') === 'builder' || quote?.builder_id;
+  const job = quote?.job_name != null ? String(quote.job_name).trim() : '';
+  if (isBuilder && job) {
+    return `Quote ${num} — ${job} — Senior Floors`;
+  }
+  return `Quote ${num} — Senior Floors`;
+}
+
 export async function loadQuoteContext(pool, quoteId) {
   const quotes = await selectQuoteRows(pool, 'WHERE q.id = ?', [quoteId]);
   if (!quotes.length) return null;
@@ -571,9 +581,10 @@ export async function mailQuote(pool, quoteId, EmailOpts = {}) {
   const useCustomHtml =
     EmailOpts.html != null && String(EmailOpts.html).trim() !== '';
   const attachPdf = EmailOpts.attachPdf === true;
+  const customSubject = EmailOpts.subject != null ? String(EmailOpts.subject).trim() : '';
   const result = await sendQuoteEmail({
     to: email,
-    subject: EmailOpts.subject || `Quote ${ctx.quote.quote_number || quoteId} — Senior Floors`,
+    subject: customSubject || defaultQuoteEmailSubject(ctx.quote, quoteId),
     html: useCustomHtml ? EmailOpts.html : buildQuoteAccessEmailHtml(ctx.quote, publicUrl),
     pdfBuffer: attachPdf ? gen.buffer : null,
     filename: `Senior-Floors-${ctx.quote.quote_number || quoteId}.pdf`,
