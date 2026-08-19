@@ -3068,16 +3068,16 @@ body.lead-quick-sheet-open .pac-container {
 }
 
 .quotes-data-table .quotes-cell-client {
-    white-space: nowrap !important;
-    word-break: normal !important;
-    overflow-wrap: normal !important;
-    overflow: visible !important;
-    text-overflow: unset !important;
+    white-space: normal;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+    overflow: visible;
+    text-overflow: unset;
     line-height: 1.35;
     font-weight: 600;
     color: var(--text-dark);
-    min-width: 12rem;
-    max-width: none;
+    min-width: 8rem;
+    max-width: 18rem;
 }
 
 .quotes-data-table .quotes-table-row--open {

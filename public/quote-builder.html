@@ -538,6 +538,9 @@
     .qb-client-search__item-name {
       display: block;
       font-weight: 600;
+      white-space: normal;
+      overflow-wrap: anywhere;
+      word-break: break-word;
     }
     .qb-client-search__item-meta {
       display: block;
@@ -647,6 +650,7 @@
       border-radius: 8px;
       background: var(--bg-primary-light);
       border: 1px solid var(--border-color);
+      min-width: 0;
     }
     .qb-client-details.hidden {
       display: none !important;
@@ -655,14 +659,16 @@
       margin: 0;
       display: grid;
       gap: 0.55rem;
+      min-width: 0;
     }
     .qb-client-details__row {
       display: grid;
-      grid-template-columns: 5.5rem 1fr;
+      grid-template-columns: 5.5rem minmax(0, 1fr);
       gap: 0.5rem;
       align-items: start;
       font-size: 0.8125rem;
       line-height: 1.4;
+      min-width: 0;
     }
     .qb-client-details__row dt {
       margin: 0;
@@ -672,7 +678,17 @@
     .qb-client-details__row dd {
       margin: 0;
       color: #0f172a;
+      min-width: 0;
+      max-width: 100%;
+      white-space: normal;
+      overflow-wrap: anywhere;
       word-break: break-word;
+    }
+    @media (max-width: 1024px) {
+      .qb-client-details__row {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 0.15rem;
+      }
     }
     .qb-client-meta {
       margin-top: 1.25rem;
