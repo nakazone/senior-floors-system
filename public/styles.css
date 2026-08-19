@@ -3068,16 +3068,16 @@ body.lead-quick-sheet-open .pac-container {
 }
 
 .quotes-data-table .quotes-cell-client {
-    white-space: normal;
-    word-break: break-word;
-    overflow-wrap: anywhere;
-    overflow: visible;
-    text-overflow: unset;
+    white-space: normal !important;
+    word-break: break-word !important;
+    overflow-wrap: anywhere !important;
+    overflow: visible !important;
+    text-overflow: unset !important;
     line-height: 1.35;
     font-weight: 600;
     color: var(--text-dark);
     min-width: 8rem;
-    max-width: 18rem;
+    max-width: 16rem;
 }
 
 .quotes-data-table .quotes-table-row--open {
@@ -3097,8 +3097,8 @@ body.lead-quick-sheet-open .pac-container {
     -webkit-overflow-scrolling: touch;
 }
 
-/* iPad / tablet: lista em cards (cliente em destaque) em vez da tabela comprimida */
-@media (min-width: 769px) and (max-width: 1024px) {
+/* iPad / tablet (incl. landscape ~1366): lista em cards */
+@media (min-width: 769px) and (max-width: 1366px) {
     #quotesPage #quotesMobileShell.sf-mobile-only {
         display: block !important;
     }

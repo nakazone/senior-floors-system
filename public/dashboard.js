@@ -267,9 +267,9 @@ function isMobile() {
     return window.innerWidth <= 768;
 }
 
-/** Quotes: cards + cliente visivel em telemovel e iPad (ate 1024px). */
+/** Quotes: cards + cliente visivel em telemovel e iPad (incl. landscape). */
 function isQuotesCompactLayout() {
-    return window.innerWidth <= 1024;
+    return window.innerWidth <= 1366;
 }
 
 /** Telefone, tablet e iPad — pull-to-refresh */

@@ -775,10 +775,7 @@
       box.classList.add('hidden');
       return;
     }
-    const set = (id, val) => {
-      const el = $(id);
-      if (el) el.textContent = val && String(val).trim() ? String(val).trim() : '—';
-    };
+    const set = (id, val) => setWrappingField(id, val);
     set('qbClientName', info?.name);
     set('qbClientPhone', info?.phone);
     set('qbClientEmail', info?.email);
@@ -885,20 +882,22 @@
 
   function formatLeadClientLabel(lead) {
     if (!lead) return '';
-    const name = lead.name ? String(lead.name).trim() : `Lead #${lead.id}`;
-    const bits = [];
-    if (lead.email) bits.push(String(lead.email).trim());
-    if (lead.phone) bits.push(String(lead.phone).trim());
-    if (lead.id != null) bits.push(`#${lead.id}`);
-    return bits.length ? `${name} (${bits.join(' · ')})` : name;
+    return lead.name ? String(lead.name).trim() : `Lead #${lead.id}`;
   }
 
   function formatCustomerLabel(c) {
     if (!c) return '';
     if (c.customer_type === 'builder' && c.responsible_name) {
-      return `${c.name} · ${c.responsible_name} (${c.email || ''})`;
+      return String(c.name || c.responsible_name).trim();
     }
-    return `${c.name} (${c.email || ''})`;
+    return String(c.name || '').trim();
+  }
+
+  function setWrappingField(id, val) {
+    const el = $(id);
+    if (!el) return;
+    const text = val && String(val).trim() ? String(val).trim() : '—';
+    el.textContent = text.replace(/([^\s]{16})/g, '$1\u200b');
   }
 
   function upsertClientInCache(c) {

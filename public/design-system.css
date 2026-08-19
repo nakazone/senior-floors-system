@@ -577,13 +577,14 @@ body.dashboard-app-body {
 .quotes-data-table .quotes-cell-client {
   overflow: visible;
   text-overflow: unset;
-  white-space: nowrap;
-  word-break: normal;
-  overflow-wrap: normal;
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
   line-height: 1.35;
   font-weight: 600;
   vertical-align: middle;
-  min-width: 12rem;
+  min-width: 8rem;
+  max-width: 16rem;
 }
 
 /* Quote status badges — design tokens */

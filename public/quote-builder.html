@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Quote — Senior Floors CRM</title>
   <link rel="icon" type="image/png" href="/assets/SeniorFloors.png" />
-  <link rel="stylesheet" href="styles.css" />
-  <link rel="stylesheet" href="design-system.css" />
+  <link rel="stylesheet" href="styles.css?v=20260819-quote-name-wrap" />
+  <link rel="stylesheet" href="design-system.css?v=20260819-quote-name-wrap" />
   <link rel="stylesheet" href="crm-shared-nav.css?v=12" />
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
@@ -496,6 +496,10 @@
       padding: 0.5rem 0.75rem;
       font-size: 0.875rem;
       background: #fff;
+      box-sizing: border-box;
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     .qb-client-search__results {
       position: absolute;
@@ -651,44 +655,50 @@
       background: var(--bg-primary-light);
       border: 1px solid var(--border-color);
       min-width: 0;
+      max-width: 100%;
     }
     .qb-client-details.hidden {
       display: none !important;
     }
     .qb-client-details__list {
       margin: 0;
-      display: grid;
-      gap: 0.55rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
       min-width: 0;
+      max-width: 100%;
     }
     .qb-client-details__row {
-      display: grid;
-      grid-template-columns: 5.5rem minmax(0, 1fr);
-      gap: 0.5rem;
-      align-items: start;
-      font-size: 0.8125rem;
-      line-height: 1.4;
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 0.2rem;
       min-width: 0;
+      max-width: 100%;
+      font-size: 0.8125rem;
+      line-height: 1.45;
     }
     .qb-client-details__row dt {
       margin: 0;
       font-weight: 600;
       color: #64748b;
     }
-    .qb-client-details__row dd {
+    .qb-client-details__row dd,
+    #qbClientName,
+    #qbClientPhone,
+    #qbClientEmail,
+    #qbClientAddress {
+      display: block;
       margin: 0;
       color: #0f172a;
       min-width: 0;
       max-width: 100%;
-      white-space: normal;
-      overflow-wrap: anywhere;
-      word-break: break-word;
-    }
-    @media (max-width: 1024px) {
-      .qb-client-details__row {
-        grid-template-columns: minmax(0, 1fr);
-        gap: 0.15rem;
-      }
+      width: 100%;
+      box-sizing: border-box;
+      white-space: pre-wrap !important;
+      overflow-wrap: anywhere !important;
+      word-break: break-word !important;
+      word-break: break-all;
     }
     .qb-client-meta {
       margin-top: 1.25rem;
@@ -2000,7 +2010,7 @@
   <script src="crm-pdf-viewer.js?v=20260531"></script>
   <script src="lead-contact-links.js?v=20260526-utf8"></script>
   <script src="quote-signature-auto.js?v=20260708"></script>
-  <script src="quote-builder.js?v=20260708-auto-sign"></script>
+  <script src="quote-builder.js?v=20260819-quote-name-wrap"></script>
   <script>
     (function () {
       var t = document.getElementById('mobileMenuToggle');
