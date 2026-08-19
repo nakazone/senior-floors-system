@@ -534,12 +534,9 @@
     if (!sheetLead || !sheetLeadId) return;
     if (typeof global.sfOpenLeadVisitInDeviceCalendar === 'function') {
       const ok = global.sfOpenLeadVisitInDeviceCalendar(sheetLead);
-      if (ok) {
-        notifySheet('A abrir o calend�rio do dispositivo�', 'info');
-        return;
-      }
+      if (ok) return;
     }
-    notifySheet('N�o foi poss�vel abrir o calend�rio. Tente outro browser.', 'error');
+    notifySheet('Não foi possível abrir o calendário. Tente outro browser.', 'error');
   }
 
   function openLqsScheduleVisitModal() {

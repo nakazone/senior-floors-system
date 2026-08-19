@@ -1998,6 +1998,8 @@
   }
 
   let quoteInvoices = [];
+  /** @type {{ quote_total: number, invoiced_total: number, remaining_to_invoice: number } | null} */
+  let quoteInvoiceBalance = null;
 
   function isQuoteApprovedStatus(status) {
     return ['approved', 'accepted'].includes(String(status || '').toLowerCase());
@@ -2007,6 +2009,48 @@
     const d = new Date();
     d.setDate(d.getDate() + 14);
     return d.toISOString().slice(0, 10);
+  }
+
+  function currentQuoteTotalForInvoice() {
+    if (quoteInvoiceBalance && Number(quoteInvoiceBalance.quote_total) > 0) {
+      return Number(quoteInvoiceBalance.quote_total);
+    }
+    return Number(recalc().total) || 0;
+  }
+
+  function computeLocalInvoiceBalance() {
+    const quoteTotal = currentQuoteTotalForInvoice();
+    const invoiced = quoteInvoices
+      .filter((inv) => String(inv.status || '').toLowerCase() !== 'void')
+      .reduce((s, inv) => s + (Number(inv.amount) || 0), 0);
+    const invoiced_total = Math.round(invoiced * 100) / 100;
+    const remaining_to_invoice = Math.round(Math.max(0, quoteTotal - invoiced_total) * 100) / 100;
+    return {
+      quote_total: Math.round(quoteTotal * 100) / 100,
+      invoiced_total,
+      remaining_to_invoice,
+    };
+  }
+
+  function renderInvoiceBalanceSummary() {
+    const bal = quoteInvoiceBalance || computeLocalInvoiceBalance();
+    const panel = $('quoteInvoiceBalance');
+    const hint = $('invBalanceHint');
+    if (!bal || !(bal.quote_total > 0)) {
+      if (panel) panel.classList.add('hidden');
+      if (hint) hint.classList.add('hidden');
+      return bal;
+    }
+    const text = `Total ${money(bal.quote_total)} · Já faturado ${money(bal.invoiced_total)} · Restante ${money(bal.remaining_to_invoice)}`;
+    if (panel) {
+      panel.textContent = text;
+      panel.classList.toggle('hidden', bal.invoiced_total <= 0 && quoteInvoices.length === 0);
+    }
+    if (hint) {
+      hint.textContent = text;
+      hint.classList.remove('hidden');
+    }
+    return bal;
   }
 
   function syncInvoiceUiVisibility() {
@@ -2076,17 +2120,22 @@
   async function loadQuoteInvoices() {
     if (!quoteId) {
       quoteInvoices = [];
+      quoteInvoiceBalance = null;
       renderQuoteInvoicesList();
+      renderInvoiceBalanceSummary();
       syncInvoiceUiVisibility();
       return;
     }
     try {
       const r = await api(`/api/quotes/${quoteId}/invoices`);
       quoteInvoices = r.data || [];
+      quoteInvoiceBalance = r.balance || null;
     } catch {
       quoteInvoices = [];
+      quoteInvoiceBalance = null;
     }
     renderQuoteInvoicesList();
+    renderInvoiceBalanceSummary();
     syncInvoiceUiVisibility();
   }
 
@@ -2095,6 +2144,15 @@
     if (!modal) return;
     const due = $('invDueDate');
     if (due && !due.value) due.value = defaultInvoiceDueDate();
+    const bal = renderInvoiceBalanceSummary() || computeLocalInvoiceBalance();
+    const typeEl = $('invType');
+    const customEl = $('invCustomAmount');
+    if (bal && bal.invoiced_total > 0.009 && bal.remaining_to_invoice > 0.009) {
+      if (typeEl) typeEl.value = 'final';
+      if (customEl) customEl.value = String(bal.remaining_to_invoice);
+    } else if (bal && bal.remaining_to_invoice > 0 && customEl && !customEl.value) {
+      customEl.value = String(bal.remaining_to_invoice);
+    }
     syncInvoiceTypeFields();
     modal.classList.remove('hidden');
   }
@@ -2106,7 +2164,15 @@
   function syncInvoiceTypeFields() {
     const type = $('invType')?.value || 'deposit';
     $('invDepositWrap')?.classList.toggle('hidden', type !== 'deposit');
+    $('invFinalHint')?.classList.toggle('hidden', type !== 'final');
     $('invCustomWrap')?.classList.toggle('hidden', type !== 'progress' && type !== 'custom');
+    if (type === 'progress' || type === 'custom') {
+      const bal = quoteInvoiceBalance || computeLocalInvoiceBalance();
+      const customEl = $('invCustomAmount');
+      if (customEl && bal?.remaining_to_invoice > 0 && !customEl.value) {
+        customEl.value = String(bal.remaining_to_invoice);
+      }
+    }
   }
 
   async function ensureApprovedQuoteSaved() {
@@ -2143,6 +2209,7 @@
     if (type === 'progress' || type === 'custom') {
       body.custom_amount = parseFloat($('invCustomAmount')?.value) || 0;
     }
+    /* type === 'final' → servidor calcula o saldo restante */
     const btn = $('btnInvoiceModalSubmit');
     const prev = btn?.textContent;
     if (btn) {
@@ -2156,6 +2223,7 @@
         body: JSON.stringify(body),
       });
       closeInvoiceModal();
+      if (r.balance) quoteInvoiceBalance = r.balance;
       await loadQuoteInvoices();
       const inv = r.data;
       window.crmToast?.success?.(`Invoice ${inv?.invoice_number || ''} emitido.`);

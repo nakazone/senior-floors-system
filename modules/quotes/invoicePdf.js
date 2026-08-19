@@ -398,6 +398,17 @@ export async function buildInvoicePdfBuffer(opts) {
   drawRow(`Discount (${discType})`, discType === '$' ? money(discVal) : `${discVal}%`);
   drawRow('Quote total', money(quoteTotal), { bold: true });
 
+  const bal = opts.balance || {};
+  const previouslyInvoiced = Number(bal.previously_invoiced) || 0;
+  const remainingAfter =
+    bal.remaining_after != null
+      ? Number(bal.remaining_after)
+      : Math.max(0, quoteTotal - previouslyInvoiced - (Number(invoice.amount) || 0));
+  if (previouslyInvoiced > 0.009) {
+    drawRow('Previously invoiced', money(previouslyInvoiced));
+    drawRow('Remaining after this invoice', money(remainingAfter));
+  }
+
   y -= 10;
   ensureSpace(120);
   const typeLabel = TYPE_LABELS[invoice.invoice_type] || 'Payment';

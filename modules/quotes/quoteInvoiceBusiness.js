@@ -4,6 +4,7 @@
 import { buildInvoicePdfBuffer } from './invoicePdf.js';
 import { loadQuoteContext } from './quoteBusiness.js';
 import { sendQuoteEmail } from './quoteMail.js';
+import { canonicalQuoteNumber } from '../../lib/quoteNumber.js';
 
 function isQuoteApproved(status) {
   return ['approved', 'accepted'].includes(String(status || '').trim().toLowerCase());
@@ -19,19 +20,24 @@ function defaultDueDate(days = 14) {
   return d.toISOString().slice(0, 10);
 }
 
-async function nextInvoiceNumber(pool) {
-  const year = new Date().getFullYear();
-  const prefix = `INV-${year}-`;
+async function nextInvoiceNumberForQuote(pool, quoteNumber) {
+  const base = canonicalQuoteNumber(quoteNumber);
+  if (!base) {
+    throw new Error('Numero do orcamento invalido. O orcamento precisa de um numero SF-YYYY-NNNN.');
+  }
+  const prefix = `${base}-I`;
   const [rows] = await pool.query(
-    `SELECT invoice_number FROM quote_invoices WHERE invoice_number LIKE ? ORDER BY id DESC LIMIT 1`,
+    `SELECT invoice_number FROM quote_invoices
+     WHERE invoice_number LIKE ?
+     ORDER BY id DESC LIMIT 1`,
     [`${prefix}%`]
   );
   let seq = 1;
   if (rows.length) {
-    const m = String(rows[0].invoice_number || '').match(/-(\d+)$/);
+    const m = String(rows[0].invoice_number || '').match(/-I(\d+)$/i);
     if (m) seq = parseInt(m[1], 10) + 1;
   }
-  return `${prefix}${String(seq).padStart(3, '0')}`;
+  return `${prefix}${String(seq).padStart(2, '0')}`;
 }
 
 function mapInvoiceRow(r) {
@@ -56,6 +62,27 @@ function mapInvoiceRow(r) {
   };
 }
 
+/**
+ * Saldo a faturar = total do orçamento − soma dos invoices ativos (não void).
+ * Ex.: quote $16000 + invoice $8000 → remaining $8000.
+ */
+export async function getQuoteInvoiceBalance(pool, quoteId, quoteTotal) {
+  const [rows] = await pool.query(
+    `SELECT COALESCE(SUM(amount), 0) AS invoiced
+     FROM quote_invoices
+     WHERE quote_id = ? AND LOWER(COALESCE(status, '')) != 'void'`,
+    [quoteId]
+  );
+  const quote_total = roundMoney(quoteTotal);
+  const invoiced_total = roundMoney(rows[0]?.invoiced || 0);
+  const remaining_to_invoice = roundMoney(Math.max(0, quote_total - invoiced_total));
+  return {
+    quote_total,
+    invoiced_total,
+    remaining_to_invoice,
+  };
+}
+
 export async function listInvoicesForQuote(pool, quoteId) {
   const [rows] = await pool.query(
     `SELECT id, quote_id, project_id, customer_id, invoice_number, invoice_type, amount, quote_total,
@@ -64,20 +91,46 @@ export async function listInvoicesForQuote(pool, quoteId) {
      FROM quote_invoices WHERE quote_id = ? ORDER BY created_at DESC, id DESC`,
     [quoteId]
   );
-  return rows.map((r) => ({
+  const invoices = rows.map((r) => ({
     ...mapInvoiceRow({ ...r, pdf_blob: r.has_pdf ? Buffer.from([1]) : null }),
     has_pdf: !!r.has_pdf,
   }));
+
+  let quoteTotal = 0;
+  if (invoices.length && invoices[0].quote_total != null) {
+    quoteTotal = Number(invoices[0].quote_total) || 0;
+  } else {
+    const ctx = await loadQuoteContext(pool, quoteId);
+    quoteTotal = Number(ctx?.quote?.total_amount) || 0;
+  }
+  const balance = await getQuoteInvoiceBalance(pool, quoteId, quoteTotal);
+  return { invoices, balance };
 }
 
-function resolveInvoiceAmount(quoteTotal, body) {
+/**
+ * @param {number} quoteTotal
+ * @param {object} body
+ * @param {number} remainingToInvoice
+ */
+function resolveInvoiceAmount(quoteTotal, body, remainingToInvoice) {
   const total = roundMoney(quoteTotal);
+  const remaining =
+    remainingToInvoice != null && Number.isFinite(Number(remainingToInvoice))
+      ? roundMoney(remainingToInvoice)
+      : total;
   const type = String(body.invoice_type || body.amount_type || 'deposit').toLowerCase();
+
+  if (type === 'final' || type === 'remaining') {
+    if (remaining <= 0) throw new Error('Não há saldo restante a faturar neste orçamento.');
+    return { invoice_type: 'final', amount: remaining };
+  }
   if (type === 'full') return { invoice_type: 'full', amount: total };
-  if (type === 'final') return { invoice_type: 'final', amount: total };
   if (type === 'progress') {
-    const amt = roundMoney(body.custom_amount ?? body.amount);
-    return { invoice_type: 'progress', amount: amt > 0 ? amt : total };
+    const raw = body.custom_amount ?? body.amount;
+    const hasCustom = raw != null && String(raw).trim() !== '';
+    const amt = roundMoney(raw);
+    if (hasCustom && amt > 0) return { invoice_type: 'progress', amount: amt };
+    return { invoice_type: 'progress', amount: remaining > 0 ? remaining : total };
   }
   if (type === 'custom' || type === 'other') {
     const amt = roundMoney(body.custom_amount ?? body.amount);
@@ -94,22 +147,51 @@ export async function createQuoteInvoice(pool, quoteId, body, userId) {
   if (!isQuoteApproved(ctx.quote.status)) {
     return {
       ok: false,
-      error: 'S� � poss�vel emitir invoice quando o or�amento est� aprovado. Guarde o or�amento com status Aprovado.',
+      error:
+        'Só é possível emitir invoice quando o orçamento está aprovado. Guarde o orçamento com status Aprovado.',
     };
   }
 
   const quoteTotal = Number(ctx.quote.total_amount) || 0;
   if (quoteTotal <= 0) return { ok: false, error: 'O orçamento não tem valor total.' };
 
+  const balance = await getQuoteInvoiceBalance(pool, quoteId, quoteTotal);
+  if (balance.remaining_to_invoice <= 0) {
+    return {
+      ok: false,
+      error: 'Este orçamento já está totalmente faturado. Não há saldo restante.',
+      balance,
+    };
+  }
+
   let resolved;
   try {
-    resolved = resolveInvoiceAmount(quoteTotal, body);
+    resolved = resolveInvoiceAmount(quoteTotal, body, balance.remaining_to_invoice);
   } catch (e) {
     return { ok: false, error: e.message };
   }
   if (resolved.amount <= 0) return { ok: false, error: 'Valor do invoice inválido.' };
 
-  const invoiceNumber = await nextInvoiceNumber(pool);
+  if (resolved.amount > balance.remaining_to_invoice + 0.009) {
+    return {
+      ok: false,
+      error: `O valor ($${resolved.amount.toFixed(2)}) excede o saldo restante ($${balance.remaining_to_invoice.toFixed(2)}).`,
+      balance,
+    };
+  }
+
+  const quoteNum = ctx.quote.quote_number;
+  if (!quoteNum || !String(quoteNum).trim()) {
+    return { ok: false, error: 'Orçamento sem número. Guarde o orçamento antes de emitir invoice.' };
+  }
+
+  let invoiceNumber;
+  try {
+    invoiceNumber = await nextInvoiceNumberForQuote(pool, quoteNum);
+  } catch (e) {
+    return { ok: false, error: e.message || 'Não foi possível gerar o número do invoice.' };
+  }
+
   const dueDate = body.due_date ? String(body.due_date).slice(0, 10) : defaultDueDate(14);
   const paymentInstructions =
     body.payment_instructions != null && String(body.payment_instructions).trim()
@@ -142,7 +224,8 @@ export async function createQuoteInvoice(pool, quoteId, body, userId) {
   if (!gen.ok) return gen;
 
   const [rows] = await pool.query('SELECT * FROM quote_invoices WHERE id = ? LIMIT 1', [invoiceId]);
-  return { ok: true, data: mapInvoiceRow(rows[0]) };
+  const nextBalance = await getQuoteInvoiceBalance(pool, quoteId, quoteTotal);
+  return { ok: true, data: mapInvoiceRow(rows[0]), balance: nextBalance };
 }
 
 export async function generateAndStoreInvoicePdf(pool, invoiceId) {
@@ -160,6 +243,17 @@ export async function generateAndStoreInvoicePdf(pool, invoiceId) {
   const ctx = await loadQuoteContext(pool, inv.quote_id);
   if (!ctx) return { ok: false, error: 'Quote not found' };
 
+  const [priorRows] = await pool.query(
+    `SELECT COALESCE(SUM(amount), 0) AS prior
+     FROM quote_invoices
+     WHERE quote_id = ? AND id != ? AND LOWER(COALESCE(status, '')) != 'void'`,
+    [inv.quote_id, invoiceId]
+  );
+  const previously_invoiced = roundMoney(priorRows[0]?.prior || 0);
+  const quoteTotal = roundMoney(Number(ctx.quote.total_amount ?? inv.quote_total) || 0);
+  const thisAmt = roundMoney(inv.amount);
+  const remaining_after = roundMoney(Math.max(0, quoteTotal - previously_invoiced - thisAmt));
+
   const pdfBuf = await buildInvoicePdfBuffer({
     invoice: inv,
     quote: ctx.quote,
@@ -168,6 +262,11 @@ export async function generateAndStoreInvoicePdf(pool, invoiceId) {
       name: inv.customer_name || ctx.quote.customer_name,
       email: inv.customer_email || ctx.quote.customer_email,
       phone: inv.customer_phone || ctx.quote.customer_phone,
+    },
+    balance: {
+      previously_invoiced,
+      remaining_after,
+      quote_total: quoteTotal,
     },
   });
   await pool.execute('UPDATE quote_invoices SET pdf_blob = ? WHERE id = ?', [pdfBuf, invoiceId]);
@@ -195,7 +294,10 @@ export async function mailQuoteInvoice(pool, invoiceId, emailOpts = {}) {
   const inv = rows[0];
   const email = String(emailOpts.to || inv.customer_email || '').trim();
   if (!email) {
-    return { ok: false, error: 'E-mail do cliente em falta. Associe um cliente com e-mail ou indique o destinatário.' };
+    return {
+      ok: false,
+      error: 'E-mail do cliente em falta. Associe um cliente com e-mail ou indique o destinatário.',
+    };
   }
 
   const pdf = await getInvoicePdfBuffer(pool, invoiceId);

@@ -847,11 +847,11 @@ async function showNewVisitModal() {
     if (!currentLead) return;
     if (typeof window.sfOpenLeadVisitInDeviceCalendar === 'function') {
         try {
-            await window.sfOpenLeadVisitInDeviceCalendar(currentLead);
-            return;
+            const ok = window.sfOpenLeadVisitInDeviceCalendar(currentLead);
+            if (ok) return;
         } catch (err) {
             if (typeof crmNotify === 'function') {
-                crmNotify(err.message || 'Nao foi possivel abrir o calendario.', 'error');
+                crmNotify(err.message || 'Não foi possível abrir o calendário.', 'error');
             }
         }
     }

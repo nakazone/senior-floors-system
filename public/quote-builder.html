@@ -1892,6 +1892,7 @@
                 <button type="button" id="btnOpenInvoiceModal" class="btn btn-sm btn-secondary">Emitir</button>
               </div>
               <p class="text-xs text-slate-500 mb-2">Cobrança ao cliente após aprovação do orçamento.</p>
+              <p id="quoteInvoiceBalance" class="text-xs text-slate-600 mb-2 hidden"></p>
               <div id="quoteInvoicesList" class="qb-invoices-list"></div>
             </div>
 
@@ -1932,10 +1933,12 @@
     <div class="qb-modal__panel">
       <h2 id="qbInvoiceModalTitle" class="qb-modal__title">Emitir invoice</h2>
       <p class="qb-modal__sub text-sm text-slate-500">Fatura de pagamento ao cliente com base no orçamento aprovado.</p>
+      <p id="invBalanceHint" class="text-sm text-slate-600 mb-3 hidden"></p>
       <form id="qbInvoiceForm" class="qb-invoice-form">
         <label class="qb-invoice-form__label">Tipo de cobrança
           <select id="invType" class="qb-invoice-form__input">
             <option value="deposit" selected>Depósito (%)</option>
+            <option value="final">Saldo restante</option>
             <option value="full">Valor total</option>
             <option value="progress">Parcela / progresso</option>
             <option value="custom">Valor personalizado</option>
@@ -1944,6 +1947,7 @@
         <label class="qb-invoice-form__label" id="invDepositWrap">Percentagem do depósito
           <input type="number" id="invDepositPct" class="qb-invoice-form__input" min="1" max="100" value="50" />
         </label>
+        <p id="invFinalHint" class="text-xs text-slate-500 hidden mb-2">O valor será o saldo ainda não faturado do orçamento.</p>
         <label class="qb-invoice-form__label hidden" id="invCustomWrap">Valor ($)
           <input type="number" id="invCustomAmount" class="qb-invoice-form__input" min="0" step="0.01" />
         </label>

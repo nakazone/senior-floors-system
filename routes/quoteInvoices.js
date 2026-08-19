@@ -11,8 +11,8 @@ export async function listQuoteInvoices(req, res) {
     if (!quoteId) return res.status(400).json({ success: false, error: 'Invalid quote id' });
     const pool = await getDBConnection();
     if (!pool) return res.status(503).json({ success: false, error: 'Database not available' });
-    const data = await inv.listInvoicesForQuote(pool, quoteId);
-    res.json({ success: true, data });
+    const { invoices, balance } = await inv.listInvoicesForQuote(pool, quoteId);
+    res.json({ success: true, data: invoices, balance });
   } catch (e) {
     console.error('listQuoteInvoices:', e);
     res.status(500).json({ success: false, error: e.message });
@@ -26,8 +26,8 @@ export async function postQuoteInvoice(req, res) {
     const pool = await getDBConnection();
     if (!pool) return res.status(503).json({ success: false, error: 'Database not available' });
     const r = await inv.createQuoteInvoice(pool, quoteId, req.body || {}, req.session?.userId);
-    if (!r.ok) return res.status(400).json({ success: false, error: r.error });
-    res.status(201).json({ success: true, data: r.data });
+    if (!r.ok) return res.status(400).json({ success: false, error: r.error, balance: r.balance });
+    res.status(201).json({ success: true, data: r.data, balance: r.balance });
   } catch (e) {
     console.error('postQuoteInvoice:', e);
     res.status(500).json({ success: false, error: e.message });

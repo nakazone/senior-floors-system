@@ -1,7 +1,8 @@
 /**
  * Abrir visita de lead no calendario do dispositivo.
- * Safari (Mac/iPad): data URI sincrona (abre Calendario Apple).
- * Chrome/outros: escolha Apple (data URI) ou Google Calendar.
+ * iPad/iPhone/Safari: GET sincrona a /calendar.ics no gesto do toque
+ * (data: URI e fetch+assign sao bloqueados pelo Safari).
+ * Android / Chrome desktop: Google Calendar ou escolha.
  */
 (function (global) {
   'use strict';
@@ -87,9 +88,11 @@
 
   function isAppleMobile() {
     const ua = navigator.userAgent || '';
+    const plat = navigator.platform || '';
     return (
       /iPad|iPhone|iPod/i.test(ua) ||
-      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+      (plat === 'MacIntel' && navigator.maxTouchPoints > 1) ||
+      (/Macintosh|Mac OS X/i.test(ua) && navigator.maxTouchPoints > 1)
     );
   }
 
@@ -102,6 +105,37 @@
   function isSafariBrowser() {
     const ua = navigator.userAgent || '';
     return /Safari/i.test(ua) && !/Chrome|Chromium|Edg|OPR|OPiOS|FxiOS|CriOS/i.test(ua);
+  }
+
+  function isStandaloneDisplay() {
+    return (
+      (typeof navigator !== 'undefined' && navigator.standalone === true) ||
+      (typeof global.matchMedia === 'function' &&
+        global.matchMedia('(display-mode: standalone)').matches)
+    );
+  }
+
+  function leadVisitIcsUrl(leadId) {
+    return '/api/leads/' + encodeURIComponent(String(leadId)) + '/calendar.ics';
+  }
+
+  /**
+   * Tem de correr no mesmo tick do clique. Nao usar await antes disto no iPad.
+   */
+  function openIcsViaUserGesture(leadId) {
+    const url = leadVisitIcsUrl(leadId);
+    if (isAppleMobile() || isStandaloneDisplay()) {
+      global.location.assign(url);
+      return true;
+    }
+    const a = document.createElement('a');
+    a.href = url;
+    a.target = '_blank';
+    a.rel = 'noopener';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    return true;
   }
 
   async function fetchLeadIcsText(leadId) {
@@ -229,33 +263,11 @@
     if (lead && lead.id != null) void prefetchLeadVisitIcs(lead.id);
   }
 
-  async function onChooserAppleClick() {
+  function onChooserAppleClick() {
     const lead = chooserLead;
-    const btn = document.getElementById('sfCalendarChooserApple');
     if (!lead || lead.id == null) return;
-    if (openAppleCalendarFromCache(lead.id)) {
-      closeCalendarChooser();
-      return;
-    }
-    if (btn) {
-      btn.disabled = true;
-      btn.textContent = 'A preparar\u2026';
-    }
-    try {
-      await ensureIcsCached(lead.id);
-      closeCalendarChooser();
-      if (!openAppleCalendarFromCache(lead.id) && btn) {
-        btn.disabled = false;
-        btn.textContent = 'Calend\u00e1rio Apple';
-        alert('N\u00e3o foi poss\u00edvel abrir o Calend\u00e1rio Apple. Tente Google Calendar.');
-      }
-    } catch (err) {
-      if (btn) {
-        btn.disabled = false;
-        btn.textContent = 'Calend\u00e1rio Apple';
-      }
-      alert('Erro ao preparar evento: ' + (err.message || 'tente novamente'));
-    }
+    closeCalendarChooser();
+    openIcsViaUserGesture(lead.id);
   }
 
   function onChooserGoogleClick() {
@@ -268,14 +280,10 @@
   /**
    * @param {object} lead
    * @param {{ start?: Date, durationMinutes?: number }} [options]
-   * @returns {Promise<boolean>}
+   * @returns {boolean}
    */
-  async function openLeadVisitInDeviceCalendar(lead, options) {
+  function openLeadVisitInDeviceCalendar(lead, options) {
     if (!lead) return false;
-
-    if (lead.id != null && lead.id !== '') {
-      void prefetchLeadVisitIcs(lead.id);
-    }
 
     try {
       if (isAndroidDevice()) {
@@ -283,18 +291,14 @@
         return true;
       }
 
-      const canSyncApple =
-        lead.id != null && lead.id !== '' && (isSafariBrowser() || isAppleMobile());
-
-      if (canSyncApple) {
-        if (!getCachedIcs(lead.id)) {
-          await ensureIcsCached(lead.id);
-        }
-        if (openAppleCalendarFromCache(lead.id)) {
-          return true;
-        }
+      const appleNative = isSafariBrowser() || isAppleMobile();
+      if (appleNative && lead.id != null && lead.id !== '') {
+        return openIcsViaUserGesture(lead.id);
       }
 
+      if (lead.id != null && lead.id !== '') {
+        void prefetchLeadVisitIcs(lead.id);
+      }
       openCalendarChooser(lead, options);
       return true;
     } catch (err) {
