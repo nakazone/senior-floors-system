@@ -2726,8 +2726,8 @@
     }
     const builder_id =
       party === 'builder' ? parseInt($('quoteBuilderSelect')?.value, 10) || null : null;
-    const jobName = String($('quoteJobName')?.value || '').trim();
-    const jobAddr = String($('quoteJobAddress')?.value || '').trim();
+    const jobName = party === 'builder' ? String($('quoteJobName')?.value || '').trim() : '';
+    const jobAddr = party === 'builder' ? String($('quoteJobAddress')?.value || '').trim() : '';
     const base = {
       customer_id: parseInt($('customerId').value, 10) || null,
       quote_party: party,

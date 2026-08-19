@@ -293,7 +293,7 @@ export async function buildInvoicePdfBuffer(opts) {
     drawTxt(String(customer.phone || quote.customer_phone || quote.builder_phone), { x: margin, y, size: 8.5, font, color: PAL.lineMuted });
     y -= lineH;
   }
-  if (quote.job_name || quote.job_address) {
+  if (isBuilderQuote && (quote.job_name || quote.job_address)) {
     y -= 8;
     drawTxt('Project', { x: margin, y, size: 9, font: fontBold, color: PAL.secondaryDark });
     y -= lineH;

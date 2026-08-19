@@ -304,8 +304,8 @@
     );
     const email = escapeHtml(q.customer_email || q.builder_email || '');
     const phone = escapeHtml(q.customer_phone || q.builder_phone || '');
-    const jobName = q.job_name ? escapeHtml(String(q.job_name)) : '';
-    const jobAddr = q.job_address ? escapeHtml(String(q.job_address)) : '';
+    const jobName = isBuilder && q.job_name ? escapeHtml(String(q.job_name)) : '';
+    const jobAddr = isBuilder && q.job_address ? escapeHtml(String(q.job_address)) : '';
     const issue = q.issue_date ? String(q.issue_date).slice(0, 10) : '';
     const exp = q.expiration_date ? String(q.expiration_date).slice(0, 10) : '';
     const sub = Number(q.subtotal) || 0;
