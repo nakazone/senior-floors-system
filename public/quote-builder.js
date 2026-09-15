@@ -1999,6 +1999,92 @@
     }, 180);
   }
 
+  let qbServiceFieldScrollTimers = [];
+  let qbServiceViewportWired = false;
+
+  function clearServiceFieldScrollTimers() {
+    qbServiceFieldScrollTimers.forEach((id) => clearTimeout(id));
+    qbServiceFieldScrollTimers = [];
+  }
+
+  function getBuilderMainScroller() {
+    const nameEl = $('modalServiceName');
+    if (nameEl) {
+      const main = nameEl.closest('.builder-main');
+      if (main) return main;
+    }
+    return document.querySelector('.builder-main');
+  }
+
+  /** Mantém o campo Nome do serviço acima do teclado virtual / barra de ações. */
+  function scrollServiceNameIntoView() {
+    const el = $('modalServiceName');
+    if (!el || document.activeElement !== el) return;
+    const scroller = getBuilderMainScroller();
+    if (!scroller) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+      return;
+    }
+
+    const vv = window.visualViewport;
+    const layoutH = window.innerHeight || document.documentElement.clientHeight || 0;
+    const vvTop = vv ? vv.offsetTop : 0;
+    const vvH = vv ? vv.height : layoutH;
+    const keyboardOverlap = Math.max(0, layoutH - (vvTop + vvH));
+    const actionBar = $('qbActionBar');
+    const actionBarH = actionBar && !actionBar.classList.contains('hidden')
+      ? actionBar.getBoundingClientRect().height
+      : 0;
+    const bottomReserve = Math.max(keyboardOverlap, actionBarH, 0) + 20;
+    const topReserve = 12;
+
+    const visibleTop = vvTop + topReserve;
+    const visibleBottom = vvTop + vvH - bottomReserve;
+    const visibleMid = visibleTop + Math.max(48, (visibleBottom - visibleTop) * 0.38);
+
+    const rect = el.getBoundingClientRect();
+    const fieldMid = rect.top + rect.height / 2;
+    // Também reserva espaço para o dropdown logo abaixo do campo
+    const dropdownRoom = 140;
+    const needsUp =
+      rect.bottom + dropdownRoom > visibleBottom ||
+      rect.top < visibleTop ||
+      fieldMid > visibleMid + 24;
+
+    if (!needsUp && rect.top >= visibleTop) return;
+
+    const delta = fieldMid - visibleMid;
+    if (Math.abs(delta) < 8) return;
+    scroller.scrollBy({ top: delta, behavior: 'smooth' });
+  }
+
+  function ensureServiceNameVisibleForKeyboard() {
+    clearServiceFieldScrollTimers();
+    const run = () => scrollServiceNameIntoView();
+    requestAnimationFrame(run);
+    // iOS/iPadOS abre o teclado com atraso — repetir após animação
+    [120, 280, 450, 700].forEach((ms) => {
+      qbServiceFieldScrollTimers.push(setTimeout(run, ms));
+    });
+  }
+
+  function onServiceNameVisualViewportChange() {
+    if (document.activeElement !== $('modalServiceName')) return;
+    scrollServiceNameIntoView();
+  }
+
+  function wireServiceNameKeyboardScroll() {
+    if (qbServiceViewportWired) return;
+    qbServiceViewportWired = true;
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', onServiceNameVisualViewportChange);
+      window.visualViewport.addEventListener('scroll', onServiceNameVisualViewportChange);
+    }
+    window.addEventListener('orientationchange', () => {
+      if (document.activeElement === $('modalServiceName')) ensureServiceNameVisibleForKeyboard();
+    });
+  }
+
   function openAddItemPanel(idx) {
     const panel = $('addItemPanel');
     const modalError = $('modalError');
@@ -2019,8 +2105,8 @@
     scheduleModalServiceSearch();
     const nameEl = $('modalServiceName');
     if (nameEl) {
-      nameEl.focus();
-      panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      nameEl.focus({ preventScroll: true });
+      ensureServiceNameVisibleForKeyboard();
     }
     wireMarginPricingFields();
   }
@@ -3103,14 +3189,26 @@
       modalServiceName.setAttribute('aria-autocomplete', 'list');
       modalServiceName.setAttribute('aria-expanded', 'false');
       modalServiceName.setAttribute('aria-controls', 'modalServiceResults');
-      modalServiceName.addEventListener('focus', scheduleModalServiceSearch);
+      wireServiceNameKeyboardScroll();
+      modalServiceName.addEventListener('focus', () => {
+        scheduleModalServiceSearch();
+        ensureServiceNameVisibleForKeyboard();
+      });
+      modalServiceName.addEventListener('blur', () => {
+        clearServiceFieldScrollTimers();
+      });
       modalServiceName.addEventListener('input', () => {
         if (qbSuppressServiceNameInput) return;
         modalSelectedCatalogRow = null;
         modalServiceActiveIndex = -1;
         scheduleModalServiceSearch();
+        scrollServiceNameIntoView();
       });
       modalServiceName.addEventListener('keydown', handleModalServiceNameKeydown);
+      modalServiceName.addEventListener('touchstart', () => {
+        // Prepara scroll antes do teclado no iPad
+        setTimeout(() => ensureServiceNameVisibleForKeyboard(), 50);
+      }, { passive: true });
     }
     const qtyEl = $('modalServiceQty');
     if (qtyEl) {
