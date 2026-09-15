@@ -19,6 +19,23 @@ export async function listQuoteInvoices(req, res) {
   }
 }
 
+export async function listAllQuoteInvoicesHandler(req, res) {
+  try {
+    const pool = await getDBConnection();
+    if (!pool) return res.status(503).json({ success: false, error: 'Database not available' });
+    const result = await inv.listAllQuoteInvoices(pool, {
+      status: req.query.status,
+      q: req.query.q || req.query.search,
+      page: req.query.page,
+      limit: req.query.limit,
+    });
+    res.json({ success: true, ...result });
+  } catch (e) {
+    console.error('listAllQuoteInvoices:', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+}
+
 export async function postQuoteInvoice(req, res) {
   try {
     const quoteId = parseInt(req.params.id, 10);
@@ -108,6 +125,7 @@ export async function deleteQuoteInvoiceHandler(req, res) {
 }
 
 export function registerQuoteInvoiceRoutes(app) {
+  app.get('/api/quote-invoices', requireAuth, requirePermission('quotes.view'), listAllQuoteInvoicesHandler);
   app.get('/api/quotes/:id/invoices', requireAuth, requirePermission('quotes.view'), listQuoteInvoices);
   app.post('/api/quotes/:id/invoices', requireAuth, requirePermission('quotes.edit'), postQuoteInvoice);
   app.get('/api/quote-invoices/:id/pdf', requireAuth, requirePermission('quotes.view'), streamQuoteInvoicePdf);

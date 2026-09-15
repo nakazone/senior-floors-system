@@ -42,6 +42,7 @@
         <nav class="mobile-more-sheet__nav" aria-label="Mais módulos">
             <a href="marketing.html" class="mobile-more-sheet__btn" data-crm-permission="reports.view"><span class="mobile-more-sheet__emoji" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" style="display:block;margin:0 auto;color:var(--text-dark)" aria-hidden="true"><path d="M3 11v2a1 1 0 001 1h2l4 9V4L6 11H4a1 1 0 00-1 1z"/><path d="M16 9a4 4 0 010 8"/><path d="M19 6a8 8 0 010 12"/></svg></span> Marketing</a>
             <button type="button" class="mobile-more-sheet__btn" data-page="leads" data-crm-permission="leads.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">📋</span> Leads</button>
+            <button type="button" class="mobile-more-sheet__btn" data-page="invoices" data-crm-permission="quotes.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">🧾</span> Invoices</button>
             <button type="button" class="mobile-more-sheet__btn" data-page="schedule" data-crm-permission="visits.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">📅</span> Agenda</button>
             <a href="projects.html" class="mobile-more-sheet__btn" data-crm-permission="projects.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">🔧</span> Projetos</a>
             <a href="financial.html" class="mobile-more-sheet__btn" data-crm-permission="contracts.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">💵</span> Financeiro</a>
@@ -132,6 +133,10 @@
                     <a href="#" class="nav-item" data-page="quotes" data-crm-permission="quotes.view">
                         <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>
                         Quotes
+                    </a>
+                    <a href="#" class="nav-item" data-page="invoices" data-crm-permission="quotes.view">
+                        <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/><path d="M12 18v-6"/><path d="M9 15h6"/></svg>
+                        Invoices
                     </a>
                     <a href="#" class="nav-item" data-page="schedule" data-crm-permission="visits.view">
                         <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/></svg>
@@ -1007,6 +1012,58 @@
                         <button id="nextPageQuotes" class="btn btn-secondary" onclick="changePageQuotes(1)">Next</button>
                     </div>
                 </div>
+
+                <!-- Invoices Page (sent client invoices) -->
+                <div id="invoicesPage" class="page-content" style="display: none;">
+                    <header class="crm-page-header">
+                        <div class="crm-page-header__titles">
+                            <h2 class="crm-page-header__title">Invoices</h2>
+                            <p class="crm-page-header__subtitle" id="invoicesListSubtitle">A carregar…</p>
+                        </div>
+                    </header>
+
+                    <div class="quotes-list-toolbar" role="region" aria-label="Busca e total de invoices">
+                        <input type="search" id="invoicesSearchInput" class="sf-quotes-search quotes-list-toolbar__search" placeholder="Buscar invoice, quote, cliente…" autocomplete="off" aria-label="Buscar invoices" />
+                        <div class="quotes-list-toolbar__total" aria-live="polite">
+                            <span class="quotes-list-toolbar__total-label">Total</span>
+                            <strong class="quotes-list-toolbar__total-value" id="invoicesFilterTotalAmount">$0.00</strong>
+                            <span class="quotes-list-toolbar__total-meta" id="invoicesTotalCountMeta"></span>
+                        </div>
+                    </div>
+
+                    <div class="quotes-filter-chips" role="toolbar" aria-label="Filtrar invoices">
+                        <button type="button" class="quotes-filter-chip quotes-filter-chip--active" data-invoices-filter="sent" onclick="setInvoicesFilter('sent')">Enviados</button>
+                        <button type="button" class="quotes-filter-chip" data-invoices-filter="paid" onclick="setInvoicesFilter('paid')">Pagos</button>
+                        <button type="button" class="quotes-filter-chip" data-invoices-filter="issued" onclick="setInvoicesFilter('issued')">Emitidos</button>
+                        <button type="button" class="quotes-filter-chip" data-invoices-filter="all" onclick="setInvoicesFilter('all')">Todos</button>
+                    </div>
+
+                    <div class="table-container">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Invoice #</th>
+                                    <th>Quote #</th>
+                                    <th>Client</th>
+                                    <th>Type</th>
+                                    <th>Amount</th>
+                                    <th>Status</th>
+                                    <th>Sent</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="invoicesTableBody">
+                                <tr><td colspan="8" class="text-center">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="pagination">
+                        <button id="prevPageInvoices" class="btn btn-secondary" onclick="changePageInvoices(-1)">Previous</button>
+                        <span id="pageInfoInvoices">Page 1</span>
+                        <button id="nextPageInvoices" class="btn btn-secondary" onclick="changePageInvoices(1)">Next</button>
+                    </div>
+                </div>
                 
                 <!-- Projects Page -->
                 <div id="projectsPage" class="page-content" style="display: none;">
@@ -1597,7 +1654,7 @@
     <script src="crm-command-palette.js"></script>
     <script src="notification-center.js"></script>
     <script src="marketing-dashboard.js"></script>
-    <script src="dashboard.js?v=20260819-ipad-layout"></script>
+    <script src="dashboard.js?v=20260915-invoices-page"></script>
     <script src="pipeline-stage-labels.js?v=20260915-followup-yellow"></script>
     <script src="lead-contact-links.js?v=20260915-all-stage-sms"></script>
     <script src="crm-address-autocomplete.js?v=20260528-pac-dismiss"></script>

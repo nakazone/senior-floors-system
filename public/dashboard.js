@@ -444,6 +444,7 @@ const MOBILE_PAGE_TITLES = {
     leads: 'Leads',
     customers: 'Clientes',
     quotes: 'Orçamentos',
+    invoices: 'Invoices',
     projects: 'Projetos',
     schedule: 'Agenda',
     financeiro: 'Financeiro',
@@ -455,6 +456,7 @@ const MOBILE_PAGE_TITLES = {
 const MOBILE_MORE_PAGES = new Set([
     'marketing',
     'leads',
+    'invoices',
     'projects',
     'schedule',
     'financeiro',
@@ -769,6 +771,11 @@ function showPage(pageName) {
             currentPage = 1;
             if (typeof updateQuotesFilterChipStyles === 'function') updateQuotesFilterChipStyles();
             loadQuotes();
+        }
+        else if (pageName === 'invoices') {
+            invoicesListPage = 1;
+            if (typeof updateInvoicesFilterChipStyles === 'function') updateInvoicesFilterChipStyles();
+            loadInvoices();
         }
         else if (pageName === 'projects') { currentPage = 1; loadProjects(); }
         else if (pageName === 'schedule') { 
@@ -2525,6 +2532,9 @@ window.submitClientForm = submitClientForm;
 // Quotes (pagination: não usar nome "quotesPage" — colide com id DOM #quotesPage e quebrava showPage)
 let quotesListPage = 1;
 let quotesListFilter = 'all';
+let invoicesListPage = 1;
+let invoicesListFilter = 'sent';
+let invoicesListSearchTimer = null;
 
 const QUOTES_FILTER_LABELS = {
     all: 'Todos',
@@ -2930,6 +2940,178 @@ async function openQuoteInvoicePdf(id, title, filename) {
     window.open(`/api/quotes/${qid}/invoice-pdf`, '_blank', 'noopener');
 }
 window.openQuoteInvoicePdf = openQuoteInvoicePdf;
+
+async function openClientInvoicePdf(invoiceId, title) {
+    const id = parseInt(String(invoiceId), 10);
+    if (!Number.isFinite(id) || id <= 0) return;
+    const pdfTitle = title || `Invoice #${id}`;
+    const url = `/api/quote-invoices/${id}/pdf`;
+    if (window.crmPdfViewer?.openFromUrl) {
+        await window.crmPdfViewer.openFromUrl(url, {
+            title: pdfTitle,
+            filename: `invoice-${id}.pdf`,
+        });
+        return;
+    }
+    window.open(url, '_blank', 'noopener');
+}
+window.openClientInvoicePdf = openClientInvoicePdf;
+
+function invoiceStatusBadgeHtml(status) {
+    const s = String(status || '').toLowerCase();
+    const labels = { issued: 'Emitido', sent: 'Enviado', paid: 'Pago', void: 'Anulado' };
+    const label = labels[s] || escapeHtmlCrm(status || '—');
+    const cls =
+        s === 'paid'
+            ? 'quote-status-badge quote-status-badge--approved'
+            : s === 'sent'
+              ? 'quote-status-badge quote-status-badge--sent'
+              : s === 'issued'
+                ? 'quote-status-badge quote-status-badge--draft'
+                : 'quote-status-badge';
+    return `<span class="${cls}">${label}</span>`;
+}
+
+function invoiceTypeLabel(type) {
+    const t = String(type || '').toLowerCase();
+    const map = {
+        deposit: 'Deposit',
+        progress: 'Progress',
+        final: 'Final',
+        full: 'Full',
+        other: 'Other',
+        remaining: 'Final',
+    };
+    return map[t] || type || '—';
+}
+
+function formatInvoiceListDate(raw) {
+    if (!raw) return '—';
+    try {
+        const d = new Date(raw);
+        if (Number.isNaN(d.getTime())) return String(raw).slice(0, 10);
+        return d.toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' });
+    } catch (_) {
+        return String(raw).slice(0, 10);
+    }
+}
+
+function updateInvoicesFilterChipStyles() {
+    document.querySelectorAll('[data-invoices-filter]').forEach((b) => {
+        b.classList.toggle(
+            'quotes-filter-chip--active',
+            b.getAttribute('data-invoices-filter') === invoicesListFilter
+        );
+    });
+}
+
+function setInvoicesFilter(f) {
+    invoicesListFilter = f && typeof f === 'string' ? f : 'sent';
+    invoicesListPage = 1;
+    updateInvoicesFilterChipStyles();
+    loadInvoices();
+}
+window.setInvoicesFilter = setInvoicesFilter;
+
+function changePageInvoices(delta) {
+    const next = invoicesListPage + (parseInt(delta, 10) || 0);
+    if (next < 1) return;
+    invoicesListPage = next;
+    loadInvoices();
+}
+window.changePageInvoices = changePageInvoices;
+
+async function loadInvoices() {
+    const tbody = document.getElementById('invoicesTableBody');
+    if (!tbody) return;
+    const subEl = document.getElementById('invoicesListSubtitle');
+    if (subEl) subEl.textContent = 'A carregar…';
+    tbody.innerHTML = '<tr><td colspan="8" class="text-center">A carregar…</td></tr>';
+
+    const searchEl = document.getElementById('invoicesSearchInput');
+    const q = searchEl ? String(searchEl.value || '').trim() : '';
+    let url = `/api/quote-invoices?page=${invoicesListPage}&limit=25&status=${encodeURIComponent(invoicesListFilter || 'sent')}`;
+    if (q) url += '&q=' + encodeURIComponent(q);
+
+    try {
+        const response = await fetch(url, { credentials: 'include' });
+        const data = await response.json();
+        if (!data.success) {
+            tbody.innerHTML = `<tr><td colspan="8" class="text-center">${escapeHtmlCrm(data.error || 'Erro ao carregar')}</td></tr>`;
+            if (subEl) subEl.textContent = 'Erro';
+            return;
+        }
+        const rows = Array.isArray(data.data) ? data.data : [];
+        const total = typeof data.total === 'number' ? data.total : rows.length;
+        const totalAmount = typeof data.total_amount === 'number' ? data.total_amount : 0;
+        const totalEl = document.getElementById('invoicesFilterTotalAmount');
+        const metaEl = document.getElementById('invoicesTotalCountMeta');
+        if (totalEl) {
+            totalEl.textContent =
+                '$' +
+                totalAmount.toLocaleString(undefined, {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                });
+        }
+        if (metaEl) metaEl.textContent = total === 1 ? '1 invoice' : `${total} invoices`;
+        if (subEl) {
+            subEl.textContent =
+                total === 0 ? 'Nenhum invoice' : total === 1 ? '1 invoice' : `${total} invoices`;
+        }
+
+        const pageInfo = document.getElementById('pageInfoInvoices');
+        const limit = data.limit || 25;
+        const pages = Math.max(1, Math.ceil(total / limit));
+        if (pageInfo) pageInfo.textContent = `Page ${invoicesListPage} / ${pages}`;
+        const prevBtn = document.getElementById('prevPageInvoices');
+        const nextBtn = document.getElementById('nextPageInvoices');
+        if (prevBtn) prevBtn.disabled = invoicesListPage <= 1;
+        if (nextBtn) nextBtn.disabled = invoicesListPage >= pages;
+
+        if (rows.length === 0) {
+            tbody.innerHTML =
+                '<tr><td colspan="8" class="text-center">Nenhum invoice enviado encontrado.</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = rows
+            .map((inv) => {
+                const invNum = escapeHtmlCrm(inv.invoice_number || String(inv.id));
+                const qNum = escapeHtmlCrm(inv.quote_number || '—');
+                const client = escapeHtmlCrm(inv.customer_name || '—');
+                const type = escapeHtmlCrm(invoiceTypeLabel(inv.invoice_type));
+                const amt = Number(inv.amount || 0).toLocaleString(undefined, {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                });
+                const sentAt = escapeHtmlCrm(formatInvoiceListDate(inv.email_sent_at || inv.created_at));
+                const pdfBtn = inv.has_pdf
+                    ? `<button type="button" class="btn btn-sm" onclick="event.stopPropagation(); openClientInvoicePdf(${inv.id})">PDF</button>`
+                    : '<span class="quotes-cell-muted">—</span>';
+                const openQuote =
+                    inv.quote_id != null
+                        ? `<a class="btn btn-sm btn-secondary" href="quote-builder.html?id=${encodeURIComponent(String(inv.quote_id))}">Quote</a>`
+                        : '';
+                return `<tr>
+                    <td>${invNum}</td>
+                    <td>${qNum}</td>
+                    <td title="${client}">${client}</td>
+                    <td>${type}</td>
+                    <td class="tabular-nums">$${amt}</td>
+                    <td>${invoiceStatusBadgeHtml(inv.status)}</td>
+                    <td>${sentAt}</td>
+                    <td class="quotes-cell-actions">${pdfBtn} ${openQuote}</td>
+                </tr>`;
+            })
+            .join('');
+    } catch (e) {
+        tbody.innerHTML =
+            '<tr><td colspan="8" class="text-center">Erro de rede ao carregar invoices.</td></tr>';
+        if (subEl) subEl.textContent = 'Erro';
+    }
+}
+window.loadInvoices = loadInvoices;
 
 async function generateQuotePdfFromList(id) {
     const qid = parseInt(String(id), 10);
@@ -3947,6 +4129,21 @@ document.addEventListener('DOMContentLoaded', () => {
     if (customersSearchInput) {
         customersSearchInput.addEventListener('search', () => {
             if (customersSearchInput.value === '') customersSearchClear();
+        });
+    }
+
+    const invoicesSearchInput = document.getElementById('invoicesSearchInput');
+    if (invoicesSearchInput) {
+        invoicesSearchInput.addEventListener('input', () => {
+            clearTimeout(invoicesListSearchTimer);
+            invoicesListSearchTimer = setTimeout(() => {
+                invoicesListPage = 1;
+                loadInvoices();
+            }, 300);
+        });
+        invoicesSearchInput.addEventListener('search', () => {
+            invoicesListPage = 1;
+            loadInvoices();
         });
     }
 

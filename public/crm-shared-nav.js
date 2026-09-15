@@ -66,6 +66,7 @@
       label: 'Operações',
       items: [
         { href: 'dashboard.html?page=quotes', label: 'Quotes', perm: 'quotes.view', page: 'quotes', iconKey: 'quotes' },
+        { href: 'dashboard.html?page=invoices', label: 'Invoices', perm: 'quotes.view', page: 'invoices', iconKey: 'quotes' },
         { href: 'dashboard.html?page=schedule', label: 'Schedule', perm: 'visits.view', page: 'schedule', iconKey: 'schedule' },
         { href: 'projects.html', label: 'Projetos', perm: 'projects.view', page: '', iconKey: 'projects' },
         {

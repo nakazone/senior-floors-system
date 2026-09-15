@@ -108,6 +108,91 @@ export async function listInvoicesForQuote(pool, quoteId) {
 }
 
 /**
+ * Lista global de invoices. Por omissão só enviados (status sent/paid ou email_sent_at).
+ * @param {object} pool
+ * @param {{ status?: string, q?: string, page?: number, limit?: number }} opts
+ */
+export async function listAllQuoteInvoices(pool, opts = {}) {
+  const page = Math.max(1, parseInt(opts.page, 10) || 1);
+  const limit = Math.min(100, Math.max(1, parseInt(opts.limit, 10) || 25));
+  const offset = (page - 1) * limit;
+  const statusRaw = String(opts.status || 'sent').trim().toLowerCase();
+  const q = String(opts.q || '').trim();
+
+  const where = ['1=1'];
+  const params = [];
+
+  if (statusRaw === 'sent') {
+    where.push(
+      `(LOWER(COALESCE(qi.status, '')) IN ('sent', 'paid') OR qi.email_sent_at IS NOT NULL)`
+    );
+  } else if (statusRaw === 'paid') {
+    where.push(`LOWER(COALESCE(qi.status, '')) = 'paid'`);
+  } else if (statusRaw === 'issued') {
+    where.push(`LOWER(COALESCE(qi.status, '')) = 'issued'`);
+  } else if (statusRaw === 'all') {
+    where.push(`LOWER(COALESCE(qi.status, '')) != 'void'`);
+  } else if (statusRaw) {
+    where.push(`LOWER(COALESCE(qi.status, '')) = ?`);
+    params.push(statusRaw);
+  }
+
+  if (q) {
+    const like = `%${q.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_')}%`;
+    where.push(
+      `(qi.invoice_number LIKE ? OR q.quote_number LIKE ? OR c.name LIKE ? OR l.name LIKE ? OR c.email LIKE ?)`
+    );
+    params.push(like, like, like, like, like);
+  }
+
+  const whereSql = where.join(' AND ');
+
+  const [[countRow]] = await pool.query(
+    `SELECT COUNT(*) AS total, COALESCE(SUM(qi.amount), 0) AS total_amount
+     FROM quote_invoices qi
+     LEFT JOIN quotes q ON q.id = qi.quote_id
+     LEFT JOIN customers c ON c.id = COALESCE(qi.customer_id, q.customer_id)
+     LEFT JOIN leads l ON l.id = q.lead_id
+     WHERE ${whereSql}`,
+    params
+  );
+
+  const [rows] = await pool.query(
+    `SELECT qi.id, qi.quote_id, qi.project_id, qi.customer_id, qi.invoice_number, qi.invoice_type,
+            qi.amount, qi.quote_total, qi.due_date, qi.status, qi.payment_instructions, qi.notes,
+            qi.email_sent_at, qi.paid_at, qi.created_at,
+            (qi.pdf_blob IS NOT NULL AND LENGTH(qi.pdf_blob) > 0) AS has_pdf,
+            q.quote_number,
+            COALESCE(c.name, l.name) AS customer_name,
+            COALESCE(c.email, l.email) AS customer_email
+     FROM quote_invoices qi
+     LEFT JOIN quotes q ON q.id = qi.quote_id
+     LEFT JOIN customers c ON c.id = COALESCE(qi.customer_id, q.customer_id)
+     LEFT JOIN leads l ON l.id = q.lead_id
+     WHERE ${whereSql}
+     ORDER BY COALESCE(qi.email_sent_at, qi.created_at) DESC, qi.id DESC
+     LIMIT ? OFFSET ?`,
+    [...params, limit, offset]
+  );
+
+  const data = rows.map((r) => ({
+    ...mapInvoiceRow({ ...r, pdf_blob: r.has_pdf ? Buffer.from([1]) : null }),
+    has_pdf: !!r.has_pdf,
+    quote_number: r.quote_number || null,
+    customer_name: r.customer_name || null,
+    customer_email: r.customer_email || null,
+  }));
+
+  return {
+    data,
+    total: Number(countRow?.total || 0),
+    total_amount: Number(countRow?.total_amount || 0),
+    page,
+    limit,
+  };
+}
+
+/**
  * @param {number} quoteTotal
  * @param {object} body
  * @param {number} remainingToInvoice
