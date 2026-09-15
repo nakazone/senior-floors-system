@@ -191,7 +191,11 @@
 
   /* Bottom nav 5 colunas: Home | Quotes | Clients | FAB | Mais */
   .dashboard-app-body.sf-mobile-shell .sf-bottom-nav.mobile-tab-bar {
-    position: relative;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1040;
     display: grid;
     grid-template-columns: repeat(5, minmax(0, 1fr));
     align-items: end;
