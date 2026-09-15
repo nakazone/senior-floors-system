@@ -134,7 +134,7 @@ async function loadPipelineStages() {
             { id: 1, name: 'New Lead', slug: 'new_lead', color: '#3498db', order_num: 1 },
             { id: 2, name: 'Meeting Scheduled', slug: 'meeting_scheduled', color: '#90EE90', order_num: 2 },
             { id: 3, name: 'Quote Sent', slug: 'quote_sent', color: '#9b59b6', order_num: 3 },
-            { id: 4, name: 'Follow Up', slug: 'follow_up_1', color: '#16a085', order_num: 4 },
+            { id: 4, name: 'Follow Up', slug: 'follow_up_1', color: '#F1C40F', order_num: 4 },
             { id: 5, name: 'Stand By', slug: 'stand_by', color: '#f39c12', order_num: 5 },
             { id: 6, name: 'Won', slug: 'won', color: '#27ae60', order_num: 6 },
             { id: 7, name: 'Lost', slug: 'lost', color: '#c0392b', order_num: 7 },
@@ -146,7 +146,7 @@ async function loadPipelineStages() {
             { id: 1, name: 'New Lead', slug: 'new_lead', color: '#3498db', order_num: 1 },
             { id: 2, name: 'Meeting Scheduled', slug: 'meeting_scheduled', color: '#90EE90', order_num: 2 },
             { id: 3, name: 'Quote Sent', slug: 'quote_sent', color: '#9b59b6', order_num: 3 },
-            { id: 4, name: 'Follow Up', slug: 'follow_up_1', color: '#16a085', order_num: 4 },
+            { id: 4, name: 'Follow Up', slug: 'follow_up_1', color: '#F1C40F', order_num: 4 },
             { id: 5, name: 'Stand By', slug: 'stand_by', color: '#f39c12', order_num: 5 },
             { id: 6, name: 'Won', slug: 'won', color: '#27ae60', order_num: 6 },
             { id: 7, name: 'Lost', slug: 'lost', color: '#c0392b', order_num: 7 },
@@ -520,7 +520,7 @@ function renderKanbanBoard() {
         column.dataset.stageSlug = stage.slug || '';
 
         const stageCardsId = kanbanStageDomId(stage);
-        const headerLight = stage.slug === 'meeting_scheduled';
+        const headerLight = stage.slug === 'meeting_scheduled' || stage.slug === 'follow_up_1';
 
         column.innerHTML = `
             <div class="kanban-column-header${headerLight ? ' kanban-column-header--light' : ''}" style="background: ${stage.color || '#3498db'}">
@@ -763,13 +763,17 @@ function renderKanbanCard(lead) {
               )
             : '';
     const originLogo = kanbanOriginLogoHtml(lead);
+    const deleteBtn = `<button type="button" class="btn-lead-delete-kanban" onclick="event.stopPropagation(); if (typeof deleteLead === 'function') deleteLead(${lead.id});" title="Excluir lead" aria-label="Excluir lead">✕</button>`;
 
     return `
         <div class="kanban-card kanban-card--compact kanban-card--open-sheet" data-lead-id="${lead.id}" role="button" tabindex="0" onclick="viewLead(${lead.id}, event)" title="Ver detalhes do lead">
             <div class="kanban-card-top">
                 ${originLogo}
                 <span class="kanban-card-title-btn">${name}</span>
-                ${kanbanPriorityMarkup(lead.priority)}
+                <span class="kanban-card-actions">
+                    ${kanbanPriorityMarkup(lead.priority)}
+                    ${deleteBtn}
+                </span>
             </div>
             <div class="kanban-card-meta">
                 ${emailRow}

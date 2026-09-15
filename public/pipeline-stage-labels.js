@@ -19,7 +19,7 @@
     new_lead: { color: '#3498db', order_num: 1 },
     meeting_scheduled: { color: '#90EE90', order_num: 2 },
     quote_sent: { color: '#9b59b6', order_num: 3 },
-    follow_up_1: { color: '#16a085', order_num: 4 },
+    follow_up_1: { color: '#F1C40F', order_num: 4 },
     stand_by: { color: '#f39c12', order_num: 5 },
     won: { color: '#27ae60', order_num: 6 },
     lost: { color: '#c0392b', order_num: 7 },

@@ -37,7 +37,7 @@ const KANBAN_V9_STAGE_DEFS = {
   new_lead: { name: 'New Lead', order_num: 1, color: '#3498db', is_closed: 0 },
   meeting_scheduled: { name: 'Meeting Scheduled', order_num: 2, color: '#90EE90', is_closed: 0 },
   quote_sent: { name: 'Quote Sent', order_num: 3, color: '#9b59b6', is_closed: 0 },
-  follow_up_1: { name: 'Follow Up', order_num: 4, color: '#16a085', is_closed: 0 },
+  follow_up_1: { name: 'Follow Up', order_num: 4, color: '#F1C40F', is_closed: 0 },
   stand_by: { name: 'Stand By', order_num: 5, color: '#f39c12', is_closed: 0 },
   won: { name: 'Won', order_num: 6, color: '#27ae60', is_closed: 1 },
   lost: { name: 'Lost', order_num: 7, color: '#c0392b', is_closed: 1 },

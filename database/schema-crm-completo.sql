@@ -363,7 +363,7 @@ INSERT IGNORE INTO `pipeline_stages` (`id`, `name`, `slug`, `description`, `orde
 (1, 'New Lead', 'new_lead', 'Lead novo — primeiro contacto pendente', 1, '#3498db', 24, 0),
 (2, 'Meeting Scheduled', 'meeting_scheduled', 'Reunião ou visita agendada', 2, '#90EE90', 72, 0),
 (3, 'Quote Sent', 'quote_sent', 'Orçamento enviado', 3, '#9b59b6', 96, 0),
-(4, 'Follow Up', 'follow_up_1', 'Follow-up', 4, '#16a085', 72, 0),
+(4, 'Follow Up', 'follow_up_1', 'Follow-up', 4, '#F1C40F', 72, 0),
 (5, 'Stand By', 'stand_by', 'Em espera', 5, '#f39c12', 48, 0),
 (6, 'Won', 'won', 'Ganho', 6, '#27ae60', NULL, 1),
 (7, 'Lost', 'lost', 'Perdido', 7, '#c0392b', NULL, 1);

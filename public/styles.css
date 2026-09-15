@@ -1215,21 +1215,30 @@ input.score-auto {
     border-color: #962d22;
 }
 
+.kanban-card-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
 .kanban-card-actions .btn-lead-delete-kanban {
     background: transparent;
     border: 1px solid #e6b8b8;
     color: #c0392b;
     border-radius: 4px;
-    padding: 2px 8px;
+    padding: 1px 6px;
     cursor: pointer;
-    font-size: 0.85rem;
+    font-size: 0.75rem;
     line-height: 1.2;
+    opacity: 0.85;
 }
 
 .kanban-card-actions .btn-lead-delete-kanban:hover {
     background: #c0392b;
     color: #fff;
     border-color: #962d22;
+    opacity: 1;
 }
 
 .visit-card-date-icon {
