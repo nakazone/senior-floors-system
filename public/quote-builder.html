@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Quote — Senior Floors CRM</title>
   <link rel="icon" type="image/png" href="/assets/SeniorFloors.png" />
-  <link rel="stylesheet" href="styles.css?v=20260819-menu-fix-v2" />
+  <link rel="stylesheet" href="styles.css?v=20260915-qb-action-bar" />
   <link rel="stylesheet" href="design-system.css?v=20260819-menu-fix-v2" />
   <link rel="stylesheet" href="crm-shared-nav.css?v=12" />
   <script src="https://cdn.tailwindcss.com"></script>
@@ -1310,38 +1310,52 @@
       left: var(--crm-sidebar-width, 264px);
       right: 0;
       bottom: 0;
-      z-index: 900;
+      /* Acima do #mobileOverlay (1080) para taps no iPad; abaixo do sidebar aberto (1100) */
+      z-index: 1090;
       background: #fff;
       border-top: 1px solid #e2e8f0;
       box-shadow: 0 -6px 28px rgba(15, 23, 42, 0.1);
       padding-bottom: env(safe-area-inset-bottom, 0px);
+      pointer-events: auto;
+      isolation: isolate;
     }
     .qb-action-bar__inner {
-      display: flex;
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
       width: 100%;
       max-width: 100%;
       min-height: 3.25rem;
     }
     .qb-action-bar .btn {
-      flex: 1 1 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex: unset;
       min-width: 0;
+      min-height: 48px;
       margin: 0;
       border: none;
       border-radius: 0;
       border-right: 1px solid #e2e8f0;
-      padding: 0.9rem 0.65rem;
+      padding: 0.75rem 0.5rem;
       font-size: 0.8125rem;
       font-weight: 600;
       line-height: 1.2;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+      position: relative;
+      z-index: 1;
     }
     .qb-action-bar .btn:last-child {
       border-right: none;
     }
+    .qb-action-bar .btn .qb-action-bar__short {
+      display: none;
+    }
     .qb-action-bar .btn-primary {
-      flex: 1.15 1 0;
       background: var(--primary-color);
       color: #fff;
     }
@@ -1359,6 +1373,13 @@
       opacity: 0.45;
       cursor: not-allowed;
     }
+    /* Overlay do menu não pode roubar taps da barra quando fechado */
+    body.qb-sidebar-page .mobile-overlay {
+      pointer-events: none !important;
+    }
+    body.qb-sidebar-page .mobile-overlay.active {
+      pointer-events: auto !important;
+    }
     body.qb-dashboard-inner {
       padding-bottom: calc(3.25rem + env(safe-area-inset-bottom, 0px));
     }
@@ -1369,6 +1390,28 @@
       .qb-action-bar {
         left: 0;
       }
+      .qb-action-bar__inner {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+      .qb-action-bar .btn {
+        min-height: 52px;
+        font-size: 0.8125rem;
+        padding: 0.85rem 0.45rem;
+        border-bottom: 1px solid #e2e8f0;
+      }
+      .qb-action-bar .btn:nth-child(3n) {
+        border-right: none;
+      }
+      .qb-action-bar .btn .qb-action-bar__full {
+        display: none;
+      }
+      .qb-action-bar .btn .qb-action-bar__short {
+        display: inline;
+      }
+      body.qb-dashboard-inner,
+      body.qb-dashboard-inner .qb-page {
+        padding-bottom: calc(6.75rem + env(safe-area-inset-bottom, 0px));
+      }
     }
     @media (max-width: 1100px) {
       .qb-topbar {
@@ -1378,23 +1421,6 @@
       .qb-topbar__actions {
         width: 100%;
         justify-content: flex-start;
-      }
-      .qb-action-bar__inner {
-        flex-wrap: wrap;
-      }
-      .qb-action-bar .btn {
-        flex: 1 1 33.33%;
-        min-width: 33.33%;
-        font-size: 0.75rem;
-        padding: 0.85rem 0.4rem;
-        border-bottom: 1px solid #e2e8f0;
-      }
-      .qb-action-bar .btn:nth-child(3n) {
-        border-right: none;
-      }
-      body.qb-dashboard-inner,
-      body.qb-dashboard-inner .qb-page {
-        padding-bottom: calc(6.5rem + env(safe-area-inset-bottom, 0px));
       }
     }
     @media (max-width: 900px) {
@@ -1412,10 +1438,6 @@
         border-top: 1px solid #e2e8f0;
         max-height: 45vh;
         box-shadow: none;
-      }
-      .qb-action-bar .btn {
-        font-size: 0.75rem;
-        padding: 0.85rem 0.4rem;
       }
     }
     .qb-send-menu {
@@ -1506,14 +1528,13 @@
     }
     @media (max-width: 520px) {
       .qb-action-bar__inner {
-        flex-wrap: wrap;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
       }
       .qb-action-bar .btn {
-        flex: 1 1 50%;
-        min-width: 50%;
+        min-height: 48px;
         border-bottom: 1px solid #e2e8f0;
       }
-      .qb-action-bar .btn:nth-child(odd) {
+      .qb-action-bar .btn:nth-child(3n) {
         border-right: 1px solid #e2e8f0;
       }
       .qb-action-bar .btn:nth-child(even) {
@@ -1521,7 +1542,7 @@
       }
       body.qb-dashboard-inner,
       body.qb-dashboard-inner .qb-page {
-        padding-bottom: calc(6.5rem + env(safe-area-inset-bottom, 0px));
+        padding-bottom: calc(9.5rem + env(safe-area-inset-bottom, 0px));
       }
     }
   </style>
@@ -2073,12 +2094,30 @@
 
   <nav class="qb-action-bar" id="qbActionBar" aria-label="Ações do orçamento">
     <div class="qb-action-bar__inner">
-      <button type="button" id="btnSave" class="btn btn-primary">Guardar rascunho</button>
-      <button type="button" id="btnPdf" class="btn btn-secondary" disabled>Gerar PDF</button>
-      <button type="button" id="btnInvoice" class="btn btn-secondary hidden" disabled>Emitir invoice</button>
-      <button type="button" id="btnSend" class="btn btn-secondary" disabled aria-haspopup="menu" aria-expanded="false" aria-controls="quoteSendMenu">Enviar</button>
-      <button type="button" id="btnDup" class="btn btn-secondary" disabled>Duplicar</button>
-      <button type="button" id="btnSaveTpl" class="btn btn-secondary">Guardar template</button>
+      <button type="button" id="btnSave" class="btn btn-primary" title="Guardar rascunho">
+        <span class="qb-action-bar__full">Guardar rascunho</span>
+        <span class="qb-action-bar__short">Guardar</span>
+      </button>
+      <button type="button" id="btnPdf" class="btn btn-secondary" disabled title="Gerar PDF">
+        <span class="qb-action-bar__full">Gerar PDF</span>
+        <span class="qb-action-bar__short">PDF</span>
+      </button>
+      <button type="button" id="btnInvoice" class="btn btn-secondary hidden" disabled title="Emitir invoice">
+        <span class="qb-action-bar__full">Emitir invoice</span>
+        <span class="qb-action-bar__short">Invoice</span>
+      </button>
+      <button type="button" id="btnSend" class="btn btn-secondary" disabled title="Enviar" aria-haspopup="menu" aria-expanded="false" aria-controls="quoteSendMenu">
+        <span class="qb-action-bar__full">Enviar</span>
+        <span class="qb-action-bar__short">Enviar</span>
+      </button>
+      <button type="button" id="btnDup" class="btn btn-secondary" disabled title="Duplicar">
+        <span class="qb-action-bar__full">Duplicar</span>
+        <span class="qb-action-bar__short">Duplicar</span>
+      </button>
+      <button type="button" id="btnSaveTpl" class="btn btn-secondary" title="Guardar template">
+        <span class="qb-action-bar__full">Guardar template</span>
+        <span class="qb-action-bar__short">Template</span>
+      </button>
     </div>
   </nav>
 

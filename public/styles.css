@@ -934,12 +934,14 @@ input.score-auto {
         z-index: 999;
         opacity: 0;
         visibility: hidden;
+        pointer-events: none;
         transition: opacity 0.3s ease, visibility 0.3s ease;
     }
     
     .mobile-overlay.active {
         opacity: 1;
         visibility: visible;
+        pointer-events: auto;
     }
     
     .sidebar-header {
@@ -1010,14 +1012,14 @@ input.score-auto {
         background: rgba(0, 0, 0, 0.5);
         opacity: 0;
         visibility: hidden;
-        pointer-events: none;
+        pointer-events: none !important;
         transition: opacity 0.3s ease, visibility 0.3s ease;
     }
 
     .mobile-overlay.active {
         opacity: 1;
         visibility: visible;
-        pointer-events: auto;
+        pointer-events: auto !important;
     }
 
     .mobile-app-header {
