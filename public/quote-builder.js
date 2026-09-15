@@ -18,6 +18,8 @@
   let quotePartyMode = 'lead';
   /** Builder selecionado no quote. */
   let selectedQuoteBuilder = null;
+  /** E-mails CC adicionais no envio para builders. */
+  let builderExtraEmails = [];
   /** Lead escolhido na pesquisa de cliente. */
   let selectedQuoteLead = null;
   let clientSearchTimer = null;
@@ -313,14 +315,83 @@
     }
   }
 
+  function isValidEmailAddress(raw) {
+    const s = String(raw || '').trim().toLowerCase();
+    if (!s || s.length > 254) return false;
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
+  }
+
+  function renderBuilderExtraEmailChips() {
+    const box = $('qbBuilderEmailChips');
+    if (!box) return;
+    if (!builderExtraEmails.length) {
+      box.innerHTML = '';
+      return;
+    }
+    box.innerHTML = builderExtraEmails
+      .map((email, idx) => {
+        const safe = escapeHtmlText(email);
+        return `<span class="qb-extra-emails__chip" data-email-idx="${idx}">
+          <span title="${safe}">${safe}</span>
+          <button type="button" class="qb-extra-emails__chip-remove" data-remove-email="${idx}" aria-label="Remover ${safe}">×</button>
+        </span>`;
+      })
+      .join('');
+  }
+
+  function addBuilderExtraEmail(raw) {
+    const email = String(raw || '').trim().toLowerCase();
+    if (!email) return false;
+    if (!isValidEmailAddress(email)) {
+      qbToast('E-mail inválido.', 'error');
+      return false;
+    }
+    const primary = getClientEmailForQuote().toLowerCase();
+    if (primary && email === primary) {
+      qbToast('Este já é o e-mail principal do builder.', 'info');
+      return false;
+    }
+    if (builderExtraEmails.includes(email)) {
+      qbToast('E-mail já adicionado.', 'info');
+      return false;
+    }
+    builderExtraEmails.push(email);
+    renderBuilderExtraEmailChips();
+    return true;
+  }
+
+  function removeBuilderExtraEmail(idx) {
+    const i = Number(idx);
+    if (!Number.isFinite(i) || i < 0 || i >= builderExtraEmails.length) return;
+    builderExtraEmails.splice(i, 1);
+    renderBuilderExtraEmailChips();
+  }
+
+  function tryCommitBuilderExtraEmailInput() {
+    const input = $('qbBuilderExtraEmailInput');
+    if (!input) return;
+    const raw = String(input.value || '').trim();
+    if (!raw) return;
+    const parts = raw.split(/[,;\s]+/).map((p) => p.trim()).filter(Boolean);
+    let added = 0;
+    for (const part of parts) {
+      if (addBuilderExtraEmail(part)) added += 1;
+    }
+    if (added) input.value = '';
+  }
+
   function handleServiceFormEnter(e) {
     if (e.key !== 'Enter' || e.shiftKey) return;
     if (e.target && e.target.tagName === 'TEXTAREA') return;
     e.preventDefault();
+    const nameEl = $('modalServiceName');
+    if (document.activeElement === nameEl && selectActiveModalServiceResult()) {
+      return;
+    }
     const results = $('modalServiceResults');
-    if (results && !results.classList.contains('hidden')) {
+    if (results && !results.classList.contains('hidden') && document.activeElement === nameEl) {
       const first = results.querySelector('[data-catalog-id]');
-      if (first && document.activeElement === $('modalServiceName')) {
+      if (first) {
         first.click();
         return;
       }
@@ -1504,9 +1575,15 @@
       return;
     }
     try {
+      tryCommitBuilderExtraEmailInput();
+      const extra =
+        getQuoteParty() === 'builder' && builderExtraEmails.length
+          ? builderExtraEmails.slice()
+          : [];
+      const body = extra.length ? { extra_emails: extra, cc: extra } : {};
       const r = await api(`/api/quotes/${quoteId}/send-email`, {
         method: 'POST',
-        body: JSON.stringify({}),
+        body: JSON.stringify(body),
       });
       const how = r.transport === 'smtp' ? 'SMTP' : r.transport === 'resend' ? 'Resend' : 'servidor';
       updateEmailSentBadge(r.email_sent_at || new Date().toISOString());
@@ -1521,10 +1598,11 @@
       const statusEl = $('status');
       if (statusEl && statusEl.value === 'draft') statusEl.value = 'sent';
       startQuoteViewPolling();
+      const ccNote = extra.length ? ` (CC: ${extra.join(', ')})` : '';
       showQuoteNotify({
         type: 'success',
         title: 'E-mail enviado',
-        message: `E-mail enviado para ${preview} (${how}) — só com link seguro. Será notificado quando o cliente abrir o link ou descarregar o PDF.`,
+        message: `E-mail enviado para ${preview}${ccNote} (${how}) — só com link seguro. Será notificado quando o cliente abrir o link ou descarregar o PDF.`,
       });
     } catch (e) {
       const raw = e.message || '';
@@ -1714,12 +1792,23 @@
 
   let modalSelectedCatalogRow = null;
   let modalServiceSearchTimer = null;
+  /** Índice destacado no dropdown de serviços (−1 = nenhum). */
+  let modalServiceActiveIndex = -1;
+  /** Linhas atualmente listadas no dropdown. */
+  let modalServiceVisibleRows = [];
 
   function hideModalServiceResults() {
     const box = $('modalServiceResults');
     if (box) {
       box.classList.add('hidden');
       box.innerHTML = '';
+    }
+    modalServiceActiveIndex = -1;
+    modalServiceVisibleRows = [];
+    const nameEl = $('modalServiceName');
+    if (nameEl) {
+      nameEl.removeAttribute('aria-activedescendant');
+      nameEl.setAttribute('aria-expanded', 'false');
     }
   }
 
@@ -1728,16 +1817,73 @@
     if (!box) return;
     box.innerHTML = html;
     box.classList.remove('hidden');
+    const nameEl = $('modalServiceName');
+    if (nameEl) nameEl.setAttribute('aria-expanded', 'true');
+  }
+
+  function syncModalServiceActiveHighlight() {
+    const box = $('modalServiceResults');
+    if (!box) return;
+    const items = Array.from(box.querySelectorAll('[data-catalog-id]'));
+    items.forEach((el, i) => {
+      const on = i === modalServiceActiveIndex;
+      el.classList.toggle('is-active', on);
+      el.classList.toggle('qb-client-search__item--active', on);
+      el.setAttribute('aria-selected', on ? 'true' : 'false');
+      if (on) {
+        const id = el.id || `modalServiceOpt-${i}`;
+        el.id = id;
+        const nameEl = $('modalServiceName');
+        if (nameEl) nameEl.setAttribute('aria-activedescendant', id);
+        el.scrollIntoView({ block: 'nearest' });
+      }
+    });
+    if (modalServiceActiveIndex < 0) {
+      const nameEl = $('modalServiceName');
+      if (nameEl) nameEl.removeAttribute('aria-activedescendant');
+    }
+  }
+
+  function moveModalServiceActive(delta) {
+    const box = $('modalServiceResults');
+    if (!box || box.classList.contains('hidden')) return false;
+    const count = modalServiceVisibleRows.length;
+    if (!count) return false;
+    if (modalServiceActiveIndex < 0) {
+      modalServiceActiveIndex = delta > 0 ? 0 : count - 1;
+    } else {
+      modalServiceActiveIndex = (modalServiceActiveIndex + delta + count) % count;
+    }
+    syncModalServiceActiveHighlight();
+    return true;
+  }
+
+  function selectActiveModalServiceResult() {
+    const box = $('modalServiceResults');
+    if (!box || box.classList.contains('hidden')) return false;
+    if (modalServiceActiveIndex < 0 || modalServiceActiveIndex >= modalServiceVisibleRows.length) {
+      return false;
+    }
+    const row = modalServiceVisibleRows[modalServiceActiveIndex];
+    if (!row) return false;
+    applyCatalogRowToServiceModal(row);
+    return true;
   }
 
   function renderModalServiceResults(rows) {
-    if (!rows.length) {
+    modalServiceVisibleRows = Array.isArray(rows) ? rows.slice() : [];
+    if (!modalServiceVisibleRows.length) {
+      modalServiceActiveIndex = -1;
       showModalServiceResults('<div class="qb-client-search__empty">Nenhum serviço no catálogo.</div>');
       return;
     }
+    if (modalServiceActiveIndex >= modalServiceVisibleRows.length) {
+      modalServiceActiveIndex = modalServiceVisibleRows.length - 1;
+    }
+    if (modalServiceActiveIndex < 0) modalServiceActiveIndex = 0;
     const src = catalogPricingSource();
-    const html = rows
-      .map((row) => {
+    const html = modalServiceVisibleRows
+      .map((row, i) => {
         const id = Number(row.id);
         const rate = effectiveCatalogRate(row, src);
         const meta = [
@@ -1747,13 +1893,46 @@
         ]
           .filter(Boolean)
           .join(' · ');
-        return `<button type="button" class="qb-client-search__item" data-catalog-id="${id}" role="option">
+        const activeClass =
+          i === modalServiceActiveIndex
+            ? ' is-active qb-client-search__item--active'
+            : '';
+        return `<button type="button" id="modalServiceOpt-${i}" class="qb-client-search__item${activeClass}" data-catalog-id="${id}" role="option" aria-selected="${i === modalServiceActiveIndex ? 'true' : 'false'}">
           <span class="qb-client-search__item-name">${escapeHtmlText(row.name || `Serviço #${id}`)}</span>
           <span class="qb-client-search__item-meta">${meta}</span>
         </button>`;
       })
       .join('');
     showModalServiceResults(html);
+    syncModalServiceActiveHighlight();
+  }
+
+  function handleModalServiceNameKeydown(e) {
+    const box = $('modalServiceResults');
+    const open = box && !box.classList.contains('hidden') && modalServiceVisibleRows.length > 0;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (!open) {
+        scheduleModalServiceSearch();
+        return;
+      }
+      moveModalServiceActive(1);
+      return;
+    }
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (!open) return;
+      moveModalServiceActive(-1);
+      return;
+    }
+    if (e.key === 'Escape') {
+      if (open) {
+        e.preventDefault();
+        hideModalServiceResults();
+      }
+      return;
+    }
+    handleServiceFormEnter(e);
   }
 
   function applyCatalogRowToServiceModal(row) {
@@ -2846,6 +3025,31 @@
       void loadQuoteBuilders();
     });
     $('quoteBuilderSelect')?.addEventListener('change', onQuoteBuilderChange);
+
+    const builderEmailChips = $('qbBuilderEmailChips');
+    if (builderEmailChips) {
+      builderEmailChips.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-remove-email]');
+        if (!btn) return;
+        removeBuilderExtraEmail(btn.getAttribute('data-remove-email'));
+      });
+    }
+    const builderExtraInput = $('qbBuilderExtraEmailInput');
+    if (builderExtraInput) {
+      builderExtraInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ',') {
+          e.preventDefault();
+          tryCommitBuilderExtraEmailInput();
+        } else if (e.key === 'Backspace' && !String(builderExtraInput.value || '') && builderExtraEmails.length) {
+          removeBuilderExtraEmail(builderExtraEmails.length - 1);
+        }
+      });
+      builderExtraInput.addEventListener('blur', () => tryCommitBuilderExtraEmailInput());
+      builderExtraInput.addEventListener('paste', () => {
+        setTimeout(() => tryCommitBuilderExtraEmailInput(), 0);
+      });
+    }
+    renderBuilderExtraEmailChips();
     syncQuotePartyUi();
     updatePricingActiveLabel();
 
@@ -2895,16 +3099,18 @@
     const modalServiceWrap = $('modalServiceSearchWrap');
 
     if (modalServiceName) {
+      modalServiceName.setAttribute('role', 'combobox');
+      modalServiceName.setAttribute('aria-autocomplete', 'list');
+      modalServiceName.setAttribute('aria-expanded', 'false');
+      modalServiceName.setAttribute('aria-controls', 'modalServiceResults');
       modalServiceName.addEventListener('focus', scheduleModalServiceSearch);
       modalServiceName.addEventListener('input', () => {
         if (qbSuppressServiceNameInput) return;
         modalSelectedCatalogRow = null;
+        modalServiceActiveIndex = -1;
         scheduleModalServiceSearch();
       });
-      modalServiceName.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') hideModalServiceResults();
-        else handleServiceFormEnter(e);
-      });
+      modalServiceName.addEventListener('keydown', handleModalServiceNameKeydown);
     }
     const qtyEl = $('modalServiceQty');
     if (qtyEl) {
@@ -2934,12 +3140,23 @@
     $('btnEditClientSave')?.addEventListener('click', () => void saveClientEdits());
 
     if (modalServiceResults) {
+      modalServiceResults.setAttribute('role', 'listbox');
       modalServiceResults.addEventListener('click', (e) => {
         const btn = e.target.closest('[data-catalog-id]');
         if (!btn) return;
         const cid = parseInt(btn.getAttribute('data-catalog-id'), 10);
         const row = catalog.find((c) => Number(c.id) === cid);
         if (row) applyCatalogRowToServiceModal(row);
+      });
+      modalServiceResults.addEventListener('mousemove', (e) => {
+        const btn = e.target.closest('[data-catalog-id]');
+        if (!btn || !modalServiceResults.contains(btn)) return;
+        const items = Array.from(modalServiceResults.querySelectorAll('[data-catalog-id]'));
+        const idx = items.indexOf(btn);
+        if (idx >= 0 && idx !== modalServiceActiveIndex) {
+          modalServiceActiveIndex = idx;
+          syncModalServiceActiveHighlight();
+        }
       });
     }
 

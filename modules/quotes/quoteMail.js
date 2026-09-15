@@ -14,6 +14,27 @@ function normalizeRecipient(to) {
   return s;
 }
 
+/** Lista de e-mails válidos (to/cc), sem duplicados. */
+export function normalizeEmailList(raw) {
+  if (raw == null || raw === '') return [];
+  const parts = Array.isArray(raw)
+    ? raw
+    : String(raw)
+        .split(/[,;\s]+/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+  const out = [];
+  const seen = new Set();
+  for (const p of parts) {
+    const e = String(p).trim().toLowerCase();
+    if (!e || !e.includes('@') || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) continue;
+    if (seen.has(e)) continue;
+    seen.add(e);
+    out.push(e);
+  }
+  return out;
+}
+
 function isSmtpFallbackEnabled() {
   const v = (process.env.EMAIL_SMTP_FALLBACK || '').trim().toLowerCase();
   return v === '1' || v === 'true' || v === 'yes';
@@ -50,6 +71,7 @@ export function getEmailTransportStatus() {
 
 async function sendViaResend({
   to,
+  cc,
   from,
   subject,
   html,
@@ -71,15 +93,23 @@ async function sendViaResend({
       ]
     : [];
 
+  const toList = normalizeEmailList(to);
+  if (!toList.length) {
+    return { ok: false, error: 'Recipient email required' };
+  }
+  const primary = toList[0];
+  const ccList = normalizeEmailList(cc).filter((e) => e !== primary);
+
   const body = {
     from: from || fromAddr,
-    to: [to],
+    to: toList,
     subject: subject || 'Your flooring quote from Senior Floors',
     html:
       html ||
       `<p>Hello,</p><p>Please find your quote attached.</p><p>— Senior Floors</p>`,
     attachments: attachments.length ? attachments : undefined,
   };
+  if (ccList.length) body.cc = ccList;
 
   const replyTo = process.env.RESEND_REPLY_TO?.trim() || process.env.CRM_REPLY_TO?.trim();
   if (replyTo) body.reply_to = replyTo;
@@ -158,6 +188,7 @@ export function formatEmailSendError(raw) {
 
 async function sendViaSmtp({
   to,
+  cc,
   subject,
   html,
   pdfBuffer,
@@ -200,10 +231,18 @@ async function sendViaSmtp({
       ]
     : [];
 
+  const toList = normalizeEmailList(to);
+  if (!toList.length) {
+    return { ok: false, error: 'Recipient email required' };
+  }
+  const primary = toList[0];
+  const ccList = normalizeEmailList(cc).filter((e) => e !== primary);
+
   try {
     const info = await transporter.sendMail({
       from,
-      to,
+      to: toList.join(', '),
+      cc: ccList.length ? ccList.join(', ') : undefined,
       subject: subject || 'Your flooring quote from Senior Floors',
       html:
         html ||
@@ -234,6 +273,7 @@ async function sendViaSmtp({
  */
 export async function sendQuoteEmail({
   to,
+  cc,
   subject,
   html,
   pdfBuffer,
@@ -244,6 +284,7 @@ export async function sendQuoteEmail({
   if (!recipient) {
     return { ok: false, error: 'Recipient email required' };
   }
+  const ccList = normalizeEmailList(cc).filter((e) => e !== recipient.toLowerCase());
 
   const defaultHtml = publicUrl
     ? `<p>Hello,</p><p>Your quote is ready. <a href="${publicUrl}">View your quote online</a> (full details and PDF are only available on this secure link).</p><p>— Senior Floors</p>`
@@ -262,6 +303,7 @@ export async function sendQuoteEmail({
 
   const smtpPayload = {
     to: recipient,
+    cc: ccList,
     subject,
     html: finalHtml,
     pdfBuffer,
@@ -271,6 +313,7 @@ export async function sendQuoteEmail({
   if (resend) {
     const out = await sendViaResend({
       to: recipient,
+      cc: ccList,
       from: undefined,
       subject,
       html: finalHtml,

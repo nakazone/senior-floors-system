@@ -548,12 +548,77 @@
       font-size: 0.875rem;
       box-sizing: border-box;
     }
+    .qb-extra-emails {
+      margin-top: 0.85rem;
+      padding-top: 0.75rem;
+      border-top: 1px solid #e2e8f0;
+    }
+    .qb-extra-emails__label {
+      display: block;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #64748b;
+      margin-bottom: 0.35rem;
+    }
+    .qb-extra-emails__hint {
+      margin: 0 0 0.5rem;
+      font-size: 0.7rem;
+      color: #94a3b8;
+    }
+    .qb-extra-emails__chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+      margin-bottom: 0.45rem;
+      min-height: 0;
+    }
+    .qb-extra-emails__chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      max-width: 100%;
+      padding: 0.25rem 0.35rem 0.25rem 0.55rem;
+      border-radius: 999px;
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      color: #1e3a8a;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .qb-extra-emails__chip span {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .qb-extra-emails__chip-remove {
+      border: 0;
+      background: transparent;
+      color: #1d4ed8;
+      cursor: pointer;
+      font-size: 0.9rem;
+      line-height: 1;
+      padding: 0 0.25rem;
+      border-radius: 999px;
+    }
+    .qb-extra-emails__chip-remove:hover {
+      background: #dbeafe;
+    }
+    .qb-extra-emails__input {
+      width: 100%;
+      border: 1px solid #cbd5e1;
+      border-radius: 0.5rem;
+      padding: 0.5rem 0.75rem;
+      font-size: 0.875rem;
+      box-sizing: border-box;
+    }
     .qb-pricing-active {
       font-size: 0.8125rem;
       color: #0f172a;
       margin: 0.25rem 0 0;
     }
+    .qb-client-search {
       position: relative;
+      z-index: 5;
     }
     .qb-client-search__input {
       width: 100%;
@@ -569,17 +634,17 @@
     }
     .qb-client-search__results {
       position: absolute;
-      z-index: 120;
+      z-index: 4000;
       left: 0;
       right: 0;
       top: calc(100% + 4px);
-      max-height: 280px;
+      max-height: min(320px, 45vh);
       overflow-y: auto;
       -webkit-overflow-scrolling: touch;
       background: #fff;
       border: 1px solid #e2e8f0;
       border-radius: 0.5rem;
-      box-shadow: 0 12px 32px rgba(15, 23, 42, 0.12);
+      box-shadow: 0 12px 32px rgba(15, 23, 42, 0.18);
     }
     .qb-client-search__results.hidden {
       display: none !important;
@@ -602,8 +667,18 @@
     }
     .qb-client-search__item:hover,
     .qb-client-search__item:focus {
-      background: #f8fafc;
+      background: #f1f5f9;
       outline: none;
+    }
+    .qb-client-search__item.is-active,
+    .qb-client-search__item.qb-client-search__item--active {
+      background: #dbeafe;
+      color: #0f172a;
+      box-shadow: inset 3px 0 0 #2563eb;
+    }
+    .qb-client-search__item.is-active:hover,
+    .qb-client-search__item.qb-client-search__item--active:hover {
+      background: #bfdbfe;
     }
     .qb-client-search__item-name {
       display: block;
@@ -676,6 +751,24 @@
       border: 1px solid var(--border-color);
       box-shadow: var(--shadow);
       overflow: hidden;
+    }
+    /* Dropdown do catálogo precisa sair da secção sem ser cortado */
+    #qbItemsSection.qb-sheet__section {
+      overflow: visible;
+    }
+    #qbItemsSection .qb-sheet__body {
+      overflow: visible;
+    }
+    #qbItemsSection .qb-item-editor {
+      overflow: visible;
+      position: relative;
+      z-index: 20;
+    }
+    #modalServiceSearchWrap.qb-client-search {
+      z-index: 30;
+    }
+    #modalServiceResults.qb-client-search__results {
+      z-index: 50;
     }
     .qb-sheet__title {
       font-size: 1.05rem;
@@ -1762,6 +1855,19 @@
                       </div>
                     </dl>
                   </div>
+                  <div id="qbBuilderExtraEmailsWrap" class="qb-extra-emails">
+                    <label class="qb-extra-emails__label" for="qbBuilderExtraEmailInput">Emails extras (CC)</label>
+                    <p class="qb-extra-emails__hint">Além do e-mail principal do builder. Enter ou vírgula para adicionar.</p>
+                    <div class="qb-extra-emails__chips" id="qbBuilderEmailChips" aria-live="polite"></div>
+                    <input
+                      type="email"
+                      id="qbBuilderExtraEmailInput"
+                      class="qb-extra-emails__input"
+                      autocomplete="off"
+                      placeholder="ex.: pm@builder.com"
+                      aria-label="Adicionar e-mail extra"
+                    />
+                  </div>
                   <div class="qb-job-fields">
                     <p class="qb-job-fields__title">Projeto deste quote</p>
                     <div>
@@ -1818,7 +1924,7 @@
                 <div class="qb-item-editor__field qb-client-search" id="modalServiceSearchWrap">
                   <label for="modalServiceName">Nome do serviço</label>
                   <input type="search" id="modalServiceName" class="qb-item-editor__input" autocomplete="off" placeholder="Pesquisar no catálogo…" />
-                  <div id="modalServiceResults" class="qb-client-search__results hidden" role="listbox"></div>
+                  <div id="modalServiceResults" class="qb-client-search__results hidden" role="listbox" aria-label="Serviços do catálogo"></div>
                 </div>
                 <div class="qb-item-editor__field">
                   <label for="modalServiceDesc">Descrição <span class="font-normal">(PDF / público)</span></label>
@@ -2187,7 +2293,7 @@
   <script src="crm-pdf-viewer.js?v=20260531"></script>
   <script src="lead-contact-links.js?v=20260819-lead-email-msgs"></script>
   <script src="quote-signature-auto.js?v=20260708"></script>
-  <script src="quote-builder.js?v=20260819-client-lock"></script>
+  <script src="quote-builder.js?v=20260915-builder-cc-svc"></script>
   <script>
     (function () {
       var t = document.getElementById('mobileMenuToggle');

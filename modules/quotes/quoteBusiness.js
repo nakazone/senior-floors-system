@@ -655,6 +655,7 @@ export async function mailQuote(pool, quoteId, EmailOpts = {}) {
   const customSubject = EmailOpts.subject != null ? String(EmailOpts.subject).trim() : '';
   const result = await sendQuoteEmail({
     to: email,
+    cc: EmailOpts.cc || EmailOpts.extra_emails || EmailOpts.extraEmails,
     subject: customSubject || defaultQuoteEmailSubject(ctx.quote, quoteId),
     html: useCustomHtml ? EmailOpts.html : buildQuoteAccessEmailHtml(ctx.quote, publicUrl),
     pdfBuffer: attachPdf ? gen.buffer : null,

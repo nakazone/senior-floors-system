@@ -107,6 +107,7 @@ export async function postQuoteSendEmail(req, res) {
     if (!pool) return res.status(503).json({ success: false, error: 'Database not available' });
     const r = await business.mailQuote(pool, id, {
       to: req.body.to,
+      cc: req.body.cc || req.body.extra_emails || req.body.extraEmails,
       subject: req.body.subject,
       html: req.body.html,
     });
