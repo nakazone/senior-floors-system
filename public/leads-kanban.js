@@ -129,13 +129,13 @@ async function loadPipelineStages() {
             }
         }
         
-        // Fallback: Kanban v3 (8 colunas)
+        // Fallback: Kanban v4
         pipelineStages = [
             { id: 1, name: 'New Lead', slug: 'new_lead', color: '#3498db', order_num: 1 },
-            { id: 2, name: 'Contacted', slug: 'contacted', color: '#f39c12', order_num: 2 },
-            { id: 3, name: 'Meeting Scheduled', slug: 'meeting_scheduled', color: '#e67e22', order_num: 3 },
-            { id: 4, name: 'Quote Sent', slug: 'quote_sent', color: '#9b59b6', order_num: 4 },
-            { id: 5, name: 'Follow Up', slug: 'follow_up_1', color: '#16a085', order_num: 5 },
+            { id: 2, name: 'Meeting Scheduled', slug: 'meeting_scheduled', color: '#90EE90', order_num: 2 },
+            { id: 3, name: 'Quote Sent', slug: 'quote_sent', color: '#9b59b6', order_num: 3 },
+            { id: 4, name: 'Follow Up', slug: 'follow_up_1', color: '#16a085', order_num: 4 },
+            { id: 5, name: 'Stand By', slug: 'stand_by', color: '#f39c12', order_num: 5 },
             { id: 6, name: 'Won', slug: 'won', color: '#27ae60', order_num: 6 },
             { id: 7, name: 'Lost', slug: 'lost', color: '#c0392b', order_num: 7 },
         ];
@@ -144,10 +144,10 @@ async function loadPipelineStages() {
         // Use fallback
         pipelineStages = [
             { id: 1, name: 'New Lead', slug: 'new_lead', color: '#3498db', order_num: 1 },
-            { id: 2, name: 'Contacted', slug: 'contacted', color: '#f39c12', order_num: 2 },
-            { id: 3, name: 'Meeting Scheduled', slug: 'meeting_scheduled', color: '#e67e22', order_num: 3 },
-            { id: 4, name: 'Quote Sent', slug: 'quote_sent', color: '#9b59b6', order_num: 4 },
-            { id: 5, name: 'Follow Up', slug: 'follow_up_1', color: '#16a085', order_num: 5 },
+            { id: 2, name: 'Meeting Scheduled', slug: 'meeting_scheduled', color: '#90EE90', order_num: 2 },
+            { id: 3, name: 'Quote Sent', slug: 'quote_sent', color: '#9b59b6', order_num: 3 },
+            { id: 4, name: 'Follow Up', slug: 'follow_up_1', color: '#16a085', order_num: 4 },
+            { id: 5, name: 'Stand By', slug: 'stand_by', color: '#f39c12', order_num: 5 },
             { id: 6, name: 'Won', slug: 'won', color: '#27ae60', order_num: 6 },
             { id: 7, name: 'Lost', slug: 'lost', color: '#c0392b', order_num: 7 },
         ];
@@ -184,8 +184,9 @@ function normalizeLeadPipelineSlug(raw) {
     const legacy = {
         lead_received: 'new_lead',
         new: 'new_lead',
-        contact_made: 'contacted',
-        qualified: 'contacted',
+        contacted: 'stand_by',
+        contact_made: 'stand_by',
+        qualified: 'stand_by',
         visit_scheduled: 'meeting_scheduled',
         measurement_done: 'follow_up_1',
         followup_1: 'follow_up_1',
@@ -519,9 +520,10 @@ function renderKanbanBoard() {
         column.dataset.stageSlug = stage.slug || '';
 
         const stageCardsId = kanbanStageDomId(stage);
+        const headerLight = stage.slug === 'meeting_scheduled';
 
         column.innerHTML = `
-            <div class="kanban-column-header" style="background: ${stage.color || '#3498db'}">
+            <div class="kanban-column-header${headerLight ? ' kanban-column-header--light' : ''}" style="background: ${stage.color || '#3498db'}">
                 <div class="kanban-column-title">
                     <span>${escapeKanbanHtml(kanbanColumnTitle(stage))}</span>
                     <span class="kanban-column-count">${total}</span>
@@ -679,6 +681,56 @@ function formatKanbanDaysInColumnLabel(days) {
     return `${days} dias`;
 }
 
+/** LP → Google logo; Meta Instant → Facebook logo. */
+function resolveKanbanLeadOrigin(lead) {
+    if (!lead) return '';
+    const source = String(lead.source || '').trim().toLowerCase();
+    const formType = String(lead.form_type || '').trim().toLowerCase();
+    const platform = String(lead.marketing_platform || '').trim().toLowerCase();
+    const utm = String(lead.utm_source || '').trim().toLowerCase();
+    const medium = String(lead.utm_medium || '').trim().toLowerCase();
+    const blob = [source, formType, platform, utm, medium].join(' ');
+    if (
+        /meta-instant|meta_instant/.test(blob) ||
+        /\bmeta\b/.test(blob) ||
+        /facebook|fbclid|instagram|\big\b/.test(blob)
+    ) {
+        return 'meta';
+    }
+    if (
+        /^lp[-_]?/i.test(String(lead.source || '').trim()) ||
+        /lp-contact|lp-hero|lp_contact|lp_hero/.test(blob) ||
+        /google|gclid|adwords|landing/.test(blob) ||
+        formType === 'hero-form' ||
+        formType === 'contact-form'
+    ) {
+        return 'google';
+    }
+    return '';
+}
+
+function kanbanOriginLogoHtml(lead) {
+    const origin = resolveKanbanLeadOrigin(lead);
+    if (origin === 'meta') {
+        return `<span class="kanban-card-origin-logo kanban-card-origin-logo--meta" title="Meta / Facebook" aria-label="Meta">${
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">' +
+            '<path fill="#1877F2" d="M24 12.07C24 5.41 18.63 0 12 0S0 5.41 0 12.07C0 18.1 4.39 23.1 10.13 24v-8.44H7.08v-3.49h3.05v-2.66c0-3.02 1.79-4.7 4.54-4.7 1.31 0 2.68.24 2.68.24v2.95h-1.51c-1.49 0-1.95.93-1.95 1.89v2.28h3.32l-.53 3.49h-2.79V24C19.61 23.1 24 18.1 24 12.07z"/>' +
+            '</svg>'
+        }</span>`;
+    }
+    if (origin === 'google') {
+        return `<span class="kanban-card-origin-logo kanban-card-origin-logo--google" title="Google / Landing page" aria-label="Google">${
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">' +
+            '<path fill="#4285F4" d="M23.49 12.27c0-.79-.07-1.54-.2-2.27H12v4.3h6.44a5.5 5.5 0 0 1-2.39 3.61v3h3.87c2.26-2.09 3.57-5.17 3.57-8.64z"/>' +
+            '<path fill="#34A853" d="M12 24c3.24 0 5.95-1.07 7.93-2.91l-3.87-3a7.1 7.1 0 0 1-4.06 1.15c-3.12 0-5.76-2.11-6.7-4.94H1.3v3.09A12 12 0 0 0 12 24z"/>' +
+            '<path fill="#FBBC05" d="M5.3 14.3A7.2 7.2 0 0 1 4.92 12c0-.8.14-1.58.38-2.3V6.61H1.3A12 12 0 0 0 0 12c0 1.94.46 3.77 1.3 5.39l4-3.09z"/>' +
+            '<path fill="#EA4335" d="M12 4.77c1.76 0 3.34.61 4.58 1.8l3.43-3.43C17.95 1.19 15.24 0 12 0A12 12 0 0 0 1.3 6.61l4 3.09C6.24 6.88 8.88 4.77 12 4.77z"/>' +
+            '</svg>'
+        }</span>`;
+    }
+    return '';
+}
+
 // Render Kanban Card
 function renderKanbanCard(lead) {
     const enteredAt = escapeKanbanHtml(formatKanbanLeadEnteredAt(lead.created_at));
@@ -710,10 +762,12 @@ function renderKanbanCard(lead) {
                   { compact: true }
               )
             : '';
+    const originLogo = kanbanOriginLogoHtml(lead);
 
     return `
         <div class="kanban-card kanban-card--compact kanban-card--open-sheet" data-lead-id="${lead.id}" role="button" tabindex="0" onclick="viewLead(${lead.id}, event)" title="Ver detalhes do lead">
             <div class="kanban-card-top">
+                ${originLogo}
                 <span class="kanban-card-title-btn">${name}</span>
                 ${kanbanPriorityMarkup(lead.priority)}
             </div>
@@ -752,12 +806,12 @@ async function populateNewLeadPipelineSelect() {
     if (stages.length === 0) {
         stages = [
             { id: 1, slug: 'new_lead', name: 'New Lead' },
-            { id: 2, slug: 'contacted', name: 'Contacted' },
-            { id: 3, slug: 'meeting_scheduled', name: 'Meeting Scheduled' },
-            { id: 4, slug: 'quote_sent', name: 'Quote Sent' },
-            { id: 5, slug: 'follow_up_1', name: 'Follow Up' },
+            { id: 2, slug: 'meeting_scheduled', name: 'Meeting Scheduled' },
+            { id: 3, slug: 'quote_sent', name: 'Quote Sent' },
+            { id: 4, slug: 'follow_up_1', name: 'Follow Up' },
+            { id: 5, slug: 'stand_by', name: 'Stand By' },
             { id: 6, slug: 'won', name: 'Won' },
-            { id: 8, slug: 'lost', name: 'Lost' },
+            { id: 7, slug: 'lost', name: 'Lost' },
         ];
     }
     const prev = select.value || 'new_lead';

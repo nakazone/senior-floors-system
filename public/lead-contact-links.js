@@ -19,17 +19,19 @@
     },
   ];
 
-  /** @type {Record<string, Array<{ id: string, label: string, template: string }>>} */
-  const STAGE_SMS_TEMPLATES = {
-    new_lead: [
-      {
-        id: 'new_lead_intro',
-        label: 'New lead — introduction',
-        template:
-          "Hi [name], thanks for reaching out to Senior Floors. I'd be happy to help. Can you tell me a little about the project?",
-      },
-      ...FOLLOW_UP_TEMPLATES,
-    ],
+  /** Templates disponíveis em New Lead — replicados em todas as abas. */
+  const NEW_LEAD_TEMPLATES = [
+    {
+      id: 'new_lead_intro',
+      label: 'New lead — introduction',
+      template:
+        "Hi [name], thanks for reaching out to Senior Floors. I'd be happy to help. Can you tell me a little about the project?",
+    },
+    ...FOLLOW_UP_TEMPLATES,
+  ];
+
+  /** Extras por estágio (antes dos templates New Lead). */
+  const STAGE_SMS_EXTRAS = {
     quote_sent: [
       {
         id: 'quote_sent_followup',
@@ -38,7 +40,18 @@
           "Hello [name], thank you for your time today. I've sent email and attached the quote PDF with the options we discussed. Thank you!\n\nFor know more about us\nhttps://senior-floors.com/",
       },
     ],
-    follow_up_1: FOLLOW_UP_TEMPLATES.slice(),
+  };
+
+  /** @type {Record<string, Array<{ id: string, label: string, template: string }>>} */
+  const STAGE_SMS_TEMPLATES = {
+    new_lead: NEW_LEAD_TEMPLATES.slice(),
+    meeting_scheduled: NEW_LEAD_TEMPLATES.slice(),
+    quote_sent: [...(STAGE_SMS_EXTRAS.quote_sent || []), ...NEW_LEAD_TEMPLATES],
+    follow_up_1: NEW_LEAD_TEMPLATES.slice(),
+    stand_by: NEW_LEAD_TEMPLATES.slice(),
+    contacted: NEW_LEAD_TEMPLATES.slice(),
+    won: NEW_LEAD_TEMPLATES.slice(),
+    lost: NEW_LEAD_TEMPLATES.slice(),
   };
 
   function escapeHtml(s) {
@@ -95,7 +108,11 @@
   }
 
   function getStageSmsDefinitions(slug) {
-    return STAGE_SMS_TEMPLATES[slug] || null;
+    if (STAGE_SMS_TEMPLATES[slug] && STAGE_SMS_TEMPLATES[slug].length) {
+      return STAGE_SMS_TEMPLATES[slug];
+    }
+    // Qualquer outra aba: mesmos módulos de New Lead
+    return NEW_LEAD_TEMPLATES.slice();
   }
 
   function leadMessageDefs(lead) {

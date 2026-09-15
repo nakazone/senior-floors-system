@@ -11,8 +11,9 @@ import { buildLeadVisitIcs } from '../lib/leadVisitIcs.js';
 const LEGACY_SLUG_TO_CANONICAL = {
   lead_received: 'new_lead',
   new: 'new_lead',
-  contact_made: 'contacted',
-  qualified: 'contacted',
+  contacted: 'stand_by',
+  contact_made: 'stand_by',
+  qualified: 'stand_by',
   visit_scheduled: 'meeting_scheduled',
   measurement_done: 'follow_up_1',
   followup_1: 'follow_up_1',
@@ -34,10 +35,10 @@ const LEGACY_SLUG_TO_CANONICAL = {
 
 const KANBAN_V9_STAGE_DEFS = {
   new_lead: { name: 'New Lead', order_num: 1, color: '#3498db', is_closed: 0 },
-  contacted: { name: 'Contacted', order_num: 2, color: '#f39c12', is_closed: 0 },
-  meeting_scheduled: { name: 'Meeting Scheduled', order_num: 3, color: '#e67e22', is_closed: 0 },
-  quote_sent: { name: 'Quote Sent', order_num: 4, color: '#9b59b6', is_closed: 0 },
-  follow_up_1: { name: 'Follow Up', order_num: 5, color: '#16a085', is_closed: 0 },
+  meeting_scheduled: { name: 'Meeting Scheduled', order_num: 2, color: '#90EE90', is_closed: 0 },
+  quote_sent: { name: 'Quote Sent', order_num: 3, color: '#9b59b6', is_closed: 0 },
+  follow_up_1: { name: 'Follow Up', order_num: 4, color: '#16a085', is_closed: 0 },
+  stand_by: { name: 'Stand By', order_num: 5, color: '#f39c12', is_closed: 0 },
   won: { name: 'Won', order_num: 6, color: '#27ae60', is_closed: 1 },
   lost: { name: 'Lost', order_num: 7, color: '#c0392b', is_closed: 1 },
 };
@@ -62,6 +63,7 @@ async function resolvePipelineStageForStatus(pool, canonicalSlug) {
   }
   const nameHints = {
     follow_up_1: ['Follow Up', 'Follow Up 1', 'Follow-up 1', 'Follow up 1'],
+    stand_by: ['Stand By', 'Standby', 'Contacted'],
   };
   const hints = nameHints[canonicalSlug];
   if (hints) {

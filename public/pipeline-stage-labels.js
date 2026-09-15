@@ -3,13 +3,13 @@
  * Used when DB `pipeline_stages.name` differs or legacy `leads.status` values exist.
  */
 (function (global) {
-  /** Kanban v3 order (7 columns) - always show these in dropdowns and board even if DB only has legacy rows. */
+  /** Kanban order — New Lead → … → Won (Lost hidden until toggle). */
   const PIPELINE_V9_SLUGS = [
     'new_lead',
-    'contacted',
     'meeting_scheduled',
     'quote_sent',
     'follow_up_1',
+    'stand_by',
     'won',
     'lost',
   ];
@@ -17,10 +17,10 @@
   /** Default colors / order for Kanban columns (when API row missing). */
   const PIPELINE_V9_KANBAN_DEFAULTS = {
     new_lead: { color: '#3498db', order_num: 1 },
-    contacted: { color: '#f39c12', order_num: 2 },
-    meeting_scheduled: { color: '#e67e22', order_num: 3 },
-    quote_sent: { color: '#9b59b6', order_num: 4 },
-    follow_up_1: { color: '#16a085', order_num: 5 },
+    meeting_scheduled: { color: '#90EE90', order_num: 2 },
+    quote_sent: { color: '#9b59b6', order_num: 3 },
+    follow_up_1: { color: '#16a085', order_num: 4 },
+    stand_by: { color: '#f39c12', order_num: 5 },
     won: { color: '#27ae60', order_num: 6 },
     lost: { color: '#c0392b', order_num: 7 },
   };
@@ -28,8 +28,9 @@
   const LEGACY_SLUG_TO_CANONICAL = {
     lead_received: 'new_lead',
     new: 'new_lead',
-    contact_made: 'contacted',
-    qualified: 'contacted',
+    contacted: 'stand_by',
+    contact_made: 'stand_by',
+    qualified: 'stand_by',
     visit_scheduled: 'meeting_scheduled',
     measurement_done: 'follow_up_1',
     followup_1: 'follow_up_1',
@@ -49,16 +50,17 @@
 
   const PIPELINE_STAGE_LABELS_EN = {
     new_lead: 'New Lead',
-    contacted: 'Contacted',
     meeting_scheduled: 'Meeting Scheduled',
     quote_sent: 'Quote Sent',
     follow_up_1: 'Follow Up',
+    stand_by: 'Stand By',
     won: 'Won',
     lost: 'Lost',
+    contacted: 'Stand By',
     lead_received: 'New Lead',
     new: 'New Lead',
-    contact_made: 'Contacted',
-    qualified: 'Contacted',
+    contact_made: 'Stand By',
+    qualified: 'Stand By',
     visit_scheduled: 'Meeting Scheduled',
     measurement_done: 'Follow Up',
     proposal_created: 'Quote Sent',
@@ -77,7 +79,7 @@
   }
 
   /**
-   * Merge API `pipeline_stages` rows with the 9 canonical slugs.
+   * Merge API `pipeline_stages` rows with the canonical slugs.
    * @param {Array<object>} apiRows
    * @returns {Array<{ id?: number, slug: string, name?: string|null, order_num: number }>}
    */
@@ -119,7 +121,7 @@
   }
 
   /**
-   * Same as mergePipelineStagesForUi plus `color` for Kanban columns (always 8 columns).
+   * Same as mergePipelineStagesForUi plus `color` for Kanban columns.
    * @param {Array<object>} apiRows
    * @returns {Array<{ id?: number|null, slug: string, name?: string|null, color: string, order_num: number, is_active: number }>}
    */
@@ -132,8 +134,8 @@
         if (!r || r.slug == null) return false;
         return normalizePipelineSlug(String(r.slug).trim()) === row.slug;
       });
-      const color = raw && raw.color ? raw.color : def.color;
-      // Canonical v9 order (1-9); ignore DB order_num (may be legacy).
+      // Prefer canonical UI defaults for color so Meeting stays light green even if DB has old hex.
+      const color = def.color || (raw && raw.color) || '#3498db';
       const order_num = def.order_num;
       return {
         id: row.id != null ? row.id : null,

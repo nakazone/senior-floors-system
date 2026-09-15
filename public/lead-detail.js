@@ -201,24 +201,24 @@ function renderLead() {
 function getStatusColor(status) {
     const colors = {
         new_lead: '#3498db',
-        contacted: '#f39c12',
-        meeting_scheduled: '#e67e22',
+        meeting_scheduled: '#90EE90',
         quote_sent: '#9b59b6',
         follow_up_1: '#16a085',
-        follow_up_2: '#1abc9c',
+        stand_by: '#f39c12',
+        contacted: '#f39c12',
         won: '#27ae60',
         lost: '#c0392b',
         lead_received: '#3498db',
         contact_made: '#f39c12',
-        qualified: '#9b59b6',
-        visit_scheduled: '#e67e22',
+        qualified: '#f39c12',
+        visit_scheduled: '#90EE90',
         measurement_done: '#16a085',
-        proposal_created: '#34495e',
-        proposal_sent: '#95a5a6',
-        negotiation: '#e74c3c',
+        proposal_created: '#9b59b6',
+        proposal_sent: '#9b59b6',
+        negotiation: '#16a085',
         closed_won: '#27ae60',
         closed_lost: '#c0392b',
-        production: '#8e44ad',
+        production: '#27ae60',
         new: '#3498db',
     };
     return colors[status] || '#95a5a6';
@@ -235,14 +235,13 @@ async function loadPipelineStages() {
     } catch (e) { /* ignore */ }
     if (stages.length === 0) {
         stages = [
-            { id: 1, name: 'Novo lead', slug: 'new_lead' },
-            { id: 2, name: 'Contato realizado', slug: 'contacted' },
-            { id: 3, name: 'Reunião agendada', slug: 'meeting_scheduled' },
-            { id: 4, name: 'Orçamento enviado', slug: 'quote_sent' },
-            { id: 5, name: 'Follow-up 1', slug: 'follow_up_1' },
-            { id: 6, name: 'Follow-up 2', slug: 'follow_up_2' },
-            { id: 7, name: 'Ganho', slug: 'won' },
-            { id: 8, name: 'Perdido', slug: 'lost' },
+            { id: 1, name: 'New Lead', slug: 'new_lead' },
+            { id: 2, name: 'Meeting Scheduled', slug: 'meeting_scheduled' },
+            { id: 3, name: 'Quote Sent', slug: 'quote_sent' },
+            { id: 4, name: 'Follow Up', slug: 'follow_up_1' },
+            { id: 5, name: 'Stand By', slug: 'stand_by' },
+            { id: 6, name: 'Won', slug: 'won' },
+            { id: 7, name: 'Lost', slug: 'lost' },
         ];
     }
 

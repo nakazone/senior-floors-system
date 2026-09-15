@@ -2261,6 +2261,15 @@ input.score-auto {
     color: var(--bg-white);
 }
 
+.kanban-column-header--light {
+    color: #1b5e20;
+}
+
+.kanban-column-header--light .kanban-column-count {
+    background: rgba(0, 0, 0, 0.12);
+    color: inherit;
+}
+
 .kanban-column-title {
     display: flex;
     align-items: center;
@@ -2423,10 +2432,25 @@ input.score-auto {
 
 .kanban-card-top {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     justify-content: space-between;
     gap: 6px;
     margin-bottom: 6px;
+}
+
+.kanban-card-origin-logo {
+    display: inline-flex;
+    flex-shrink: 0;
+    width: 14px;
+    height: 14px;
+    line-height: 0;
+    margin-top: 1px;
+}
+
+.kanban-card-origin-logo svg {
+    display: block;
+    width: 14px;
+    height: 14px;
 }
 
 .kanban-card-title-btn {
