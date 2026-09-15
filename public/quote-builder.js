@@ -1802,6 +1802,7 @@
     if (box) {
       box.classList.add('hidden');
       box.innerHTML = '';
+      box.style.maxHeight = '';
     }
     modalServiceActiveIndex = -1;
     modalServiceVisibleRows = [];
@@ -1819,6 +1820,32 @@
     box.classList.remove('hidden');
     const nameEl = $('modalServiceName');
     if (nameEl) nameEl.setAttribute('aria-expanded', 'true');
+    fitModalServiceResultsHeight();
+    if (document.activeElement === nameEl) {
+      requestAnimationFrame(() => scrollServiceNameIntoView({ force: true }));
+    }
+  }
+
+  /** Ajusta a altura do dropdown ao espaço livre abaixo do campo (acima do teclado). */
+  function fitModalServiceResultsHeight() {
+    const box = $('modalServiceResults');
+    const el = $('modalServiceName');
+    if (!box || box.classList.contains('hidden') || !el) return;
+    const vv = window.visualViewport;
+    const layoutH = window.innerHeight || document.documentElement.clientHeight || 0;
+    const vvTop = vv ? vv.offsetTop : 0;
+    const vvH = vv ? vv.height : layoutH;
+    const actionBar = $('qbActionBar');
+    const actionBarH =
+      actionBar && !actionBar.classList.contains('hidden')
+        ? actionBar.getBoundingClientRect().height
+        : 0;
+    const keyboardOverlap = Math.max(0, layoutH - (vvTop + vvH));
+    const bottomReserve = Math.max(keyboardOverlap, actionBarH, 0) + 12;
+    const fieldBottom = el.getBoundingClientRect().bottom;
+    const available = Math.floor(vvTop + vvH - bottomReserve - fieldBottom - 8);
+    const maxH = Math.max(96, Math.min(320, available));
+    box.style.maxHeight = `${maxH}px`;
   }
 
   function syncModalServiceActiveHighlight() {
@@ -2016,13 +2043,15 @@
     return document.querySelector('.builder-main');
   }
 
-  /** Mantém o campo Nome do serviço acima do teclado virtual / barra de ações. */
-  function scrollServiceNameIntoView() {
+  /** Fixa o campo Nome do serviço no topo da área visível (acima do teclado). */
+  function scrollServiceNameIntoView(opts) {
+    const force = opts && opts.force;
     const el = $('modalServiceName');
+    const wrap = $('modalServiceSearchWrap') || el;
     if (!el || document.activeElement !== el) return;
     const scroller = getBuilderMainScroller();
     if (!scroller) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+      el.scrollIntoView({ behavior: force ? 'auto' : 'smooth', block: 'start', inline: 'nearest' });
       return;
     }
 
@@ -2030,40 +2059,60 @@
     const layoutH = window.innerHeight || document.documentElement.clientHeight || 0;
     const vvTop = vv ? vv.offsetTop : 0;
     const vvH = vv ? vv.height : layoutH;
-    const keyboardOverlap = Math.max(0, layoutH - (vvTop + vvH));
     const actionBar = $('qbActionBar');
-    const actionBarH = actionBar && !actionBar.classList.contains('hidden')
-      ? actionBar.getBoundingClientRect().height
-      : 0;
-    const bottomReserve = Math.max(keyboardOverlap, actionBarH, 0) + 20;
-    const topReserve = 12;
+    const actionBarH =
+      actionBar && !actionBar.classList.contains('hidden')
+        ? actionBar.getBoundingClientRect().height
+        : 0;
+    const keyboardOverlap = Math.max(0, layoutH - (vvTop + vvH));
+    const bottomReserve = Math.max(keyboardOverlap, actionBarH, 0) + 12;
 
-    const visibleTop = vvTop + topReserve;
-    const visibleBottom = vvTop + vvH - bottomReserve;
-    const visibleMid = visibleTop + Math.max(48, (visibleBottom - visibleTop) * 0.38);
+    // Alvo: topo do campo ~16px abaixo do topo do visualViewport
+    const targetTop = vvTop + 16;
+    const anchor = wrap.getBoundingClientRect();
+    const delta = anchor.top - targetTop;
+    if (!force && Math.abs(delta) < 6) {
+      fitModalServiceResultsHeight();
+      return;
+    }
 
-    const rect = el.getBoundingClientRect();
-    const fieldMid = rect.top + rect.height / 2;
-    // Também reserva espaço para o dropdown logo abaixo do campo
-    const dropdownRoom = 140;
-    const needsUp =
-      rect.bottom + dropdownRoom > visibleBottom ||
-      rect.top < visibleTop ||
-      fieldMid > visibleMid + 24;
+    const nextTop = scroller.scrollTop + delta;
+    scroller.scrollTo({
+      top: Math.max(0, nextTop),
+      behavior: force ? 'auto' : 'smooth',
+    });
 
-    if (!needsUp && rect.top >= visibleTop) return;
-
-    const delta = fieldMid - visibleMid;
-    if (Math.abs(delta) < 8) return;
-    scroller.scrollBy({ top: delta, behavior: 'smooth' });
+    // Recalcula altura do dropdown após o scroll assentar
+    requestAnimationFrame(() => {
+      fitModalServiceResultsHeight();
+      const after = wrap.getBoundingClientRect();
+      const drift = after.top - targetTop;
+      if (Math.abs(drift) > 8) {
+        scroller.scrollTop = Math.max(0, scroller.scrollTop + drift);
+        fitModalServiceResultsHeight();
+      }
+      // Garante que o bloco campo + lista cabe na área útil
+      const box = $('modalServiceResults');
+      if (box && !box.classList.contains('hidden')) {
+        const blockBottom = Math.max(after.bottom, box.getBoundingClientRect().bottom);
+        const visibleBottom = vvTop + vvH - bottomReserve;
+        if (blockBottom > visibleBottom + 4) {
+          scroller.scrollTop = Math.max(
+            0,
+            scroller.scrollTop + (blockBottom - visibleBottom)
+          );
+          fitModalServiceResultsHeight();
+        }
+      }
+    });
   }
 
   function ensureServiceNameVisibleForKeyboard() {
     clearServiceFieldScrollTimers();
-    const run = () => scrollServiceNameIntoView();
+    const run = () => scrollServiceNameIntoView({ force: true });
     requestAnimationFrame(run);
     // iOS/iPadOS abre o teclado com atraso — repetir após animação
-    [120, 280, 450, 700].forEach((ms) => {
+    [80, 200, 360, 560, 800].forEach((ms) => {
       qbServiceFieldScrollTimers.push(setTimeout(run, ms));
     });
   }
@@ -3202,7 +3251,7 @@
         modalSelectedCatalogRow = null;
         modalServiceActiveIndex = -1;
         scheduleModalServiceSearch();
-        scrollServiceNameIntoView();
+        scrollServiceNameIntoView({ force: true });
       });
       modalServiceName.addEventListener('keydown', handleModalServiceNameKeydown);
       modalServiceName.addEventListener('touchstart', () => {
