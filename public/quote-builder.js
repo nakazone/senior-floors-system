@@ -1826,11 +1826,10 @@
     }
   }
 
-  /** Ajusta a altura do dropdown ao espaço livre abaixo do campo (acima do teclado). */
-  function fitModalServiceResultsHeight() {
-    const box = $('modalServiceResults');
-    const el = $('modalServiceName');
-    if (!box || box.classList.contains('hidden') || !el) return;
+  /** Margem extra acima do teclado / barra de ações (px). */
+  const QB_SERVICE_KEYBOARD_GAP = 88;
+
+  function getServiceFieldViewportMetrics() {
     const vv = window.visualViewport;
     const layoutH = window.innerHeight || document.documentElement.clientHeight || 0;
     const vvTop = vv ? vv.offsetTop : 0;
@@ -1841,10 +1840,19 @@
         ? actionBar.getBoundingClientRect().height
         : 0;
     const keyboardOverlap = Math.max(0, layoutH - (vvTop + vvH));
-    const bottomReserve = Math.max(keyboardOverlap, actionBarH, 0) + 12;
+    const bottomReserve = Math.max(keyboardOverlap, actionBarH, 0) + QB_SERVICE_KEYBOARD_GAP;
+    return { vvTop, vvH, layoutH, bottomReserve, keyboardOverlap, actionBarH };
+  }
+
+  /** Ajusta a altura do dropdown ao espaço livre abaixo do campo (acima do teclado). */
+  function fitModalServiceResultsHeight() {
+    const box = $('modalServiceResults');
+    const el = $('modalServiceName');
+    if (!box || box.classList.contains('hidden') || !el) return;
+    const { vvTop, vvH, bottomReserve } = getServiceFieldViewportMetrics();
     const fieldBottom = el.getBoundingClientRect().bottom;
     const available = Math.floor(vvTop + vvH - bottomReserve - fieldBottom - 8);
-    const maxH = Math.max(96, Math.min(320, available));
+    const maxH = Math.max(80, Math.min(280, available));
     box.style.maxHeight = `${maxH}px`;
   }
 
@@ -2055,34 +2063,28 @@
       return;
     }
 
-    const vv = window.visualViewport;
-    const layoutH = window.innerHeight || document.documentElement.clientHeight || 0;
-    const vvTop = vv ? vv.offsetTop : 0;
-    const vvH = vv ? vv.height : layoutH;
-    const actionBar = $('qbActionBar');
-    const actionBarH =
-      actionBar && !actionBar.classList.contains('hidden')
-        ? actionBar.getBoundingClientRect().height
-        : 0;
-    const keyboardOverlap = Math.max(0, layoutH - (vvTop + vvH));
-    const bottomReserve = Math.max(keyboardOverlap, actionBarH, 0) + 12;
-
-    // Alvo: topo do campo ~16px abaixo do topo do visualViewport
-    const targetTop = vvTop + 16;
+    const { vvTop, vvH, bottomReserve } = getServiceFieldViewportMetrics();
+    const targetTop = vvTop + 12;
     const anchor = wrap.getBoundingClientRect();
-    const delta = anchor.top - targetTop;
+    let delta = anchor.top - targetTop;
+
+    // Mantém folga clara entre o campo e o teclado
+    const safeBottom = vvTop + vvH - bottomReserve;
+    const fieldBottom = el.getBoundingClientRect().bottom;
+    if (fieldBottom > safeBottom) {
+      delta += fieldBottom - safeBottom;
+    }
+
     if (!force && Math.abs(delta) < 6) {
       fitModalServiceResultsHeight();
       return;
     }
 
-    const nextTop = scroller.scrollTop + delta;
     scroller.scrollTo({
-      top: Math.max(0, nextTop),
+      top: Math.max(0, scroller.scrollTop + delta),
       behavior: force ? 'auto' : 'smooth',
     });
 
-    // Recalcula altura do dropdown após o scroll assentar
     requestAnimationFrame(() => {
       fitModalServiceResultsHeight();
       const after = wrap.getBoundingClientRect();
@@ -2091,16 +2093,12 @@
         scroller.scrollTop = Math.max(0, scroller.scrollTop + drift);
         fitModalServiceResultsHeight();
       }
-      // Garante que o bloco campo + lista cabe na área útil
       const box = $('modalServiceResults');
       if (box && !box.classList.contains('hidden')) {
         const blockBottom = Math.max(after.bottom, box.getBoundingClientRect().bottom);
         const visibleBottom = vvTop + vvH - bottomReserve;
         if (blockBottom > visibleBottom + 4) {
-          scroller.scrollTop = Math.max(
-            0,
-            scroller.scrollTop + (blockBottom - visibleBottom)
-          );
+          scroller.scrollTop = Math.max(0, scroller.scrollTop + (blockBottom - visibleBottom));
           fitModalServiceResultsHeight();
         }
       }
