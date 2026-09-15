@@ -101,6 +101,21 @@ function firstString(post, keys) {
   return '';
 }
 
+/**
+ * Meta Lead Ads / Instant Forms: "p:+13035550100", "+1 303-555-0100" → "(303) 555-0100".
+ */
+function normalizeUsPhoneForLead(raw) {
+  let s = String(raw || '').trim();
+  if (!s) return '';
+  s = s.replace(/^p:\s*/i, '').replace(/^tel:\s*/i, '').replace(/^whatsapp:\s*/i, '');
+  let digits = s.replace(/\D/g, '');
+  if (digits.length === 11 && digits.charAt(0) === '1') digits = digits.slice(1);
+  if (digits.length === 10) {
+    return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+  }
+  return s.length > 50 ? s.slice(0, 50) : s;
+}
+
 function pickLeadFieldsFromPost(post) {
   const name =
     firstString(post, [
@@ -180,21 +195,29 @@ async function ingestOneLead(req, post, isSheetsSyncRequest) {
   let message = picked.message || (post.message || '').trim();
 
   const isMetaForm = /meta/i.test(form_name) || form_name === 'meta-instant-form';
-  const relaxZipForImport = isSheetsSyncRequest || isMetaForm;
+  const relaxImportRules = isSheetsSyncRequest || isMetaForm;
+
+  if (relaxImportRules && phone) {
+    phone = normalizeUsPhoneForLead(phone);
+  }
 
   const phoneDigitsEarly = (phone || '').replace(/\D/g, '');
   const emailLooksValid = email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-  if (!emailLooksValid && isSheetsSyncRequest && phoneDigitsEarly.length >= 10) {
+  // Instant Forms do Meta muitas vezes não pedem email — gera placeholder estável por telefone.
+  if (!emailLooksValid && relaxImportRules && phoneDigitsEarly.length >= 10) {
     email = `meta-import-${phoneDigitsEarly.slice(-10)}-${crypto.randomBytes(4).toString('hex')}@invalid.invalid`;
   }
 
   const errors = [];
   if (!name || name.length < 2) errors.push('Name is required');
   if (!phone) errors.push('Phone is required');
+  if (relaxImportRules && phoneDigitsEarly.length > 0 && phoneDigitsEarly.length < 10) {
+    errors.push('Valid phone is required');
+  }
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.push('Valid email is required');
   let zipClean = (zipcode || '').replace(/\D/g, '');
   if (!zipClean || zipClean.length < 5) {
-    if (relaxZipForImport) {
+    if (relaxImportRules) {
       zipClean = '00000';
     } else {
       errors.push('Valid 5-digit US zip code is required');

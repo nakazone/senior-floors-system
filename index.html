@@ -18,13 +18,18 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <!-- Form URL: on Vercel use /api/send-lead (same origin); otherwise use Hostinger backend. -->
+    <!-- Form URL: same-origin /api/send-lead on Vercel (incl. custom domain lp.senior-floors.com); else Hostinger PHP. -->
     <script>
     (function() {
       var h = window.location.hostname || '';
-      if (h.includes('vercel.app') || h.includes('vercel.sh')) {
+      var isVercel =
+        h.includes('vercel.app') ||
+        h.includes('vercel.sh') ||
+        (h.indexOf('lp.') === 0 && h.endsWith('senior-floors.com'));
+      if (isVercel) {
         window.SENIOR_FLOORS_FORM_URL = '/api/send-lead';
-        window.SENIOR_FLOORS_RECEIVE_LEAD_URL = '/api/receive-lead';
+        /* receive-lead runs inside send-lead serverless; no separate /api route on this project */
+        window.SENIOR_FLOORS_RECEIVE_LEAD_URL = '';
       } else {
         window.SENIOR_FLOORS_FORM_URL = 'https://senior-floors.com/send-lead.php';
         window.SENIOR_FLOORS_RECEIVE_LEAD_URL = 'https://senior-floors.com/system.php?api=receive-lead';
