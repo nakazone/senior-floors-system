@@ -15,7 +15,7 @@
     <link rel="icon" type="image/png" href="/assets/SeniorFloors.png">
     <link rel="stylesheet" href="styles.css?v=20260915-qb-action-bar">
     <link rel="stylesheet" href="design-system.css?v=20260819-menu-fix-v2">
-    <link rel="stylesheet" href="mobile-design-system.css?v=20260915-mobile-light">
+    <link rel="stylesheet" href="mobile-design-system.css?v=20260915-mobile-ux2">
     <link rel="stylesheet" href="crm-toast.css">
     <link rel="stylesheet" href="crm-pdf-viewer.css?v=20260531">
     <link rel="stylesheet" href="crm-command-palette.css">
@@ -70,33 +70,55 @@
     <div class="mobile-more-sheet sf-fab-sheet" id="sfFabSheet" role="dialog" aria-modal="true" aria-labelledby="sfFabSheetTitle" hidden>
         <div class="sf-fab-sheet__handle mobile-more-sheet__handle" aria-hidden="true"></div>
         <h2 class="sf-fab-sheet__title" id="sfFabSheetTitle">Criar rápido</h2>
-        <nav class="mobile-more-sheet__nav" aria-label="Ações">
-            <button type="button" class="sf-fab-sheet__btn mobile-more-sheet__btn" id="sfFabNewQuote" data-crm-permission="quotes.edit">Novo orçamento</button>
-            <button type="button" class="sf-fab-sheet__btn mobile-more-sheet__btn" id="sfFabQuickQuote" data-crm-permission="quotes.create">Quick quote</button>
-            <button type="button" class="sf-fab-sheet__btn mobile-more-sheet__btn" id="sfFabNewClient" data-crm-permission="customers.create">Novo cliente</button>
-            <button type="button" class="sf-fab-sheet__btn mobile-more-sheet__btn" id="sfFabSchedule" data-crm-permission="visits.view">Ver agenda</button>
-            <button type="button" class="sf-fab-sheet__btn mobile-more-sheet__btn" id="sfFabFinance" data-crm-permission="contracts.view">Financeiro</button>
+        <nav class="mobile-more-sheet__nav sf-fab-sheet__nav" aria-label="Ações">
+            <button type="button" class="sf-fab-sheet__btn mobile-more-sheet__btn" id="sfFabNewQuote" data-crm-permission="quotes.edit">
+                <span class="sf-fab-sheet__ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 18v-6"/><path d="M9 15h6"/></svg></span>
+                <span class="sf-fab-sheet__txt"><strong>Orçamento</strong><small>Novo quote</small></span>
+            </button>
+            <button type="button" class="sf-fab-sheet__btn mobile-more-sheet__btn" id="sfFabNewClient" data-crm-permission="customers.create">
+                <span class="sf-fab-sheet__ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><path d="M20 8v6"/><path d="M23 11h-6"/></svg></span>
+                <span class="sf-fab-sheet__txt"><strong>Cliente</strong><small>Novo cadastro</small></span>
+            </button>
+            <button type="button" class="sf-fab-sheet__btn mobile-more-sheet__btn" id="sfFabNewLead" data-crm-permission="leads.view">
+                <span class="sf-fab-sheet__ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+                <span class="sf-fab-sheet__txt"><strong>Lead</strong><small>Novo no pipeline</small></span>
+            </button>
+            <button type="button" class="sf-fab-sheet__btn mobile-more-sheet__btn" id="sfFabNewVisit" data-crm-permission="visits.view">
+                <span class="sf-fab-sheet__ico" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/></svg></span>
+                <span class="sf-fab-sheet__txt"><strong>Visita</strong><small>Abrir agenda</small></span>
+            </button>
         </nav>
     </div>
 
     <nav class="sf-bottom-nav mobile-tab-bar" id="mobileTabBar" aria-label="Navegação principal">
+        <div class="mobile-tab-bar__thumb" id="mobileTabThumb" aria-hidden="true"></div>
         <button type="button" class="mobile-tab-bar__item mobile-tab-bar__item--active touchable" data-mobile-tab="dashboard" aria-current="page">
-            <span class="mobile-tab-bar__icon" aria-hidden="true">⌂</span>
+            <span class="mobile-tab-bar__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M3 10.5L12 3l9 7.5"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/></svg>
+            </span>
             <span class="mobile-tab-bar__label">Home</span>
         </button>
         <button type="button" class="mobile-tab-bar__item touchable" data-mobile-tab="quotes">
-            <span class="mobile-tab-bar__icon" aria-hidden="true">📄</span>
+            <span class="mobile-tab-bar__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8"/><path d="M8 17h5"/></svg>
+            </span>
             <span class="mobile-tab-bar__label">Quotes</span>
         </button>
         <button type="button" class="mobile-tab-bar__item touchable" data-mobile-tab="customers">
-            <span class="mobile-tab-bar__icon" aria-hidden="true">👥</span>
+            <span class="mobile-tab-bar__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            </span>
             <span class="mobile-tab-bar__label">Clients</span>
         </button>
-        <div class="sf-bottom-nav__fab-slot" aria-hidden="true">
-            <button type="button" class="sf-fab touchable" id="sfMobileFab" aria-label="Criar">+</button>
+        <div class="sf-bottom-nav__fab-slot">
+            <button type="button" class="sf-fab touchable" id="sfMobileFab" aria-label="Criar" aria-expanded="false" aria-controls="sfFabSheet">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+            </button>
         </div>
         <button type="button" class="mobile-tab-bar__item touchable" data-mobile-tab="more" aria-label="Mais módulos">
-            <span class="mobile-tab-bar__icon" aria-hidden="true">⋯</span>
+            <span class="mobile-tab-bar__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>
+            </span>
             <span class="mobile-tab-bar__label">Mais</span>
         </button>
     </nav>
@@ -268,6 +290,7 @@
                     <div id="dashErrorBanner" class="dash-error-banner" style="display: none;" role="alert"></div>
 
                     <div id="sfMobileHomeBlock" class="sf-mobile-only">
+                        <div class="sf-ptr-indicator" id="dashboardPtrIndicator" aria-hidden="true">↓ Puxe para atualizar</div>
                         <p class="sf-caption" id="sfMobileGreeting" style="margin:0 0 12px;">Bom dia</p>
                         <nav class="sf-main-menu" id="sfMobileMainMenu" aria-label="Menus principais">
                             <p class="sf-main-menu__label">Menus principais</p>
@@ -311,7 +334,12 @@
                             </div>
                         </nav>
                         <div class="sf-hero">
-                            <p class="sf-micro" style="margin:0 0 4px;">Resumo</p>
+                            <div class="sf-period" id="sfMobilePeriod" role="tablist" aria-label="Período">
+                                <span class="sf-period__thumb" id="sfMobilePeriodThumb" aria-hidden="true"></span>
+                                <button type="button" class="sf-period__btn" role="tab" data-sf-period="today">Hoje</button>
+                                <button type="button" class="sf-period__btn" role="tab" data-sf-period="week">7 dias</button>
+                                <button type="button" class="sf-period__btn is-active" role="tab" data-sf-period="month" aria-selected="true">Mês</button>
+                            </div>
                             <div id="sfMobileKpiGrid" class="sf-kpi-grid"></div>
                         </div>
                         <div class="sf-quick-actions sf-mobile-only--flex" id="sfMobileQuickActions"></div>
@@ -1696,7 +1724,7 @@
     <script src="crm-command-palette.js"></script>
     <script src="notification-center.js"></script>
     <script src="marketing-dashboard.js"></script>
-    <script src="dashboard.js?v=20260915-mobile-light"></script>
+    <script src="dashboard.js?v=20260915-mobile-ux2"></script>
     <script src="pipeline-stage-labels.js?v=20260915-followup-yellow"></script>
     <script src="lead-contact-links.js?v=20260915-all-stage-sms"></script>
     <script src="crm-address-autocomplete.js?v=20260528-pac-dismiss"></script>

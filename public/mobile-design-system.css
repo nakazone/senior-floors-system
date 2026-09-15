@@ -191,8 +191,9 @@
 
   /* Bottom nav 5 colunas: Home | Quotes | Clients | FAB | Mais */
   .dashboard-app-body.sf-mobile-shell .sf-bottom-nav.mobile-tab-bar {
+    position: relative;
     display: grid;
-    grid-template-columns: 1fr 1fr 1fr 1fr 1fr;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     align-items: end;
     justify-items: center;
     gap: 0;
@@ -204,7 +205,34 @@
     backdrop-filter: blur(16px);
   }
 
+  .dashboard-app-body.sf-mobile-shell .mobile-tab-bar__thumb {
+    position: absolute;
+    left: 0;
+    top: 6px;
+    width: 20%;
+    height: calc(100% - 14px - var(--sf-safe-bottom));
+    max-height: 52px;
+    padding: 0 4px;
+    box-sizing: border-box;
+    pointer-events: none;
+    z-index: 0;
+    transform: translateX(0);
+    transition: transform 0.38s cubic-bezier(0.34, 1.4, 0.64, 1);
+  }
+
+  .dashboard-app-body.sf-mobile-shell .mobile-tab-bar__thumb::before {
+    content: '';
+    display: block;
+    width: 100%;
+    height: 100%;
+    border-radius: 14px;
+    background: var(--sf-accent-dim);
+    border: 1px solid var(--sf-accent-border);
+  }
+
   .dashboard-app-body.sf-mobile-shell .sf-bottom-nav .mobile-tab-bar__item {
+    position: relative;
+    z-index: 1;
     max-width: none;
     width: 100%;
     min-height: var(--sf-touch-min);
@@ -217,36 +245,39 @@
   }
 
   .dashboard-app-body.sf-mobile-shell .sf-bottom-nav .mobile-tab-bar__item--active {
-    color: var(--sf-accent);
-    background: var(--sf-accent-dim);
+    color: var(--sf-navy);
+    background: transparent;
   }
 
   .dashboard-app-body.sf-mobile-shell .sf-bottom-nav .mobile-tab-bar__item--active .mobile-tab-bar__label {
-    color: var(--sf-accent);
+    color: var(--sf-navy);
   }
 
   .dashboard-app-body.sf-mobile-shell .sf-bottom-nav .mobile-tab-bar__icon {
-    font-size: 1.25rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     margin-bottom: 2px;
+    color: inherit;
   }
 
-  .dashboard-app-body.sf-mobile-shell .sf-bottom-nav .mobile-tab-bar__item--active .mobile-tab-bar__icon {
-    filter: none;
+  .dashboard-app-body.sf-mobile-shell .sf-bottom-nav .mobile-tab-bar__icon svg {
+    width: 22px;
+    height: 22px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
   }
 
-  /* Indicador pill sob ícone ativo */
   .dashboard-app-body.sf-mobile-shell .sf-bottom-nav .mobile-tab-bar__item--active::after {
-    content: '';
-    display: block;
-    width: 4px;
-    height: 4px;
-    border-radius: 50%;
-    background: var(--sf-accent);
-    margin-top: 2px;
+    display: none;
   }
 
   .dashboard-app-body.sf-mobile-shell .sf-bottom-nav__fab-slot {
     position: relative;
+    z-index: 1;
     display: flex;
     align-items: flex-end;
     justify-content: center;
@@ -263,9 +294,9 @@
     border: none;
     background: linear-gradient(145deg, #c8a96e 0%, var(--sf-accent-hover) 100%);
     color: #1a2036;
-    font-size: 28px;
-    font-weight: 300;
-    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     cursor: pointer;
     box-shadow: 0 8px 20px rgba(184, 149, 78, 0.35), var(--sf-shadow-md);
     transform: translateY(-14px);
@@ -273,8 +304,28 @@
     transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
   }
 
+  .dashboard-app-body.sf-mobile-shell .sf-fab svg {
+    width: 26px;
+    height: 26px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 2.2;
+    stroke-linecap: round;
+    transition: transform 0.28s cubic-bezier(0.22, 0.9, 0.3, 1);
+  }
+
+  .dashboard-app-body.sf-mobile-shell .sf-fab.is-open svg,
+  .dashboard-app-body.sf-fab-open .sf-fab svg {
+    transform: rotate(45deg);
+  }
+
   .dashboard-app-body.sf-mobile-shell .sf-fab:active {
     transform: translateY(-14px) scale(0.92);
+  }
+
+  .dashboard-app-body.sf-mobile-shell .mobile-app-header.is-scrolled {
+    border-bottom-color: var(--sf-border-mid);
+    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.08);
   }
 
   /* Folhas “Mais” e FAB */
@@ -301,6 +352,65 @@
     border: 1px solid var(--sf-border-subtle);
     border-radius: var(--sf-radius-md);
     min-height: var(--sf-touch-min);
+  }
+
+  .dashboard-app-body.sf-mobile-shell .sf-fab-sheet {
+    border-radius: 20px 20px 0 0;
+    transform: translateY(0);
+    transition: transform 0.32s cubic-bezier(0.22, 0.9, 0.3, 1), opacity 0.2s ease;
+  }
+
+  .dashboard-app-body.sf-mobile-shell .sf-fab-sheet__btn {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    text-align: left;
+    padding: 12px 14px;
+    min-height: 58px;
+  }
+
+  .dashboard-app-body.sf-mobile-shell .sf-fab-sheet__ico {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    background: var(--sf-accent-dim);
+    color: var(--sf-navy);
+    flex-shrink: 0;
+  }
+
+  .dashboard-app-body.sf-mobile-shell .sf-fab-sheet__ico svg {
+    width: 20px;
+    height: 20px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .dashboard-app-body.sf-mobile-shell .sf-fab-sheet__txt {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .dashboard-app-body.sf-mobile-shell .sf-fab-sheet__txt strong {
+    font-size: 14px;
+    font-weight: 650;
+    color: var(--sf-text-primary);
+  }
+
+  .dashboard-app-body.sf-mobile-shell .sf-fab-sheet__txt small {
+    font-size: 12px;
+    color: var(--sf-text-secondary);
+  }
+
+  .dashboard-app-body.sf-mobile-shell .mobile-more-backdrop:not([hidden]) {
+    background: var(--sf-bg-overlay);
   }
 
   .dashboard-app-body.sf-mobile-shell .mobile-more-sheet__handle,
@@ -414,10 +524,55 @@
   .sf-hero {
     background: var(--sf-bg-card);
     border-radius: var(--sf-radius-lg);
-    padding: 16px 14px 18px;
+    padding: 14px 14px 16px;
     margin-bottom: 16px;
     border: 1px solid var(--sf-border-subtle);
     box-shadow: var(--sf-shadow-sm);
+  }
+
+  .sf-period {
+    position: relative;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0;
+    margin-bottom: 12px;
+    padding: 4px;
+    border-radius: 999px;
+    background: var(--sf-bg-base);
+    border: 1px solid var(--sf-border-subtle);
+  }
+
+  .sf-period__thumb {
+    position: absolute;
+    top: 4px;
+    left: 4px;
+    width: calc((100% - 8px) / 3);
+    height: calc(100% - 8px);
+    border-radius: 999px;
+    background: linear-gradient(135deg, #c8a96e, var(--sf-accent-hover));
+    box-shadow: 0 2px 8px rgba(184, 149, 78, 0.35);
+    transform: translateX(0);
+    transition: transform 0.32s cubic-bezier(0.34, 1.4, 0.64, 1);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .sf-period__btn {
+    position: relative;
+    z-index: 1;
+    border: 0;
+    background: transparent;
+    min-height: 36px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 650;
+    color: var(--sf-text-secondary);
+    cursor: pointer;
+    font-family: inherit;
+  }
+
+  .sf-period__btn.is-active {
+    color: #1a2036;
   }
 
   .sf-kpi-grid {
@@ -529,21 +684,43 @@
     touch-action: pan-y;
   }
 
+  /* Swipe cards: radius/overflow só nas actions — evita seam no Chromium */
   .sf-quote-card {
     position: relative;
-    background: var(--sf-bg-card);
-    border: 1px solid var(--sf-border-subtle);
-    border-radius: var(--sf-radius-lg);
-    padding: 14px 16px;
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    padding: 0;
+    overflow: visible;
+    transition: none;
+    box-shadow: none;
+  }
+
+  .sf-quote-card__actions {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: stretch;
+    justify-content: flex-end;
+    border-radius: 0 20px 20px 0;
     overflow: hidden;
-    transition: transform 0.2s ease;
-    box-shadow: var(--sf-shadow-sm);
+    z-index: 0;
   }
 
   .sf-quote-card__inner {
     position: relative;
     z-index: 1;
     background: var(--sf-bg-card);
+    border: 1px solid var(--sf-border-subtle);
+    border-radius: 20px;
+    padding: 14px 16px;
+    box-shadow: var(--sf-shadow-sm);
+    transition: transform 0.18s ease;
+    will-change: auto;
+  }
+
+  .sf-quote-card.sf-quote-card--open .sf-quote-card__inner {
+    /* transform aplicado só via JS em drag; em aberto fixamos via style */
   }
 
   .sf-quote-card__client {
@@ -615,21 +792,6 @@
     color: var(--sf-expired-text);
   }
 
-  .sf-quote-card__actions {
-    position: absolute;
-    top: 0;
-    right: 0;
-    bottom: 0;
-    display: flex;
-    align-items: stretch;
-    transform: translateX(100%);
-    transition: transform 0.22s ease;
-  }
-
-  .sf-quote-card.sf-quote-card--open .sf-quote-card__actions {
-    transform: translateX(0);
-  }
-
   .sf-quote-card__action-btn {
     min-width: 72px;
     border: none;
@@ -657,6 +819,20 @@
   }
   .sf-ptr-indicator.sf-ptr-visible {
     opacity: 1;
+  }
+  .sf-ptr-indicator.is-ready {
+    color: var(--sf-navy);
+    font-weight: 650;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .dashboard-app-body.sf-mobile-shell .mobile-tab-bar__thumb,
+    .sf-period__thumb,
+    .dashboard-app-body.sf-mobile-shell .sf-fab svg,
+    .sf-quote-card__inner,
+    .dashboard-app-body.sf-mobile-shell .sf-fab-sheet {
+      transition: none !important;
+    }
   }
 }
 

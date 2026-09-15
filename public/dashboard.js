@@ -336,6 +336,7 @@ function sfPtrTouchStartsInsideScrolledColumn(target) {
 function getSfPtrIndicatorForPage(pageName) {
     if (pageName === 'quotes') return document.getElementById('quotesPtrIndicator');
     if (pageName === 'leads') return document.getElementById('leadsPtrIndicator');
+    if (pageName === 'dashboard') return document.getElementById('dashboardPtrIndicator');
     return null;
 }
 
@@ -367,7 +368,7 @@ function sfPtrResetState() {
     sfPtrPulling = false;
     sfPtrArmed = false;
     const ind = getSfPtrIndicatorForPage(currentPageName);
-    if (ind) ind.classList.remove('sf-ptr-visible');
+    if (ind) ind.classList.remove('sf-ptr-visible', 'is-ready');
 }
 
 function initSfPullToRefresh() {
@@ -402,9 +403,11 @@ function initSfPullToRefresh() {
         }
         if (dy > 48) {
             ind.classList.add('sf-ptr-visible');
-            ind.textContent = dy > 88 ? '↓ Largar para atualizar' : '↓ Puxe para atualizar';
+            const ready = dy > 64;
+            ind.classList.toggle('is-ready', ready);
+            ind.textContent = ready ? '↓ Largar para atualizar' : '↓ Puxe para atualizar';
         } else {
-            ind.classList.remove('sf-ptr-visible');
+            ind.classList.remove('sf-ptr-visible', 'is-ready');
         }
     };
 
@@ -415,7 +418,7 @@ function initSfPullToRefresh() {
         sfPtrPulling = false;
         sfPtrArmed = false;
         if (ind) {
-            ind.classList.remove('sf-ptr-visible');
+            ind.classList.remove('sf-ptr-visible', 'is-ready');
             if (refresh) ind.textContent = 'A atualizar…';
         }
         if (refresh && isSfPtrAtScrollTop(document.body) && !sfPtrRefreshing) {
@@ -424,6 +427,7 @@ function initSfPullToRefresh() {
                 navigator.vibrate(12);
             } catch (err) {}
             try {
+                await new Promise((r) => setTimeout(r, 180));
                 await runSfPtrRefresh(currentPageName);
             } finally {
                 sfPtrRefreshing = false;
@@ -485,6 +489,7 @@ function syncMobileAppChrome(pageName) {
         if (active) btn.setAttribute('aria-current', 'page');
         else btn.removeAttribute('aria-current');
     });
+    moveMobileTabThumb();
     if (isMobile()) {
         try {
             window.scrollTo(0, 0);
@@ -498,6 +503,61 @@ function syncMobileAppChrome(pageName) {
             pageEl.classList.add('mobile-page-flash');
         }
     }
+}
+
+function moveMobileTabThumb() {
+    const bar = document.getElementById('mobileTabBar');
+    const thumb = document.getElementById('mobileTabThumb');
+    if (!bar || !thumb) return;
+    const slots = Array.from(bar.children).filter((el) => !el.classList.contains('mobile-tab-bar__thumb'));
+    const active = bar.querySelector('.mobile-tab-bar__item--active');
+    if (!active) return;
+    const idx = slots.indexOf(active);
+    if (idx < 0) return;
+    thumb.style.transform = `translateX(${idx * 100}%)`;
+}
+
+function syncSfMobilePeriodUi(period) {
+    const p = period === 'overall' ? 'month' : period;
+    const map = { today: 0, week: 1, month: 2 };
+    const idx = map[p] != null ? map[p] : 2;
+    const thumb = document.getElementById('sfMobilePeriodThumb');
+    if (thumb) thumb.style.transform = `translateX(${idx * 100}%)`;
+    document.querySelectorAll('#sfMobilePeriod [data-sf-period]').forEach((btn) => {
+        const on = btn.getAttribute('data-sf-period') === p;
+        btn.classList.toggle('is-active', on);
+        btn.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+}
+
+function initSfMobilePeriodControl() {
+    const root = document.getElementById('sfMobilePeriod');
+    if (!root || root.dataset.bound === '1') return;
+    root.dataset.bound = '1';
+    root.querySelectorAll('[data-sf-period]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const p = btn.getAttribute('data-sf-period');
+            if (!p) return;
+            syncSfMobilePeriodUi(p);
+            setDashboardPeriod(p);
+        });
+    });
+    syncSfMobilePeriodUi(currentDashboardPeriod);
+}
+
+function initSfMobileHeaderScroll() {
+    if (document.documentElement.dataset.sfHeaderScrollBound === '1') return;
+    document.documentElement.dataset.sfHeaderScrollBound = '1';
+    const header = document.getElementById('mobileAppHeader');
+    const main = document.querySelector('.dashboard-main');
+    if (!header || !main) return;
+    const update = () => {
+        const top = Math.max(main.scrollTop || 0, window.scrollY || 0);
+        header.classList.toggle('is-scrolled', top > 4);
+    };
+    main.addEventListener('scroll', update, { passive: true });
+    window.addEventListener('scroll', update, { passive: true });
+    update();
 }
 
 function closeMobileMoreSheet() {
@@ -547,6 +607,7 @@ function applySfMobileShell() {
     else if (typeof currentPageName === 'string' && currentPageName === 'quotes' && typeof renderQuotesMobileFromCache === 'function') {
         renderQuotesMobileFromCache();
     }
+    requestAnimationFrame(() => moveMobileTabThumb());
 }
 
 sfMobileMq.addEventListener('change', () => applySfMobileShell());
@@ -618,22 +679,32 @@ document.getElementById('mobileMoreLogout')?.addEventListener('click', () => {
 function openSfFabSheet() {
     const backdrop = document.getElementById('sfFabBackdrop');
     const sheet = document.getElementById('sfFabSheet');
+    const fab = document.getElementById('sfMobileFab');
     if (!backdrop || !sheet) return;
     backdrop.hidden = false;
     backdrop.setAttribute('aria-hidden', 'false');
     sheet.hidden = false;
     document.body.classList.add('sf-fab-open');
+    if (fab) {
+        fab.classList.add('is-open');
+        fab.setAttribute('aria-expanded', 'true');
+    }
 }
 
 function closeSfFabSheet() {
     const backdrop = document.getElementById('sfFabBackdrop');
     const sheet = document.getElementById('sfFabSheet');
+    const fab = document.getElementById('sfMobileFab');
     if (backdrop) {
         backdrop.hidden = true;
         backdrop.setAttribute('aria-hidden', 'true');
     }
     if (sheet) sheet.hidden = true;
     document.body.classList.remove('sf-fab-open');
+    if (fab) {
+        fab.classList.remove('is-open');
+        fab.setAttribute('aria-expanded', 'false');
+    }
 }
 
 document.getElementById('sfFabBackdrop')?.addEventListener('click', () => closeSfFabSheet());
@@ -642,23 +713,24 @@ document.getElementById('sfFabNewQuote')?.addEventListener('click', () => {
     closeSfFabSheet();
     window.location.href = 'quote-builder.html';
 });
-document.getElementById('sfFabQuickQuote')?.addEventListener('click', () => {
-    closeSfFabSheet();
-    window.location.href = 'onsite-quote.html';
-});
 document.getElementById('sfFabNewClient')?.addEventListener('click', () => {
     closeSfFabSheet();
     customersTypeFilter = '';
     showPage('customers');
     if (typeof showNewCustomerModal === 'function') showNewCustomerModal();
 });
-document.getElementById('sfFabSchedule')?.addEventListener('click', () => {
+document.getElementById('sfFabNewLead')?.addEventListener('click', () => {
+    closeSfFabSheet();
+    showPage('leads');
+    const m = document.getElementById('newLeadModal');
+    if (m) {
+        m.classList.add('active');
+        m.style.display = 'flex';
+    }
+});
+document.getElementById('sfFabNewVisit')?.addEventListener('click', () => {
     closeSfFabSheet();
     showPage('schedule');
-});
-document.getElementById('sfFabFinance')?.addEventListener('click', () => {
-    closeSfFabSheet();
-    showPage('financeiro');
 });
 
 document.getElementById('sfMobileFab')?.addEventListener('click', () => {
@@ -1356,6 +1428,7 @@ async function loadDashboard(period) {
         btn.classList.toggle('dash-period--active', on);
         btn.classList.toggle('active', on);
     });
+    syncSfMobilePeriodUi(p);
 
     const errBanner = document.getElementById('dashErrorBanner');
     if (errBanner) {
@@ -1807,13 +1880,13 @@ function renderSfMobileDashboardBlocks() {
         (d.new_leads_urgent || []).slice(0, 6).forEach((l) => {
             const nm = escapeHtmlCrm(l.name || 'Lead');
             chips.push(
-                `<button type="button" class="sf-quick-pill touchable" onclick="showPage('leads')"><span aria-hidden="true">⚡</span> ${nm}</button>`
+                `<button type="button" class="sf-quick-pill touchable" onclick="showPage('leads')">${nm}</button>`
             );
         });
         (d.upcoming_visits || []).slice(0, 6).forEach((v) => {
             const label = escapeHtmlCrm(v.lead_name || v.customer_name || v.project_name || 'Visita');
             chips.push(
-                `<button type="button" class="sf-quick-pill touchable" onclick="showPage('schedule')"><span aria-hidden="true">📍</span> ${label}</button>`
+                `<button type="button" class="sf-quick-pill touchable" onclick="showPage('schedule')">${label}</button>`
             );
         });
         act.innerHTML =
@@ -2688,53 +2761,106 @@ function bindQuotesTableRowOpen() {
 function bindSfQuoteCardInteractions(container) {
     if (!container || container.dataset.sfSwipeBound === '1') return;
     container.dataset.sfSwipeBound = '1';
+    const OPEN_X = -144;
     let activeCard = null;
     let startX = 0;
+    let startY = 0;
+    let dragging = false;
+    let axisLocked = null;
+
+    function getInner(card) {
+        return card && card.querySelector('.sf-quote-card__inner');
+    }
+
+    function setOpen(card, open) {
+        const inner = getInner(card);
+        if (!inner) return;
+        card.classList.toggle('sf-quote-card--open', open);
+        if (open) {
+            inner.style.transform = `translateX(${OPEN_X}px)`;
+        } else {
+            inner.style.transform = '';
+        }
+    }
+
+    function closeOthers(except) {
+        container.querySelectorAll('.sf-quote-card--open').forEach((c) => {
+            if (c !== except) setOpen(c, false);
+        });
+    }
 
     container.addEventListener(
-        'touchstart',
+        'pointerdown',
         (e) => {
             const card = e.target.closest('.sf-quote-card');
             if (!card || e.target.closest('button')) return;
             activeCard = card;
-            startX = e.touches[0].clientX;
+            startX = e.clientX;
+            startY = e.clientY;
+            dragging = false;
+            axisLocked = null;
+            const inner = getInner(card);
+            if (inner) inner.style.transition = 'none';
         },
         { passive: true }
     );
 
     container.addEventListener(
-        'touchend',
+        'pointermove',
         (e) => {
             if (!activeCard) return;
-            const card = activeCard;
-            activeCard = null;
-            const endX = e.changedTouches[0] ? e.changedTouches[0].clientX : startX;
-            const dx = endX - startX;
-            if (dx < -120) {
-                try {
-                    navigator.vibrate(20);
-                } catch (err) {}
-                card.classList.add('sf-quote-card--open');
-                return;
+            const dx = e.clientX - startX;
+            const dy = e.clientY - startY;
+            if (!axisLocked) {
+                if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+                axisLocked = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
             }
-            if (dx < -60) {
-                card.classList.add('sf-quote-card--open');
-                try {
-                    navigator.vibrate(8);
-                } catch (err) {}
-            } else if (dx > 30) {
-                card.classList.remove('sf-quote-card--open');
-            }
+            if (axisLocked !== 'x') return;
+            dragging = true;
+            const base = activeCard.classList.contains('sf-quote-card--open') ? OPEN_X : 0;
+            let next = base + dx;
+            if (next > 0) next = 0;
+            if (next < OPEN_X - 24) next = OPEN_X - 24;
+            const inner = getInner(activeCard);
+            if (inner) inner.style.transform = `translateX(${next}px)`;
         },
         { passive: true }
     );
+
+    const endDrag = (e) => {
+        if (!activeCard) return;
+        const card = activeCard;
+        const inner = getInner(card);
+        activeCard = null;
+        if (inner) inner.style.transition = '';
+        if (!dragging || axisLocked !== 'x') {
+            dragging = false;
+            axisLocked = null;
+            return;
+        }
+        dragging = false;
+        axisLocked = null;
+        const dx = (e.clientX != null ? e.clientX : startX) - startX;
+        const wasOpen = card.classList.contains('sf-quote-card--open');
+        const shouldOpen = wasOpen ? dx > 40 ? false : true : dx < -56;
+        closeOthers(card);
+        setOpen(card, shouldOpen);
+        if (shouldOpen) {
+            try {
+                navigator.vibrate(8);
+            } catch (err) {}
+        }
+    };
+
+    container.addEventListener('pointerup', endDrag, { passive: true });
+    container.addEventListener('pointercancel', endDrag, { passive: true });
 
     container.addEventListener('click', (e) => {
         const card = e.target.closest('.sf-quote-card');
         if (!card) return;
         if (e.target.closest('button')) return;
         if (card.classList.contains('sf-quote-card--open')) {
-            card.classList.remove('sf-quote-card--open');
+            setOpen(card, false);
             return;
         }
         const id = parseInt(String(card.dataset.quoteId || ''), 10);
@@ -2819,6 +2945,9 @@ function initQuotesMobileUx() {
 
 initQuotesMobileUx();
 initSfPullToRefresh();
+initSfMobilePeriodControl();
+initSfMobileHeaderScroll();
+requestAnimationFrame(() => moveMobileTabThumb());
 
 function formatQuoteExpiryHtml(expirationDateStr, status) {
     const st = String(status || '').toLowerCase();
