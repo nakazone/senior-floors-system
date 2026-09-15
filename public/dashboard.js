@@ -1752,7 +1752,9 @@ function renderSfMobileDashboardBlocks() {
     else if (h >= 18) g = 'Boa noite';
     if (greetingEl) {
         greetingEl.textContent = name ? `${g}, ${name}` : g;
-        greetingEl.style.color = 'var(--sf-text-accent, #c8a96e)';
+        greetingEl.style.color = 'var(--sf-navy, #1a2036)';
+        greetingEl.style.fontSize = '20px';
+        greetingEl.style.fontWeight = '700';
     }
 
     const openVal = formatDashboardCompact(pl.proposals_open_value);
@@ -1790,13 +1792,13 @@ function renderSfMobileDashboardBlocks() {
     const qa = document.getElementById('sfMobileQuickActions');
     if (qa) {
         qa.innerHTML = `
-            <button type="button" class="sf-quick-pill touchable" data-crm-permission="quotes.edit" onclick="location.href='quote-builder.html'"><span aria-hidden="true">📋</span> + Quote</button>
-            <button type="button" class="sf-quick-pill touchable" data-crm-permission="customers.create" onclick="showPage('customers'); showNewCustomerModal();"><span aria-hidden="true">👤</span> + Cliente</button>
-            <button type="button" class="sf-quick-pill touchable" data-crm-permission="visits.view" onclick="showPage('schedule')"><span aria-hidden="true">📅</span> Ver agenda</button>
-            <button type="button" class="sf-quick-pill touchable" data-crm-permission="contracts.view" onclick="showPage('financeiro')"><span aria-hidden="true">💰</span> Financeiro</button>`;
-        if (typeof applyCrmNavPermissions === 'function') {
-            applyCrmNavPermissions(crmUserPermissions, crmUserRole);
-        }
+            <button type="button" class="sf-quick-pill touchable" data-crm-permission="quotes.edit" onclick="location.href='quote-builder.html'"><span aria-hidden="true">+</span> Quote</button>
+            <button type="button" class="sf-quick-pill touchable" data-crm-permission="customers.create" onclick="showPage('customers'); showNewCustomerModal();"><span aria-hidden="true">+</span> Cliente</button>
+            <button type="button" class="sf-quick-pill touchable" data-crm-permission="visits.view" onclick="showPage('schedule')">Agenda</button>
+            <button type="button" class="sf-quick-pill touchable" data-crm-permission="contracts.view" onclick="showPage('financeiro')">Financeiro</button>`;
+    }
+    if (typeof applyCrmNavPermissions === 'function') {
+        applyCrmNavPermissions(crmUserPermissions, crmUserRole);
     }
 
     const act = document.getElementById('sfMobileActivityChips');

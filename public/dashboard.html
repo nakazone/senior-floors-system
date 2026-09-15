@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <meta name="theme-color" content="#0d0d14">
+    <meta name="theme-color" content="#f3f4f7">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <title>Senior Floors - Dashboard</title>
     <link rel="manifest" href="/manifest.json">
     <!-- Favicon (mesmo padrão do site Senior Floors) -->
@@ -15,7 +15,7 @@
     <link rel="icon" type="image/png" href="/assets/SeniorFloors.png">
     <link rel="stylesheet" href="styles.css?v=20260915-qb-action-bar">
     <link rel="stylesheet" href="design-system.css?v=20260819-menu-fix-v2">
-    <link rel="stylesheet" href="mobile-design-system.css?v=20260819-menu-fix-v2">
+    <link rel="stylesheet" href="mobile-design-system.css?v=20260915-mobile-light">
     <link rel="stylesheet" href="crm-toast.css">
     <link rel="stylesheet" href="crm-pdf-viewer.css?v=20260531">
     <link rel="stylesheet" href="crm-command-palette.css">
@@ -268,8 +268,50 @@
                     <div id="dashErrorBanner" class="dash-error-banner" style="display: none;" role="alert"></div>
 
                     <div id="sfMobileHomeBlock" class="sf-mobile-only">
+                        <p class="sf-caption" id="sfMobileGreeting" style="margin:0 0 12px;">Bom dia</p>
+                        <nav class="sf-main-menu" id="sfMobileMainMenu" aria-label="Menus principais">
+                            <p class="sf-main-menu__label">Menus principais</p>
+                            <div class="sf-main-menu__grid">
+                                <button type="button" class="sf-main-menu__btn sf-main-menu__btn--dashboard touchable" onclick="showPage('dashboard')">
+                                    <span class="sf-main-menu__icon" aria-hidden="true">
+                                        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="5" rx="1.5"/><rect x="13" y="10" width="8" height="11" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/></svg>
+                                    </span>
+                                    <span>
+                                        <span class="sf-main-menu__name">Dashboard</span>
+                                        <span class="sf-main-menu__hint">Visão geral</span>
+                                    </span>
+                                </button>
+                                <button type="button" class="sf-main-menu__btn sf-main-menu__btn--leads touchable" data-crm-permission="leads.view" onclick="showPage('leads')">
+                                    <span class="sf-main-menu__icon" aria-hidden="true">
+                                        <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                                    </span>
+                                    <span>
+                                        <span class="sf-main-menu__name">Leads</span>
+                                        <span class="sf-main-menu__hint">Pipeline CRM</span>
+                                    </span>
+                                </button>
+                                <button type="button" class="sf-main-menu__btn sf-main-menu__btn--quotes touchable" data-crm-permission="quotes.view" onclick="showPage('quotes')">
+                                    <span class="sf-main-menu__icon" aria-hidden="true">
+                                        <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8"/><path d="M8 17h5"/></svg>
+                                    </span>
+                                    <span>
+                                        <span class="sf-main-menu__name">Quotes</span>
+                                        <span class="sf-main-menu__hint">Orçamentos</span>
+                                    </span>
+                                </button>
+                                <button type="button" class="sf-main-menu__btn sf-main-menu__btn--payroll touchable" data-crm-permission="payroll.view" onclick="location.href='payroll-module.html'">
+                                    <span class="sf-main-menu__icon" aria-hidden="true">
+                                        <svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/><path d="M6 15h4"/></svg>
+                                    </span>
+                                    <span>
+                                        <span class="sf-main-menu__name">Folha de Pagamento</span>
+                                        <span class="sf-main-menu__hint">Payroll</span>
+                                    </span>
+                                </button>
+                            </div>
+                        </nav>
                         <div class="sf-hero">
-                            <p class="sf-caption" id="sfMobileGreeting">Bom dia</p>
+                            <p class="sf-micro" style="margin:0 0 4px;">Resumo</p>
                             <div id="sfMobileKpiGrid" class="sf-kpi-grid"></div>
                         </div>
                         <div class="sf-quick-actions sf-mobile-only--flex" id="sfMobileQuickActions"></div>
@@ -1654,7 +1696,7 @@
     <script src="crm-command-palette.js"></script>
     <script src="notification-center.js"></script>
     <script src="marketing-dashboard.js"></script>
-    <script src="dashboard.js?v=20260915-invoices-page"></script>
+    <script src="dashboard.js?v=20260915-mobile-light"></script>
     <script src="pipeline-stage-labels.js?v=20260915-followup-yellow"></script>
     <script src="lead-contact-links.js?v=20260915-all-stage-sms"></script>
     <script src="crm-address-autocomplete.js?v=20260528-pac-dismiss"></script>
