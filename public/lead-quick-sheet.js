@@ -645,18 +645,23 @@
     else if (kind === 'error') alert(msg);
   }
 
-  function maybeRefreshKanban() {
+  function maybeRefreshKanban(updatedLead) {
     try {
+      if (updatedLead && typeof global.patchKanbanLeadCache === 'function') {
+        global.patchKanbanLeadCache(updatedLead);
+        return;
+      }
       if (typeof global.loadKanbanBoard === 'function') void global.loadKanbanBoard();
       else if (typeof global.loadCRMKanban === 'function') void global.loadCRMKanban();
     } catch (_) {}
   }
 
-  /** Payload PUT com slug + pipeline_stage_id quando o est�gio est� na lista (Kanban usa o id). */
-  function payloadForStatusSlug(slug) {
+  /** Payload PUT com slug + pipeline_stage_id quando o estágio está na lista (Kanban usa o id). */
+  function payloadForStatusSlug(slug, stagesList) {
     const raw = String(slug || '').trim();
     if (!raw) return {};
-    const hit = sheetStagesCache.find((s) => slugMatchesCurrent(s.slug, raw));
+    const list = Array.isArray(stagesList) ? stagesList : sheetStagesCache;
+    const hit = list.find((s) => slugMatchesCurrent(s.slug, raw));
     const canonical = hit && hit.slug ? String(hit.slug).trim() : raw;
     const id = hit && hit.id != null ? Number(hit.id) : NaN;
     if (Number.isFinite(id) && id > 0) {
@@ -1074,7 +1079,7 @@
         syncPriorityToolbarButtons();
         if (partial.status !== undefined) syncStatusPickerFromLead(sheetLead);
       }
-      maybeRefreshKanban();
+      maybeRefreshKanban(data.data || null);
       return data;
     } catch (e) {
       notifySheet(e.message || 'Erro de rede', 'error');
@@ -1330,9 +1335,19 @@
     panelEl.style.pointerEvents = '';
   }
 
+  function isMobileQuickSheetLayout() {
+    return typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 1024px)').matches;
+  }
+
   function animatePanelFromAnchor(anchorEl, panelEl) {
     if (!panelEl) return;
     panelEl.style.transition = 'none';
+
+    if (isMobileQuickSheetLayout()) {
+      /* Bottom sheet: CSS .is-open cuida do translateY */
+      resetPanelTransform(panelEl);
+      return;
+    }
 
     if (!anchorEl || !(anchorEl instanceof Element)) {
       panelEl.style.opacity = '0';
@@ -1382,6 +1397,61 @@
         setTimeout(done, 520);
       });
     });
+  }
+
+  /**
+   * Atualiza estágio do lead (PUT) e sincroniza o cache do Kanban/mobile.
+   * @returns {Promise<boolean>}
+   */
+  async function updateLeadPipelineStage(leadId, stageSlug) {
+    const id = parseInt(String(leadId), 10);
+    if (!Number.isFinite(id) || id <= 0 || !stageSlug) return false;
+    let stages = sheetStagesCache;
+    if (!stages.length && typeof global.getKanbanBoardStages === 'function') {
+      try {
+        stages = global.getKanbanBoardStages() || [];
+      } catch (_) {
+        stages = [];
+      }
+    }
+    if (!stages.length) {
+      const stagesRes = await fetchJson('/api/pipeline-stages');
+      stages = normalizeStages(stagesRes);
+    }
+    const payload = payloadForStatusSlug(stageSlug, stages);
+    if (!payload.status) return false;
+    try {
+      const r = await fetch(`/api/leads/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(payload),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok || !data.success) {
+        notifySheet(data.error || 'Nao foi possivel atualizar o lead.', 'error');
+        return false;
+      }
+      if (data.data) {
+        if (sheetLeadId === id) {
+          sheetLead = data.data;
+          updateHeaderBadges(sheetLead);
+          syncStatusPickerFromLead(sheetLead);
+        }
+        maybeRefreshKanban(data.data);
+      } else {
+        maybeRefreshKanban({
+          id,
+          status: payload.status,
+          pipeline_stage_id: payload.pipeline_stage_id,
+          pipeline_stage_slug: payload.status,
+        });
+      }
+      return true;
+    } catch (e) {
+      notifySheet(e.message || 'Erro de rede', 'error');
+      return false;
+    }
   }
 
   async function openLeadQuickSheet(id, anchorEl) {
@@ -1516,6 +1586,7 @@
   global.openLeadQuickSheet = openLeadQuickSheet;
   global.animatePanelFromAnchor = animatePanelFromAnchor;
   global.closeLeadQuickSheet = closeLeadQuickSheet;
+  global.updateLeadPipelineStage = updateLeadPipelineStage;
 
   const origViewLead = typeof global.viewLead === 'function' ? global.viewLead : null;
   global.viewLead = function (id, ev) {

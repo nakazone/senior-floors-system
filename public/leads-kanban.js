@@ -258,6 +258,7 @@ function patchKanbanLeadCache(updatedLead) {
     renderKanbanBoard();
     bindKanbanLoadMore();
     syncKanbanLostToggleUi();
+    renderLeadsMobilePipeline();
 }
 
 function kanbanStageDomId(stage) {
@@ -561,6 +562,7 @@ function renderKanbanBoard() {
         );
     }
     syncKanbanLostToggleUi();
+    renderLeadsMobilePipeline();
 }
 
 function bindKanbanLoadMore() {
@@ -1035,6 +1037,420 @@ document.addEventListener('click', (e) => {
     }
 });
 
+/* ========== Mobile Leads pipeline (shell #leadsMobileShell) ========== */
+let leadsMobileActiveSlug = '';
+let leadsMobileSwipeBound = false;
+let leadsMobileSearchBound = false;
+const LCARD_SWIPE_LEFT = -96;
+const LCARD_SWIPE_RIGHT = 96;
+
+function isLeadsMobileLayout() {
+    return typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 1024px)').matches;
+}
+
+function getLeadsMobileActiveStage() {
+    const stages = getKanbanBoardStages();
+    if (!stages.length) return null;
+    if (leadsMobileActiveSlug) {
+        const hit = stages.find(
+            (s) => kanbanCanonicalStageSlug(s.slug) === kanbanCanonicalStageSlug(leadsMobileActiveSlug)
+        );
+        if (hit) return hit;
+    }
+    leadsMobileActiveSlug = stages[0].slug || '';
+    return stages[0];
+}
+
+function setLeadsMobileActiveStage(slug) {
+    leadsMobileActiveSlug = String(slug || '');
+    renderLeadsMobilePipeline();
+    const active = document.querySelector('#leadsMobileChips .chiptrack__chip.is-active');
+    if (active && typeof active.scrollIntoView === 'function') {
+        active.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+    }
+}
+
+function syncChiptrackBar(trackId, barId, activeSelector) {
+    const track = document.getElementById(trackId);
+    const bar = document.getElementById(barId);
+    if (!track || !bar) return;
+    const scroll = track.querySelector('.chiptrack__scroll') || track;
+    const active = scroll.querySelector(activeSelector);
+    if (!active) {
+        bar.style.width = '0px';
+        return;
+    }
+    const trackRect = track.getBoundingClientRect();
+    const activeRect = active.getBoundingClientRect();
+    const x = activeRect.left - trackRect.left;
+    bar.style.width = Math.max(20, activeRect.width) + 'px';
+    bar.style.transform = `translateX(${Math.max(0, x)}px)`;
+}
+
+function leadsMobileStageLabel(stage) {
+    return escapeKanbanHtml(kanbanColumnTitle(stage) || stage.slug || 'Stage');
+}
+
+function leadsMobilePriClass(priorityRaw) {
+    const p = String(priorityRaw || 'medium').toLowerCase().replace(/[^a-z]/g, '') || 'medium';
+    if (p === 'high') return 'lcard__pri--high';
+    if (p === 'low') return 'lcard__pri--low';
+    return 'lcard__pri--medium';
+}
+
+function leadsMobileTelHref(phone) {
+    if (typeof window.sfBuildTelHref === 'function') return window.sfBuildTelHref(phone) || '';
+    if (!phone) return '';
+    const digits = String(phone).replace(/[^\d+]/g, '');
+    return digits ? `tel:${digits}` : '';
+}
+
+function renderLeadsMobileCard(lead, stage, stages) {
+    const id = kanbanNumericId(lead.id);
+    const name = escapeKanbanHtml(lead.name || 'Sem nome');
+    const phone = lead.phone ? escapeKanbanHtml(lead.phone) : '';
+    const tel = leadsMobileTelHref(lead.phone);
+    const days = kanbanDaysInCurrentColumn(lead);
+    const daysLabel = formatKanbanDaysInColumnLabel(days);
+    const stale = days != null && days >= 5;
+    const val =
+        lead.estimated_value != null && lead.estimated_value !== ''
+            ? `$${parseFloat(lead.estimated_value).toLocaleString()}`
+            : '';
+    const idx = stages.findIndex(
+        (s) => kanbanCanonicalStageSlug(s.slug) === kanbanCanonicalStageSlug(stage.slug)
+    );
+    const hasNext = idx >= 0 && idx < stages.length - 1;
+    const callDisabled = !tel;
+    const flagHtml = stale
+        ? `<span class="lcard__flag">Follow-up atrasado ${escapeKanbanHtml(String(days))}d</span>`
+        : daysLabel
+          ? `<span class="lcard__days">${escapeKanbanHtml(daysLabel)}</span>`
+          : '';
+    const metaBits = [phone, lead.email ? escapeKanbanHtml(lead.email) : ''].filter(Boolean);
+    const callIcon =
+        '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.81.36 1.6.68 2.34a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.74-1.74a2 2 0 0 1 2.11-.45c.74.32 1.53.55 2.34.68A2 2 0 0 1 22 16.92z"/></svg>';
+    const advanceIcon =
+        '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="M13 5l7 7-7 7"/></svg>';
+
+    return `<article class="lcard" data-lead-id="${id}">
+  <div class="lcard__actions" aria-hidden="true">
+    <div class="lcard__action-slot lcard__action-slot--left">
+      <button type="button" class="lcard__action-btn lcard__action-btn--call" data-lcard-call="${id}" ${callDisabled ? 'disabled' : ''} data-crm-permission="leads.view">${callIcon}<span>Ligar</span></button>
+    </div>
+    <div class="lcard__action-slot lcard__action-slot--right">
+      <button type="button" class="lcard__action-btn lcard__action-btn--advance" data-lcard-advance="${id}" ${hasNext ? '' : 'disabled'} data-crm-permission="leads.view">${advanceIcon}<span>Avançar</span></button>
+    </div>
+  </div>
+  <div class="lcard__body touchable" data-lcard-open="${id}" role="button" tabindex="0">
+    <div class="lcard__top">
+      <span class="lcard__pri ${leadsMobilePriClass(lead.priority)}" aria-hidden="true"></span>
+      <div style="flex:1;min-width:0">
+        <div class="lcard__name">${name}</div>
+        ${metaBits.length ? `<div class="lcard__meta">${metaBits.join(' · ')}</div>` : ''}
+      </div>
+    </div>
+    <div class="lcard__row">
+      ${val ? `<span class="lcard__value">${escapeKanbanHtml(val)}</span>` : '<span></span>'}
+      ${flagHtml}
+    </div>
+  </div>
+</article>`;
+}
+
+function renderLeadsMobilePipeline() {
+    const shell = document.getElementById('leadsMobileShell');
+    const chipsEl = document.getElementById('leadsMobileChips');
+    const listEl = document.getElementById('leadsMobileList');
+    if (!shell || !chipsEl || !listEl) return;
+    if (!isLeadsMobileLayout() && shell.offsetParent === null) {
+        /* still update if shell exists — layout may toggle */
+    }
+
+    bindLeadsMobileSearchOnce();
+
+    const stages = getKanbanBoardStages();
+    if (!stages.length) {
+        chipsEl.innerHTML = '';
+        listEl.innerHTML = '<div class="llist__empty">A carregar estágios…</div>';
+        return;
+    }
+
+    const active = getLeadsMobileActiveStage();
+    const activeCanon = kanbanCanonicalStageSlug(active && active.slug);
+
+    chipsEl.innerHTML = stages
+        .map((stage) => {
+            const count = allLeads.filter((lead) => leadMatchesKanbanColumn(lead, stage)).length;
+            const slug = escapeKanbanHtml(stage.slug || '');
+            const isActive = kanbanCanonicalStageSlug(stage.slug) === activeCanon;
+            return `<button type="button" class="chiptrack__chip${isActive ? ' is-active' : ''}" role="tab" aria-selected="${isActive ? 'true' : 'false'}" data-stage-slug="${slug}">${leadsMobileStageLabel(stage)}<span class="chiptrack__chip-count">${count}</span></button>`;
+        })
+        .join('');
+
+    if (!chipsEl.dataset.chipClickBound) {
+        chipsEl.dataset.chipClickBound = '1';
+        chipsEl.addEventListener('click', (e) => {
+            const btn = e.target.closest('[data-stage-slug]');
+            if (!btn) return;
+            setLeadsMobileActiveStage(btn.getAttribute('data-stage-slug'));
+        });
+        const track = document.getElementById('leadsMobileChiptrack');
+        if (track) {
+            track.addEventListener(
+                'scroll',
+                () => syncChiptrackBar('leadsMobileChiptrack', 'leadsMobileChipBar', '.chiptrack__chip.is-active'),
+                { passive: true }
+            );
+        }
+    }
+
+    requestAnimationFrame(() => {
+        syncChiptrackBar('leadsMobileChiptrack', 'leadsMobileChipBar', '.chiptrack__chip.is-active');
+    });
+
+    const stageLeads = sortKanbanColumnLeads(
+        allLeads.filter((lead) => leadMatchesKanbanColumn(lead, active)),
+        active.slug
+    );
+
+    let sum = 0;
+    stageLeads.forEach((l) => {
+        const v = parseFloat(l.estimated_value);
+        if (Number.isFinite(v)) sum += v;
+    });
+
+    const countEl = document.getElementById('leadsMobileStageCount');
+    const valueEl = document.getElementById('leadsMobileStageValue');
+    const subEl = document.getElementById('leadsMobileSubtitle');
+    const n = stageLeads.length;
+    if (countEl) countEl.textContent = n === 1 ? '1 lead' : `${n} leads`;
+    if (valueEl) {
+        valueEl.textContent =
+            '$' +
+            sum.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+    }
+    if (subEl) subEl.textContent = kanbanColumnTitle(active) || 'Pipeline';
+
+    if (!stageLeads.length) {
+        listEl.innerHTML = `<div class="llist__empty">Nenhum lead em ${leadsMobileStageLabel(active)}</div>`;
+    } else {
+        listEl.innerHTML = stageLeads.map((lead) => renderLeadsMobileCard(lead, active, stages)).join('');
+    }
+
+    bindLeadsMobileListInteractions(listEl);
+
+    if (typeof applyCrmNavPermissions === 'function' && typeof crmUserPermissions !== 'undefined') {
+        try {
+            applyCrmNavPermissions(crmUserPermissions, typeof crmUserRole !== 'undefined' ? crmUserRole : null);
+        } catch (_) {}
+    }
+}
+
+function bindLeadsMobileSearchOnce() {
+    if (leadsMobileSearchBound) return;
+    const mobile = document.getElementById('leadsMobileSearch');
+    const desktop = document.getElementById('leadsListSearchInput');
+    if (!mobile) return;
+    leadsMobileSearchBound = true;
+    if (desktop && desktop.value && !mobile.value) mobile.value = desktop.value;
+    const syncAndSearch = () => {
+        if (desktop) desktop.value = mobile.value;
+        if (typeof leadsSearchSubmit === 'function') leadsSearchSubmit();
+        else if (typeof loadKanbanBoard === 'function') void loadKanbanBoard();
+    };
+    mobile.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            syncAndSearch();
+        }
+    });
+    let t = null;
+    mobile.addEventListener('input', () => {
+        clearTimeout(t);
+        t = setTimeout(syncAndSearch, 320);
+    });
+}
+
+function notifyLeadsMobile(msg, kind) {
+    if (typeof crmNotify === 'function') crmNotify(msg, kind || 'info');
+    else if (typeof window.crmToast === 'object' && window.crmToast) {
+        const fn = kind === 'error' ? window.crmToast.error : window.crmToast.success || window.crmToast.info;
+        if (typeof fn === 'function') fn(msg);
+    }
+}
+
+async function advanceLeadMobileStage(leadId) {
+    const stages = getKanbanBoardStages();
+    const lead = allLeads.find((l) => kanbanNumericId(l.id) === kanbanNumericId(leadId));
+    if (!lead || !stages.length) return;
+    const cur = resolveStageForLead(lead);
+    const idx = stages.findIndex(
+        (s) =>
+            kanbanCanonicalStageSlug(s.slug) ===
+            kanbanCanonicalStageSlug(cur && cur.slug)
+    );
+    if (idx < 0 || idx >= stages.length - 1) {
+        notifyLeadsMobile('Já está no último estágio do pipeline.', 'info');
+        return;
+    }
+    const next = stages[idx + 1];
+    const nextSlug = next.slug;
+    const nextName = kanbanColumnTitle(next) || nextSlug;
+    if (typeof window.updateLeadPipelineStage === 'function') {
+        const ok = await window.updateLeadPipelineStage(leadId, nextSlug);
+        if (ok) {
+            leadsMobileActiveSlug = nextSlug;
+            notifyLeadsMobile(`Movido para ${nextName}`, 'success');
+            renderLeadsMobilePipeline();
+        }
+        return;
+    }
+    notifyLeadsMobile('Não foi possível avançar o estágio.', 'error');
+}
+
+function bindLeadsMobileListInteractions(container) {
+    if (!container) return;
+    if (!leadsMobileSwipeBound) {
+        leadsMobileSwipeBound = true;
+        let activeCard = null;
+        let startX = 0;
+        let startY = 0;
+        let dragging = false;
+        let axisLocked = null;
+        let skipClick = false;
+
+        function getBody(card) {
+            return card && card.querySelector('.lcard__body');
+        }
+
+        function setOffset(card, x) {
+            const body = getBody(card);
+            if (!body) return;
+            if (!x) {
+                body.style.transform = '';
+                card.classList.remove('lcard--open-left', 'lcard--open-right');
+                return;
+            }
+            body.style.transform = `translateX(${x}px)`;
+            card.classList.toggle('lcard--open-right', x > 40);
+            card.classList.toggle('lcard--open-left', x < -40);
+        }
+
+        function closeAll(except) {
+            container.querySelectorAll('.lcard').forEach((c) => {
+                if (c !== except) setOffset(c, 0);
+            });
+        }
+
+        container.addEventListener(
+            'pointerdown',
+            (e) => {
+                const card = e.target.closest('.lcard');
+                if (!card || e.target.closest('button')) return;
+                activeCard = card;
+                startX = e.clientX;
+                startY = e.clientY;
+                dragging = false;
+                axisLocked = null;
+                skipClick = false;
+                const body = getBody(card);
+                if (body) body.style.transition = 'none';
+            },
+            { passive: true }
+        );
+
+        container.addEventListener(
+            'pointermove',
+            (e) => {
+                if (!activeCard) return;
+                const dx = e.clientX - startX;
+                const dy = e.clientY - startY;
+                if (!axisLocked) {
+                    if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+                    axisLocked = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+                }
+                if (axisLocked !== 'x') return;
+                dragging = true;
+                skipClick = true;
+                let next = dx;
+                if (next > LCARD_SWIPE_RIGHT + 20) next = LCARD_SWIPE_RIGHT + 20;
+                if (next < LCARD_SWIPE_LEFT - 20) next = LCARD_SWIPE_LEFT - 20;
+                setOffset(activeCard, next);
+            },
+            { passive: true }
+        );
+
+        const endDrag = () => {
+            if (!activeCard) return;
+            const card = activeCard;
+            const body = getBody(card);
+            activeCard = null;
+            if (body) body.style.transition = '';
+            if (!dragging || axisLocked !== 'x') {
+                dragging = false;
+                axisLocked = null;
+                return;
+            }
+            dragging = false;
+            axisLocked = null;
+            const style = body && body.style.transform ? body.style.transform : '';
+            const m = /translateX\((-?\d+(?:\.\d+)?)px\)/.exec(style);
+            const x = m ? parseFloat(m[1]) : 0;
+            closeAll(card);
+            if (x >= 56) setOffset(card, LCARD_SWIPE_RIGHT);
+            else if (x <= -56) setOffset(card, LCARD_SWIPE_LEFT);
+            else setOffset(card, 0);
+            try {
+                if (Math.abs(x) >= 56) navigator.vibrate(8);
+            } catch (_) {}
+        };
+
+        container.addEventListener('pointerup', endDrag, { passive: true });
+        container.addEventListener('pointercancel', endDrag, { passive: true });
+
+        container.addEventListener('click', (e) => {
+            const callBtn = e.target.closest('[data-lcard-call]');
+            if (callBtn) {
+                e.preventDefault();
+                e.stopPropagation();
+                const id = parseInt(callBtn.getAttribute('data-lcard-call'), 10);
+                const lead = allLeads.find((l) => kanbanNumericId(l.id) === id);
+                const href = lead ? leadsMobileTelHref(lead.phone) : '';
+                if (href) window.location.href = href;
+                else notifyLeadsMobile('Este lead não tem telefone.', 'error');
+                return;
+            }
+            const advBtn = e.target.closest('[data-lcard-advance]');
+            if (advBtn) {
+                e.preventDefault();
+                e.stopPropagation();
+                const id = parseInt(advBtn.getAttribute('data-lcard-advance'), 10);
+                if (Number.isFinite(id)) void advanceLeadMobileStage(id);
+                return;
+            }
+            if (skipClick) {
+                skipClick = false;
+                return;
+            }
+            const openEl = e.target.closest('[data-lcard-open]');
+            if (!openEl) return;
+            const card = openEl.closest('.lcard');
+            if (card && (card.classList.contains('lcard--open-left') || card.classList.contains('lcard--open-right'))) {
+                setOffset(card, 0);
+                return;
+            }
+            const id = parseInt(openEl.getAttribute('data-lcard-open'), 10);
+            if (!Number.isFinite(id)) return;
+            if (typeof window.openLeadQuickSheet === 'function') {
+                void window.openLeadQuickSheet(id, openEl);
+            } else if (typeof viewLead === 'function') {
+                viewLead(id);
+            }
+        });
+    }
+}
+
 // Initialize on page load
 if (typeof window !== 'undefined') {
     window.showKanbanView = showKanbanView;
@@ -1050,13 +1466,16 @@ if (typeof window !== 'undefined') {
     window.loadKanbanBoard = loadKanbanBoard;
     window.patchKanbanLeadCache = patchKanbanLeadCache;
     window.toggleKanbanLostColumn = toggleKanbanLostColumn;
-    
+    window.renderLeadsMobilePipeline = renderLeadsMobilePipeline;
+    window.getKanbanBoardStages = getKanbanBoardStages;
+    window.syncChiptrackBar = syncChiptrackBar;
+
     // loadCRMKanban is already defined above
-    
+
     // Leads = só Kanban (lista desativada na UI)
     const originalLoadLeads = window.loadLeads;
     if (originalLoadLeads) {
-        window.loadLeads = async function() {
+        window.loadLeads = async function () {
             if (typeof loadCRMKanban === 'function') {
                 await loadCRMKanban();
             } else {

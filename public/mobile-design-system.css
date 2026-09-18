@@ -834,8 +834,322 @@
     .sf-period__thumb,
     .dashboard-app-body.sf-mobile-shell .sf-fab svg,
     .sf-quote-card__inner,
+    .lcard__body,
     .dashboard-app-body.sf-mobile-shell .sf-fab-sheet {
       transition: none !important;
+    }
+  }
+
+  /* Leads mobile pipeline — esconde kanban desktop */
+  .dashboard-app-body.sf-mobile-shell .sf-desktop-leads-block {
+    display: none !important;
+  }
+
+  .leads-mobile-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 10px;
+  }
+
+  .leads-mobile-head .btn {
+    flex-shrink: 0;
+    min-height: var(--sf-touch-min);
+    padding: 10px 14px;
+    font-size: 14px;
+  }
+
+  .leads-mobile-toolbar {
+    margin-bottom: 4px;
+  }
+
+  .chiptrack {
+    position: relative;
+    margin: 0 -4px 8px;
+    padding: 0 4px 10px;
+  }
+
+  .chiptrack__scroll {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 8px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-bottom: 2px;
+  }
+
+  .chiptrack__scroll::-webkit-scrollbar {
+    display: none;
+  }
+
+  .chiptrack__chip {
+    flex: 0 0 auto;
+    min-height: 36px;
+    padding: 8px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--sf-border-mid);
+    background: var(--sf-bg-card);
+    color: var(--sf-text-secondary);
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .chiptrack__chip.is-active,
+  .chiptrack__chip.quotes-filter-chip--active {
+    color: var(--sf-navy);
+    border-color: var(--sf-accent-border);
+    background: var(--sf-accent-dim);
+  }
+
+  .chiptrack__chip-count {
+    display: inline-block;
+    margin-left: 4px;
+    font-weight: 700;
+    color: var(--sf-accent);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .chiptrack__bar {
+    position: absolute;
+    left: 0;
+    bottom: 2px;
+    height: 3px;
+    width: 24px;
+    border-radius: 3px;
+    background: var(--sf-accent);
+    transform: translateX(0);
+    transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1), width 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+    pointer-events: none;
+  }
+
+  .stagebar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 8px 4px 12px;
+    color: var(--sf-text-secondary);
+    font-size: 13px;
+  }
+
+  .stagebar__value {
+    color: var(--sf-navy);
+    font-size: 15px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .llist {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    touch-action: pan-y;
+    padding-bottom: 8px;
+  }
+
+  .llist__empty {
+    text-align: center;
+    padding: 28px 16px;
+    color: var(--sf-text-secondary);
+    font-size: 14px;
+  }
+
+  .lcard {
+    position: relative;
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    padding: 0;
+    overflow: visible;
+    box-shadow: none;
+  }
+
+  .lcard__actions {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: stretch;
+    justify-content: space-between;
+    z-index: 0;
+    pointer-events: none;
+  }
+
+  .lcard__actions > * {
+    pointer-events: auto;
+  }
+
+  .lcard__action-slot {
+    display: flex;
+    align-items: stretch;
+    overflow: hidden;
+    border-radius: 20px;
+    min-width: 0;
+  }
+
+  .lcard__action-slot--left {
+    border-radius: 20px 0 0 20px;
+  }
+
+  .lcard__action-slot--right {
+    border-radius: 0 20px 20px 0;
+    margin-left: auto;
+  }
+
+  .lcard__action-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    min-width: 88px;
+    padding: 8px 12px;
+    border: none;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .lcard__action-btn svg {
+    width: 20px;
+    height: 20px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .lcard__action-btn--call {
+    background: #15803d;
+  }
+
+  .lcard__action-btn--advance {
+    background: var(--sf-accent-hover);
+  }
+
+  .lcard__action-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
+  .lcard__body {
+    position: relative;
+    z-index: 1;
+    background: var(--sf-bg-card);
+    border: 1px solid var(--sf-border-subtle);
+    border-radius: 20px;
+    padding: 14px 16px;
+    box-shadow: var(--sf-shadow-sm);
+    transition: transform 0.18s ease;
+    will-change: auto;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .lcard__top {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin-bottom: 6px;
+  }
+
+  .lcard__pri {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin-top: 6px;
+    flex-shrink: 0;
+    background: #94a3b8;
+  }
+
+  .lcard__pri--high {
+    background: #dc2626;
+  }
+
+  .lcard__pri--medium {
+    background: #f59e0b;
+  }
+
+  .lcard__pri--low {
+    background: #3b82f6;
+  }
+
+  .lcard__name {
+    flex: 1;
+    min-width: 0;
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 1.3;
+    color: var(--sf-text-primary);
+    word-break: break-word;
+  }
+
+  .lcard__meta {
+    font-size: 12px;
+    color: var(--sf-text-secondary);
+    margin-top: 2px;
+  }
+
+  .lcard__row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: 8px;
+    flex-wrap: wrap;
+  }
+
+  .lcard__value {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--sf-navy);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .lcard__flag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    background: rgba(220, 38, 38, 0.1);
+    color: #b91c1c;
+  }
+
+  .lcard__days {
+    font-size: 11px;
+    color: var(--sf-text-muted);
+  }
+
+  .lead-quick-sheet__panel {
+    left: 0;
+    right: 0;
+    top: auto;
+    bottom: 0;
+    width: 100%;
+    max-width: 100%;
+    max-height: min(92dvh, 920px);
+    border-radius: 20px 20px 0 0;
+    transform: translateY(110%);
+    transition: transform 0.38s cubic-bezier(0.22, 1, 0.36, 1);
+    padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .lead-quick-sheet.is-open .lead-quick-sheet__panel {
+    transform: translateY(0);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .lead-quick-sheet__panel {
+      transition: none;
     }
   }
 }

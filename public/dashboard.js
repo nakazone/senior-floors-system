@@ -1956,6 +1956,8 @@ function leadsSearchSubmit() {
 function leadsSearchClear() {
     const el = document.getElementById('leadsListSearchInput');
     if (el) el.value = '';
+    const mobile = document.getElementById('leadsMobileSearch');
+    if (mobile) mobile.value = '';
     leadsListSearch = '';
     leadsPage = 1;
     if (typeof loadKanbanBoard === 'function') {
@@ -2659,7 +2661,26 @@ function updateQuotesTotalsUi(totalCount, totalAmount) {
 function updateQuotesFilterChipStyles() {
     document.querySelectorAll('.quotes-filter-chip').forEach((b) => {
         b.classList.toggle('quotes-filter-chip--active', b.getAttribute('data-quotes-filter') === quotesListFilter);
+        b.classList.toggle('is-active', b.getAttribute('data-quotes-filter') === quotesListFilter);
     });
+    if (typeof syncChiptrackBar === 'function') {
+        requestAnimationFrame(() => {
+            syncChiptrackBar('quotesMobileChiptrack', 'quotesMobileChipBar', '.quotes-filter-chip--active, .chiptrack__chip.is-active');
+        });
+    } else {
+        const track = document.getElementById('quotesMobileChiptrack');
+        const bar = document.getElementById('quotesMobileChipBar');
+        if (track && bar) {
+            const scroll = track.querySelector('.chiptrack__scroll') || track;
+            const active = scroll.querySelector('.quotes-filter-chip--active, .chiptrack__chip.is-active');
+            if (active) {
+                const trackRect = track.getBoundingClientRect();
+                const activeRect = active.getBoundingClientRect();
+                bar.style.width = Math.max(20, activeRect.width) + 'px';
+                bar.style.transform = `translateX(${Math.max(0, activeRect.left - trackRect.left)}px)`;
+            }
+        }
+    }
 }
 
 function setQuotesFilter(f) {
@@ -2767,6 +2788,8 @@ function bindSfQuoteCardInteractions(container) {
     let startY = 0;
     let dragging = false;
     let axisLocked = null;
+    let lastX = 0;
+    let skipClick = false;
 
     function getInner(card) {
         return card && card.querySelector('.sf-quote-card__inner');
@@ -2797,10 +2820,15 @@ function bindSfQuoteCardInteractions(container) {
             activeCard = card;
             startX = e.clientX;
             startY = e.clientY;
+            lastX = e.clientX;
             dragging = false;
             axisLocked = null;
+            skipClick = false;
             const inner = getInner(card);
             if (inner) inner.style.transition = 'none';
+            try {
+                card.setPointerCapture(e.pointerId);
+            } catch (_) {}
         },
         { passive: true }
     );
@@ -2811,12 +2839,14 @@ function bindSfQuoteCardInteractions(container) {
             if (!activeCard) return;
             const dx = e.clientX - startX;
             const dy = e.clientY - startY;
+            lastX = e.clientX;
             if (!axisLocked) {
                 if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
                 axisLocked = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
             }
             if (axisLocked !== 'x') return;
             dragging = true;
+            skipClick = true;
             const base = activeCard.classList.contains('sf-quote-card--open') ? OPEN_X : 0;
             let next = base + dx;
             if (next > 0) next = 0;
@@ -2840,7 +2870,8 @@ function bindSfQuoteCardInteractions(container) {
         }
         dragging = false;
         axisLocked = null;
-        const dx = (e.clientX != null ? e.clientX : startX) - startX;
+        const clientX = e && e.clientX != null ? e.clientX : lastX;
+        const dx = clientX - startX;
         const wasOpen = card.classList.contains('sf-quote-card--open');
         const shouldOpen = wasOpen ? dx > 40 ? false : true : dx < -56;
         closeOthers(card);
@@ -2859,6 +2890,10 @@ function bindSfQuoteCardInteractions(container) {
         const card = e.target.closest('.sf-quote-card');
         if (!card) return;
         if (e.target.closest('button')) return;
+        if (skipClick) {
+            skipClick = false;
+            return;
+        }
         if (card.classList.contains('sf-quote-card--open')) {
             setOpen(card, false);
             return;

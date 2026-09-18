@@ -15,7 +15,7 @@
     <link rel="icon" type="image/png" href="/assets/SeniorFloors.png">
     <link rel="stylesheet" href="styles.css?v=20260915-qb-action-bar">
     <link rel="stylesheet" href="design-system.css?v=20260819-menu-fix-v2">
-    <link rel="stylesheet" href="mobile-design-system.css?v=20260915-tabbar-bottom">
+    <link rel="stylesheet" href="mobile-design-system.css?v=20260918-leads-quotes-mobile">
     <link rel="stylesheet" href="crm-toast.css">
     <link rel="stylesheet" href="crm-pdf-viewer.css?v=20260531">
     <link rel="stylesheet" href="crm-command-palette.css">
@@ -506,35 +506,60 @@
                 <!-- Leads Page -->
                 <div id="leadsPage" class="page-content" style="display: none;">
                     <div class="sf-ptr-indicator" id="leadsPtrIndicator" aria-hidden="true">↓ Puxe para atualizar</div>
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--spacing-md); flex-wrap: wrap; gap: var(--spacing-sm);">
-                        <h2 class="page-title">Leads</h2>
-                        <div style="display: flex; gap: var(--spacing-sm);">
-                            <button class="btn btn-secondary" onclick="showNewLeadModal()">+ Novo Lead</button>
-                            <button class="btn btn-secondary" onclick="refreshLeads()">Refresh</button>
+
+                    <div id="leadsMobileShell" class="sf-mobile-only">
+                        <div class="leads-mobile-head">
+                            <div class="leads-mobile-head__titles">
+                                <p class="sf-title" style="margin:0;">Leads</p>
+                                <p class="sf-caption" id="leadsMobileSubtitle" style="margin:2px 0 0;">Pipeline</p>
+                            </div>
+                            <button type="button" class="btn btn-primary btn-cta-primary touchable" onclick="showNewLeadModal()" data-crm-permission="leads.view">+ Novo Lead</button>
                         </div>
-                    </div>
-                    <div style="display: flex; flex-wrap: wrap; gap: var(--spacing-sm); align-items: center; margin-bottom: var(--spacing-md);">
-                        <input type="search" id="leadsListSearchInput" placeholder="Buscar por nome, email, telefone ou ID…" style="min-width: 12rem; flex: 1; max-width: 22rem; padding: 0.45rem 0.65rem; border-radius: var(--radius-sm, 6px); border: 1px solid var(--border-color, #ccc);" onkeydown="if (event.key === 'Enter') { event.preventDefault(); leadsSearchSubmit(); }" />
-                        <button type="button" class="btn btn-secondary" onclick="leadsSearchSubmit()">Buscar</button>
-                        <button type="button" class="btn btn-secondary" onclick="leadsSearchClear()">Limpar</button>
-                    </div>
-                    
-                    <div id="kanbanView" class="kanban-view-wrap">
-                        <div class="kanban-board-toolbar" id="kanbanBoardToolbar">
-                            <button
-                                type="button"
-                                id="kanbanToggleLostBtn"
-                                class="btn btn-secondary btn-sm kanban-lost-toggle"
-                                aria-pressed="false"
-                                aria-expanded="false"
-                                title="Mostrar ou ocultar coluna Lost"
-                            >
-                                <span class="kanban-lost-toggle__label">Ver Lost</span>
-                                <span class="kanban-lost-toggle__count" id="kanbanLostCount" aria-hidden="true">0</span>
-                            </button>
+                        <div class="sf-quotes-toolbar leads-mobile-toolbar">
+                            <input type="search" id="leadsMobileSearch" class="sf-quotes-search" placeholder="Buscar nome, telefone, e-mail ou ID…" autocomplete="off" aria-label="Buscar leads" />
                         </div>
-                        <div class="kanban-board-wrap">
-                            <div id="kanbanBoard" class="kanban-board-grid" aria-label="Pipeline de leads"></div>
+                        <div class="chiptrack" id="leadsMobileChiptrack" role="tablist" aria-label="Estágios do pipeline">
+                            <div class="chiptrack__scroll" id="leadsMobileChips"></div>
+                            <div class="chiptrack__bar" id="leadsMobileChipBar" aria-hidden="true"></div>
+                        </div>
+                        <div class="stagebar" id="leadsMobileStagebar" aria-live="polite">
+                            <span class="stagebar__count" id="leadsMobileStageCount">0 leads</span>
+                            <strong class="stagebar__value" id="leadsMobileStageValue">$0</strong>
+                        </div>
+                        <div id="leadsMobileList" class="llist" aria-label="Leads do estágio"></div>
+                    </div>
+
+                    <div class="sf-desktop-leads-block">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--spacing-md); flex-wrap: wrap; gap: var(--spacing-sm);">
+                            <h2 class="page-title">Leads</h2>
+                            <div style="display: flex; gap: var(--spacing-sm);">
+                                <button class="btn btn-secondary" onclick="showNewLeadModal()">+ Novo Lead</button>
+                                <button class="btn btn-secondary" onclick="refreshLeads()">Refresh</button>
+                            </div>
+                        </div>
+                        <div style="display: flex; flex-wrap: wrap; gap: var(--spacing-sm); align-items: center; margin-bottom: var(--spacing-md);">
+                            <input type="search" id="leadsListSearchInput" placeholder="Buscar por nome, email, telefone ou ID…" style="min-width: 12rem; flex: 1; max-width: 22rem; padding: 0.45rem 0.65rem; border-radius: var(--radius-sm, 6px); border: 1px solid var(--border-color, #ccc);" onkeydown="if (event.key === 'Enter') { event.preventDefault(); leadsSearchSubmit(); }" />
+                            <button type="button" class="btn btn-secondary" onclick="leadsSearchSubmit()">Buscar</button>
+                            <button type="button" class="btn btn-secondary" onclick="leadsSearchClear()">Limpar</button>
+                        </div>
+
+                        <div id="kanbanView" class="kanban-view-wrap">
+                            <div class="kanban-board-toolbar" id="kanbanBoardToolbar">
+                                <button
+                                    type="button"
+                                    id="kanbanToggleLostBtn"
+                                    class="btn btn-secondary btn-sm kanban-lost-toggle"
+                                    aria-pressed="false"
+                                    aria-expanded="false"
+                                    title="Mostrar ou ocultar coluna Lost"
+                                >
+                                    <span class="kanban-lost-toggle__label">Ver Lost</span>
+                                    <span class="kanban-lost-toggle__count" id="kanbanLostCount" aria-hidden="true">0</span>
+                                </button>
+                            </div>
+                            <div class="kanban-board-wrap">
+                                <div id="kanbanBoard" class="kanban-board-grid" aria-label="Pipeline de leads"></div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1008,14 +1033,17 @@
                                 <span class="quotes-list-toolbar__total-meta" id="quotesMobileTotalCountMeta"></span>
                             </div>
                         </div>
-                        <div class="sf-quotes-chips-scroll sf-mobile-only--flex" role="toolbar" aria-label="Filtros" style="flex-wrap:nowrap;overflow-x:auto;gap:8px;padding:4px 0 10px;-webkit-overflow-scrolling:touch;">
-                            <button type="button" class="quotes-filter-chip" data-quotes-filter="all" onclick="setQuotesFilter('all')">Todos</button>
-                            <button type="button" class="quotes-filter-chip" data-quotes-filter="draft" onclick="setQuotesFilter('draft')">Rascunho</button>
-                            <button type="button" class="quotes-filter-chip" data-quotes-filter="sent" onclick="setQuotesFilter('sent')">Enviado</button>
-                            <button type="button" class="quotes-filter-chip" data-quotes-filter="viewed" onclick="setQuotesFilter('viewed')">Visto</button>
-                            <button type="button" class="quotes-filter-chip" data-quotes-filter="approved" onclick="setQuotesFilter('approved')">Aprovado</button>
-                            <button type="button" class="quotes-filter-chip" data-quotes-filter="rejected" onclick="setQuotesFilter('rejected')">Rejeitado</button>
-                            <button type="button" class="quotes-filter-chip" data-quotes-filter="expiring7" onclick="setQuotesFilter('expiring7')">Expira ≤7d</button>
+                        <div class="chiptrack chiptrack--quotes" id="quotesMobileChiptrack" role="toolbar" aria-label="Filtros">
+                            <div class="chiptrack__scroll">
+                                <button type="button" class="quotes-filter-chip chiptrack__chip" data-quotes-filter="all" onclick="setQuotesFilter('all')">Todos</button>
+                                <button type="button" class="quotes-filter-chip chiptrack__chip" data-quotes-filter="draft" onclick="setQuotesFilter('draft')">Rascunho</button>
+                                <button type="button" class="quotes-filter-chip chiptrack__chip" data-quotes-filter="sent" onclick="setQuotesFilter('sent')">Enviado</button>
+                                <button type="button" class="quotes-filter-chip chiptrack__chip" data-quotes-filter="viewed" onclick="setQuotesFilter('viewed')">Visto</button>
+                                <button type="button" class="quotes-filter-chip chiptrack__chip" data-quotes-filter="approved" onclick="setQuotesFilter('approved')">Aprovado</button>
+                                <button type="button" class="quotes-filter-chip chiptrack__chip" data-quotes-filter="rejected" onclick="setQuotesFilter('rejected')">Rejeitado</button>
+                                <button type="button" class="quotes-filter-chip chiptrack__chip" data-quotes-filter="expiring7" onclick="setQuotesFilter('expiring7')">Expira ≤7d</button>
+                            </div>
+                            <div class="chiptrack__bar" id="quotesMobileChipBar" aria-hidden="true"></div>
                         </div>
                         <div id="quotesMobileList" class="sf-quotes-card-list"></div>
                         <div class="quotes-mobile-load-more" style="text-align:center;padding:12px;">
@@ -1773,15 +1801,15 @@
     <script src="crm-command-palette.js"></script>
     <script src="notification-center.js"></script>
     <script src="marketing-dashboard.js"></script>
-    <script src="dashboard.js?v=20260918-invoice-receipts"></script>
+    <script src="dashboard.js?v=20260918-leads-quotes-mobile"></script>
     <script src="pipeline-stage-labels.js?v=20260915-followup-yellow"></script>
     <script src="lead-contact-links.js?v=20260915-all-stage-sms"></script>
     <script src="crm-address-autocomplete.js?v=20260528-pac-dismiss"></script>
     <script src="lead-visit-calendar-format.js?v=20260528-cal-address"></script>
     <script src="crm-device-calendar.js?v=20260819-ipad-ics"></script>
     <script src="lead-quote-engagement-icons.js?v=20260528-badge-check-x"></script>
-    <script src="lead-quick-sheet.js?v=20260915-stand-by"></script>
-    <script src="leads-kanban.js?v=20260915-delete-btn"></script>
+    <script src="lead-quick-sheet.js?v=20260918-leads-quotes-mobile"></script>
+    <script src="leads-kanban.js?v=20260918-leads-quotes-mobile"></script>
     <script src="schedule-engine.js"></script>
     <script src="financial-engine.js"></script>
 </body>
