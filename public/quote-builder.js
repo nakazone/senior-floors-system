@@ -1643,7 +1643,12 @@
       return;
     }
     try {
-      await api(`/api/quotes/${quoteId}/publish-client`, { method: 'POST', body: '{}' });
+      await api(`/api/quotes/${quoteId}/publish-client`, {
+        method: 'POST',
+        body: JSON.stringify({ mark_sent: true }),
+      });
+      const statusEl = $('status');
+      if (statusEl && statusEl.value === 'draft') statusEl.value = 'sent';
     } catch (_) {
       /* envio SMS segue; a cópia pública pode ficar na versão anterior */
     }

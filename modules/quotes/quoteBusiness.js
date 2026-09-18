@@ -8,6 +8,7 @@ import { summarizeQuoteProfit } from '../pricing/marginPricing.js';
 import { ensureProjectForApprovedQuote } from './quoteProjectFromApproval.js';
 import { applyQuoteLineRevenueToProject } from '../../lib/syncProjectRevenueFromQuote.js';
 import { getOwnerSignature, parseSignaturePngBase64 } from './quoteSignatureSettings.js';
+import { moveLeadToQuoteSentForQuote } from '../../lib/pipelineAutomation.js';
 
 /** Resumo no quote (PDF / listagem): tipos únicos por linha, ex. "Installation · Sand & Finishing". */
 export function deriveQuoteServiceSummary(items) {
@@ -358,6 +359,10 @@ export async function saveQuoteFull(pool, quoteId, body, userId, { snapshotPrevi
     newStFromBody &&
     ['approved', 'accepted'].includes(newStFromBody) &&
     (!prevSt || !['approved', 'accepted'].includes(prevSt));
+  const becameSent =
+    newStFromBody &&
+    ['sent', 'approved', 'accepted'].includes(newStFromBody) &&
+    (!prevSt || !['sent', 'approved', 'accepted', 'viewed'].includes(prevSt));
 
   await repo.replaceQuoteItems(pool, quoteId, items);
 
@@ -379,6 +384,12 @@ export async function saveQuoteFull(pool, quoteId, body, userId, { snapshotPrevi
       await ensureProjectForApprovedQuote(pool, quoteId);
     } catch (e) {
       console.error('[quotes] saveQuoteFull: project auto-create failed', e);
+    }
+  } else if (becameSent) {
+    try {
+      await moveLeadToQuoteSentForQuote(pool, quoteId);
+    } catch (e) {
+      console.warn('[quotes] saveQuoteFull: moveLeadToQuoteSentForQuote:', e.message);
     }
   }
 
@@ -685,9 +696,47 @@ export async function mailQuote(pool, quoteId, EmailOpts = {}) {
         [quoteId]
       );
     }
+    try {
+      await moveLeadToQuoteSentForQuote(pool, quoteId);
+    } catch (e) {
+      console.warn('[quotes] moveLeadToQuoteSentForQuote:', e.message);
+    }
   }
 
   return emailSentAt != null ? { ...result, email_sent_at: emailSentAt } : result;
+}
+
+/**
+ * Marca orçamento como enviado (ex.: SMS) e move o lead para Quote Sent.
+ */
+export async function markQuoteSent(pool, quoteId) {
+  const id = parseInt(String(quoteId), 10);
+  if (!Number.isFinite(id) || id <= 0) return { ok: false, error: 'Invalid id' };
+  const cols = await repo.quoteColumns(pool);
+  if (cols.has('email_sent_at')) {
+    await pool.execute(
+      `UPDATE quotes SET
+         status = CASE WHEN status = 'draft' THEN 'sent' ELSE status END,
+         email_sent_at = COALESCE(email_sent_at, NOW())
+       WHERE id = ?`,
+      [id]
+    );
+  } else if (cols.has('sent_at')) {
+    await pool.execute(
+      `UPDATE quotes SET
+         status = CASE WHEN status = 'draft' THEN 'sent' ELSE status END,
+         sent_at = COALESCE(sent_at, NOW())
+       WHERE id = ?`,
+      [id]
+    );
+  } else {
+    await pool.execute(
+      `UPDATE quotes SET status = CASE WHEN status = 'draft' THEN 'sent' ELSE status END WHERE id = ?`,
+      [id]
+    );
+  }
+  const moved = await moveLeadToQuoteSentForQuote(pool, id);
+  return { ok: true, lead_moved: !!moved.ok, lead_id: moved.lead_id || null };
 }
 
 export async function getByPublicToken(pool, token) {

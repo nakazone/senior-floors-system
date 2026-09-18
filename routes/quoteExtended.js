@@ -142,9 +142,34 @@ export async function postQuotePublishClient(req, res) {
         error: r.error === 'schema' ? 'Não foi possível gravar a cópia do cliente.' : r.error,
       });
     }
-    res.json({ success: true });
+    const markSent =
+      req.body?.mark_sent === true ||
+      req.body?.mark_sent === 1 ||
+      req.body?.mark_sent === '1' ||
+      req.query?.mark_sent === '1';
+    let lead = null;
+    if (markSent) {
+      const marked = await business.markQuoteSent(pool, id);
+      lead = marked;
+    }
+    res.json({ success: true, lead_moved: !!(lead && lead.lead_moved), lead_id: lead?.lead_id || null });
   } catch (e) {
     console.error('postQuotePublishClient:', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+}
+
+export async function postQuoteMarkSent(req, res) {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (!id) return res.status(400).json({ success: false, error: 'Invalid id' });
+    const pool = await getDBConnection();
+    if (!pool) return res.status(503).json({ success: false, error: 'Database not available' });
+    const r = await business.markQuoteSent(pool, id);
+    if (!r.ok) return res.status(400).json({ success: false, error: r.error });
+    res.json({ success: true, lead_moved: !!r.lead_moved, lead_id: r.lead_id || null });
+  } catch (e) {
+    console.error('postQuoteMarkSent:', e);
     res.status(500).json({ success: false, error: e.message });
   }
 }

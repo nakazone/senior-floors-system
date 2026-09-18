@@ -489,6 +489,7 @@ app.post('/api/quotes/:id/duplicate', requireAuth, requirePermission('quotes.cre
 app.post('/api/quotes/:id/generate-pdf', requireAuth, requirePermission('quotes.edit'), quoteExt.postQuoteGeneratePdf);
 app.post('/api/quotes/:id/send-email', requireAuth, requirePermission('quotes.edit'), quoteExt.postQuoteSendEmail);
 app.post('/api/quotes/:id/publish-client', requireAuth, requirePermission('quotes.edit'), quoteExt.postQuotePublishClient);
+app.post('/api/quotes/:id/mark-sent', requireAuth, requirePermission('quotes.edit'), quoteExt.postQuoteMarkSent);
 app.get('/api/quotes/:id/engagement', requireAuth, requirePermission('quotes.view'), quoteExt.getQuoteEngagement);
 app.get('/api/quotes/:id/snapshots', requireAuth, requirePermission('quotes.view'), quoteExt.getQuoteSnapshots);
 registerQuoteInvoiceRoutes(app);
