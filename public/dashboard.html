@@ -15,7 +15,7 @@
     <link rel="icon" type="image/png" href="/assets/SeniorFloors.png">
     <link rel="stylesheet" href="styles.css?v=20260915-qb-action-bar">
     <link rel="stylesheet" href="design-system.css?v=20260819-menu-fix-v2">
-    <link rel="stylesheet" href="mobile-design-system.css?v=20260918-leads-quotes-mobile">
+    <link rel="stylesheet" href="mobile-design-system.css?v=20260918-sticky-search">
     <link rel="stylesheet" href="crm-toast.css">
     <link rel="stylesheet" href="crm-pdf-viewer.css?v=20260531">
     <link rel="stylesheet" href="crm-command-palette.css">
@@ -515,16 +515,18 @@
                             </div>
                             <button type="button" class="btn btn-primary btn-cta-primary touchable" onclick="showNewLeadModal()" data-crm-permission="leads.view">+ Novo Lead</button>
                         </div>
-                        <div class="sf-quotes-toolbar leads-mobile-toolbar">
-                            <input type="search" id="leadsMobileSearch" class="sf-quotes-search" placeholder="Buscar nome, telefone, e-mail ou ID…" autocomplete="off" aria-label="Buscar leads" />
-                        </div>
-                        <div class="chiptrack" id="leadsMobileChiptrack" role="tablist" aria-label="Estágios do pipeline">
-                            <div class="chiptrack__scroll" id="leadsMobileChips"></div>
-                            <div class="chiptrack__bar" id="leadsMobileChipBar" aria-hidden="true"></div>
-                        </div>
-                        <div class="stagebar" id="leadsMobileStagebar" aria-live="polite">
-                            <span class="stagebar__count" id="leadsMobileStageCount">0 leads</span>
-                            <strong class="stagebar__value" id="leadsMobileStageValue">$0</strong>
+                        <div class="sf-mobile-sticky-chrome">
+                            <div class="sf-quotes-toolbar leads-mobile-toolbar">
+                                <input type="search" id="leadsMobileSearch" class="sf-quotes-search" placeholder="Buscar nome, telefone, e-mail ou ID…" autocomplete="off" aria-label="Buscar leads" />
+                            </div>
+                            <div class="chiptrack" id="leadsMobileChiptrack" role="tablist" aria-label="Estágios do pipeline">
+                                <div class="chiptrack__scroll" id="leadsMobileChips"></div>
+                                <div class="chiptrack__bar" id="leadsMobileChipBar" aria-hidden="true"></div>
+                            </div>
+                            <div class="stagebar" id="leadsMobileStagebar" aria-live="polite">
+                                <span class="stagebar__count" id="leadsMobileStageCount">0 leads</span>
+                                <strong class="stagebar__value" id="leadsMobileStageValue">$0</strong>
+                            </div>
                         </div>
                         <div id="leadsMobileList" class="llist" aria-label="Leads do estágio"></div>
                     </div>
@@ -1025,25 +1027,27 @@
                             <button type="button" class="btn btn-secondary" onclick="openImportInvoicePdfModal()">Importar PDF</button>
                         </div>
                         <div class="sf-ptr-indicator" id="quotesPtrIndicator" aria-hidden="true">↓ Largar para atualizar</div>
-                        <div class="sf-quotes-toolbar quotes-list-toolbar quotes-list-toolbar--mobile">
-                            <input type="search" id="quotesMobileSearch" class="sf-quotes-search quotes-list-toolbar__search" placeholder="Buscar cliente, nº quote ou e-mail…" autocomplete="off" aria-label="Buscar orçamentos" />
-                            <div class="quotes-list-toolbar__total" aria-live="polite">
-                                <span class="quotes-list-toolbar__total-label" id="quotesMobileTotalFilterLabel">Total</span>
-                                <strong class="quotes-list-toolbar__total-value" id="quotesMobileFilterTotalAmount">$0.00</strong>
-                                <span class="quotes-list-toolbar__total-meta" id="quotesMobileTotalCountMeta"></span>
+                        <div class="sf-mobile-sticky-chrome">
+                            <div class="sf-quotes-toolbar quotes-list-toolbar quotes-list-toolbar--mobile">
+                                <input type="search" id="quotesMobileSearch" class="sf-quotes-search quotes-list-toolbar__search" placeholder="Buscar cliente, nº quote ou e-mail…" autocomplete="off" aria-label="Buscar orçamentos" />
+                                <div class="quotes-list-toolbar__total" aria-live="polite">
+                                    <span class="quotes-list-toolbar__total-label" id="quotesMobileTotalFilterLabel">Total</span>
+                                    <strong class="quotes-list-toolbar__total-value" id="quotesMobileFilterTotalAmount">$0.00</strong>
+                                    <span class="quotes-list-toolbar__total-meta" id="quotesMobileTotalCountMeta"></span>
+                                </div>
                             </div>
-                        </div>
-                        <div class="chiptrack chiptrack--quotes" id="quotesMobileChiptrack" role="toolbar" aria-label="Filtros">
-                            <div class="chiptrack__scroll">
-                                <button type="button" class="quotes-filter-chip chiptrack__chip" data-quotes-filter="all" onclick="setQuotesFilter('all')">Todos</button>
-                                <button type="button" class="quotes-filter-chip chiptrack__chip" data-quotes-filter="draft" onclick="setQuotesFilter('draft')">Rascunho</button>
-                                <button type="button" class="quotes-filter-chip chiptrack__chip" data-quotes-filter="sent" onclick="setQuotesFilter('sent')">Enviado</button>
-                                <button type="button" class="quotes-filter-chip chiptrack__chip" data-quotes-filter="viewed" onclick="setQuotesFilter('viewed')">Visto</button>
-                                <button type="button" class="quotes-filter-chip chiptrack__chip" data-quotes-filter="approved" onclick="setQuotesFilter('approved')">Aprovado</button>
-                                <button type="button" class="quotes-filter-chip chiptrack__chip" data-quotes-filter="rejected" onclick="setQuotesFilter('rejected')">Rejeitado</button>
-                                <button type="button" class="quotes-filter-chip chiptrack__chip" data-quotes-filter="expiring7" onclick="setQuotesFilter('expiring7')">Expira ≤7d</button>
+                            <div class="chiptrack chiptrack--quotes" id="quotesMobileChiptrack" role="toolbar" aria-label="Filtros">
+                                <div class="chiptrack__scroll">
+                                    <button type="button" class="quotes-filter-chip chiptrack__chip" data-quotes-filter="all" onclick="setQuotesFilter('all')">Todos</button>
+                                    <button type="button" class="quotes-filter-chip chiptrack__chip" data-quotes-filter="draft" onclick="setQuotesFilter('draft')">Rascunho</button>
+                                    <button type="button" class="quotes-filter-chip chiptrack__chip" data-quotes-filter="sent" onclick="setQuotesFilter('sent')">Enviado</button>
+                                    <button type="button" class="quotes-filter-chip chiptrack__chip" data-quotes-filter="viewed" onclick="setQuotesFilter('viewed')">Visto</button>
+                                    <button type="button" class="quotes-filter-chip chiptrack__chip" data-quotes-filter="approved" onclick="setQuotesFilter('approved')">Aprovado</button>
+                                    <button type="button" class="quotes-filter-chip chiptrack__chip" data-quotes-filter="rejected" onclick="setQuotesFilter('rejected')">Rejeitado</button>
+                                    <button type="button" class="quotes-filter-chip chiptrack__chip" data-quotes-filter="expiring7" onclick="setQuotesFilter('expiring7')">Expira ≤7d</button>
+                                </div>
+                                <div class="chiptrack__bar" id="quotesMobileChipBar" aria-hidden="true"></div>
                             </div>
-                            <div class="chiptrack__bar" id="quotesMobileChipBar" aria-hidden="true"></div>
                         </div>
                         <div id="quotesMobileList" class="sf-quotes-card-list"></div>
                         <div class="quotes-mobile-load-more" style="text-align:center;padding:12px;">

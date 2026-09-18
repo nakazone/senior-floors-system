@@ -648,16 +648,27 @@
     box-shadow: var(--sf-shadow-sm);
   }
 
-  /* Quotes mobile */
-  .sf-quotes-toolbar {
+  /* Quotes / Leads mobile — chrome sticky (busca + chips)
+     top: 0 porque .dashboard-main já tem padding-top do header fixo */
+  .sf-mobile-sticky-chrome {
     position: sticky;
-    top: calc(var(--sf-safe-top) + var(--sf-header-height));
-    z-index: 3;
+    top: 0;
+    z-index: 6;
     background: var(--sf-bg-base);
-    padding-bottom: 8px;
     margin: 0 -4px;
-    padding-left: 4px;
-    padding-right: 4px;
+    padding: 0 4px 4px;
+    box-shadow: 0 8px 16px -12px rgba(15, 23, 42, 0.18);
+  }
+
+  .sf-quotes-toolbar {
+    position: relative;
+    top: auto;
+    z-index: auto;
+    background: transparent;
+    padding-bottom: 8px;
+    margin: 0;
+    padding-left: 0;
+    padding-right: 0;
   }
 
   .sf-quotes-search {
@@ -862,6 +873,11 @@
 
   .leads-mobile-toolbar {
     margin-bottom: 4px;
+  }
+
+  .sf-mobile-sticky-chrome .stagebar {
+    padding-top: 4px;
+    padding-bottom: 8px;
   }
 
   .chiptrack {
