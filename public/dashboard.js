@@ -3212,14 +3212,31 @@ async function loadInvoices() {
                 const qNum = escapeHtmlCrm(inv.quote_number || '—');
                 const client = escapeHtmlCrm(inv.customer_name || '—');
                 const type = escapeHtmlCrm(invoiceTypeLabel(inv.invoice_type));
-                const amt = Number(inv.amount || 0).toLocaleString(undefined, {
+                const amt = Number(inv.amount || 0);
+                const paid = Number(inv.paid_amount || 0);
+                const remaining =
+                    inv.remaining_amount != null
+                        ? Number(inv.remaining_amount)
+                        : Math.max(0, amt - paid);
+                const amtLabel = amt.toLocaleString(undefined, {
                     minimumFractionDigits: 2,
                     maximumFractionDigits: 2,
                 });
+                const payHint =
+                    paid > 0.009
+                        ? `<div class="quotes-cell-muted" style="font-size:11px;">Pago $${paid.toFixed(2)}${
+                              remaining > 0.009 ? ` · falta $${remaining.toFixed(2)}` : ''
+                          }</div>`
+                        : '';
                 const sentAt = escapeHtmlCrm(formatInvoiceListDate(inv.email_sent_at || inv.created_at));
+                const status = String(inv.status || '').toLowerCase();
                 const pdfBtn = inv.has_pdf
                     ? `<button type="button" class="btn btn-sm" onclick="event.stopPropagation(); openClientInvoicePdf(${inv.id})">PDF</button>`
                     : '<span class="quotes-cell-muted">—</span>';
+                const receiveBtn =
+                    status !== 'paid' && remaining > 0.009
+                        ? `<button type="button" class="btn btn-sm btn-primary" data-crm-permission="quotes.edit" onclick="event.stopPropagation(); openDashReceiptModal(${inv.id})">Receber</button>`
+                        : '';
                 const openQuote =
                     inv.quote_id != null
                         ? `<a class="btn btn-sm btn-secondary" href="quote-builder.html?id=${encodeURIComponent(String(inv.quote_id))}">Quote</a>`
@@ -3229,13 +3246,16 @@ async function loadInvoices() {
                     <td>${qNum}</td>
                     <td title="${client}">${client}</td>
                     <td>${type}</td>
-                    <td class="tabular-nums">$${amt}</td>
+                    <td class="tabular-nums">$${amtLabel}${payHint}</td>
                     <td>${invoiceStatusBadgeHtml(inv.status)}</td>
                     <td>${sentAt}</td>
-                    <td class="quotes-cell-actions">${pdfBtn} ${openQuote}</td>
+                    <td class="quotes-cell-actions">${pdfBtn} ${receiveBtn} ${openQuote}</td>
                 </tr>`;
             })
             .join('');
+        if (typeof applyCrmNavPermissions === 'function') {
+            applyCrmNavPermissions(crmUserPermissions, crmUserRole);
+        }
     } catch (e) {
         tbody.innerHTML =
             '<tr><td colspan="8" class="text-center">Erro de rede ao carregar invoices.</td></tr>';
@@ -3243,6 +3263,112 @@ async function loadInvoices() {
     }
 }
 window.loadInvoices = loadInvoices;
+
+async function openDashReceiptModal(invoiceId) {
+    const id = parseInt(String(invoiceId), 10);
+    if (!Number.isFinite(id) || id <= 0) return;
+    const modal = document.getElementById('dashReceiptModal');
+    if (!modal) return;
+    document.getElementById('dashRcpInvoiceId').value = String(id);
+    document.getElementById('dashRcpDate').value = new Date().toISOString().slice(0, 10);
+    document.getElementById('dashRcpMethod').value = 'check';
+    document.getElementById('dashRcpRef').value = '';
+    document.getElementById('dashRcpNotes').value = '';
+    const sendEl = document.getElementById('dashRcpSendEmail');
+    if (sendEl) sendEl.checked = true;
+    const metaEl = document.getElementById('dashRcpMeta');
+    if (metaEl) metaEl.textContent = 'A carregar saldo…';
+    document.getElementById('dashRcpAmount').value = '';
+    modal.style.display = 'flex';
+    modal.classList.add('active');
+    try {
+        const r = await fetch(`/api/quote-invoices/${id}/receipts`, { credentials: 'include' }).then((res) =>
+            res.json()
+        );
+        if (!r.success) {
+            if (metaEl) metaEl.textContent = r.error || 'Erro ao carregar saldo.';
+            return;
+        }
+        const bal = r.balance || {};
+        const remaining = Number(bal.remaining) || 0;
+        const paid = Number(bal.paid_total) || 0;
+        const amt = Number(bal.invoice_amount) || 0;
+        document.getElementById('dashRcpAmount').value =
+            remaining > 0 ? String(Math.round(remaining * 100) / 100) : '';
+        if (metaEl) {
+            metaEl.textContent = `${bal.invoice_number || `INV-${id}`} · total $${amt.toFixed(2)} · pago $${paid.toFixed(2)} · saldo $${remaining.toFixed(2)}`;
+        }
+    } catch (e) {
+        if (metaEl) metaEl.textContent = 'Não foi possível carregar o saldo.';
+    }
+}
+window.openDashReceiptModal = openDashReceiptModal;
+
+function closeDashReceiptModal() {
+    const modal = document.getElementById('dashReceiptModal');
+    if (!modal) return;
+    modal.style.display = 'none';
+    modal.classList.remove('active');
+}
+window.closeDashReceiptModal = closeDashReceiptModal;
+
+async function submitDashReceiptForm(e) {
+    e.preventDefault();
+    const invoiceId = document.getElementById('dashRcpInvoiceId')?.value;
+    if (!invoiceId) return;
+    const amount = parseFloat(document.getElementById('dashRcpAmount')?.value);
+    if (!(amount > 0)) {
+        crmToastSafe('Indique o valor recebido.', { type: 'error' });
+        return;
+    }
+    const btn = document.getElementById('dashRcpSubmit');
+    const prev = btn?.textContent;
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'A processar…';
+    }
+    try {
+        const body = {
+            amount,
+            payment_date: document.getElementById('dashRcpDate')?.value || undefined,
+            payment_method: document.getElementById('dashRcpMethod')?.value || 'check',
+            reference_number: document.getElementById('dashRcpRef')?.value || undefined,
+            notes: document.getElementById('dashRcpNotes')?.value || undefined,
+            send_email: !!document.getElementById('dashRcpSendEmail')?.checked,
+        };
+        const r = await fetch(`/api/quote-invoices/${invoiceId}/receipts`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        }).then((res) => res.json());
+        if (!r.success) {
+            crmToastSafe(r.error || 'Erro ao gerar recibo', { type: 'error' });
+            return;
+        }
+        closeDashReceiptModal();
+        const paidNote = r.invoice_paid ? ' Invoice liquidado.' : '';
+        crmToastSafe(
+            `Recibo ${r.data?.receipt_number || ''} criado.${paidNote}`,
+            { type: 'success' }
+        );
+        loadInvoices();
+        if (r.data?.id && window.crmPdfViewer?.openFromUrl) {
+            await window.crmPdfViewer.openFromUrl(`/api/invoice-receipts/${r.data.id}/pdf`, {
+                title: r.data.receipt_number ? `Recibo ${r.data.receipt_number}` : 'Recibo',
+                filename: `receipt-${r.data.id}.pdf`,
+            });
+        }
+    } catch (err) {
+        crmToastSafe(err.message || 'Erro de rede', { type: 'error' });
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = prev || 'Gerar recibo e dar baixa';
+        }
+    }
+}
+window.submitDashReceiptForm = submitDashReceiptForm;
 
 async function generateQuotePdfFromList(id) {
     const qid = parseInt(String(id), 10);

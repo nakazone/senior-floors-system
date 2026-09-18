@@ -2536,16 +2536,22 @@
       .map((inv) => {
         const due = inv.due_date ? String(inv.due_date).slice(0, 10) : '—';
         const status = inv.status || 'issued';
+        const paid = Number(inv.paid_amount) || 0;
+        const remaining = Number(inv.remaining_amount != null ? inv.remaining_amount : Math.max(0, Number(inv.amount) - paid));
+        const payMeta =
+          paid > 0.009
+            ? ` · pago ${money(paid)}${remaining > 0.009 ? ` · falta ${money(remaining)}` : ''}`
+            : '';
         return `<article class="qb-invoice-card" data-invoice-id="${inv.id}">
           <div class="qb-invoice-card__head">
             <span>${escapeHtmlText(inv.invoice_number || `INV-${inv.id}`)}</span>
             <span>${money(inv.amount)}</span>
           </div>
-          <div class="qb-invoice-card__meta">${escapeHtmlText(inv.invoice_type || 'payment')} · vence ${escapeHtmlText(due)} · ${escapeHtmlText(status)}</div>
+          <div class="qb-invoice-card__meta">${escapeHtmlText(inv.invoice_type || 'payment')} · vence ${escapeHtmlText(due)} · ${escapeHtmlText(status)}${payMeta}</div>
           <div class="qb-invoice-card__actions">
             <button type="button" class="btn btn-sm btn-secondary" data-inv-pdf="${inv.id}">Ver PDF</button>
             <button type="button" class="btn btn-sm btn-ghost" data-inv-email="${inv.id}">Enviar</button>
-            ${status !== 'paid' ? `<button type="button" class="btn btn-sm btn-ghost" data-inv-paid="${inv.id}">Marcar pago</button>` : ''}
+            ${status !== 'paid' && remaining > 0.009 ? `<button type="button" class="btn btn-sm btn-primary" data-inv-receive="${inv.id}">Receber / recibo</button>` : ''}
             ${status !== 'paid' ? `<button type="button" class="btn btn-sm btn-ghost text-red-600" data-inv-delete="${inv.id}">Apagar</button>` : ''}
           </div>
         </article>`;
@@ -2560,8 +2566,8 @@
     host.querySelectorAll('[data-inv-email]').forEach((btn) => {
       btn.addEventListener('click', () => void sendQuoteInvoiceEmail(btn.dataset.invEmail));
     });
-    host.querySelectorAll('[data-inv-paid]').forEach((btn) => {
-      btn.addEventListener('click', () => void markQuoteInvoicePaid(btn.dataset.invPaid));
+    host.querySelectorAll('[data-inv-receive]').forEach((btn) => {
+      btn.addEventListener('click', () => openReceiptModal(btn.dataset.invReceive));
     });
     host.querySelectorAll('[data-inv-delete]').forEach((btn) => {
       btn.addEventListener('click', () => void deleteQuoteInvoice(btn.dataset.invDelete));
@@ -2703,13 +2709,103 @@
   }
 
   async function markQuoteInvoicePaid(invoiceId) {
-    if (!invoiceId || !confirm('Marcar este invoice como pago?')) return;
+    openReceiptModal(invoiceId);
+  }
+
+  function openReceiptModal(invoiceId) {
+    const modal = $('qbReceiptModal');
+    if (!modal || !invoiceId) return;
+    const inv = quoteInvoices.find((i) => String(i.id) === String(invoiceId));
+    if (!inv) return;
+    const remaining =
+      inv.remaining_amount != null
+        ? Number(inv.remaining_amount)
+        : Math.max(0, Number(inv.amount) - (Number(inv.paid_amount) || 0));
+    $('rcpInvoiceId').value = String(inv.id);
+    $('rcpAmount').value = remaining > 0 ? String(Math.round(remaining * 100) / 100) : '';
+    $('rcpPaymentDate').value = new Date().toISOString().slice(0, 10);
+    $('rcpMethod').value = 'check';
+    $('rcpReference').value = '';
+    $('rcpNotes').value = '';
+    if ($('rcpSendEmail')) $('rcpSendEmail').checked = true;
+    const meta = $('rcpInvoiceMeta');
+    if (meta) {
+      meta.textContent = `${inv.invoice_number || `INV-${inv.id}`} · total ${money(inv.amount)} · já pago ${money(inv.paid_amount || 0)} · saldo ${money(remaining)}`;
+    }
+    const hint = $('rcpBalanceHint');
+    if (hint) {
+      hint.textContent =
+        remaining > 0.009
+          ? `Pode registar pagamento parcial ou o saldo completo ($${remaining.toFixed(2)}).`
+          : 'Invoice sem saldo em aberto.';
+    }
+    modal.classList.remove('hidden');
+    $('rcpAmount')?.focus();
+  }
+
+  function closeReceiptModal() {
+    $('qbReceiptModal')?.classList.add('hidden');
+  }
+
+  async function openReceiptPdf(receiptId, title) {
+    const url = `/api/invoice-receipts/${receiptId}/pdf`;
+    if (window.crmPdfViewer?.openFromUrl) {
+      await window.crmPdfViewer.openFromUrl(url, { title: title || 'Recibo', filename: `receipt-${receiptId}.pdf` });
+    } else {
+      window.open(url, '_blank', 'noopener');
+    }
+  }
+
+  async function submitReceiptForm(e) {
+    e.preventDefault();
+    const invoiceId = $('rcpInvoiceId')?.value;
+    if (!invoiceId) return;
+    const amount = parseFloat($('rcpAmount')?.value);
+    if (!(amount > 0)) {
+      window.crmToast?.error?.('Indique o valor recebido.');
+      return;
+    }
+    const btn = $('btnReceiptModalSubmit');
+    const prev = btn?.textContent;
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'A processar…';
+    }
     try {
-      await api(`/api/quote-invoices/${invoiceId}/mark-paid`, { method: 'POST', body: '{}' });
-      window.crmToast?.success?.('Invoice marcado como pago.');
+      const body = {
+        amount,
+        payment_date: $('rcpPaymentDate')?.value || undefined,
+        payment_method: $('rcpMethod')?.value || 'check',
+        reference_number: $('rcpReference')?.value || undefined,
+        notes: $('rcpNotes')?.value || undefined,
+        send_email: !!$('rcpSendEmail')?.checked,
+      };
+      const r = await api(`/api/quote-invoices/${invoiceId}/receipts`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      });
+      closeReceiptModal();
+      const paidNote = r.invoice_paid ? ' Invoice liquidado.' : '';
+      const emailNote =
+        r.email && r.email.ok === false
+          ? ` Recibo criado, mas e-mail falhou: ${r.email.error || 'erro'}.`
+          : r.email && r.email.ok
+            ? ' Recibo enviado por e-mail.'
+            : '';
+      window.crmToast?.success?.(
+        `Recibo ${r.data?.receipt_number || ''} · ${money(r.data?.amount)}.${paidNote}${emailNote}`
+      );
       await loadQuoteInvoices();
+      if (r.data?.id) {
+        void openReceiptPdf(r.data.id, r.data.receipt_number ? `Recibo ${r.data.receipt_number}` : 'Recibo');
+      }
     } catch (err) {
-      window.crmToast?.error?.(err.message || 'Erro ao atualizar invoice');
+      window.crmToast?.error?.(err.message || 'Erro ao gerar recibo');
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = prev || 'Gerar recibo e dar baixa';
+      }
     }
   }
 
@@ -2936,6 +3032,11 @@
     $('invType')?.addEventListener('change', syncInvoiceTypeFields);
     $('qbInvoiceModal')?.addEventListener('click', (e) => {
       if (e.target === $('qbInvoiceModal')) closeInvoiceModal();
+    });
+    $('btnReceiptModalCancel')?.addEventListener('click', closeReceiptModal);
+    $('qbReceiptForm')?.addEventListener('submit', submitReceiptForm);
+    $('qbReceiptModal')?.addEventListener('click', (e) => {
+      if (e.target === $('qbReceiptModal')) closeReceiptModal();
     });
     $('status')?.addEventListener('change', () => {
       syncInvoiceUiVisibility();

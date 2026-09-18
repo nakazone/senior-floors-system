@@ -2277,6 +2277,49 @@
     </div>
   </div>
 
+  <div id="qbReceiptModal" class="qb-modal hidden" role="dialog" aria-modal="true" aria-labelledby="qbReceiptModalTitle">
+    <div class="qb-modal__panel">
+      <h2 id="qbReceiptModalTitle" class="qb-modal__title">Receber pagamento</h2>
+      <p class="qb-modal__sub text-sm text-slate-500">Gera recibo (parcial ou total), dá baixa no invoice e opcionalmente envia ao cliente.</p>
+      <p id="rcpInvoiceMeta" class="text-sm text-slate-600 mb-3"></p>
+      <form id="qbReceiptForm" class="qb-invoice-form">
+        <input type="hidden" id="rcpInvoiceId" value="" />
+        <label class="qb-invoice-form__label">Valor recebido ($)
+          <input type="number" id="rcpAmount" class="qb-invoice-form__input" min="0.01" step="0.01" required />
+        </label>
+        <p id="rcpBalanceHint" class="text-xs text-slate-500 mb-1"></p>
+        <label class="qb-invoice-form__label">Data do pagamento
+          <input type="date" id="rcpPaymentDate" class="qb-invoice-form__input" required />
+        </label>
+        <label class="qb-invoice-form__label">Método
+          <select id="rcpMethod" class="qb-invoice-form__input">
+            <option value="check">Check</option>
+            <option value="zelle">Zelle</option>
+            <option value="venmo">Venmo</option>
+            <option value="bank_transfer">Bank transfer</option>
+            <option value="credit_card">Credit card</option>
+            <option value="cash">Cash</option>
+            <option value="other">Other</option>
+          </select>
+        </label>
+        <label class="qb-invoice-form__label">Referência (nº check / confirmação)
+          <input type="text" id="rcpReference" class="qb-invoice-form__input" maxlength="120" placeholder="Opcional" />
+        </label>
+        <label class="qb-invoice-form__label">Nota (opcional)
+          <textarea id="rcpNotes" class="qb-invoice-form__input" rows="2"></textarea>
+        </label>
+        <label class="qb-invoice-form__label" style="flex-direction:row;align-items:center;gap:8px;font-weight:500;">
+          <input type="checkbox" id="rcpSendEmail" checked />
+          Enviar recibo por e-mail ao cliente
+        </label>
+        <div class="qb-modal__actions">
+          <button type="button" class="btn btn-ghost" id="btnReceiptModalCancel">Cancelar</button>
+          <button type="submit" class="btn btn-primary" id="btnReceiptModalSubmit">Gerar recibo e dar baixa</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <div id="qbNotify" class="qb-notify hidden" role="alertdialog" aria-modal="true" aria-labelledby="qbNotifyTitle" aria-hidden="true">
     <div class="qb-notify__panel" role="document">
       <button type="button" class="qb-notify__close" id="qbNotifyClose" aria-label="Fechar">×</button>
@@ -2293,7 +2336,7 @@
   <script src="crm-pdf-viewer.js?v=20260531"></script>
   <script src="lead-contact-links.js?v=20260819-lead-email-msgs"></script>
   <script src="quote-signature-auto.js?v=20260708"></script>
-  <script src="quote-builder.js?v=20260915-svc-kb-gap"></script>
+  <script src="quote-builder.js?v=20260918-invoice-receipts"></script>
   <script>
     (function () {
       var t = document.getElementById('mobileMenuToggle');

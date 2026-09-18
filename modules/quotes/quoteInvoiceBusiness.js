@@ -41,6 +41,12 @@ async function nextInvoiceNumberForQuote(pool, quoteNumber) {
 }
 
 function mapInvoiceRow(r) {
+  const amount = Number(r.amount) || 0;
+  let paid_amount = r.paid_amount != null ? roundMoney(r.paid_amount) : 0;
+  if (paid_amount <= 0 && String(r.status || '').toLowerCase() === 'paid') {
+    paid_amount = amount;
+  }
+  const remaining_amount = roundMoney(Math.max(0, amount - paid_amount));
   return {
     id: r.id,
     quote_id: r.quote_id,
@@ -48,7 +54,9 @@ function mapInvoiceRow(r) {
     customer_id: r.customer_id,
     invoice_number: r.invoice_number,
     invoice_type: r.invoice_type,
-    amount: Number(r.amount),
+    amount,
+    paid_amount,
+    remaining_amount,
     quote_total: r.quote_total != null ? Number(r.quote_total) : null,
     due_date: r.due_date,
     status: r.status,
@@ -85,10 +93,16 @@ export async function getQuoteInvoiceBalance(pool, quoteId, quoteTotal) {
 
 export async function listInvoicesForQuote(pool, quoteId) {
   const [rows] = await pool.query(
-    `SELECT id, quote_id, project_id, customer_id, invoice_number, invoice_type, amount, quote_total,
-            due_date, status, payment_instructions, notes, email_sent_at, paid_at, created_at,
-            (pdf_blob IS NOT NULL AND LENGTH(pdf_blob) > 0) AS has_pdf
-     FROM quote_invoices WHERE quote_id = ? ORDER BY created_at DESC, id DESC`,
+    `SELECT qi.id, qi.quote_id, qi.project_id, qi.customer_id, qi.invoice_number, qi.invoice_type,
+            qi.amount, qi.quote_total, qi.due_date, qi.status, qi.payment_instructions, qi.notes,
+            qi.email_sent_at, qi.paid_at, qi.created_at,
+            (qi.pdf_blob IS NOT NULL AND LENGTH(qi.pdf_blob) > 0) AS has_pdf,
+            COALESCE((
+              SELECT SUM(r.amount) FROM invoice_payment_receipts r WHERE r.invoice_id = qi.id
+            ), 0) AS paid_amount
+     FROM quote_invoices qi
+     WHERE qi.quote_id = ?
+     ORDER BY qi.created_at DESC, qi.id DESC`,
     [quoteId]
   );
   const invoices = rows.map((r) => ({
@@ -162,6 +176,9 @@ export async function listAllQuoteInvoices(pool, opts = {}) {
             qi.amount, qi.quote_total, qi.due_date, qi.status, qi.payment_instructions, qi.notes,
             qi.email_sent_at, qi.paid_at, qi.created_at,
             (qi.pdf_blob IS NOT NULL AND LENGTH(qi.pdf_blob) > 0) AS has_pdf,
+            COALESCE((
+              SELECT SUM(r.amount) FROM invoice_payment_receipts r WHERE r.invoice_id = qi.id
+            ), 0) AS paid_amount,
             q.quote_number,
             COALESCE(c.name, l.name) AS customer_name,
             COALESCE(c.email, l.email) AS customer_email
@@ -480,6 +497,23 @@ export async function deleteQuoteInvoice(pool, invoiceId) {
   const inv = rows[0];
   if (String(inv.status || '').toLowerCase() === 'paid') {
     return { ok: false, error: 'Não é possível apagar um invoice marcado como pago.' };
+  }
+
+  const [rcptCount] = await pool.query(
+    `SELECT COUNT(*) AS c FROM information_schema.TABLES
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'invoice_payment_receipts'`
+  );
+  if (Number(rcptCount[0]?.c) > 0) {
+    const [[n]] = await pool.query(
+      'SELECT COUNT(*) AS c FROM invoice_payment_receipts WHERE invoice_id = ?',
+      [id]
+    );
+    if (Number(n?.c) > 0) {
+      return {
+        ok: false,
+        error: 'Não é possível apagar um invoice com recibos de pagamento. Anule ou ajuste os recibos primeiro.',
+      };
+    }
   }
 
   if (

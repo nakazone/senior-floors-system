@@ -4,6 +4,7 @@
 import { getDBConnection } from '../config/db.js';
 import { requireAuth, requirePermission } from '../middleware/auth.js';
 import * as inv from '../modules/quotes/quoteInvoiceBusiness.js';
+import * as receipts from '../modules/quotes/invoiceReceiptBusiness.js';
 
 export async function listQuoteInvoices(req, res) {
   try {
@@ -97,11 +98,106 @@ export async function postQuoteInvoiceMarkPaid(req, res) {
     if (!id) return res.status(400).json({ success: false, error: 'Invalid id' });
     const pool = await getDBConnection();
     if (!pool) return res.status(503).json({ success: false, error: 'Database not available' });
+    // Preferir recibo + baixa (parcial/total). Fallback: só status se tabela ainda não existir.
+    try {
+      const r = await receipts.markInvoicePaidWithReceipt(pool, id, req.body || {}, req.session?.userId);
+      if (!r.ok) return res.status(400).json({ success: false, error: r.error, balance: r.balance });
+      return res.json({
+        success: true,
+        data: r.data || null,
+        balance: r.balance,
+        already_paid: !!r.already_paid,
+        email: r.email || null,
+      });
+    } catch (inner) {
+      if (!String(inner.message || '').includes("doesn't exist") && inner.code !== 'ER_NO_SUCH_TABLE') {
+        throw inner;
+      }
+    }
     const ok = await inv.markInvoicePaid(pool, id);
     if (!ok) return res.status(404).json({ success: false, error: 'Invoice not found' });
     res.json({ success: true });
   } catch (e) {
     console.error('postQuoteInvoiceMarkPaid:', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+}
+
+export async function listInvoiceReceiptsHandler(req, res) {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (!id) return res.status(400).json({ success: false, error: 'Invalid id' });
+    const pool = await getDBConnection();
+    if (!pool) return res.status(503).json({ success: false, error: 'Database not available' });
+    const r = await receipts.listReceiptsForInvoice(pool, id);
+    if (!r.ok) return res.status(404).json({ success: false, error: r.error });
+    res.json({ success: true, data: r.data, balance: r.balance });
+  } catch (e) {
+    console.error('listInvoiceReceipts:', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+}
+
+export async function postInvoiceReceiptHandler(req, res) {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (!id) return res.status(400).json({ success: false, error: 'Invalid id' });
+    const pool = await getDBConnection();
+    if (!pool) return res.status(503).json({ success: false, error: 'Database not available' });
+    const r = await receipts.createInvoicePaymentReceipt(pool, id, req.body || {}, req.session?.userId);
+    if (!r.ok) {
+      const status = r.error === 'Invoice not found' ? 404 : 400;
+      return res.status(status).json({ success: false, error: r.error, balance: r.balance });
+    }
+    res.status(201).json({
+      success: true,
+      data: r.data,
+      balance: r.balance,
+      invoice_paid: !!r.invoice_paid,
+      email: r.email || null,
+    });
+  } catch (e) {
+    console.error('postInvoiceReceipt:', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+}
+
+export async function streamInvoiceReceiptPdf(req, res) {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (!id) return res.status(400).json({ success: false, error: 'Invalid id' });
+    const pool = await getDBConnection();
+    if (!pool) return res.status(503).json({ success: false, error: 'Database not available' });
+    const pdf = await receipts.getReceiptPdfBuffer(pool, id);
+    if (!pdf.ok) return res.status(404).json({ success: false, error: pdf.error || 'PDF not found' });
+    const fname = `receipt-${pdf.receipt_number || id}.pdf`.replace(/[^\w.-]+/g, '-');
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${fname}"`);
+    res.send(pdf.buffer);
+  } catch (e) {
+    console.error('streamInvoiceReceiptPdf:', e);
+    if (!res.headersSent) res.status(500).json({ success: false, error: e.message });
+  }
+}
+
+export async function postInvoiceReceiptSendEmail(req, res) {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (!id) return res.status(400).json({ success: false, error: 'Invalid id' });
+    const pool = await getDBConnection();
+    if (!pool) return res.status(503).json({ success: false, error: 'Database not available' });
+    const r = await receipts.mailInvoicePaymentReceipt(pool, id, {
+      to: req.body?.to,
+      subject: req.body?.subject,
+      html: req.body?.html,
+    });
+    if (!r.ok) {
+      const status = String(r.error || '').toLowerCase().includes('configurado') ? 503 : 400;
+      return res.status(status).json({ success: false, error: r.error });
+    }
+    res.json({ success: true, message_id: r.id, to: r.to });
+  } catch (e) {
+    console.error('postInvoiceReceiptSendEmail:', e);
     res.status(500).json({ success: false, error: e.message });
   }
 }
@@ -140,6 +236,30 @@ export function registerQuoteInvoiceRoutes(app) {
     requireAuth,
     requirePermission('quotes.edit'),
     postQuoteInvoiceMarkPaid
+  );
+  app.get(
+    '/api/quote-invoices/:id/receipts',
+    requireAuth,
+    requirePermission('quotes.view'),
+    listInvoiceReceiptsHandler
+  );
+  app.post(
+    '/api/quote-invoices/:id/receipts',
+    requireAuth,
+    requirePermission('quotes.edit'),
+    postInvoiceReceiptHandler
+  );
+  app.get(
+    '/api/invoice-receipts/:id/pdf',
+    requireAuth,
+    requirePermission('quotes.view'),
+    streamInvoiceReceiptPdf
+  );
+  app.post(
+    '/api/invoice-receipts/:id/send-email',
+    requireAuth,
+    requirePermission('quotes.edit'),
+    postInvoiceReceiptSendEmail
   );
   app.delete(
     '/api/quote-invoices/:id',
