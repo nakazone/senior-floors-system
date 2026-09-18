@@ -110,6 +110,7 @@ export async function postQuoteSendEmail(req, res) {
       cc: req.body.cc || req.body.extra_emails || req.body.extraEmails,
       subject: req.body.subject,
       html: req.body.html,
+      lead_id: req.body.lead_id ?? req.body.leadId ?? null,
     });
     if (!r.ok) {
       const status = String(r.error || '').toLowerCase().includes('não configurado') ? 503 : 400;
@@ -121,6 +122,9 @@ export async function postQuoteSendEmail(req, res) {
       resend_id: r.id,
       transport: r.transport || 'unknown',
       email_sent_at: r.email_sent_at || null,
+      lead_moved: !!r.lead_moved,
+      lead_id: r.lead_id || null,
+      lead_move_reason: r.lead_move_reason || null,
     });
   } catch (e) {
     console.error('postQuoteSendEmail:', e);
@@ -149,10 +153,17 @@ export async function postQuotePublishClient(req, res) {
       req.query?.mark_sent === '1';
     let lead = null;
     if (markSent) {
-      const marked = await business.markQuoteSent(pool, id);
+      const marked = await business.markQuoteSent(pool, id, {
+        leadId: req.body?.lead_id ?? req.body?.leadId ?? null,
+      });
       lead = marked;
     }
-    res.json({ success: true, lead_moved: !!(lead && lead.lead_moved), lead_id: lead?.lead_id || null });
+    res.json({
+      success: true,
+      lead_moved: !!(lead && lead.lead_moved),
+      lead_id: lead?.lead_id || null,
+      lead_move_reason: lead?.lead_move_reason || null,
+    });
   } catch (e) {
     console.error('postQuotePublishClient:', e);
     res.status(500).json({ success: false, error: e.message });
@@ -165,9 +176,16 @@ export async function postQuoteMarkSent(req, res) {
     if (!id) return res.status(400).json({ success: false, error: 'Invalid id' });
     const pool = await getDBConnection();
     if (!pool) return res.status(503).json({ success: false, error: 'Database not available' });
-    const r = await business.markQuoteSent(pool, id);
+    const r = await business.markQuoteSent(pool, id, {
+      leadId: req.body?.lead_id ?? req.body?.leadId ?? null,
+    });
     if (!r.ok) return res.status(400).json({ success: false, error: r.error });
-    res.json({ success: true, lead_moved: !!r.lead_moved, lead_id: r.lead_id || null });
+    res.json({
+      success: true,
+      lead_moved: !!r.lead_moved,
+      lead_id: r.lead_id || null,
+      lead_move_reason: r.lead_move_reason || null,
+    });
   } catch (e) {
     console.error('postQuoteMarkSent:', e);
     res.status(500).json({ success: false, error: e.message });

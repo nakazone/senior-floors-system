@@ -1549,6 +1549,23 @@
     else openQuoteSendMenu();
   }
 
+  function getCurrentQuoteLeadId() {
+    if (selectedQuoteLead && selectedQuoteLead.id != null) {
+      const n = Number(selectedQuoteLead.id);
+      if (Number.isFinite(n) && n > 0) return n;
+    }
+    if (loadedQuoteLeadId != null && Number.isFinite(loadedQuoteLeadId) && loadedQuoteLeadId > 0) {
+      return loadedQuoteLeadId;
+    }
+    if (pendingLeadId != null && Number.isFinite(pendingLeadId) && pendingLeadId > 0) {
+      return pendingLeadId;
+    }
+    const params = new URLSearchParams(location.search);
+    const fromUrl = parseInt(params.get('lead_id'), 10);
+    if (Number.isFinite(fromUrl) && fromUrl > 0) return fromUrl;
+    return null;
+  }
+
   async function sendQuoteByEmail() {
     closeQuoteSendMenu();
     if (!quoteId) return;
@@ -1581,6 +1598,8 @@
           ? builderExtraEmails.slice()
           : [];
       const body = extra.length ? { extra_emails: extra, cc: extra } : {};
+      const lid = getCurrentQuoteLeadId();
+      if (lid) body.lead_id = lid;
       const r = await api(`/api/quotes/${quoteId}/send-email`, {
         method: 'POST',
         body: JSON.stringify(body),
@@ -1599,10 +1618,16 @@
       if (statusEl && statusEl.value === 'draft') statusEl.value = 'sent';
       startQuoteViewPolling();
       const ccNote = extra.length ? ` (CC: ${extra.join(', ')})` : '';
+      const movedNote =
+        r.lead_moved === true
+          ? ' Lead movido para Quote Sent.'
+          : r.lead_move_reason === 'no_lead'
+            ? ' (Lead do Kanban não associado a este orçamento.)'
+            : '';
       showQuoteNotify({
         type: 'success',
         title: 'E-mail enviado',
-        message: `E-mail enviado para ${preview}${ccNote} (${how}) — só com link seguro. Será notificado quando o cliente abrir o link ou descarregar o PDF.`,
+        message: `E-mail enviado para ${preview}${ccNote} (${how}) — só com link seguro. Será notificado quando o cliente abrir o link ou descarregar o PDF.${movedNote}`,
       });
     } catch (e) {
       const raw = e.message || '';
@@ -1643,9 +1668,12 @@
       return;
     }
     try {
+      const markBody = { mark_sent: true };
+      const lid = getCurrentQuoteLeadId();
+      if (lid) markBody.lead_id = lid;
       await api(`/api/quotes/${quoteId}/publish-client`, {
         method: 'POST',
-        body: JSON.stringify({ mark_sent: true }),
+        body: JSON.stringify(markBody),
       });
       const statusEl = $('status');
       if (statusEl && statusEl.value === 'draft') statusEl.value = 'sent';
@@ -3301,9 +3329,9 @@
     const params = new URLSearchParams(location.search);
     const qid = params.get('id');
     const leadParam = params.get('lead_id');
-    if (leadParam && !qid) {
+    if (leadParam) {
       const n = parseInt(leadParam, 10);
-      if (Number.isFinite(n)) pendingLeadId = n;
+      if (Number.isFinite(n) && n > 0) pendingLeadId = n;
     }
     if (qid) {
       await loadQuote(parseInt(qid, 10));
@@ -3324,11 +3352,18 @@
     updateClientActionButtons();
 
     if (pendingLeadId != null && Number.isFinite(pendingLeadId)) {
-      try {
-        const lr = await fetch(`/api/leads/${pendingLeadId}`, { credentials: 'include' }).then((r) => r.json());
-        if (lr.success && lr.data) await selectLeadAsClient(lr.data);
-      } catch (_) {
-        /* ignore */
+      const alreadyBound =
+        (selectedQuoteLead && Number(selectedQuoteLead.id) === pendingLeadId) ||
+        (loadedQuoteLeadId != null && Number(loadedQuoteLeadId) === pendingLeadId);
+      if (!alreadyBound || !selectedQuoteLead) {
+        try {
+          const lr = await fetch(`/api/leads/${pendingLeadId}`, { credentials: 'include' }).then((r) =>
+            r.json()
+          );
+          if (lr.success && lr.data) await selectLeadAsClient(lr.data);
+        } catch (_) {
+          /* ignore */
+        }
       }
     }
 

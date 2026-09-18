@@ -522,6 +522,14 @@ export async function createQuoteFull(pool, body, userId) {
     } catch (e) {
       console.error('[quotes] createQuoteFull: project auto-create failed', e);
     }
+  } else if (['sent', 'viewed'].includes(stNew)) {
+    try {
+      await moveLeadToQuoteSentForQuote(pool, quoteId, {
+        leadId: body.lead_id ?? null,
+      });
+    } catch (e) {
+      console.warn('[quotes] createQuoteFull: moveLeadToQuoteSentForQuote:', e.message);
+    }
   }
 
   try {
@@ -675,6 +683,7 @@ export async function mailQuote(pool, quoteId, EmailOpts = {}) {
   });
 
   let emailSentAt = null;
+  let leadMoved = null;
   if (result.ok) {
     const cols = await repo.quoteColumns(pool);
     if (cols.has('email_sent_at')) {
@@ -697,19 +706,31 @@ export async function mailQuote(pool, quoteId, EmailOpts = {}) {
       );
     }
     try {
-      await moveLeadToQuoteSentForQuote(pool, quoteId);
+      leadMoved = await moveLeadToQuoteSentForQuote(pool, quoteId, {
+        leadId: EmailOpts.lead_id ?? EmailOpts.leadId ?? null,
+      });
     } catch (e) {
       console.warn('[quotes] moveLeadToQuoteSentForQuote:', e.message);
+      leadMoved = { ok: false, reason: e.message };
     }
   }
 
-  return emailSentAt != null ? { ...result, email_sent_at: emailSentAt } : result;
+  const out = emailSentAt != null ? { ...result, email_sent_at: emailSentAt } : { ...result };
+  if (leadMoved) {
+    out.lead_moved = !!leadMoved.ok;
+    out.lead_id = leadMoved.lead_id || null;
+    if (!leadMoved.ok && leadMoved.reason) out.lead_move_reason = leadMoved.reason;
+  }
+  return out;
 }
 
 /**
  * Marca orçamento como enviado (ex.: SMS) e move o lead para Quote Sent.
+ * @param {import('mysql2/promise').Pool} pool
+ * @param {number|string} quoteId
+ * @param {{ leadId?: number|string|null }} [opts]
  */
-export async function markQuoteSent(pool, quoteId) {
+export async function markQuoteSent(pool, quoteId, opts = {}) {
   const id = parseInt(String(quoteId), 10);
   if (!Number.isFinite(id) || id <= 0) return { ok: false, error: 'Invalid id' };
   const cols = await repo.quoteColumns(pool);
@@ -735,8 +756,15 @@ export async function markQuoteSent(pool, quoteId) {
       [id]
     );
   }
-  const moved = await moveLeadToQuoteSentForQuote(pool, id);
-  return { ok: true, lead_moved: !!moved.ok, lead_id: moved.lead_id || null };
+  const moved = await moveLeadToQuoteSentForQuote(pool, id, {
+    leadId: opts.leadId ?? opts.lead_id ?? null,
+  });
+  return {
+    ok: true,
+    lead_moved: !!moved.ok,
+    lead_id: moved.lead_id || null,
+    lead_move_reason: moved.ok ? null : moved.reason || null,
+  };
 }
 
 export async function getByPublicToken(pool, token) {
